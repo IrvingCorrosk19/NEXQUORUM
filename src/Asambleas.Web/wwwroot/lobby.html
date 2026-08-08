@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASAMBLEAS — Lobby</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <div class="page-shell">
+    <header class="page-header">
+      <h1 class="brand">ASAMBLEAS</h1>
+      <a id="link-dashboard" class="btn btn-secondary" href="#">Volver</a>
+    </header>
+    <main id="main" class="page-main" style="width:min(720px,100%)">
+      <div id="page-alert" class="alert" hidden role="alert"></div>
+      <section class="page-hero">
+        <h1 id="lobby-title">Lobby de asamblea</h1>
+        <div class="meta-row" id="lobby-meta"></div>
+      </section>
+
+      <div class="stack">
+        <section class="panel">
+          <dl class="accreditation-grid" id="participant-facts">
+            <div><dt>Participante</dt><dd id="fact-participant">—</dd></div>
+            <div><dt>Unidad</dt><dd id="fact-unit">—</dd></div>
+            <div><dt>Acreditación</dt><dd id="fact-accreditation">—</dd></div>
+            <div><dt>Conexión</dt><dd id="fact-connection">—</dd></div>
+            <div><dt>Quórum</dt><dd id="fact-quorum">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel" aria-label="Vista previa">
+          <div class="device-preview" id="preview-mount">
+            <video id="preview-video" playsinline muted autoplay hidden></video>
+            <p id="preview-fallback" class="muted" style="padding:1rem;text-align:center;color:#f4f7f8"></p>
+          </div>
+          <div class="device-toggles" style="margin-top:1rem">
+            <div class="device-toggle">
+              <span id="label-camera">Cámara</span>
+              <button type="button" id="toggle-camera" class="btn btn-secondary" aria-pressed="true">Activado</button>
+            </div>
+            <div class="device-toggle">
+              <span id="label-mic">Micrófono</span>
+              <button type="button" id="toggle-mic" class="btn btn-secondary" aria-pressed="true">Activado</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <button type="button" id="btn-enter" class="btn btn-primary" style="width:100%;padding:1rem;font-size:1.05rem">
+            ENTRAR A LA ASAMBLEA
+          </button>
+          <ul id="staged-loading" class="staged-loading" hidden aria-live="polite"></ul>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="/js/modules/lobby-app.js"></script>
+</body>
+</html>

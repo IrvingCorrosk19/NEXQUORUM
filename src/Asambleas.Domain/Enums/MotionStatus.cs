@@ -1,0 +1,10 @@
+namespace Asambleas.Domain.Enums;
+
+public enum MotionStatus
+{
+    Draft = 0,
+    Presented = 1,
+    Voting = 2,
+    Approved = 3,
+    Rejected = 4
+}

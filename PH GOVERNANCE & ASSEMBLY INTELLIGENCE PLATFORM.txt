@@ -1,0 +1,2515 @@
+PH GOVERNANCE & ASSEMBLY INTELLIGENCE PLATFORM
+# ASAMBLEAS
+
+## PH GOVERNANCE & ASSEMBLY INTELLIGENCE PLATFORM
+
+### MASTER IMPLEMENTATION PLAN
+
+**Versión:** 1.0
+**Clasificación:** Enterprise SaaS / Multi-Tenant / Governance Platform
+**Mercado inicial:** Propiedad Horizontal — Panamá
+**Proyección:** Latinoamérica / Internacional
+**Arquitectura:** Modular Monolith Enterprise, preparada para evolución distribuida
+**Estado inicial:** Planning / Architecture Baseline
+
+---
+
+# 1. VISIÓN DEL PRODUCTO
+
+ASAMBLEAS será una plataforma SaaS especializada en la administración integral del ciclo de gobernanza de una Propiedad Horizontal.
+
+La solución no será únicamente un sistema para registrar asistencia o realizar votaciones.
+
+Administrará:
+
+**Convocar → acreditar → asistir → verificar quórum → deliberar → presentar mociones → votar → decidir → documentar → firmar → ejecutar → auditar → medir.**
+
+La plataforma deberá funcionar para:
+
+* PH independientes.
+* Administradoras de PH.
+* Empresas operadoras de asambleas.
+* Juntas directivas.
+* Secretarios.
+* Presidentes de asamblea.
+* Propietarios.
+* Apoderados.
+* Auditores.
+* Operadores.
+* Organizaciones con decenas o cientos de PH.
+
+---
+
+# 2. OBJETIVO GENERAL
+
+Diseñar, desarrollar y certificar una plataforma SaaS empresarial, segura, escalable, mantenible, auditable y multi-tenant para administrar presencial, virtual e híbrida todo el ciclo de vida de las asambleas de Propiedad Horizontal.
+
+La plataforma deberá garantizar trazabilidad completa desde la convocatoria hasta la ejecución de las decisiones aprobadas.
+
+---
+
+# 3. OBJETIVOS ESPECÍFICOS
+
+## OE-01 — Multi-PH
+
+Permitir que una organización administradora gestione múltiples propiedades horizontales manteniendo aislamiento lógico y de seguridad entre ellas.
+
+## OE-02 — Expediente digital del PH
+
+Centralizar:
+
+* PH.
+* unidades;
+* propietarios;
+* copropietarios;
+* coeficientes;
+* representantes;
+* documentos;
+* junta directiva;
+* reglamentos;
+* configuración;
+* historial.
+
+## OE-03 — Convocatorias
+
+Administrar convocatorias digitales con:
+
+* destinatarios;
+* documentos;
+* agenda;
+* canales;
+* evidencia de entrega;
+* recordatorios;
+* confirmaciones.
+
+## OE-04 — Poderes y representación
+
+Registrar y validar poderes otorgados para representación durante las asambleas.
+
+## OE-05 — Acreditación
+
+Determinar automáticamente:
+
+* quién puede participar;
+* quién puede tener voz;
+* quién puede votar;
+* qué unidad representa;
+* qué coeficiente representa;
+* qué poderes posee.
+
+## OE-06 — Asistencia
+
+Controlar asistencia:
+
+* presencial;
+* virtual;
+* híbrida;
+* representada.
+
+## OE-07 — Quórum
+
+Crear un Quorum Engine capaz de determinar dinámicamente el porcentaje válido de participación.
+
+## OE-08 — Agenda
+
+Gestionar estructuradamente el orden del día.
+
+## OE-09 — Mociones
+
+Registrar propuestas, modificaciones, mociones, proponentes y resultados.
+
+## OE-10 — Votación
+
+Crear un Voting Engine empresarial adaptable a diferentes reglas de votación.
+
+## OE-11 — Decisiones
+
+Implementar un Decision Engine que determine automáticamente el resultado conforme a las reglas configuradas.
+
+## OE-12 — Elecciones
+
+Gestionar procesos electorales internos y elección de juntas directivas.
+
+## OE-13 — Asambleas virtuales
+
+Proporcionar infraestructura de reunión virtual integrada con:
+
+* identidad;
+* asistencia;
+* quórum;
+* voz;
+* documentos;
+* votaciones;
+* auditoría.
+
+## OE-14 — Actas
+
+Generar automáticamente borradores estructurados de actas.
+
+## OE-15 — Evidencias
+
+Crear un Evidence Vault con todos los elementos probatorios de cada asamblea.
+
+## OE-16 — Ejecución
+
+Convertir decisiones aprobadas en compromisos controlables.
+
+## OE-17 — Inteligencia
+
+Proporcionar indicadores operativos, históricos y ejecutivos.
+
+## OE-18 — IA
+
+Desarrollar Assembly Copilot para consulta, búsqueda, resumen y asistencia documental.
+
+## OE-19 — Auditoría
+
+Mantener un Audit Trail detallado e irreversible lógicamente para las acciones críticas.
+
+## OE-20 — Escalabilidad
+
+Permitir crecimiento progresivo sin rediseño completo de la plataforma.
+
+---
+
+# 4. PRINCIPIOS DE ARQUITECTURA
+
+La plataforma deberá seguir obligatoriamente:
+
+**Security by Design**
+
+**Privacy by Design**
+
+**Auditability by Design**
+
+**Multi-Tenancy by Design**
+
+**Accessibility by Design**
+
+**Observability by Design**
+
+**API First**
+
+**Mobile First**
+
+**Progressive Enhancement**
+
+**Zero Trust**
+
+**Least Privilege**
+
+**Defense in Depth**
+
+**Separation of Concerns**
+
+**SOLID**
+
+**Clean Architecture donde genere valor**
+
+**Domain Driven Design pragmático**
+
+**No Overengineering**
+
+---
+
+# 5. STACK TECNOLÓGICO
+
+## Backend
+
+### .NET 10 LTS
+
+Framework principal:
+
+**ASP.NET Core 10**
+
+Lenguaje:
+
+**C#**
+
+Se utilizará para:
+
+* MVC;
+* Web APIs;
+* SignalR;
+* autenticación;
+* autorización;
+* servicios;
+* procesamiento;
+* integración;
+* background workers;
+* realtime.
+
+No se utilizarán versiones Preview para producción.
+
+---
+
+# 6. BASE DE DATOS
+
+## PostgreSQL 18
+
+Será la base de datos transaccional principal.
+
+Uso obligatorio de:
+
+* UUID/UUIDv7 donde corresponda;
+* índices adecuados;
+* índices parciales;
+* índices compuestos;
+* constraints;
+* foreign keys;
+* JSONB solamente cuando tenga sentido;
+* full-text search;
+* transacciones;
+* optimistic concurrency;
+* funciones específicas cuando aporten valor;
+* views/materialized views para casos analíticos determinados;
+* particionamiento cuando el volumen realmente lo justifique.
+
+ORM:
+
+**Entity Framework Core 10**
+
+Complementariamente podrá utilizarse SQL optimizado cuando una consulta crítica lo requiera.
+
+Regla:
+
+> EF Core no debe convertirse en excusa para generar consultas ineficientes.
+
+Se inspeccionará SQL generado en operaciones críticas.
+
+---
+
+# 7. FRONTEND
+
+No propongo convertir inicialmente la plataforma en una SPA enorme si no existe una razón empresarial para ello.
+
+Arquitectura frontend:
+
+**ASP.NET Core MVC / Razor + HTML + CSS + JavaScript moderno.**
+
+## HTML
+
+Semantic HTML moderno.
+
+Uso correcto de:
+
+* header;
+* main;
+* nav;
+* section;
+* article;
+* aside;
+* dialog;
+* form;
+* fieldset;
+* labels;
+* ARIA cuando corresponda.
+
+---
+
+# 8. JAVASCRIPT
+
+## ECMAScript 2025
+
+JavaScript moderno basado en estándares.
+
+Uso de:
+
+* ES Modules;
+* async/await;
+* promises;
+* fetch;
+* AbortController;
+* Web APIs;
+* modules;
+* classes solamente cuando tengan sentido;
+* private fields donde sean apropiados;
+* Set / Map;
+* iterator helpers cuando la compatibilidad objetivo lo permita;
+* modern DOM APIs.
+
+No crear un proyecto lleno de JavaScript global.
+
+Estructura propuesta:
+
+```text
+wwwroot/js/
+
+core/
+components/
+modules/
+services/
+pages/
+utils/
+validation/
+realtime/
+accessibility/
+```
+
+Cada módulo tendrá responsabilidades claras.
+
+---
+
+# 9. CSS
+
+CSS moderno.
+
+Arquitectura basada en:
+
+* CSS Custom Properties;
+* Grid;
+* Flexbox;
+* Container Queries cuando corresponda;
+* logical properties;
+* responsive typography;
+* responsive layout;
+* design tokens;
+* component isolation;
+* reduced motion;
+* dark/light themes.
+
+Evitar:
+
+* CSS inline descontrolado;
+* estilos duplicados;
+* !important innecesarios;
+* archivos monstruosos;
+* selectores altamente acoplados.
+
+---
+
+# 10. DESIGN SYSTEM
+
+Se creará:
+
+# ASAMBLEAS DESIGN SYSTEM — ADS
+
+Debe definir:
+
+## Foundations
+
+* colores;
+* tipografía;
+* espaciado;
+* radios;
+* elevaciones;
+* iconografía;
+* motion;
+* breakpoints;
+* grids.
+
+## Components
+
+* buttons;
+* inputs;
+* selects;
+* dialogs;
+* drawers;
+* cards;
+* tables;
+* badges;
+* alerts;
+* toast;
+* dropdown;
+* tooltip;
+* autocomplete;
+* command palette;
+* tabs;
+* steppers;
+* charts;
+* timelines;
+* voting components;
+* quorum indicators.
+
+No se diseñarán componentes improvisadamente vista por vista.
+
+---
+
+# 11. UI/UX
+
+La interfaz deberá ser:
+
+* profesional;
+* moderna;
+* rápida;
+* intuitiva;
+* consistente;
+* responsive;
+* accesible;
+* premium;
+* limpia.
+
+No deberá parecer:
+
+* plantilla Bootstrap genérica;
+* ERP del año 2010;
+* colección de formularios CRUD.
+
+La aplicación deberá comunicar:
+
+**confianza + gobernanza + transparencia + tecnología.**
+
+---
+
+# 12. UI ADAPTATIVA POR ROL
+
+Un propietario no necesita la misma interfaz que un operador.
+
+Ejemplos:
+
+### Propietario
+
+UI extremadamente simple.
+
+### Operador
+
+Assembly Cockpit.
+
+### Administrador
+
+Gestión operativa.
+
+### Junta Directiva
+
+Gobernanza y seguimiento.
+
+### Administradora
+
+Portfolio Command Center.
+
+### Auditor
+
+Evidencias y trazabilidad.
+
+---
+
+# 13. ACCESIBILIDAD
+
+Objetivo:
+
+**WCAG 2.2 AA**
+
+Incluir:
+
+* navegación completa por teclado;
+* focus visible;
+* screen readers;
+* contraste;
+* labels;
+* ARIA adecuado;
+* skip links;
+* reduced motion;
+* validaciones accesibles;
+* tablas accesibles;
+* modales accesibles.
+
+---
+
+# 14. RESPONSIVE DESIGN
+
+Debe certificarse:
+
+### Mobile
+
+320px+
+
+### Tablet
+
+768px+
+
+### Desktop
+
+1024px+
+
+### Wide Screen
+
+1440px+
+
+### Command Center
+
+1920px+
+
+---
+
+# 15. ARQUITECTURA DE SOLUCIÓN
+
+Propuesta:
+
+```text
+src/
+
+Asambleas.Web
+Asambleas.Application
+Asambleas.Domain
+Asambleas.Infrastructure
+Asambleas.Contracts
+Asambleas.Workers
+
+tests/
+
+Asambleas.UnitTests
+Asambleas.IntegrationTests
+Asambleas.ArchitectureTests
+Asambleas.SecurityTests
+Asambleas.E2ETests
+Asambleas.PerformanceTests
+```
+
+---
+
+# 16. ESTRATEGIA ARQUITECTÓNICA
+
+Se comenzará con:
+
+# MODULAR MONOLITH
+
+No microservicios prematuros.
+
+Razón:
+
+ASAMBLEAS tendrá muchos dominios, pero inicialmente necesitamos:
+
+* simplicidad operativa;
+* consistencia transaccional;
+* despliegue controlado;
+* debugging sencillo;
+* velocidad de desarrollo.
+
+Cada dominio deberá poseer fronteras claras.
+
+Posteriormente, módulos de alta carga podrán extraerse sin destruir el producto.
+
+Ejemplos potenciales:
+
+* Notifications;
+* Video;
+* Analytics;
+* AI;
+* Media Processing.
+
+---
+
+# 17. DOMINIOS DEL SISTEMA
+
+Se implementarán inicialmente:
+
+```text
+01 Identity
+02 SaaS
+03 Tenant Management
+04 Organizations
+05 PH Management
+06 Units
+07 Ownership
+08 Assemblies
+09 Convocations
+10 Accreditation
+11 Powers
+12 Attendance
+13 Quorum
+14 Agenda
+15 Motions
+16 Voting
+17 Elections
+18 Decisions
+19 Meetings
+20 Documents
+21 Minutes
+22 Signatures
+23 Evidence
+24 Decision Execution
+25 Communications
+26 Analytics
+27 AI
+28 Integrations
+29 Audit
+30 Administration
+31 Command Center
+```
+
+---
+
+# 18. MODELO MULTI-TENANT
+
+Jerarquía:
+
+```text
+PLATFORM
+     │
+     ▼
+ORGANIZATION
+     │
+     ▼
+PROPERTY HORIZONTAL
+     │
+     ▼
+ASSEMBLY
+```
+
+Ejemplo:
+
+```text
+ASAMBLEAS
+│
+├── Administradora ABC
+│   ├── PH Ocean Tower
+│   ├── PH Marbella
+│   └── PH Pacific
+│
+└── Administradora XYZ
+    ├── PH Central
+    └── PH Green Park
+```
+
+---
+
+# 19. AISLAMIENTO MULTI-TENANT
+
+Cada entidad empresarial deberá estar asociada a:
+
+**TenantId**
+
+y cuando corresponda:
+
+**PropertyHorizontalId**
+
+Regla:
+
+> Ningún dato de un tenant puede ser consultado mediante una sesión perteneciente a otro tenant.
+
+Se implementarán pruebas automáticas específicas para intentar romper esta regla.
+
+---
+
+# 20. IDENTITY & ACCESS MANAGEMENT
+
+Implementar:
+
+* usuarios;
+* roles;
+* permissions;
+* claims;
+* MFA;
+* recovery;
+* lockouts;
+* sessions;
+* device tracking;
+* password policies;
+* login audit;
+* suspicious activity detection.
+
+---
+
+# 21. RBAC
+
+Permisos granulares.
+
+Ejemplos:
+
+```text
+assembly:create
+assembly:view
+assembly:update
+assembly:start
+assembly:close
+
+attendance:view
+attendance:manage
+
+quorum:view
+quorum:configure
+
+vote:create
+vote:open
+vote:close
+vote:view-results
+
+decision:view
+decision:execute
+
+minutes:generate
+minutes:approve
+
+audit:view
+```
+
+---
+
+# 22. PH MASTER
+
+Gestionará:
+
+* información general;
+* RUC;
+* dirección;
+* datos legales;
+* administradora;
+* junta directiva;
+* reglamentos;
+* configuración;
+* unidades;
+* coeficientes;
+* documentos;
+* contactos.
+
+---
+
+# 23. OWNERSHIP ENGINE
+
+Mantendrá historial de:
+
+```text
+PROPERTY
+   ↓
+UNIT
+   ↓
+OWNERSHIP
+   ↓
+OWNER
+```
+
+Nunca eliminar historia de propiedad.
+
+---
+
+# 24. ASSEMBLY BUILDER
+
+Wizard para crear una asamblea:
+
+### Paso 1
+
+Información.
+
+### Paso 2
+
+Modalidad.
+
+### Paso 3
+
+Fecha/lugar.
+
+### Paso 4
+
+Participantes.
+
+### Paso 5
+
+Agenda.
+
+### Paso 6
+
+Documentos.
+
+### Paso 7
+
+Reglas.
+
+### Paso 8
+
+Convocatoria.
+
+### Paso 9
+
+Validación.
+
+### Paso 10
+
+Publicación.
+
+---
+
+# 25. CONVOCATION ENGINE
+
+Canales preparados para:
+
+* email;
+* WhatsApp;
+* SMS;
+* portal;
+* push.
+
+Estados:
+
+```text
+CREATED
+QUEUED
+SENT
+DELIVERED
+OPENED
+CONFIRMED
+FAILED
+```
+
+---
+
+# 26. POWER / PROXY ENGINE
+
+Gestionará poderes.
+
+Estados:
+
+```text
+DRAFT
+SUBMITTED
+UNDER_REVIEW
+APPROVED
+REJECTED
+REVOKED
+EXPIRED
+```
+
+Detección de:
+
+* duplicidad;
+* conflicto;
+* representación excesiva;
+* documentos faltantes;
+* unidad incompatible.
+
+---
+
+# 27. ACCREDITATION ENGINE
+
+Determinará:
+
+```text
+Identity
+   +
+Ownership
+   +
+Representation
+   +
+Eligibility
+   +
+Assembly Rules
+   ↓
+Accreditation
+```
+
+Resultado:
+
+* voz;
+* voto;
+* unidades representadas;
+* coeficiente.
+
+---
+
+# 28. ATTENDANCE ENGINE
+
+Estados:
+
+```text
+REGISTERED
+CHECKED_IN
+PRESENT
+VIRTUAL_PRESENT
+REPRESENTED
+TEMPORARILY_DISCONNECTED
+LEFT
+```
+
+Toda transición debe quedar auditada.
+
+---
+
+# 29. QUORUM ENGINE
+
+Motor central.
+
+Debe soportar:
+
+* unidad;
+* persona;
+* coeficiente;
+* representación;
+* elegibilidad;
+* primera convocatoria;
+* segunda convocatoria;
+* reglas especiales.
+
+Entrada:
+
+```text
+Eligible Units
++
+Present Units
++
+Represented Units
++
+Participation Coefficients
++
+Rules
+```
+
+Salida:
+
+```text
+Current Quorum
+Required Quorum
+Status
+Evidence
+```
+
+---
+
+# 30. ASSEMBLY COCKPIT
+
+Pantalla operacional principal.
+
+Mostrará en tiempo real:
+
+```text
+LIVE
+
+Assembly
+Duration
+
+Participants
+Virtual
+Physical
+Represented
+
+Current Quorum
+
+Current Agenda
+
+Current Motion
+
+Voting Status
+
+Requests to Speak
+
+Incidents
+```
+
+SignalR manejará la comunicación realtime.
+
+---
+
+# 31. AGENDA ENGINE
+
+Cada punto tendrá:
+
+* número;
+* título;
+* descripción;
+* documentos;
+* responsable;
+* duración;
+* estado;
+* mociones;
+* decisiones.
+
+Estados:
+
+```text
+PENDING
+ACTIVE
+PAUSED
+COMPLETED
+SKIPPED
+```
+
+---
+
+# 32. MOTION ENGINE
+
+Moción:
+
+```text
+Motion
+
+Proposer
+SecondedBy
+AgendaItem
+Text
+Version
+Status
+VotingRule
+```
+
+Debe soportar modificaciones sin destruir versiones anteriores.
+
+---
+
+# 33. VOTING ENGINE
+
+Tipos:
+
+* Yes/No;
+* Yes/No/Abstention;
+* single choice;
+* multiple choice;
+* candidates;
+* board election;
+* weighted voting;
+* coefficient voting;
+* unit voting;
+* secret voting;
+* nominal voting.
+
+Estados:
+
+```text
+DRAFT
+READY
+OPEN
+PAUSED
+CLOSED
+CALCULATED
+CERTIFIED
+```
+
+---
+
+# 34. DECISION ENGINE
+
+Entrada:
+
+```text
+Eligible Voting Universe
++
+Voting Rule
++
+Votes
++
+Coefficient
++
+Required Threshold
+```
+
+Salida:
+
+```text
+APPROVED
+REJECTED
+TIED
+INVALID
+REQUIRES_REVIEW
+```
+
+Siempre deberá generar:
+
+**DecisionExplanation**
+
+Ejemplo:
+
+```text
+Eligible coefficient: 78.82%
+
+Votes in favor: 52.30%
+
+Required: > 50%
+
+Result: APPROVED
+```
+
+Nunca utilizar IA para calcular jurídicamente una votación.
+
+---
+
+# 35. ELECTION ENGINE
+
+Gestionará:
+
+* candidatos;
+* listas;
+* cargos;
+* nominaciones;
+* votos;
+* rondas;
+* desempates;
+* proclamación.
+
+---
+
+# 36. REUNIONES VIRTUALES
+
+La plataforma tendrá un:
+
+# MEETING ABSTRACTION LAYER
+
+```text
+ASAMBLEAS
+
+Identity
+Attendance
+Quorum
+Voting
+Decisions
+Audit
+        │
+        ▼
+Meeting Adapter
+        │
+        ├── Native WebRTC
+        ├── Provider A
+        ├── Teams
+        └── Zoom
+```
+
+No acoplar negocio al proveedor de video.
+
+---
+
+# 37. MODALIDAD HÍBRIDA
+
+Mismo AssemblyId.
+
+Tres fuentes:
+
+```text
+PHYSICAL
+VIRTUAL
+REPRESENTED
+```
+
+Todas alimentan el mismo:
+
+**Attendance Engine**
+
+y posteriormente:
+
+**Quorum Engine.**
+
+---
+
+# 38. REALTIME
+
+Tecnología:
+
+**SignalR**
+
+Eventos:
+
+```text
+ParticipantJoined
+ParticipantLeft
+QuorumChanged
+AgendaChanged
+MotionCreated
+VotingOpened
+VoteReceived
+VotingClosed
+DecisionCalculated
+SpeakerGranted
+```
+
+---
+
+# 39. DOCUMENT MANAGEMENT
+
+Repositorio de:
+
+* convocatorias;
+* reglamentos;
+* estados financieros;
+* presupuestos;
+* poderes;
+* propuestas;
+* reportes;
+* actas;
+* anexos;
+* evidencias.
+
+Metadata obligatoria.
+
+---
+
+# 40. EVIDENCE VAULT
+
+Cada asamblea creará expediente:
+
+```text
+ASSEMBLY
+│
+├── Convocation
+├── Delivery Evidence
+├── Participants
+├── Powers
+├── Attendance
+├── Quorum
+├── Agenda
+├── Motions
+├── Votes
+├── Decisions
+├── Documents
+├── Recording
+├── Transcript
+├── Minutes
+├── Signatures
+└── Audit Trail
+```
+
+---
+
+# 41. ACTAS
+
+Minutes Engine.
+
+Generará:
+
+* encabezado;
+* convocatoria;
+* asistentes;
+* quórum;
+* agenda;
+* discusión resumida;
+* mociones;
+* votaciones;
+* decisiones;
+* cierre;
+* firmas.
+
+Estados:
+
+```text
+DRAFT
+REVIEW
+APPROVED
+SIGNED
+FINAL
+```
+
+---
+
+# 42. DECISION EXECUTION
+
+Las decisiones aprobadas podrán generar:
+
+```text
+Decision
+     ↓
+Commitment
+     ↓
+Responsible
+     ↓
+Due Date
+     ↓
+Evidence
+     ↓
+Completion
+```
+
+---
+
+# 43. COMMAND CENTER
+
+Para administradoras.
+
+KPIs:
+
+* PH administrados;
+* unidades;
+* propietarios;
+* próximas asambleas;
+* asambleas activas;
+* quórum promedio;
+* participación;
+* decisiones;
+* compromisos;
+* cumplimiento;
+* vencimientos.
+
+---
+
+# 44. ASSEMBLY INTELLIGENCE
+
+Indicadores:
+
+```text
+Participation Rate
+Quorum Rate
+Average Duration
+Voting Participation
+Decision Approval Rate
+Decision Completion Rate
+Average Execution Time
+Outstanding Decisions
+Assembly Cost
+Approved Capital
+```
+
+---
+
+# 45. IA — ASSEMBLY COPILOT
+
+Casos permitidos:
+
+* búsqueda semántica;
+* resumen;
+* Q&A;
+* transcripción;
+* documentos;
+* comparación histórica;
+* extracción de decisiones;
+* borrador de acta;
+* búsqueda de precedentes;
+* detección de compromisos.
+
+Ejemplo:
+
+> Muéstrame todas las decisiones sobre elevadores durante los últimos cinco años.
+
+---
+
+# 46. REGLA FUNDAMENTAL DE IA
+
+La IA:
+
+**NO puede emitir votos.**
+
+**NO puede modificar votos.**
+
+**NO puede decidir una votación.**
+
+**NO puede alterar evidencias.**
+
+**NO puede declarar legalmente aprobada una moción.**
+
+El Decision Engine determinístico controla el resultado.
+
+---
+
+# 47. SEARCH
+
+Implementar búsqueda empresarial.
+
+Primera etapa:
+
+**PostgreSQL Full Text Search**
+
+Búsquedas sobre:
+
+* PH;
+* propietarios;
+* unidades;
+* asambleas;
+* mociones;
+* decisiones;
+* documentos;
+* actas.
+
+---
+
+# 48. CACHE
+
+No introducir Redis automáticamente.
+
+Primera etapa:
+
+* IMemoryCache;
+* Output Cache;
+* HTTP caching;
+* optimized queries.
+
+Redis solamente cuando exista una necesidad real de:
+
+* distributed cache;
+* distributed locking;
+* high-scale realtime;
+* shared sessions.
+
+---
+
+# 49. BACKGROUND JOBS
+
+Procesamiento asíncrono para:
+
+* convocatorias;
+* recordatorios;
+* PDFs;
+* informes;
+* transcripciones;
+* emails;
+* notificaciones;
+* procesamiento documental.
+
+Diseñado mediante Workers y colas persistentes.
+
+---
+
+# 50. OBSERVABILIDAD
+
+Implementar:
+
+**OpenTelemetry**
+
+Métricas:
+
+* HTTP;
+* database;
+* jobs;
+* realtime;
+* errors;
+* latency;
+* voting;
+* notification;
+* assembly concurrency.
+
+Logging estructurado.
+
+CorrelationId.
+
+TraceId.
+
+TenantId.
+
+PHId.
+
+AssemblyId.
+
+Nunca almacenar secretos ni votos secretos en logs.
+
+---
+
+# 51. HEALTH CHECKS
+
+Endpoints:
+
+```text
+/health
+/health/live
+/health/ready
+```
+
+Verificar:
+
+* application;
+* PostgreSQL;
+* storage;
+* external services;
+* realtime;
+* queues.
+
+---
+
+# 52. SEGURIDAD
+
+Implementar:
+
+* MFA;
+* secure cookies;
+* HttpOnly;
+* SameSite;
+* CSP;
+* HSTS;
+* CSRF;
+* XSS controls;
+* SQL injection protection;
+* authorization policies;
+* rate limiting;
+* account lockout;
+* secret management;
+* encryption;
+* secure headers.
+
+---
+
+# 53. AUDIT TRAIL
+
+Registrar:
+
+```text
+Timestamp
+Actor
+Tenant
+PH
+Assembly
+Action
+Entity
+EntityId
+PreviousState
+NewState
+IP
+Session
+CorrelationId
+```
+
+Los eventos críticos no podrán eliminarse desde la UI.
+
+---
+
+# 54. AUDITORÍA DE VOTOS
+
+Diferenciar:
+
+## Votación nominal
+
+Identidad asociable.
+
+## Votación secreta
+
+Identidad y elección deberán separarse criptográfica/lógicamente según el diseño aprobado.
+
+El sistema podrá demostrar:
+
+> El usuario habilitado emitió un voto.
+
+sin necesariamente revelar:
+
+> Por cuál opción votó.
+
+---
+
+# 55. PERFORMANCE
+
+Metas iniciales:
+
+### API habitual
+
+P95 < 300 ms.
+
+### Operaciones realtime críticas
+
+objetivo < 500 ms.
+
+### Cambio de quórum
+
+propagación objetivo < 1 segundo.
+
+### Apertura de votación
+
+propagación objetivo < 1 segundo.
+
+Estas metas deberán validarse mediante pruebas, no asumirse.
+
+---
+
+# 56. ESCALABILIDAD
+
+La solución deberá diseñarse para escalar horizontalmente.
+
+Nodos web:
+
+```text
+Load Balancer
+     │
+ ┌───┼────┐
+ App App  App
+     │
+ PostgreSQL
+```
+
+La aplicación no deberá depender de estado local crítico.
+
+---
+
+# 57. ESTRATEGIA DE IMPLEMENTACIÓN
+
+## FASE 0 — Product Discovery
+
+### Objetivo
+
+Cerrar alcance funcional, regulatorio y comercial.
+
+### Tareas
+
+* analizar mercado;
+* estudiar competidores;
+* establecer personas;
+* analizar procesos actuales;
+* identificar dolores;
+* analizar marco regulatorio;
+* identificar reglas de asamblea;
+* establecer MVP;
+* establecer Enterprise scope;
+* generar glossary.
+
+### Entregables
+
+* Product Vision;
+* Competitor Matrix;
+* Personas;
+* Business Requirements;
+* Domain Glossary;
+* Regulatory Matrix;
+* MVP Scope.
+
+---
+
+# 58. FASE 1 — Foundation
+
+### Objetivo
+
+Crear infraestructura técnica.
+
+### Tareas
+
+* solución .NET;
+* arquitectura;
+* CI/CD;
+* PostgreSQL;
+* migrations;
+* logging;
+* health;
+* exception handling;
+* audit foundation;
+* security baseline;
+* tenant context;
+* tests.
+
+### Gate
+
+No iniciar funcionalidades empresariales si foundation no está certificada.
+
+---
+
+# 59. FASE 2 — Identity + SaaS + Multi-Tenant
+
+Implementar:
+
+* users;
+* roles;
+* permissions;
+* tenant;
+* organizations;
+* PH assignment;
+* authentication;
+* MFA;
+* sessions.
+
+### Certificación
+
+Intentar deliberadamente acceder a información cross-tenant.
+
+Resultado obligatorio:
+
+**0 leaks.**
+
+---
+
+# 60. FASE 3 — PH CORE
+
+Implementar:
+
+* PH;
+* units;
+* owners;
+* ownership;
+* coefficients;
+* board;
+* regulations;
+* documents.
+
+---
+
+# 61. FASE 4 — ASSEMBLY CORE
+
+Implementar:
+
+* assembly;
+* configuration;
+* agenda;
+* participants;
+* documents;
+* lifecycle.
+
+---
+
+# 62. FASE 5 — CONVOCATION
+
+Implementar:
+
+* invitations;
+* email;
+* portal;
+* acknowledgement;
+* reminders;
+* evidence.
+
+---
+
+# 63. FASE 6 — POWERS + ACCREDITATION
+
+Implementar completamente:
+
+* powers;
+* validations;
+* representation;
+* accreditation;
+* eligibility.
+
+---
+
+# 64. FASE 7 — ATTENDANCE + QUORUM
+
+Implementar:
+
+* check-in;
+* QR;
+* manual;
+* virtual;
+* presence;
+* Quorum Engine;
+* realtime.
+
+Este es uno de los gates críticos.
+
+---
+
+# 65. FASE 8 — ASSEMBLY COCKPIT
+
+Construir interfaz operacional realtime.
+
+Debe funcionar:
+
+* desktop;
+* tablet;
+* projector.
+
+---
+
+# 66. FASE 9 — MOTION + VOTING ENGINE
+
+Implementar:
+
+* motions;
+* voting types;
+* opening;
+* closing;
+* validation;
+* realtime voting;
+* evidence.
+
+---
+
+# 67. FASE 10 — DECISION ENGINE
+
+Construir motor determinístico.
+
+Pruebas exhaustivas:
+
+* límites;
+* coeficientes;
+* abstenciones;
+* empate;
+* votos inválidos;
+* ausencia;
+* poderes;
+* cambios de quórum.
+
+---
+
+# 68. FASE 11 — ELECTION ENGINE
+
+Implementar elección de órganos/directivas.
+
+---
+
+# 69. FASE 12 — VIRTUAL ASSEMBLY
+
+Implementar:
+
+* room;
+* virtual presence;
+* video provider abstraction;
+* speaker request;
+* moderation;
+* documents;
+* realtime.
+
+---
+
+# 70. FASE 13 — HYBRID ASSEMBLY
+
+Unificar presencial + virtual.
+
+No crear motores distintos de negocio.
+
+---
+
+# 71. FASE 14 — MINUTES + EVIDENCE
+
+Implementar:
+
+* Minutes Engine;
+* Evidence Vault;
+* PDF;
+* exports;
+* signatures.
+
+---
+
+# 72. FASE 15 — DECISION EXECUTION
+
+Convertir decisiones en compromisos.
+
+Implementar:
+
+* owners;
+* deadlines;
+* status;
+* evidence;
+* reminders.
+
+---
+
+# 73. FASE 16 — ANALYTICS
+
+Crear:
+
+* operational dashboards;
+* board dashboard;
+* portfolio dashboard;
+* historical analytics.
+
+---
+
+# 74. FASE 17 — AI
+
+Implementar Assembly Copilot únicamente después de tener datos estructurados confiables.
+
+Orden:
+
+1. search;
+2. retrieval;
+3. summaries;
+4. Q&A;
+5. minutes assistance;
+6. decision extraction;
+7. intelligent analytics.
+
+---
+
+# 75. FASE 18 — INTEGRATIONS
+
+Implementar adaptadores.
+
+Nunca contaminar los dominios centrales con dependencias de proveedores.
+
+---
+
+# 76. FASE 19 — HARDENING
+
+Revisión integral:
+
+* security;
+* performance;
+* tenancy;
+* database;
+* accessibility;
+* UX;
+* responsiveness;
+* localization;
+* observability.
+
+---
+
+# 77. FASE 20 — ENTERPRISE CERTIFICATION
+
+No declarar producción-ready simplemente porque:
+
+**Build = PASS.**
+
+Certificación completa obligatoria.
+
+---
+
+# 78. TESTING PYRAMID
+
+## Unit Tests
+
+Motores y reglas.
+
+## Integration Tests
+
+Database + services.
+
+## Architecture Tests
+
+Dependencias y boundaries.
+
+## Security Tests
+
+Autorización y aislamiento.
+
+## Functional Tests
+
+Flujos reales.
+
+## E2E
+
+Browser real.
+
+## Performance
+
+Carga/concurrencia.
+
+## Resilience
+
+Fallas controladas.
+
+---
+
+# 79. PRUEBAS E2E CRÍTICAS
+
+Escenarios obligatorios:
+
+### E2E-001
+
+Crear PH.
+
+### E2E-002
+
+Crear unidades.
+
+### E2E-003
+
+Registrar propietarios.
+
+### E2E-004
+
+Crear asamblea.
+
+### E2E-005
+
+Enviar convocatoria.
+
+### E2E-006
+
+Registrar poder.
+
+### E2E-007
+
+Acreditar.
+
+### E2E-008
+
+Check-in.
+
+### E2E-009
+
+Alcanzar quórum.
+
+### E2E-010
+
+Abrir agenda.
+
+### E2E-011
+
+Crear moción.
+
+### E2E-012
+
+Abrir votación.
+
+### E2E-013
+
+Votar.
+
+### E2E-014
+
+Cerrar votación.
+
+### E2E-015
+
+Calcular decisión.
+
+### E2E-016
+
+Cerrar asamblea.
+
+### E2E-017
+
+Generar acta.
+
+### E2E-018
+
+Firmar.
+
+### E2E-019
+
+Crear compromiso.
+
+### E2E-020
+
+Verificar auditoría.
+
+---
+
+# 80. PRUEBA MULTI-TENANT
+
+Crear:
+
+```text
+Tenant A
+Tenant B
+
+PH-A
+PH-B
+```
+
+Intentar:
+
+* consultar;
+* modificar;
+* eliminar;
+* descargar;
+* votar;
+* exportar;
+* buscar;
+* acceder directamente por URL;
+* manipular IDs.
+
+desde el tenant incorrecto.
+
+Resultado:
+
+```text
+CROSS TENANT DATA LEAKS = 0
+```
+
+---
+
+# 81. PRUEBAS DE CONCURRENCIA
+
+Especial importancia:
+
+300 usuarios votando simultáneamente.
+
+500.
+
+1,000.
+
+2,000.
+
+Posteriormente más.
+
+Verificar:
+
+* duplicate votes;
+* lost votes;
+* race conditions;
+* locking;
+* latency;
+* realtime propagation.
+
+---
+
+# 82. LOCALIZATION
+
+Arquitectura preparada para:
+
+```text
+es-PA
+es
+en
+```
+
+No hardcodear textos en las vistas.
+
+Todos los componentes deberán utilizar recursos localizables.
+
+---
+
+# 83. DATABASE QUALITY
+
+Revisión obligatoria de:
+
+* N+1;
+* missing indexes;
+* sequential scans;
+* over-fetching;
+* includes innecesarios;
+* cartesian explosion;
+* slow queries;
+* pagination;
+* connection pool;
+* query plans.
+
+---
+
+# 84. MIGRATIONS
+
+Toda modificación DB debe pasar por migration versionada.
+
+Prohibido:
+
+> Modificar manualmente producción y después intentar reconciliar código.
+
+---
+
+# 85. BACKUPS
+
+Automatizar:
+
+* database backups;
+* document backups;
+* retention;
+* encryption;
+* recovery verification.
+
+No basta con crear backups.
+
+Se deben realizar:
+
+**Restore Tests.**
+
+---
+
+# 86. DEVOPS
+
+Entornos:
+
+```text
+DEV
+TEST
+STAGING
+PRODUCTION
+```
+
+Pipeline:
+
+```text
+Commit
+ ↓
+Build
+ ↓
+Static Analysis
+ ↓
+Unit Tests
+ ↓
+Architecture Tests
+ ↓
+Security Checks
+ ↓
+Integration Tests
+ ↓
+Artifact
+ ↓
+Staging
+ ↓
+E2E
+ ↓
+Production
+```
+
+---
+
+# 87. FEATURE FLAGS
+
+Funciones enterprise podrán activarse gradualmente.
+
+Ejemplos:
+
+```text
+VirtualAssembly
+AI
+AdvancedAnalytics
+WhiteLabel
+DigitalSignature
+AdvancedEvidence
+```
+
+---
+
+# 88. DOCUMENTACIÓN
+
+Mantener:
+
+```text
+/docs
+
+ARCHITECTURE
+ADR
+DOMAIN
+DATABASE
+SECURITY
+API
+OPERATIONS
+TESTING
+DEPLOYMENT
+USER-MANUAL
+AUDIT
+```
+
+---
+
+# 89. ADR
+
+Decisiones arquitectónicas importantes deberán documentarse.
+
+Ejemplos:
+
+```text
+ADR-001 Modular Monolith
+ADR-002 Multi-Tenant Strategy
+ADR-003 PostgreSQL
+ADR-004 Voting Integrity
+ADR-005 Realtime
+ADR-006 Video Provider
+ADR-007 Secret Voting
+ADR-008 Evidence Immutability
+ADR-009 AI Boundaries
+```
+
+---
+
+# 90. DEFINITION OF DONE
+
+Una funcionalidad NO está terminada porque funciona localmente.
+
+Debe cumplir:
+
+```text
+Code          PASS
+Build         PASS
+Unit Tests    PASS
+Integration   PASS
+Security      PASS
+Tenant        PASS
+UI            PASS
+UX            PASS
+Responsive    PASS
+Accessibility PASS
+Localization  PASS
+Audit         PASS
+Documentation PASS
+E2E           PASS
+```
+
+---
+
+# 91. ZERO-EXCUSE QUALITY GATE
+
+No aceptar:
+
+> funciona en mi máquina.
+
+No aceptar:
+
+> debería funcionar.
+
+No aceptar:
+
+> probablemente está bien.
+
+No aceptar:
+
+> test omitido.
+
+Debe existir evidencia.
+
+---
+
+# 92. ROADMAP DE PRODUCTO
+
+## RELEASE 0.1 — Foundation
+
+Arquitectura.
+
+## RELEASE 0.2 — PH Core
+
+PH + propietarios + unidades.
+
+## RELEASE 0.3 — Assembly Core
+
+Asamblea + convocatoria.
+
+## RELEASE 0.4 — Accreditation
+
+Poderes + asistencia.
+
+## RELEASE 0.5 — Quorum
+
+Quorum Engine.
+
+## RELEASE 0.6 — Voting
+
+Motion + Voting.
+
+## RELEASE 0.7 — Decisions
+
+Decision Engine.
+
+## RELEASE 0.8 — Operations
+
+Cockpit.
+
+## RELEASE 0.9 — Minutes
+
+Actas + Evidence.
+
+## RELEASE 1.0 — Commercial
+
+Producto comercial.
+
+---
+
+# 93. RELEASE 1.5
+
+Incorporar:
+
+* Virtual;
+* Hybrid;
+* Election Engine;
+* Advanced Reporting;
+* Decision Execution.
+
+---
+
+# 94. RELEASE 2.0
+
+Incorporar:
+
+* Assembly Intelligence;
+* AI;
+* portfolio analytics;
+* advanced integrations;
+* white label.
+
+---
+
+# 95. MODELO COMERCIAL PREPARADO
+
+Planes potenciales:
+
+```text
+ASAMBLEAS STARTER
+
+ASAMBLEAS PROFESSIONAL
+
+ASAMBLEAS BUSINESS
+
+ASAMBLEAS ENTERPRISE
+```
+
+También:
+
+**Pay-per-Assembly**
+
+para clientes ocasionales.
+
+---
+
+# 96. DIFERENCIADOR PRINCIPAL
+
+El producto no debe competir diciendo:
+
+> Tenemos votaciones electrónicas.
+
+Debe competir diciendo:
+
+> Administramos toda la gobernanza de su PH.
+
+Nuestra cadena de valor:
+
+```text
+IDENTITY
+   ↓
+ASSEMBLY
+   ↓
+QUORUM
+   ↓
+MOTION
+   ↓
+VOTE
+   ↓
+DECISION
+   ↓
+EVIDENCE
+   ↓
+EXECUTION
+   ↓
+INTELLIGENCE
+```
+
+---
+
+# 97. NORTH STAR
+
+ASAMBLEAS deberá poder responder en segundos:
+
+> ¿Quién participó?
+
+> ¿A quién representaba?
+
+> ¿Qué porcentaje representaba?
+
+> ¿Existía quórum?
+
+> ¿Qué se discutió?
+
+> ¿Qué moción se presentó?
+
+> ¿Quién podía votar?
+
+> ¿Cuál era la regla?
+
+> ¿Cuál fue el resultado?
+
+> ¿Por qué fue aprobado?
+
+> ¿Dónde está la evidencia?
+
+> ¿Quién debía ejecutar la decisión?
+
+> ¿Se ejecutó?
+
+> ¿Cuánto dinero se aprobó?
+
+> ¿Dónde está el acta?
+
+> ¿Qué sucedió históricamente?
+
+Si podemos responder esas preguntas con evidencia verificable, tenemos una plataforma de gobernanza.
+
+---
+
+# 98. OBJETIVO FINAL
+
+Construir una solución:
+
+**segura**
+
+**sostenible**
+
+**mantenible**
+
+**escalable**
+
+**auditable**
+
+**rápida**
+
+**multi-tenant**
+
+**responsive**
+
+**accesible**
+
+**inteligente**
+
+**comercializable**
+
+y capaz de evolucionar durante años sin tener que reescribirse desde cero.
+
+---
+
+# 99. PRINCIPIO DE DESARROLLO
+
+No perseguiremos simplemente:
+
+**más módulos.**
+
+Perseguiremos:
+
+**más confiabilidad por módulo.**
+
+No perseguiremos:
+
+**más tecnología.**
+
+Perseguiremos:
+
+**la tecnología correcta para cada problema.**
+
+Y no construiremos únicamente software para realizar asambleas.
+
+Construiremos:
+
+# THE GOVERNANCE OPERATING SYSTEM FOR PROPERTY HORIZONTAL
+
+**ASAMBLEAS**

@@ -1,0 +1,56 @@
+# ASAMBLEAS
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.DotSettings.user
+appsettings.Development.json
+**/appsettings.*.local.json
+secrets.json
+**/Properties/launchSettings.json.user
+
+# Secrets & credentials
+.env
+.env.*
+!.env.example
+*.pfx
+*.key
+user-secrets.json
+
+# Logs & diagnostics
+*.log
+logs/
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+BenchmarkDotNet.Artifacts/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Node / Playwright
+node_modules/
+test-results/
+playwright-report/
+playwright/.cache/
+blob-report/
+
+# Local data / recordings
+**/App_Data/
+recordings/
+*.db
+*.sqlite
+
+# Docker volumes
+.docker-data/
+
+# Publish
+publish/
+artifacts/

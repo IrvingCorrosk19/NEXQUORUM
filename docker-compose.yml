@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: asambleas-postgres
+    environment:
+      POSTGRES_USER: asambleas
+      POSTGRES_PASSWORD: asambleas_dev_only
+      POSTGRES_DB: asambleas
+    ports:
+      # Avoid clash with other local Postgres on 5432
+      - "5433:5432"
+    volumes:
+      - asambleas_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asambleas -d asambleas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  asambleas_pgdata:

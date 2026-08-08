@@ -1,0 +1,92 @@
+namespace Asambleas.Infrastructure.Persistence.Configurations;
+
+using Asambleas.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using AssemblyEntity = Asambleas.Domain.Entities.Assembly;
+
+internal sealed class AssemblyConfiguration : IEntityTypeConfiguration<AssemblyEntity>
+{
+    public void Configure(EntityTypeBuilder<AssemblyEntity> builder)
+    {
+        builder.ToTable("assemblies");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Title).HasMaxLength(512).IsRequired();
+        builder.Property(x => x.Modality).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.RequiredQuorumPercent).HasPrecision(7, 4);
+        builder.Property(x => x.RowVersion).IsRowVersion();
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.PropertyHorizontalId);
+        builder.HasIndex(x => x.Status);
+        builder.HasOne<PropertyHorizontal>().WithMany().HasForeignKey(x => x.PropertyHorizontalId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class AssemblyParticipantConfiguration : IEntityTypeConfiguration<AssemblyParticipant>
+{
+    public void Configure(EntityTypeBuilder<AssemblyParticipant> builder)
+    {
+        builder.ToTable("assembly_participants");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.DisplayName).HasMaxLength(256).IsRequired();
+        builder.Property(x => x.RoleCode).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.AttendanceStatus).HasConversion<string>().HasMaxLength(32);
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.AssemblyId);
+        builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => new { x.AssemblyId, x.UserId }).IsUnique();
+        builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Unit>().WithMany().HasForeignKey(x => x.UnitId).OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+internal sealed class AttendanceRecordConfiguration : IEntityTypeConfiguration<AttendanceRecord>
+{
+    public void Configure(EntityTypeBuilder<AttendanceRecord> builder)
+    {
+        builder.ToTable("attendance_records");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.PresenceType).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.AssemblyId);
+        builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => x.Status);
+        builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class AgendaItemConfiguration : IEntityTypeConfiguration<AgendaItem>
+{
+    public void Configure(EntityTypeBuilder<AgendaItem> builder)
+    {
+        builder.ToTable("agenda_items");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Code).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.Title).HasMaxLength(512).IsRequired();
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.AssemblyId);
+        builder.HasIndex(x => new { x.AssemblyId, x.Ordinal }).IsUnique();
+        builder.HasIndex(x => new { x.AssemblyId, x.Code }).IsUnique();
+        builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class MotionConfiguration : IEntityTypeConfiguration<Motion>
+{
+    public void Configure(EntityTypeBuilder<Motion> builder)
+    {
+        builder.ToTable("motions");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Code).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.Title).HasMaxLength(512).IsRequired();
+        builder.Property(x => x.Body).HasMaxLength(8000).IsRequired();
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.AssemblyId);
+        builder.HasIndex(x => new { x.AssemblyId, x.Code }).IsUnique();
+        builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<AgendaItem>().WithMany().HasForeignKey(x => x.AgendaItemId).OnDelete(DeleteBehavior.Restrict);
+    }
+}

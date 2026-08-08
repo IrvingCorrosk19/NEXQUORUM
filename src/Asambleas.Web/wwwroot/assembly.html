@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASAMBLEAS — Sala de asamblea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/assembly-room.css?v=eo4" />
+</head>
+<body>
+  <a class="skip-link" href="#main-stage">Saltar al escenario</a>
+
+  <div class="room" data-role="owner">
+    <header class="room-header" role="banner">
+      <div class="header-brand">
+        <h1 class="brand">ASAMBLEAS</h1>
+        <span id="view-mode" class="badge badge-live"></span>
+      </div>
+      <div class="ph-name">
+        <strong id="ph-name">…</strong>
+        <span id="assembly-title">Asamblea</span>
+      </div>
+      <div class="header-metrics">
+        <div id="live-chip" class="live-chip" hidden>
+          <span class="status-dot online" aria-hidden="true"></span>
+          <span id="live-label">EN VIVO</span>
+          <span id="duration-label" class="duration" aria-live="polite">00:00:00</span>
+        </div>
+        <div id="quorum-chip" class="quorum-chip" aria-live="polite" aria-label="Estado de quórum">
+          <div class="skeleton" style="width:10rem;height:1.5rem"></div>
+          <div id="quorum-details" class="quorum-details" hidden></div>
+        </div>
+        <div id="participant-count" class="badge badge-pending" hidden></div>
+      </div>
+    </header>
+
+    <div class="room-body">
+      <main id="main-stage" class="stage-column">
+        <div id="room-alert" class="alert" hidden role="alert"></div>
+        <div id="incident-strip" class="incident-strip" hidden></div>
+        <div id="floor-banner" class="floor-granted-banner" hidden></div>
+
+        <section class="video-stage" aria-label="Escenario del orador">
+          <div id="connection-state" class="connection-banner" aria-live="polite">
+            <span class="status-dot degraded"></span>
+            <span>…</span>
+          </div>
+          <div style="text-align:center; padding:2rem; width:100%">
+            <p id="speaker-name" class="speaker-name">Sala en espera</p>
+            <p id="speaker-meta" class="speaker-meta">Preparando sesión</p>
+            <p id="status-line" class="speaker-meta"></p>
+            <div id="video-mount" style="margin-top:1.5rem"></div>
+          </div>
+        </section>
+
+        <section aria-label="Participantes" class="operator-only">
+          <h2 class="sr-only">Participantes</h2>
+          <div id="participant-strip" class="participant-strip"></div>
+        </section>
+
+        <div class="stage-actions operator-action-bar">
+          <div class="control-cluster owner-only" role="group" aria-label="Acciones del participante">
+            <button type="button" id="btn-request-speak" class="btn btn-gold">Pedir la palabra</button>
+          </div>
+          <div class="control-cluster operator-only" role="group" aria-label="Controles de operación">
+            <button type="button" id="btn-start" class="btn btn-primary">Iniciar asamblea</button>
+            <button type="button" id="btn-resume" class="btn btn-primary">Reanudar</button>
+            <button type="button" id="btn-pause" class="btn btn-secondary">Pausar</button>
+          </div>
+          <div class="control-cluster control-cluster-danger operator-only" role="group" aria-label="Acciones críticas">
+            <button type="button" id="btn-end" class="btn btn-danger">Cerrar asamblea</button>
+          </div>
+          <div class="control-cluster control-cluster-meta">
+            <span id="user-chip" class="badge badge-live" aria-live="polite"></span>
+            <a id="link-dashboard" class="btn btn-ghost live-admin-link" href="#">Panel</a>
+            <button type="button" id="btn-logout" class="btn btn-ghost">Salir</button>
+          </div>
+        </div>
+      </main>
+
+      <aside class="sidebar" aria-label="Panel de sesión">
+        <section>
+          <h2 id="heading-agenda">Agenda</h2>
+          <div id="agenda-panel"><div class="skeleton" style="height:5rem"></div></div>
+        </section>
+
+        <section>
+          <h2 id="heading-motion">Moción</h2>
+          <div id="motion-panel"><div class="empty-state">Sin moción presentada.</div></div>
+        </section>
+
+        <section>
+          <h2 id="heading-vote">Votación</h2>
+          <div id="vote-panel" class="vote-panel"><div class="empty-state">No hay votación abierta.</div></div>
+        </section>
+
+        <section class="operator-only">
+          <h2 id="heading-speakers">Cola de oradores</h2>
+          <div id="speaker-panel"><div class="skeleton" style="height:4rem"></div></div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.9.1/dist/livekit-client.umd.min.js"></script>
+  <script type="module" src="/js/modules/room-app.js?v=eo4"></script>
+</body>
+</html>

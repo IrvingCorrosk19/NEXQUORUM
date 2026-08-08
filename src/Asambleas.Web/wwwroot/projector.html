@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASAMBLEAS — Proyector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/projector.css" />
+</head>
+<body>
+  <main class="projector-shell" id="main">
+    <h1 class="brand">ASAMBLEAS</h1>
+    <p id="assembly-title" class="meta-row"></p>
+    <div id="page-alert" class="alert" hidden role="alert"></div>
+
+    <section class="projector-block" aria-label="Quórum">
+      <h2>Quórum</h2>
+      <div id="quorum-panel"><div class="skeleton" style="height:3rem"></div></div>
+    </section>
+
+    <section class="projector-block" aria-label="Agenda">
+      <h2 id="agenda-heading">Agenda</h2>
+      <div id="agenda-panel"></div>
+    </section>
+
+    <section class="projector-block" aria-label="Moción">
+      <h2 id="motion-heading">Moción</h2>
+      <div id="motion-panel"></div>
+    </section>
+
+    <section class="projector-block" aria-label="Votación">
+      <h2 id="voting-heading">Estado de votación</h2>
+      <div id="voting-panel"></div>
+    </section>
+
+    <section class="projector-block" aria-label="Temporizador">
+      <h2 id="timer-heading">Temporizador</h2>
+      <div id="timer-panel" class="projector-timer" aria-live="polite">—</div>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+  <script type="module" src="/js/modules/projector-app.js"></script>
+</body>
+</html>
