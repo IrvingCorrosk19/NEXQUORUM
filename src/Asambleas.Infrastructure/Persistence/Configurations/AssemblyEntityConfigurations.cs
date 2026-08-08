@@ -32,9 +32,12 @@ internal sealed class AssemblyParticipantConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.DisplayName).HasMaxLength(256).IsRequired();
         builder.Property(x => x.RoleCode).HasMaxLength(64).IsRequired();
         builder.Property(x => x.AttendanceStatus).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.EffectiveCoefficientPercent).HasPrecision(7, 4);
+        builder.Property(x => x.PresenceType).HasConversion<string>().HasMaxLength(32);
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.AssemblyId);
         builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => x.IsAccredited);
         builder.HasIndex(x => new { x.AssemblyId, x.UserId }).IsUnique();
         builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<Unit>().WithMany().HasForeignKey(x => x.UnitId).OnDelete(DeleteBehavior.SetNull);

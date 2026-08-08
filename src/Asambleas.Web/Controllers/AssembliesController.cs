@@ -3,6 +3,7 @@ namespace Asambleas.Web.Controllers;
 using Asambleas.Application.Assembly;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.Assemblies;
+using Asambleas.Contracts.Evidence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -47,12 +48,22 @@ public sealed class AssembliesController : ControllerBase
 
     [HttpGet("{assemblyId:guid}/minutes")]
     [Authorize(Policy = Permissions.AssemblyView)]
-    public Task<AssemblyMinutesDto> Minutes(Guid assemblyId, CancellationToken cancellationToken) =>
+    public Task<AssemblyMinutesDocumentDto> Minutes(Guid assemblyId, CancellationToken cancellationToken) =>
+        _room.GetMinutesDocumentAsync(assemblyId, cancellationToken);
+
+    [HttpGet("{assemblyId:guid}/minutes/legacy")]
+    [Authorize(Policy = Permissions.AssemblyView)]
+    public Task<AssemblyMinutesDto> MinutesLegacy(Guid assemblyId, CancellationToken cancellationToken) =>
         _room.GetMinutesAsync(assemblyId, cancellationToken);
 
     [HttpGet("{assemblyId:guid}/evidence")]
     [Authorize(Policy = Permissions.AuditView)]
-    public Task<AssemblyEvidenceDto> Evidence(Guid assemblyId, CancellationToken cancellationToken) =>
+    public Task<AssemblyEvidencePackageDto> Evidence(Guid assemblyId, CancellationToken cancellationToken) =>
+        _room.GetEvidencePackageAsync(assemblyId, cancellationToken);
+
+    [HttpGet("{assemblyId:guid}/evidence/legacy")]
+    [Authorize(Policy = Permissions.AuditView)]
+    public Task<AssemblyEvidenceDto> EvidenceLegacy(Guid assemblyId, CancellationToken cancellationToken) =>
         _room.GetEvidenceAsync(assemblyId, cancellationToken);
 
     [HttpPost("{assemblyId:guid}/start-checkin")]

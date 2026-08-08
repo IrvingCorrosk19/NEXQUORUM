@@ -55,6 +55,7 @@ internal sealed class QuorumSnapshotConfiguration : IEntityTypeConfiguration<Quo
         builder.Property(x => x.PresentCoefficient).HasPrecision(7, 4);
         builder.Property(x => x.RequiredCoefficient).HasPrecision(7, 4);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.Reason).HasMaxLength(64);
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.AssemblyId);
         builder.HasIndex(x => x.Status);

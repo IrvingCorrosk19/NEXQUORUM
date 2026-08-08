@@ -27,6 +27,12 @@ export async function rejectFloor(assemblyId, speakerRequestId) {
   });
 }
 
+export async function skipFloor(assemblyId, speakerRequestId) {
+  return api(`/api/assemblies/${assemblyId}/speakers/${speakerRequestId}/skip`, {
+    method: "POST"
+  });
+}
+
 export async function getQueue(assemblyId) {
   return api(`/api/assemblies/${assemblyId}/speakers/queue`);
 }
@@ -34,7 +40,7 @@ export async function getQueue(assemblyId) {
 export function renderSpeakerQueue(
   root,
   queue,
-  { canModerate, onGrant, onComplete, onReject } = {}
+  { canModerate, onGrant, onComplete, onReject, onSkip } = {}
 ) {
   if (!root) {
     return;
@@ -76,6 +82,7 @@ export function renderSpeakerQueue(
           ${
             canModerate && item.status === "Requested"
               ? `<button type="button" class="btn btn-secondary" data-grant="${item.id}">${escapeHtml(t("assembly.grant"))}</button>
+                 <button type="button" class="btn btn-ghost" data-skip="${item.id}">${escapeHtml(t("assembly.skip") || "Omitir")}</button>
                  <button type="button" class="btn btn-ghost" data-reject="${item.id}">${escapeHtml(t("assembly.reject"))}</button>`
               : ""
           }
@@ -99,6 +106,9 @@ export function renderSpeakerQueue(
   });
   root.querySelectorAll("[data-reject]").forEach((btn) => {
     btn.addEventListener("click", () => onReject?.(btn.getAttribute("data-reject")));
+  });
+  root.querySelectorAll("[data-skip]").forEach((btn) => {
+    btn.addEventListener("click", () => onSkip?.(btn.getAttribute("data-skip")));
   });
 }
 

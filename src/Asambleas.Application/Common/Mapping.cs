@@ -31,18 +31,23 @@ internal static class Mapping
     public static AssemblyParticipantDto ToParticipantDto(
         AssemblyParticipant participant,
         string? unitCode = null,
-        decimal? coefficientPercent = null) =>
+        decimal? coefficientPercent = null,
+        int representationCount = 0) =>
         new(
             participant.Id,
             participant.AssemblyId,
             participant.UserId,
             participant.UnitId,
             unitCode,
-            coefficientPercent,
+            coefficientPercent ?? (participant.IsAccredited ? participant.EffectiveCoefficientPercent : null),
             participant.DisplayName,
             participant.RoleCode,
             participant.AttendanceStatus.ToString(),
-            participant.CheckedInAtUtc);
+            participant.CheckedInAtUtc,
+            participant.IsAccredited,
+            participant.EffectiveCoefficientPercent,
+            participant.AccreditedAtUtc,
+            representationCount);
 
     public static QuorumStateDto ToQuorumState(
         Guid assemblyId,
@@ -61,7 +66,10 @@ internal static class Mapping
             quorumReached,
             presentUnits,
             eligibleUnits,
-            calculatedAtUtc);
+            calculatedAtUtc,
+            MissingCoefficient: quorumReached
+                ? 0m
+                : Math.Max(0m, Math.Round(requiredCoefficient - currentCoefficient, 4, MidpointRounding.AwayFromZero)));
 
     public static async Task<string?> ResolveUnitCodeAsync(
         IAsambleasDbContext db,
@@ -84,4 +92,8 @@ internal static class Mapping
         status is AttendanceStatus.CheckedIn
             or AttendanceStatus.Present
             or AttendanceStatus.TemporarilyDisconnected;
+
+    /// <summary>Accredited + present-ish statuses contribute to quorum.</summary>
+    public static bool ContributesToQuorum(AssemblyParticipant participant) =>
+        participant.IsAccredited && CountsTowardQuorum(participant.AttendanceStatus);
 }

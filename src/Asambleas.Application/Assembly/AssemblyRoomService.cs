@@ -33,6 +33,7 @@ public sealed class AssemblyRoomService
     private readonly SpeakerService _speakers;
     private readonly MeetingService _meetings;
     private readonly Audit.AuditService _audit;
+    private readonly Evidence.AssemblyEvidenceService _evidence;
 
     public AssemblyRoomService(
         IAsambleasDbContext db,
@@ -46,7 +47,8 @@ public sealed class AssemblyRoomService
         VotingService voting,
         SpeakerService speakers,
         MeetingService meetings,
-        Audit.AuditService audit)
+        Audit.AuditService audit,
+        Evidence.AssemblyEvidenceService evidence)
     {
         _db = db;
         _currentTenant = currentTenant;
@@ -60,6 +62,7 @@ public sealed class AssemblyRoomService
         _speakers = speakers;
         _meetings = meetings;
         _audit = audit;
+        _evidence = evidence;
     }
 
     public async Task<AssemblyRoomStateDto> GetRoomStateAsync(
@@ -118,14 +121,14 @@ public sealed class AssemblyRoomService
             detail,
             readiness,
             quorum,
-            agenda.Items,
+            agenda,
             activeMotion,
             openSession,
             openResults,
             hasVoted,
             evidenceId,
             participants,
-            speakerQueue.Queue,
+            speakerQueue,
             meeting,
             AssemblyRoomRules.ResolveViewerRole(roleCode),
             assemblyStartedAtUtc);
@@ -257,72 +260,25 @@ public sealed class AssemblyRoomService
             AssemblyRoomRules.ResolvePrimaryCta(detail.Status));
     }
 
-    public async Task<AssemblyMinutesDto> GetMinutesAsync(
+    public Task<AssemblyMinutesDto> GetMinutesAsync(
         Guid assemblyId,
-        CancellationToken cancellationToken = default)
-    {
-        var detail = await _assemblies.GetAsync(assemblyId, cancellationToken);
-        var participants = await _attendance.ListParticipantsAsync(assemblyId, cancellationToken);
-        var checkedIn = participants
-            .Where(p => p.AttendanceStatus is nameof(AttendanceStatus.CheckedIn)
-                or nameof(AttendanceStatus.Present)
-                or nameof(AttendanceStatus.TemporarilyDisconnected))
-            .ToList();
+        CancellationToken cancellationToken = default) =>
+        _evidence.GetLegacyMinutesAsync(assemblyId, cancellationToken);
 
-        var quorum = await _quorum.GetLatestAsync(assemblyId, cancellationToken);
-        var agenda = await _agenda.GetItemsAsync(assemblyId, cancellationToken);
-        var motions = await _motions.ListAsync(assemblyId, cancellationToken);
-        var motionEntries = await BuildMotionEntriesAsync(assemblyId, motions, closedOnly: true, cancellationToken);
-
-        var auditPage = await _audit.QueryAsync(
-            new AuditEventQuery(assemblyId, null, null, null, 0, 200),
-            cancellationToken);
-
-        DateTimeOffset? checkInAt = FirstAudit(auditPage.Items, AuditEventType.AssemblyJoin);
-        DateTimeOffset? startedAt = FirstAudit(auditPage.Items, AuditEventType.AssemblyStarted);
-        DateTimeOffset? completedAt = FirstAudit(auditPage.Items, AuditEventType.AssemblyCompleted);
-
-        return new AssemblyMinutesDto(
-            detail.Id,
-            detail.Title,
-            detail.PropertyHorizontalName,
-            detail.ScheduledAtUtc,
-            detail.Status,
-            detail.Modality,
-            DateTimeOffset.UtcNow,
-            checkedIn,
-            quorum,
-            agenda.Items,
-            motionEntries,
-            checkInAt,
-            startedAt,
-            completedAt);
-    }
-
-    public async Task<AssemblyEvidenceDto> GetEvidenceAsync(
+    public Task<Contracts.Evidence.AssemblyMinutesDocumentDto> GetMinutesDocumentAsync(
         Guid assemblyId,
-        CancellationToken cancellationToken = default)
-    {
-        var detail = await _assemblies.GetAsync(assemblyId, cancellationToken);
-        var attendance = await _attendance.ListParticipantsAsync(assemblyId, cancellationToken);
-        var snapshots = await _quorum.ListSnapshotsAsync(assemblyId, cancellationToken);
-        var motions = await _motions.ListAsync(assemblyId, cancellationToken);
-        var voting = await BuildMotionEntriesAsync(assemblyId, motions, closedOnly: false, cancellationToken);
+        CancellationToken cancellationToken = default) =>
+        _evidence.GetMinutesDocumentAsync(assemblyId, cancellationToken);
 
-        var auditPage = await _audit.QueryAsync(
-            new AuditEventQuery(assemblyId, null, null, null, 0, 100),
-            cancellationToken);
+    public Task<AssemblyEvidenceDto> GetEvidenceAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default) =>
+        _evidence.GetLegacyEvidenceAsync(assemblyId, cancellationToken);
 
-        return new AssemblyEvidenceDto(
-            detail.Id,
-            detail.Title,
-            DateTimeOffset.UtcNow,
-            attendance,
-            snapshots,
-            motions,
-            voting,
-            auditPage.Items);
-    }
+    public Task<Contracts.Evidence.AssemblyEvidencePackageDto> GetEvidencePackageAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default) =>
+        _evidence.GetEvidencePackageAsync(assemblyId, cancellationToken);
 
     private async Task<IReadOnlyList<AssemblyMinutesMotionEntryDto>> BuildMotionEntriesAsync(
         Guid assemblyId,

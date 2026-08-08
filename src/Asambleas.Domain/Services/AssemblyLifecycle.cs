@@ -5,7 +5,7 @@ using Asambleas.Domain.Enums;
 
 /// <summary>
 /// Validates assembly status transitions for EO-001:
-/// Draft → Scheduled → CheckIn → InProgress ⇄ Paused → Completed;
+/// Draft → Scheduled → CheckIn → InProgress ⇄ Paused → Completed (also Paused → Completed);
 /// Cancelled allowed from Draft, Scheduled, or CheckIn.
 /// </summary>
 public static class AssemblyLifecycle
@@ -23,7 +23,7 @@ public static class AssemblyLifecycle
             AssemblyStatus.CheckIn => from == AssemblyStatus.Scheduled,
             AssemblyStatus.InProgress => from is AssemblyStatus.CheckIn or AssemblyStatus.Paused,
             AssemblyStatus.Paused => from == AssemblyStatus.InProgress,
-            AssemblyStatus.Completed => from == AssemblyStatus.InProgress,
+            AssemblyStatus.Completed => from is AssemblyStatus.InProgress or AssemblyStatus.Paused,
             AssemblyStatus.Cancelled => from is AssemblyStatus.Draft
                 or AssemblyStatus.Scheduled
                 or AssemblyStatus.CheckIn,

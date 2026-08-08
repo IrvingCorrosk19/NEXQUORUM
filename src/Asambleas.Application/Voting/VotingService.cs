@@ -2,6 +2,7 @@ namespace Asambleas.Application.Voting;
 
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Common;
+using Asambleas.Application.Quorum;
 using Asambleas.Contracts.Voting;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
@@ -16,19 +17,25 @@ public sealed class VotingService
     private readonly IAuditService _audit;
     private readonly IAssemblyRealtimePublisher _realtime;
     private readonly IDecisionRule _decisionRule;
+    private readonly IAssemblyRepresentationService _representation;
+    private readonly QuorumService _quorum;
 
     public VotingService(
         IAsambleasDbContext db,
         ICurrentTenant currentTenant,
         IAuditService audit,
         IAssemblyRealtimePublisher realtime,
-        IDecisionRule decisionRule)
+        IDecisionRule decisionRule,
+        IAssemblyRepresentationService representation,
+        QuorumService quorum)
     {
         _db = db;
         _currentTenant = currentTenant;
         _audit = audit;
         _realtime = realtime;
         _decisionRule = decisionRule;
+        _representation = representation;
+        _quorum = quorum;
     }
 
     public async Task<VotingSessionDto> OpenSessionAsync(
@@ -57,11 +64,11 @@ public sealed class VotingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, motion.TenantId);
 
-        if (motion.Status is not (MotionStatus.Presented or MotionStatus.Draft))
+        if (motion.Status is not MotionStatus.Presented)
         {
             throw new DomainException(
                 VotingCodes.MotionInvalid,
-                $"Voting cannot open for motion in status '{motion.Status}'.");
+                "Voting can only be opened for a presented motion.");
         }
 
         var openExists = await _db.VotingSessions.AnyAsync(
@@ -91,6 +98,8 @@ public sealed class VotingService
 
         _db.VotingSessions.Add(session);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _quorum.RecalculateAndSnapshotAsync(assemblyId, "VotingOpen", cancellationToken);
 
         var dto = ToSessionDto(session);
 
@@ -188,11 +197,12 @@ public sealed class VotingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, participant.TenantId);
 
-        if (participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left)
+        if (participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left
+            || !participant.IsAccredited)
         {
             throw new DomainException(
                 VotingCodes.NotAccredited,
-                "Participant is not eligible to vote in the current attendance state.");
+                "Participant is not accredited and eligible to vote.");
         }
 
         if (!Enum.TryParse<VoteChoice>(request.Choice, ignoreCase: true, out var choice))
@@ -220,23 +230,40 @@ public sealed class VotingService
                 "Double vote is not allowed for this voting session.");
         }
 
-        var unitId = request.UnitId ?? participant.UnitId;
-        decimal coefficient = 0m;
+        // EO-006: coefficient from representation authority — never trust client coefficient.
+        var representations = await _representation.GetActiveForUserAsync(assemblyId, userId, cancellationToken);
+        decimal coefficient;
+        Guid? unitId;
 
-        if (unitId is Guid resolvedUnitId)
+        if (representations.Count > 0)
         {
-            var unit = await _db.Units
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    u => u.Id == resolvedUnitId
-                         && u.TenantId == assembly.TenantId
-                         && u.PropertyHorizontalId == assembly.PropertyHorizontalId,
-                    cancellationToken)
-                ?? throw new DomainException(
-                    VotingCodes.InvalidUnit,
-                    "Unit is not valid for this assembly property.");
-
-            coefficient = unit.CoefficientPercent;
+            coefficient = Math.Round(
+                representations.Sum(r => r.CoefficientPercent),
+                4,
+                MidpointRounding.AwayFromZero);
+            // Primary unit for vote row: requested only if among representations; else first.
+            if (request.UnitId is Guid requested
+                && representations.Any(r => r.UnitId == requested))
+            {
+                unitId = requested;
+            }
+            else
+            {
+                unitId = representations[0].UnitId;
+            }
+        }
+        else
+        {
+            // Accredited operator / zero-weight participant — no unit representation.
+            coefficient = participant.EffectiveCoefficientPercent;
+            unitId = participant.UnitId;
+            if (request.UnitId is Guid requestedUnit
+                && requestedUnit != participant.UnitId)
+            {
+                throw new DomainException(
+                    VotingCodes.NotEligible,
+                    "Vote unit must match an accredited representation.");
+            }
         }
 
         var evidenceId = Guid.NewGuid();
@@ -413,6 +440,8 @@ public sealed class VotingService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        await _quorum.RecalculateAndSnapshotAsync(assemblyId, "VotingClose", cancellationToken);
+
         var explanation =
             $"Resultado calculado según la regla configurada ({ruleCode}): a favor {inFavor:0.####}% vs en contra {against:0.####}%.";
 
@@ -552,11 +581,27 @@ public sealed class VotingService
         decimal? coefficient = null;
         Guid? unitId = participant?.UnitId;
 
-        if (unitId is Guid uid)
+        if (participant is not null)
         {
-            var unit = await _db.Units.AsNoTracking().FirstOrDefaultAsync(u => u.Id == uid, cancellationToken);
-            unitCode = unit?.Code;
-            coefficient = unit?.CoefficientPercent;
+            var reps = await _representation.GetActiveForUserAsync(assemblyId, userId, cancellationToken);
+            if (reps.Count > 0)
+            {
+                coefficient = Math.Round(reps.Sum(r => r.CoefficientPercent), 4, MidpointRounding.AwayFromZero);
+                unitId = reps[0].UnitId;
+                unitCode = string.Join(", ", reps.Select(r => r.UnitCode));
+            }
+            else if (unitId is Guid uid)
+            {
+                var unit = await _db.Units.AsNoTracking().FirstOrDefaultAsync(u => u.Id == uid, cancellationToken);
+                unitCode = unit?.Code;
+                coefficient = participant.EffectiveCoefficientPercent > 0
+                    ? participant.EffectiveCoefficientPercent
+                    : unit?.CoefficientPercent;
+            }
+            else
+            {
+                coefficient = participant.EffectiveCoefficientPercent;
+            }
         }
 
         var vote = await _db.Votes
@@ -601,7 +646,8 @@ public sealed class VotingService
                 unitCode);
         }
 
-        if (participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left)
+        if (!participant.IsAccredited
+            || participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left)
         {
             return new MyVoteStatusDto(
                 votingSessionId,

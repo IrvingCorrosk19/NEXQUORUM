@@ -1,4 +1,4 @@
-namespace Asambleas.Infrastructure.Seed;
+﻿namespace Asambleas.Infrastructure.Seed;
 
 using Asambleas.Application.Security;
 using Asambleas.Domain.Entities;
@@ -56,7 +56,12 @@ public sealed class DemoDataSeeder
 
         if (await _db.Tenants.IgnoreQueryFilters().AnyAsync(t => t.Id == DemoSeedConstants.TenantOceanId, cancellationToken))
         {
-            _logger.LogInformation("Demo seed already present; skipping.");
+            _logger.LogInformation("Demo seed already present; ensuring EO-006 powers.");
+            if (_environment.IsDevelopment())
+            {
+                await EnsureEo006PowersAsync(cancellationToken);
+            }
+
             return;
         }
 
@@ -165,7 +170,7 @@ public sealed class DemoDataSeeder
             Id = DemoSeedConstants.AssemblyOceanId,
             TenantId = DemoSeedConstants.TenantOceanId,
             PropertyHorizontalId = DemoSeedConstants.PhOceanId,
-            Title = "ASAMBLEA GENERAL ORDINARIA — PH OCEAN TOWER",
+            Title = "ASAMBLEA GENERAL ORDINARIA â€” PH OCEAN TOWER",
             Modality = AssemblyEntity.ModalityVirtual,
             Status = AssemblyStatus.Scheduled,
             ScheduledAtUtc = now.AddDays(1),
@@ -176,9 +181,9 @@ public sealed class DemoDataSeeder
 
         var agenda = new[]
         {
-            (DemoSeedConstants.Agenda01Id, 1, "01", "Verificación de quórum e instalación"),
-            (DemoSeedConstants.Agenda02Id, 2, "02", "Lectura y aprobación del orden del día"),
-            (DemoSeedConstants.Agenda03Id, 3, "03", "Aprobación del presupuesto anual"),
+            (DemoSeedConstants.Agenda01Id, 1, "01", "VerificaciÃ³n de quÃ³rum e instalaciÃ³n"),
+            (DemoSeedConstants.Agenda02Id, 2, "02", "Lectura y aprobaciÃ³n del orden del dÃ­a"),
+            (DemoSeedConstants.Agenda03Id, 3, "03", "AprobaciÃ³n del presupuesto anual"),
             (DemoSeedConstants.Agenda04Id, 4, "04", "Proposiciones y varios")
         };
 
@@ -206,7 +211,7 @@ public sealed class DemoDataSeeder
             AgendaItemId = DemoSeedConstants.Agenda03Id,
             Code = "MOTION-001",
             Title = "Aprobar presupuesto de gastos comunes 2026",
-            Body = "Se somete a consideración la aprobación del presupuesto anual de gastos comunes para la vigencia 2026.",
+            Body = "Se somete a consideraciÃ³n la aprobaciÃ³n del presupuesto anual de gastos comunes para la vigencia 2026.",
             Status = MotionStatus.Draft,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
@@ -267,7 +272,7 @@ public sealed class DemoDataSeeder
             Id = DemoSeedConstants.AssemblyOtherId,
             TenantId = DemoSeedConstants.TenantOtherId,
             PropertyHorizontalId = DemoSeedConstants.PhOtherId,
-            Title = "ASAMBLEA AISLAMIENTO — PH OTHER",
+            Title = "ASAMBLEA AISLAMIENTO â€” PH OTHER",
             Modality = AssemblyEntity.ModalityVirtual,
             Status = AssemblyStatus.Scheduled,
             ScheduledAtUtc = now.AddDays(2),
@@ -279,14 +284,16 @@ public sealed class DemoDataSeeder
         await _db.SaveChangesAsync(cancellationToken);
     }
 
+
     private async Task SeedUsersAsync(CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
 
-        var users = new[]
+        // Operators have no ownership — units 107/108 owned by absentees + Approved powers to owners.
+        var users = new (Guid UserId, string UserName, string Email, string DisplayName, string Role, Guid? UnitId, Guid? OwnerId)[]
         {
-            (DemoSeedConstants.UserPresidentId, "president", "president@ocean.demo", "Presidente Asamblea", Roles.AssemblyPresident, DemoSeedConstants.Unit107Id, DemoSeedConstants.OwnerPresidentId),
-            (DemoSeedConstants.UserSecretaryId, "secretary", "secretary@ocean.demo", "Secretario Asamblea", Roles.AssemblySecretary, DemoSeedConstants.Unit108Id, DemoSeedConstants.OwnerSecretaryId),
+            (DemoSeedConstants.UserPresidentId, "president", "president@ocean.demo", "Presidente Asamblea", Roles.AssemblyPresident, null, DemoSeedConstants.OwnerPresidentId),
+            (DemoSeedConstants.UserSecretaryId, "secretary", "secretary@ocean.demo", "Secretario Asamblea", Roles.AssemblySecretary, null, DemoSeedConstants.OwnerSecretaryId),
             (DemoSeedConstants.UserOwner101Id, "owner101", "owner101@ocean.demo", "Propietario 101", Roles.Owner, DemoSeedConstants.Unit101Id, DemoSeedConstants.Owner101Id),
             (DemoSeedConstants.UserOwner102Id, "owner102", "owner102@ocean.demo", "Propietario 102", Roles.Owner, DemoSeedConstants.Unit102Id, DemoSeedConstants.Owner102Id),
             (DemoSeedConstants.UserOwner103Id, "owner103", "owner103@ocean.demo", "Propietario 103", Roles.Owner, DemoSeedConstants.Unit103Id, DemoSeedConstants.Owner103Id),
@@ -295,7 +302,6 @@ public sealed class DemoDataSeeder
             (DemoSeedConstants.UserOwner106Id, "owner106", "owner106@ocean.demo", "Propietario 106", Roles.Owner, DemoSeedConstants.Unit106Id, DemoSeedConstants.Owner106Id)
         };
 
-        // Bypass tenant filter while creating Identity users (login lookup needs unfiltered access).
         _currentTenant.TenantId = Guid.Empty;
 
         foreach (var (userId, userName, email, displayName, role, unitId, ownerId) in users)
@@ -334,27 +340,33 @@ public sealed class DemoDataSeeder
                     new System.Security.Claims.Claim(DemoSeedConstants.PermissionClaimType, permission));
             }
 
-            _db.Owners.Add(new Owner
+            if (ownerId is Guid oid)
             {
-                Id = ownerId,
-                TenantId = DemoSeedConstants.TenantOceanId,
-                DisplayName = displayName,
-                Email = email,
-                UserId = userId,
-                CreatedAtUtc = now,
-                UpdatedAtUtc = now
-            });
+                _db.Owners.Add(new Owner
+                {
+                    Id = oid,
+                    TenantId = DemoSeedConstants.TenantOceanId,
+                    DisplayName = displayName,
+                    Email = email,
+                    UserId = userId,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now
+                });
+            }
 
-            _db.Ownerships.Add(new Ownership
+            if (unitId is Guid uid && ownerId is Guid ownershipOwnerId)
             {
-                Id = Guid.NewGuid(),
-                TenantId = DemoSeedConstants.TenantOceanId,
-                UnitId = unitId,
-                OwnerId = ownerId,
-                SharePercent = 100.00m,
-                CreatedAtUtc = now,
-                UpdatedAtUtc = now
-            });
+                _db.Ownerships.Add(new Ownership
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = DemoSeedConstants.TenantOceanId,
+                    UnitId = uid,
+                    OwnerId = ownershipOwnerId,
+                    SharePercent = 100.00m,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now
+                });
+            }
 
             _db.AssemblyParticipants.Add(new AssemblyParticipant
             {
@@ -371,7 +383,190 @@ public sealed class DemoDataSeeder
             });
         }
 
+        _db.Owners.Add(new Owner
+        {
+            Id = DemoSeedConstants.OwnerAbsentee107Id,
+            TenantId = DemoSeedConstants.TenantOceanId,
+            DisplayName = "Propietario Ausente 107",
+            Email = "absentee107@ocean.demo",
+            UserId = null,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _db.Owners.Add(new Owner
+        {
+            Id = DemoSeedConstants.OwnerAbsentee108Id,
+            TenantId = DemoSeedConstants.TenantOceanId,
+            DisplayName = "Propietario Ausente 108",
+            Email = "absentee108@ocean.demo",
+            UserId = null,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _db.Ownerships.Add(new Ownership
+        {
+            Id = Guid.NewGuid(),
+            TenantId = DemoSeedConstants.TenantOceanId,
+            UnitId = DemoSeedConstants.Unit107Id,
+            OwnerId = DemoSeedConstants.OwnerAbsentee107Id,
+            SharePercent = 100.00m,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _db.Ownerships.Add(new Ownership
+        {
+            Id = Guid.NewGuid(),
+            TenantId = DemoSeedConstants.TenantOceanId,
+            UnitId = DemoSeedConstants.Unit108Id,
+            OwnerId = DemoSeedConstants.OwnerAbsentee108Id,
+            SharePercent = 100.00m,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _db.Powers.Add(new Power
+        {
+            Id = DemoSeedConstants.Power107To102Id,
+            TenantId = DemoSeedConstants.TenantOceanId,
+            PropertyHorizontalId = DemoSeedConstants.PhOceanId,
+            AssemblyId = DemoSeedConstants.AssemblyOceanId,
+            PrincipalOwnerId = DemoSeedConstants.OwnerAbsentee107Id,
+            RepresentativeUserId = DemoSeedConstants.UserOwner102Id,
+            UnitId = DemoSeedConstants.Unit107Id,
+            Status = PowerStatus.Approved,
+            EvidenceReference = "EO-006 demo power 107→102",
+            ValidatedAtUtc = now,
+            ValidatedByUserId = DemoSeedConstants.UserPresidentId,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _db.Powers.Add(new Power
+        {
+            Id = DemoSeedConstants.Power108To105Id,
+            TenantId = DemoSeedConstants.TenantOceanId,
+            PropertyHorizontalId = DemoSeedConstants.PhOceanId,
+            AssemblyId = DemoSeedConstants.AssemblyOceanId,
+            PrincipalOwnerId = DemoSeedConstants.OwnerAbsentee108Id,
+            RepresentativeUserId = DemoSeedConstants.UserOwner105Id,
+            UnitId = DemoSeedConstants.Unit108Id,
+            Status = PowerStatus.Approved,
+            EvidenceReference = "EO-006 demo power 108→105",
+            ValidatedAtUtc = now,
+            ValidatedByUserId = DemoSeedConstants.UserPresidentId,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+
         await _db.SaveChangesAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    /// <summary>
+    /// Idempotent upgrade for existing Development databases created before EO-006.
+    /// Moves units 107/108 to absentee owners and seeds Approved powers.
+    /// </summary>
+    private async Task EnsureEo006PowersAsync(CancellationToken cancellationToken)
+    {
+        if (await _db.Powers.IgnoreQueryFilters()
+                .AnyAsync(p => p.Id == DemoSeedConstants.Power107To102Id, cancellationToken))
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        _currentTenant.TenantId = Guid.Empty;
+
+        var legacyOwnerships = await _db.Ownerships.IgnoreQueryFilters()
+            .Where(o => o.UnitId == DemoSeedConstants.Unit107Id || o.UnitId == DemoSeedConstants.Unit108Id)
+            .ToListAsync(cancellationToken);
+        _db.Ownerships.RemoveRange(legacyOwnerships);
+
+        if (!await _db.Owners.IgnoreQueryFilters().AnyAsync(o => o.Id == DemoSeedConstants.OwnerAbsentee107Id, cancellationToken))
+        {
+            _db.Owners.Add(new Owner
+            {
+                Id = DemoSeedConstants.OwnerAbsentee107Id,
+                TenantId = DemoSeedConstants.TenantOceanId,
+                DisplayName = "Propietario Ausente 107",
+                Email = "absentee107@ocean.demo",
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+            _db.Owners.Add(new Owner
+            {
+                Id = DemoSeedConstants.OwnerAbsentee108Id,
+                TenantId = DemoSeedConstants.TenantOceanId,
+                DisplayName = "Propietario Ausente 108",
+                Email = "absentee108@ocean.demo",
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        _db.Ownerships.Add(new Ownership
+        {
+            Id = Guid.NewGuid(),
+            TenantId = DemoSeedConstants.TenantOceanId,
+            UnitId = DemoSeedConstants.Unit107Id,
+            OwnerId = DemoSeedConstants.OwnerAbsentee107Id,
+            SharePercent = 100.00m,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _db.Ownerships.Add(new Ownership
+        {
+            Id = Guid.NewGuid(),
+            TenantId = DemoSeedConstants.TenantOceanId,
+            UnitId = DemoSeedConstants.Unit108Id,
+            OwnerId = DemoSeedConstants.OwnerAbsentee108Id,
+            SharePercent = 100.00m,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+
+        _db.Powers.Add(new Power
+        {
+            Id = DemoSeedConstants.Power107To102Id,
+            TenantId = DemoSeedConstants.TenantOceanId,
+            PropertyHorizontalId = DemoSeedConstants.PhOceanId,
+            AssemblyId = DemoSeedConstants.AssemblyOceanId,
+            PrincipalOwnerId = DemoSeedConstants.OwnerAbsentee107Id,
+            RepresentativeUserId = DemoSeedConstants.UserOwner102Id,
+            UnitId = DemoSeedConstants.Unit107Id,
+            Status = PowerStatus.Approved,
+            EvidenceReference = "EO-006 demo power 107→102",
+            ValidatedAtUtc = now,
+            ValidatedByUserId = DemoSeedConstants.UserPresidentId,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _db.Powers.Add(new Power
+        {
+            Id = DemoSeedConstants.Power108To105Id,
+            TenantId = DemoSeedConstants.TenantOceanId,
+            PropertyHorizontalId = DemoSeedConstants.PhOceanId,
+            AssemblyId = DemoSeedConstants.AssemblyOceanId,
+            PrincipalOwnerId = DemoSeedConstants.OwnerAbsentee108Id,
+            RepresentativeUserId = DemoSeedConstants.UserOwner105Id,
+            UnitId = DemoSeedConstants.Unit108Id,
+            Status = PowerStatus.Approved,
+            EvidenceReference = "EO-006 demo power 108→105",
+            ValidatedAtUtc = now,
+            ValidatedByUserId = DemoSeedConstants.UserPresidentId,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+
+        var operatorParticipants = await _db.AssemblyParticipants.IgnoreQueryFilters()
+            .Where(p => p.AssemblyId == DemoSeedConstants.AssemblyOceanId
+                        && (p.UserId == DemoSeedConstants.UserPresidentId
+                            || p.UserId == DemoSeedConstants.UserSecretaryId))
+            .ToListAsync(cancellationToken);
+        foreach (var p in operatorParticipants)
+        {
+            p.UnitId = null;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("EO-006 demo powers ensured (107→102, 108→105).");
     }
 }

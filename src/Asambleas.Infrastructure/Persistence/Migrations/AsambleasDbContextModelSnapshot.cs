@@ -137,6 +137,12 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("AccreditedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("AccreditedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("AssemblyId")
                         .HasColumnType("uuid");
 
@@ -155,6 +161,17 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<decimal>("EffectiveCoefficientPercent")
+                        .HasPrecision(7, 4)
+                        .HasColumnType("numeric(7,4)");
+
+                    b.Property<bool>("IsAccredited")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("PresenceType")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("RoleCode")
                         .IsRequired()
@@ -177,6 +194,8 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("AssemblyId");
 
+                    b.HasIndex("IsAccredited");
+
                     b.HasIndex("TenantId");
 
                     b.HasIndex("UnitId");
@@ -187,6 +206,70 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("assembly_participants", (string)null);
+                });
+
+            modelBuilder.Entity("Asambleas.Domain.Entities.AssemblyRepresentation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AccreditedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("AccreditedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssemblyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("CoefficientSnapshot")
+                        .HasPrecision(7, 4)
+                        .HasColumnType("numeric(7,4)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("PowerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RepresentativeUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssemblyId");
+
+                    b.HasIndex("PowerId");
+
+                    b.HasIndex("RepresentativeUserId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("UnitId");
+
+                    b.HasIndex("AssemblyId", "UnitId")
+                        .IsUnique()
+                        .HasFilter("\"IsActive\" = TRUE");
+
+                    b.ToTable("assembly_representations", (string)null);
                 });
 
             modelBuilder.Entity("Asambleas.Domain.Entities.AttendanceRecord", b =>
@@ -465,6 +548,68 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                     b.ToTable("ownerships", (string)null);
                 });
 
+            modelBuilder.Entity("Asambleas.Domain.Entities.Power", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssemblyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<Guid>("PrincipalOwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PropertyHorizontalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RepresentativeUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ValidatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ValidatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssemblyId");
+
+                    b.HasIndex("PrincipalOwnerId");
+
+                    b.HasIndex("RepresentativeUserId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("UnitId");
+
+                    b.HasIndex("AssemblyId", "UnitId", "Status");
+
+                    b.ToTable("powers", (string)null);
+                });
+
             modelBuilder.Entity("Asambleas.Domain.Entities.PropertyHorizontal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -528,6 +673,10 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("PresentUnits")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<decimal>("RequiredCoefficient")
                         .HasPrecision(7, 4)
@@ -1057,6 +1206,26 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("Asambleas.Domain.Entities.AssemblyRepresentation", b =>
+                {
+                    b.HasOne("Asambleas.Domain.Entities.Assembly", null)
+                        .WithMany()
+                        .HasForeignKey("AssemblyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Asambleas.Domain.Entities.Power", null)
+                        .WithMany()
+                        .HasForeignKey("PowerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Asambleas.Domain.Entities.Unit", null)
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Asambleas.Domain.Entities.AttendanceRecord", b =>
                 {
                     b.HasOne("Asambleas.Domain.Entities.Assembly", null)
@@ -1103,6 +1272,27 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                     b.HasOne("Asambleas.Domain.Entities.Owner", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Asambleas.Domain.Entities.Unit", null)
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Asambleas.Domain.Entities.Power", b =>
+                {
+                    b.HasOne("Asambleas.Domain.Entities.Assembly", null)
+                        .WithMany()
+                        .HasForeignKey("AssemblyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Asambleas.Domain.Entities.Owner", null)
+                        .WithMany()
+                        .HasForeignKey("PrincipalOwnerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

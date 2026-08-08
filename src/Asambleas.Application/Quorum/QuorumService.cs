@@ -55,6 +55,10 @@ public sealed class QuorumService
                     u => u.TenantId == assembly.TenantId && u.PropertyHorizontalId == assembly.PropertyHorizontalId,
                     cancellationToken);
 
+            var missing = latest.Status == QuorumStatus.Reached
+                ? 0m
+                : Math.Max(0m, Math.Round(latest.RequiredCoefficient - latest.PresentCoefficient, 4, MidpointRounding.AwayFromZero));
+
             return new QuorumDto(
                 assemblyId,
                 latest.PresentCoefficient,
@@ -63,10 +67,10 @@ public sealed class QuorumService
                 latest.Status == QuorumStatus.Reached,
                 latest.PresentUnits,
                 eligibleUnits,
-                latest.TimestampUtc);
+                latest.TimestampUtc,
+                missing);
         }
 
-        // Read-only recalculation (no snapshot write) when none exists yet.
         return await CalculateReadOnlyAsync(assembly, cancellationToken);
     }
 
@@ -94,12 +98,19 @@ public sealed class QuorumService
                 s.PresentUnits,
                 s.PresentCoefficient,
                 s.RequiredCoefficient,
-                s.Status.ToString()))
+                s.Status.ToString(),
+                s.Reason))
             .ToListAsync(cancellationToken);
     }
 
+    public Task<QuorumStateDto> RecalculateAndSnapshotAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default) =>
+        RecalculateAndSnapshotAsync(assemblyId, reason: null, cancellationToken);
+
     public async Task<QuorumStateDto> RecalculateAndSnapshotAsync(
         Guid assemblyId,
+        string? reason,
         CancellationToken cancellationToken = default)
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
@@ -110,7 +121,27 @@ public sealed class QuorumService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
+        var previous = await _db.QuorumSnapshots
+            .AsNoTracking()
+            .Where(s => s.AssemblyId == assemblyId)
+            .OrderByDescending(s => s.TimestampUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var calculation = await CalculateInternalAsync(assembly, cancellationToken);
+
+        var snapshotReason = reason;
+        if (previous is not null)
+        {
+            var wasReached = previous.Status == QuorumStatus.Reached;
+            if (!wasReached && calculation.QuorumReached)
+            {
+                snapshotReason = "ThresholdReached";
+            }
+            else if (wasReached && !calculation.QuorumReached)
+            {
+                snapshotReason = "ThresholdLost";
+            }
+        }
 
         var now = DateTimeOffset.UtcNow;
         var snapshot = new QuorumSnapshot
@@ -121,7 +152,8 @@ public sealed class QuorumService
             PresentUnits = calculation.PresentUnits,
             PresentCoefficient = calculation.CurrentCoefficient,
             RequiredCoefficient = calculation.RequiredCoefficient,
-            Status = calculation.QuorumReached ? QuorumStatus.Reached : QuorumStatus.NotReached
+            Status = calculation.QuorumReached ? QuorumStatus.Reached : QuorumStatus.NotReached,
+            Reason = snapshotReason
         };
 
         _db.QuorumSnapshots.Add(snapshot);
@@ -145,9 +177,20 @@ public sealed class QuorumService
                 state.CurrentCoefficient,
                 state.RequiredCoefficient,
                 state.QuorumReached,
-                state.PresentUnits
+                state.PresentUnits,
+                state.MissingCoefficient,
+                Reason = snapshotReason
             },
             cancellationToken: cancellationToken);
+
+        if (previous is not null && previous.Status != snapshot.Status)
+        {
+            await _audit.WriteAsync(
+                calculation.QuorumReached ? AuditEventType.QuorumReached : AuditEventType.QuorumLost,
+                assemblyId,
+                metadata: new { state.CurrentCoefficient, state.RequiredCoefficient },
+                cancellationToken: cancellationToken);
+        }
 
         await _realtime.PublishQuorumAsync(assemblyId, state, cancellationToken);
 
@@ -159,6 +202,10 @@ public sealed class QuorumService
         CancellationToken cancellationToken)
     {
         var calculation = await CalculateInternalAsync(assembly, cancellationToken);
+        var missing = calculation.QuorumReached
+            ? 0m
+            : Math.Max(0m, Math.Round(calculation.RequiredCoefficient - calculation.CurrentCoefficient, 4, MidpointRounding.AwayFromZero));
+
         return new QuorumDto(
             assembly.Id,
             calculation.CurrentCoefficient,
@@ -167,9 +214,14 @@ public sealed class QuorumService
             calculation.QuorumReached,
             calculation.PresentUnits,
             calculation.EligibleUnits,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            missing);
     }
 
+    /// <summary>
+    /// Quorum from active AssemblyRepresentation rows whose representative is accredited and present.
+    /// Unit coefficients are never double-counted (unique active representation per unit).
+    /// </summary>
     private async Task<(decimal CurrentCoefficient, decimal RequiredCoefficient, bool QuorumReached, int PresentUnits, int EligibleUnits)> CalculateInternalAsync(
         Domain.Entities.Assembly assembly,
         CancellationToken cancellationToken)
@@ -180,21 +232,43 @@ public sealed class QuorumService
             .Select(u => new { u.Id, u.CoefficientPercent })
             .ToListAsync(cancellationToken);
 
-        var presentUnitIds = await _db.AssemblyParticipants
+        var contributingUserIds = await _db.AssemblyParticipants
             .AsNoTracking()
             .Where(p => p.AssemblyId == assembly.Id
-                        && p.UnitId != null
+                        && p.IsAccredited
                         && (p.AttendanceStatus == AttendanceStatus.CheckedIn
                             || p.AttendanceStatus == AttendanceStatus.Present
                             || p.AttendanceStatus == AttendanceStatus.TemporarilyDisconnected))
-            .Select(p => p.UnitId!.Value)
-            .Distinct()
+            .Select(p => p.UserId)
             .ToListAsync(cancellationToken);
 
-        var presentCoefficients = eligibleUnits
-            .Where(u => presentUnitIds.Contains(u.Id))
-            .Select(u => u.CoefficientPercent)
-            .ToList();
+        var presentCoefficients = contributingUserIds.Count == 0
+            ? new List<decimal>()
+            : await _db.AssemblyRepresentations
+                .AsNoTracking()
+                .Where(r => r.AssemblyId == assembly.Id
+                            && r.IsActive
+                            && contributingUserIds.Contains(r.RepresentativeUserId))
+                .Select(r => r.CoefficientSnapshot)
+                .ToListAsync(cancellationToken);
+
+        // Fallback for legacy rows without representations: single UnitId on participant.
+        if (presentCoefficients.Count == 0 && contributingUserIds.Count > 0)
+        {
+            var legacyUnitIds = await _db.AssemblyParticipants
+                .AsNoTracking()
+                .Where(p => p.AssemblyId == assembly.Id
+                            && contributingUserIds.Contains(p.UserId)
+                            && p.UnitId != null)
+                .Select(p => p.UnitId!.Value)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            presentCoefficients = eligibleUnits
+                .Where(u => legacyUnitIds.Contains(u.Id))
+                .Select(u => u.CoefficientPercent)
+                .ToList();
+        }
 
         var calculation = QuorumEngine.Calculate(
             eligibleUnits.Select(u => u.CoefficientPercent),

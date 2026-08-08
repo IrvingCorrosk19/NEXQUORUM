@@ -50,7 +50,8 @@ public sealed class AssemblyRoomStateTests
         state.Should().NotBeNull();
         state!.Assembly.Id.Should().Be(DemoSeedConstants.AssemblyOceanId);
         state.Participants.Should().NotBeEmpty();
-        state.Agenda.Should().NotBeEmpty();
+        state.Agenda.Items.Should().NotBeEmpty();
+        state.SpeakerQueue.Queue.Should().NotBeNull();
         state.ViewerRole.Should().Be(AssemblyViewerRoles.Owner);
         state.Readiness.Should().NotBeNull();
         state.CurrentUserHasVoted.Should().BeFalse();

@@ -96,28 +96,83 @@ export function normalizeRoomState(raw) {
   }
 
   const assembly = raw.assembly || raw.assemblyDetail || null;
-  const agenda = raw.agenda || raw.agendaList || null;
-  const queue = raw.speakerQueue || raw.queue || raw.speakers || null;
-  const session = raw.votingSession || raw.session || raw.voting || null;
+
+  // Agenda: API may send AgendaListResponse OR bare AgendaItemDto[]
+  let agenda = raw.agenda || raw.agendaList || null;
+  if (Array.isArray(agenda)) {
+    agenda = {
+      assemblyId: assembly?.id,
+      activeAgendaItemId: assembly?.activeAgendaItemId || null,
+      items: agenda
+    };
+  } else if (agenda && Array.isArray(agenda.items)) {
+    agenda = {
+      ...agenda,
+      activeAgendaItemId:
+        agenda.activeAgendaItemId ?? assembly?.activeAgendaItemId ?? null
+    };
+  }
+
+  // Speakers: API may send SpeakerQueueDto OR bare SpeakerRequestDto[]
+  let queue = raw.speakerQueue || raw.queue || raw.speakers || null;
+  if (Array.isArray(queue)) {
+    const current =
+      queue.find((s) => s.status === "Granted")?.id ||
+      raw.currentSpeakerRequestId ||
+      null;
+    queue = {
+      assemblyId: assembly?.id,
+      currentSpeakerRequestId: current,
+      queue
+    };
+  } else if (queue && Array.isArray(queue.queue)) {
+    queue = {
+      ...queue,
+      currentSpeakerRequestId:
+        queue.currentSpeakerRequestId ||
+        queue.queue.find((s) => s.status === "Granted")?.id ||
+        null
+    };
+  }
+
+  const session =
+    raw.openVotingSession || raw.votingSession || raw.session || raw.voting || null;
+  const tally =
+    raw.openSessionResultsOrNull || raw.tally || raw.voteTally || null;
+  const motion = raw.activeMotion || raw.motion || raw.currentMotion || null;
+
   const participants = Array.isArray(raw.participants)
     ? raw.participants
     : Array.isArray(raw.participants?.items)
       ? raw.participants.items
       : [];
 
+  let myVote = raw.myVote || raw.voteReceipt || null;
+  if (!myVote && (raw.currentUserHasVoted || raw.CurrentUserHasVoted)) {
+    myVote = {
+      evidenceId: raw.currentUserEvidenceId || raw.CurrentUserEvidenceId || null,
+      castAtUtc: null
+    };
+  }
+
   return {
     assembly,
     quorum: raw.quorum || raw.quorumState || null,
     agenda,
-    motion: raw.motion || raw.currentMotion || null,
+    motion,
     session,
-    tally: raw.tally || raw.voteTally || null,
+    tally,
     queue,
     participants,
     viewerRole: raw.viewerRole || raw.viewer?.role || null,
     self: raw.self || raw.participant || raw.me || null,
-    myVote: raw.myVote || raw.voteReceipt || null,
-    startedAtUtc: raw.assemblyStartedAtUtc || raw.startedAtUtc || assembly?.startedAtUtc || assembly?.assemblyStartedAtUtc || null,
+    myVote,
+    startedAtUtc:
+      raw.assemblyStartedAtUtc ||
+      raw.startedAtUtc ||
+      assembly?.startedAtUtc ||
+      assembly?.assemblyStartedAtUtc ||
+      null,
     votingOpenedAtUtc: session?.openedAtUtc || raw.votingOpenedAtUtc || null,
     _fallback: Boolean(raw._fallback),
     _fallbackMessage: raw._fallbackMessage || null

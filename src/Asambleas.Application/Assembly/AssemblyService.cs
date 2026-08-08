@@ -14,17 +14,20 @@ public sealed class AssemblyService
     private readonly ICurrentTenant _currentTenant;
     private readonly IAuditService _audit;
     private readonly IAssemblyRealtimePublisher _realtime;
+    private readonly Quorum.QuorumService _quorum;
 
     public AssemblyService(
         IAsambleasDbContext db,
         ICurrentTenant currentTenant,
         IAuditService audit,
-        IAssemblyRealtimePublisher realtime)
+        IAssemblyRealtimePublisher realtime,
+        Quorum.QuorumService quorum)
     {
         _db = db;
         _currentTenant = currentTenant;
         _audit = audit;
         _realtime = realtime;
+        _quorum = quorum;
     }
 
     public async Task<IReadOnlyList<AssemblySummaryDto>> ListForCurrentUserAsync(
@@ -88,10 +91,10 @@ public sealed class AssemblyService
         TransitionAsync(assemblyId, AssemblyStatus.InProgress, AuditEventType.AssemblyStarted, cancellationToken);
 
     public Task<AssemblySummaryDto> PauseAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
-        TransitionAsync(assemblyId, AssemblyStatus.Paused, AuditEventType.AssemblyStarted, cancellationToken);
+        TransitionAsync(assemblyId, AssemblyStatus.Paused, AuditEventType.AssemblyPaused, cancellationToken);
 
     public Task<AssemblySummaryDto> ResumeAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
-        TransitionAsync(assemblyId, AssemblyStatus.InProgress, AuditEventType.AssemblyStarted, cancellationToken);
+        TransitionAsync(assemblyId, AssemblyStatus.InProgress, AuditEventType.AssemblyResumed, cancellationToken);
 
     public Task<AssemblySummaryDto> CompleteAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
         TransitionAsync(assemblyId, AssemblyStatus.Completed, AuditEventType.AssemblyCompleted, cancellationToken);
@@ -130,6 +133,11 @@ public sealed class AssemblyService
         assembly.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (target == AssemblyStatus.Completed)
+        {
+            await _quorum.RecalculateAndSnapshotAsync(assemblyId, "AssemblyEnd", cancellationToken);
+        }
 
         var summary = Mapping.ToSummary(assembly);
 

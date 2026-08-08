@@ -29,6 +29,7 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
 
   const currentLabel = formatPct(current);
   const requiredLabel = formatPct(required);
+  const missing = Number(quorum.missingCoefficient ?? Math.max(0, required - current));
   const statusBadge = `
     <span class="badge ${reached ? "badge-live" : "badge-warn"}">
       ${escapeHtml(reached ? t("quorum.reached") : t("quorum.notReached"))}
@@ -46,6 +47,10 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
     return;
   }
 
+  const missingBlock = reached
+    ? ""
+    : `<p class="quorum-missing"><span class="muted">${escapeHtml(t("quorum.missing") || "Falta")}</span> <strong>${formatPct(missing)}</strong></p>`;
+
   root.innerHTML = `
     <div class="quorum-meter ${crossed ? "quorum-just-reached" : ""}" role="group"
       aria-label="${escapeHtml(t("quorum.progress"))}">
@@ -59,6 +64,7 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
       <div class="quorum-meter-track" aria-hidden="true">
         <div class="quorum-meter-fill ${reached ? "reached" : ""}" style="width:${trackPct}%"></div>
       </div>
+      ${missingBlock}
       <meter class="sr-only" min="0" max="${Math.max(required, 100)}" value="${current}">
         ${currentLabel} / ${requiredLabel}
       </meter>

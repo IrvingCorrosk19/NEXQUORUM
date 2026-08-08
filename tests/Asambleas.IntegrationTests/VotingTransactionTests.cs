@@ -149,9 +149,9 @@ public sealed class VotingTransactionTests
                  })
         {
             var user = await AuthenticatedClient.LoginAsync(_fixture.Factory, email);
-            var unitId = email.StartsWith("president", StringComparison.Ordinal)
-                ? DemoSeedConstants.Unit107Id
-                : DemoSeedConstants.Unit101Id;
+            Guid? unitId = email.StartsWith("owner", StringComparison.Ordinal)
+                ? DemoSeedConstants.Unit101Id
+                : null;
 
             (await user.PostJsonAsync(
                     $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",

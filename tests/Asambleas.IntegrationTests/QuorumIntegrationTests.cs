@@ -52,7 +52,8 @@ public sealed class QuorumIntegrationTests
                 .EnsureSuccessStatusCode();
         }
 
-        await AssertLatestSnapshotAsync(presentCoefficient: 56m, QuorumStatus.Reached);
+        // 101(14) + 102(14)+power107(8) + 103(14) + 104(14) = 64
+        await AssertLatestSnapshotAsync(presentCoefficient: 64m, QuorumStatus.Reached);
     }
 
     private async Task AssertLatestSnapshotAsync(decimal presentCoefficient, QuorumStatus status)

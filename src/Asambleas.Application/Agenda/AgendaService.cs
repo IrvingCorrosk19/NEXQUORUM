@@ -73,6 +73,14 @@ public sealed class AgendaService
             throw new DomainException($"Cannot change agenda while assembly is '{assembly.Status}'.");
         }
 
+        var openVoting = await _db.VotingSessions.AnyAsync(
+            s => s.AssemblyId == assemblyId && s.Status == VotingSessionStatus.Open,
+            cancellationToken);
+        if (openVoting)
+        {
+            throw new DomainException("Cannot change the agenda while a voting session is open.");
+        }
+
         var items = await _db.AgendaItems
             .Where(i => i.AssemblyId == assemblyId)
             .OrderBy(i => i.Ordinal)

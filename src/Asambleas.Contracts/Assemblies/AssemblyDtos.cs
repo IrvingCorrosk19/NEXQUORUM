@@ -52,14 +52,21 @@ public sealed record AssemblyParticipantDto(
     string DisplayName,
     string RoleCode,
     string AttendanceStatus,
-    DateTimeOffset? CheckedInAtUtc);
+    DateTimeOffset? CheckedInAtUtc,
+    bool IsAccredited = false,
+    decimal EffectiveCoefficientPercent = 0m,
+    DateTimeOffset? AccreditedAtUtc = null,
+    int RepresentationCount = 0);
 
 public sealed record CheckInRequest(Guid? UnitId, string PresenceType);
 
 public sealed record CheckInResponse(
     Guid ParticipantId,
     string AttendanceStatus,
-    DateTimeOffset CheckedInAtUtc);
+    DateTimeOffset CheckedInAtUtc,
+    bool IsAccredited = false,
+    decimal EffectiveCoefficientPercent = 0m,
+    bool IdempotentReplay = false);
 
 /// <summary>
 /// Viewer role for room UI: Operator (president/secretary/operator), Owner, or Auditor.
@@ -112,14 +119,14 @@ public sealed record AssemblyRoomStateDto(
     AssemblyDetailDto Assembly,
     AssemblyReadinessDto Readiness,
     QuorumDto? Quorum,
-    IReadOnlyList<AgendaItemDto> Agenda,
+    AgendaListResponse Agenda,
     MotionDto? ActiveMotion,
     VotingSessionDto? OpenVotingSession,
     VotingResultsDto? OpenSessionResultsOrNull,
     bool CurrentUserHasVoted,
     Guid? CurrentUserEvidenceId,
     IReadOnlyList<AssemblyParticipantDto> Participants,
-    IReadOnlyList<SpeakerRequestDto> SpeakerQueue,
+    SpeakerQueueDto SpeakerQueue,
     MeetingRoomInfoDto? Meeting,
     string ViewerRole,
     DateTimeOffset? AssemblyStartedAtUtc);

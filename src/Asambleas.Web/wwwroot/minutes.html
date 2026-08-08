@@ -10,16 +10,36 @@
   <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/base.css" />
   <link rel="stylesheet" href="/css/components.css" />
+  <style>
+    .minutes-header h2 { font-family: "Source Serif 4", Georgia, serif; margin: 0.25rem 0; }
+    .minutes-outline { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0 1.5rem; }
+    .minutes-outline a { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
+    .minutes-section { margin: 1.5rem 0; padding-top: 0.5rem; border-top: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent); }
+    .minutes-section h3 { font-family: "Source Serif 4", Georgia, serif; }
+    .minutes-block { margin: 1rem 0; }
+    .no-print { }
+    @media print {
+      .page-header, .page-hero, .no-print, .skip-link, #page-alert { display: none !important; }
+      .page-shell, .page-main, #minutes-root { padding: 0; margin: 0; max-width: none; box-shadow: none; background: #fff; color: #000; }
+      .minutes-section { break-inside: avoid; page-break-inside: avoid; }
+      .minutes-header { page-break-after: avoid; }
+      a { text-decoration: none; color: #000; }
+    }
+  </style>
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
   <div class="page-shell">
-    <header class="page-header">
+    <header class="page-header no-print">
       <h1 class="brand">ASAMBLEAS</h1>
-      <a id="link-dashboard" class="btn btn-secondary" href="#">Volver</a>
+      <div class="cluster">
+        <a id="link-evidence" class="btn btn-secondary" href="#">Evidencia</a>
+        <button type="button" id="btn-print" class="btn btn-primary">Imprimir / PDF</button>
+        <a id="link-dashboard" class="btn btn-secondary" href="#">Volver</a>
+      </div>
     </header>
     <main id="main" class="page-main">
-      <section class="page-hero">
+      <section class="page-hero no-print">
         <h1 id="page-title">Acta de asamblea</h1>
       </section>
       <div id="page-alert" class="alert" hidden role="alert"></div>

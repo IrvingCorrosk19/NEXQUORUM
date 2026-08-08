@@ -36,6 +36,12 @@ public static class DemoSeedConstants
     public static readonly Guid OwnerPresidentId = Guid.Parse("66666666-6666-6666-6666-666666666107");
     public static readonly Guid OwnerSecretaryId = Guid.Parse("66666666-6666-6666-6666-666666666108");
 
+    public static readonly Guid OwnerAbsentee107Id = Guid.Parse("66666666-6666-6666-6666-666666666201");
+    public static readonly Guid OwnerAbsentee108Id = Guid.Parse("66666666-6666-6666-6666-666666666202");
+
+    public static readonly Guid Power107To102Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaa101");
+    public static readonly Guid Power108To105Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaa102");
+
     public static readonly Guid UserPresidentId = Guid.Parse("77777777-7777-7777-7777-777777777101");
     public static readonly Guid UserSecretaryId = Guid.Parse("77777777-7777-7777-7777-777777777102");
     public static readonly Guid UserOwner101Id = Guid.Parse("77777777-7777-7777-7777-777777777103");

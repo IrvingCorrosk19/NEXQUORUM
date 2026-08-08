@@ -12,10 +12,10 @@ public sealed class AssemblyMeetingE2ETests
         PropertyNameCaseInsensitive = true
     };
 
-    private static readonly (string Email, Guid UnitId)[] DemoUsers =
+    private static readonly (string Email, Guid? UnitId)[] DemoUsers =
     [
-        ("president@ocean.demo", Asambleas.Infrastructure.Seed.DemoSeedConstants.Unit107Id),
-        ("secretary@ocean.demo", Asambleas.Infrastructure.Seed.DemoSeedConstants.Unit108Id),
+        ("president@ocean.demo", null),
+        ("secretary@ocean.demo", null),
         ("owner101@ocean.demo", Asambleas.Infrastructure.Seed.DemoSeedConstants.Unit101Id),
         ("owner102@ocean.demo", Asambleas.Infrastructure.Seed.DemoSeedConstants.Unit102Id),
         ("owner103@ocean.demo", Asambleas.Infrastructure.Seed.DemoSeedConstants.Unit103Id),

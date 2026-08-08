@@ -14,6 +14,7 @@ public sealed class AssemblyLifecycleTests
     [InlineData(AssemblyStatus.InProgress, AssemblyStatus.Paused)]
     [InlineData(AssemblyStatus.Paused, AssemblyStatus.InProgress)]
     [InlineData(AssemblyStatus.InProgress, AssemblyStatus.Completed)]
+    [InlineData(AssemblyStatus.Paused, AssemblyStatus.Completed)]
     [InlineData(AssemblyStatus.Draft, AssemblyStatus.Cancelled)]
     [InlineData(AssemblyStatus.Scheduled, AssemblyStatus.Cancelled)]
     [InlineData(AssemblyStatus.CheckIn, AssemblyStatus.Cancelled)]
@@ -29,7 +30,6 @@ public sealed class AssemblyLifecycleTests
     [InlineData(AssemblyStatus.InProgress, AssemblyStatus.CheckIn)]
     [InlineData(AssemblyStatus.Completed, AssemblyStatus.InProgress)]
     [InlineData(AssemblyStatus.Cancelled, AssemblyStatus.Scheduled)]
-    [InlineData(AssemblyStatus.Paused, AssemblyStatus.Completed)]
     [InlineData(AssemblyStatus.InProgress, AssemblyStatus.Cancelled)]
     public void Rejects_invalid_transitions(AssemblyStatus from, AssemblyStatus to)
     {

@@ -124,6 +124,26 @@ public sealed class MotionService
             throw new DomainException($"Motion cannot be presented from status '{motion.Status}'.");
         }
 
+        // One active presented motion: demote other Presented (not Voting) back to Draft.
+        var otherPresented = await _db.Motions
+            .Where(m => m.AssemblyId == assemblyId
+                        && m.Id != motionId
+                        && m.Status == MotionStatus.Presented)
+            .ToListAsync(cancellationToken);
+        foreach (var other in otherPresented)
+        {
+            other.Status = MotionStatus.Draft;
+            other.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        }
+
+        var openVoting = await _db.VotingSessions.AnyAsync(
+            s => s.AssemblyId == assemblyId && s.Status == VotingSessionStatus.Open,
+            cancellationToken);
+        if (openVoting)
+        {
+            throw new DomainException("Cannot present a motion while a voting session is open.");
+        }
+
         motion.Status = MotionStatus.Presented;
         motion.UpdatedAtUtc = DateTimeOffset.UtcNow;
 

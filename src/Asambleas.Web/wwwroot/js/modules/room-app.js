@@ -9,7 +9,8 @@ import {
   grantFloor,
   rejectFloor,
   renderSpeakerQueue,
-  requestFloor
+  requestFloor,
+  skipFloor
 } from "./speakers.js";
 import { renderAgenda, setActiveAgendaItem } from "./agenda.js";
 import {
@@ -181,20 +182,23 @@ function syncLiveMode() {
 
 function syncOperatorActions() {
   const status = state.assembly?.status;
-  const operator = state.viewerRole === "Operator";
-  if (!operator) return;
+  const user = state.user;
+  const canManage = hasPermission(user, "assembly:manage");
+  const canStart = hasPermission(user, "assembly:start");
+  const canClose = hasPermission(user, "assembly:close");
 
-  const canStart = status === "CheckIn" || status === "Scheduled";
-  const canPause = status === "InProgress";
-  const canResume = status === "Paused";
-  const canEnd = status === "InProgress" || status === "Paused";
+  // Permission-gated (not only viewerRole) — secretary without manage won't see 403 buttons.
+  setVisible(
+    qs("#btn-start"),
+    canStart && (status === "CheckIn" || status === "Scheduled")
+  );
+  setVisible(qs("#btn-pause"), canManage && status === "InProgress");
+  setVisible(qs("#btn-resume"), canManage && status === "Paused");
+  setVisible(
+    qs("#btn-end"),
+    canClose && (status === "InProgress" || status === "Paused")
+  );
 
-  setVisible(qs("#btn-start"), canStart);
-  setVisible(qs("#btn-pause"), canPause);
-  setVisible(qs("#btn-resume"), canResume);
-  setVisible(qs("#btn-end"), canEnd);
-
-  // Hide empty operator control clusters when no children visible
   document.querySelectorAll(".control-cluster.operator-only").forEach((cluster) => {
     const any = [...cluster.querySelectorAll("button")].some((b) => !b.hidden);
     cluster.hidden = !any;
@@ -340,15 +344,31 @@ function emptyState(what, why = "", next = "") {
 
 function renderMotion() {
   if (!els.motion) return;
+  const operator = state.viewerRole === "Operator";
+  const canPresent =
+    operator &&
+    hasPermission(state.user, "motion:create") &&
+    (state.assembly?.status === "InProgress" || state.assembly?.status === "Paused") &&
+    state.session?.status !== "Open";
+
   const body = state.motion?.body || "";
   const long = body.length > 280;
+  const presentControls = canPresent
+    ? `<div class="cta-row" style="margin-top:0.75rem">
+         <button type="button" class="btn btn-primary" data-action="present-motion">${escapeHtml(
+           t("assembly.presentMotion") || "Presentar moción"
+         )}</button>
+       </div>`
+    : "";
 
   if (!state.motion) {
-    els.motion.innerHTML = emptyState(
-      t("assembly.noMotion"),
-      t("assembly.noMotionWhy"),
-      t("assembly.noMotionNext")
-    );
+    els.motion.innerHTML =
+      emptyState(
+        t("assembly.noMotion"),
+        t("assembly.noMotionWhy"),
+        canPresent ? t("assembly.noMotionNextPresent") || t("assembly.noMotionNext") : t("assembly.noMotionNext")
+      ) + presentControls;
+    wirePresentMotion();
     return;
   }
 
@@ -363,6 +383,11 @@ function renderMotion() {
           : ""
       }
       <p class="muted">${escapeHtml(t("assembly.motionStatus"))}: ${escapeHtml(state.motion.status || "")}</p>
+      ${
+        state.motion.status === "Draft" || canPresent
+          ? presentControls
+          : ""
+      }
     </article>
   `;
   els.motion.querySelector("[data-action='expand-motion']")?.addEventListener("click", (event) => {
@@ -371,6 +396,40 @@ function renderMotion() {
     const expanded = !text?.classList.contains("is-clamped");
     event.currentTarget.textContent = expanded ? t("assembly.showLess") : t("assembly.showMore");
   });
+  wirePresentMotion();
+}
+
+function wirePresentMotion() {
+  els.motion?.querySelector("[data-action='present-motion']")?.addEventListener("click", presentMotionFlow);
+}
+
+async function presentMotionFlow() {
+  try {
+    const motions = await api(`/api/assemblies/${assemblyId}/motions`);
+    const list = Array.isArray(motions) ? motions : motions?.items || [];
+    const draft =
+      list.find((m) => m.status === "Draft") ||
+      list.find((m) => m.status === "Presented") ||
+      list[0];
+    if (!draft) {
+      showError(t("assembly.noMotionAvailable") || "No hay mociones disponibles.");
+      return;
+    }
+    const ok = await confirmDialog({
+      title: t("assembly.presentMotion") || "Presentar moción",
+      body: `${draft.code || ""}\n${draft.title || ""}\n\n${(draft.body || "").slice(0, 280)}`,
+      confirmLabel: t("confirm")
+    });
+    if (!ok) return;
+    state.motion = await api(`/api/assemblies/${assemblyId}/motions/present`, {
+      method: "POST",
+      body: { motionId: draft.id }
+    });
+    showToast(t("assembly.motionPresented") || "Moción presentada", "success");
+    refreshPanels();
+  } catch (error) {
+    showError(error.message);
+  }
 }
 
 function syncOperationalPriority() {
@@ -432,6 +491,15 @@ function refreshPanels() {
         } catch (error) {
           showError(error.message || t("apiUnavailable", { status: error.status || 404 }));
         }
+      },
+      onSkip: async (id) => {
+        try {
+          await skipFloor(assemblyId, id);
+          state.queue = await getQueue(assemblyId);
+          refreshPanels();
+        } catch (error) {
+          showError(error.message || t("apiUnavailable", { status: error.status || 404 }));
+        }
       }
     });
   }
@@ -442,7 +510,11 @@ function refreshPanels() {
     tally: state.tally,
     myVote: state.myVote,
     canCast: hasPermission(state.user, "vote:cast"),
-    canOpen: operator && hasPermission(state.user, "vote:open") && Boolean(state.motion) && state.session?.status !== "Open",
+    canOpen:
+      operator &&
+      hasPermission(state.user, "vote:open") &&
+      state.motion?.status === "Presented" &&
+      state.session?.status !== "Open",
     canClose: operator && hasPermission(state.user, "vote:close"),
     operatorView: operator,
     eligibleVoters: state.quorum?.eligibleUnits ?? (state.participants.size || null),
@@ -632,7 +704,7 @@ ${t("assembly.endPrecheck", {
         voting: state.session?.status === "Open" ? "1" : "0",
         motion: state.motion ? "1" : "0",
         speaker: speaker?.displayName || t("assembly.none"),
-        participants: String(state.participants.size),
+        participants: String(state.participants?.length ?? 0),
         status: statusLabel(status),
         quorum: quorumText
       })}`,

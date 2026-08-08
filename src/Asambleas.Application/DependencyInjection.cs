@@ -5,9 +5,11 @@ using Asambleas.Application.Agenda;
 using Asambleas.Application.Assembly;
 using Asambleas.Application.Attendance;
 using Asambleas.Application.Audit;
+using Asambleas.Application.Evidence;
 using Asambleas.Application.Meeting;
 using Asambleas.Application.Motion;
 using Asambleas.Application.Quorum;
+using Asambleas.Application.Representation;
 using Asambleas.Application.Speaker;
 using Asambleas.Application.Voting;
 using Asambleas.Domain.Voting;
@@ -26,6 +28,8 @@ public static class DependencyInjection
         services.AddScoped<AssemblyService>();
         services.AddScoped<AssemblyAccessService>();
         services.AddScoped<AssemblyRoomService>();
+        services.AddScoped<AssemblyRepresentationService>();
+        services.AddScoped<IAssemblyRepresentationService>(sp => sp.GetRequiredService<AssemblyRepresentationService>());
         services.AddScoped<AttendanceService>();
         services.AddScoped<QuorumService>();
         services.AddScoped<AgendaService>();
@@ -33,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<MotionService>();
         services.AddScoped<VotingService>();
         services.AddScoped<MeetingService>();
+        services.AddScoped<AssemblyEvidenceService>();
 
         return services;
     }

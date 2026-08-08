@@ -46,7 +46,8 @@ public sealed class ManipulatedIdTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("Unit is not valid");
+        body.Should().Match(b => b.Contains("Unit is not valid", StringComparison.OrdinalIgnoreCase)
+                                 || b.Contains("INVALID_UNIT", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

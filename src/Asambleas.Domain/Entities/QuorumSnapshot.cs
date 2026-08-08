@@ -18,4 +18,7 @@ public class QuorumSnapshot : Entity, ITenantScoped
     public decimal RequiredCoefficient { get; set; }
 
     public QuorumStatus Status { get; set; } = QuorumStatus.NotReached;
+
+    /// <summary>Operational reason (e.g. CheckIn, ThresholdReached, VotingOpen).</summary>
+    public string? Reason { get; set; }
 }
