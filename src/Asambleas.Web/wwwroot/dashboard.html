@@ -7,39 +7,60 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css" />
-  <link rel="stylesheet" href="/css/base.css" />
-  <link rel="stylesheet" href="/css/components.css" />
-  <link rel="stylesheet" href="/css/loading.css" />
+  <link rel="stylesheet" href="/css/tokens.css?v=px1" />
+  <link rel="stylesheet" href="/css/base.css?v=px1" />
+  <link rel="stylesheet" href="/css/components.css?v=px1" />
+  <link rel="stylesheet" href="/css/loading.css?v=px1" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
-  <div class="page-shell">
-    <header class="page-header">
-      <h1 class="brand">ASAMBLEAS</h1>
+  <div class="app-shell">
+    <aside class="app-nav" aria-label="Navegación">
+      <div>
+        <h1 class="brand">ASAMBLEAS</h1>
+        <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
+      </div>
+      <nav>
+        <a href="/dashboard.html" aria-current="page">Panel</a>
+        <a id="nav-checkin" href="#">Acreditación</a>
+        <a id="nav-lobby" href="#">Lobby</a>
+        <a id="nav-assembly" href="#">Sala</a>
+        <a id="nav-evidence" href="#">Evidencias</a>
+        <a id="nav-minutes" href="#">Actas</a>
+      </nav>
+    </aside>
+
+    <header class="app-top" role="banner">
+      <div class="cluster">
+        <span class="command-eyebrow">Command center</span>
+        <span id="conn-chip" class="badge badge-live">Sincronizado</span>
+      </div>
       <div class="cluster">
         <span id="user-chip" class="badge badge-live"></span>
         <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
       </div>
     </header>
-    <main id="main" class="page-main">
+
+    <main id="main" class="app-workspace page-main">
       <div id="page-alert" class="alert" hidden role="alert"></div>
       <section class="page-hero">
+        <p class="command-eyebrow">Asamblea</p>
         <h1 id="assembly-name"><span class="skeleton" style="display:inline-block;width:16rem;height:1.6rem"></span></h1>
         <div class="meta-row" id="assembly-meta"></div>
       </section>
       <div class="stack">
         <section class="panel" aria-label="Acciones principales">
+          <h2 class="section-title">Siguiente acción</h2>
           <div class="cta-row" id="primary-cta"></div>
           <div class="cta-row" id="secondary-links"></div>
         </section>
         <section class="panel" aria-labelledby="readiness-heading">
-          <h2 id="readiness-heading" style="margin-top:0">Preparación operacional</h2>
+          <h2 id="readiness-heading" class="section-title">Preparación operacional</h2>
           <div id="readiness-panel"><div class="skeleton" style="height:8rem"></div></div>
         </section>
       </div>
     </main>
   </div>
-  <script type="module" src="/js/modules/dashboard-app.js"></script>
+  <script type="module" src="/js/modules/dashboard-app.js?v=px1"></script>
 </body>
 </html>

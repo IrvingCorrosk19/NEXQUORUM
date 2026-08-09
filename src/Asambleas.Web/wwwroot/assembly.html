@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ASAMBLEAS — Sala de asamblea</title>
+  <title>ASAMBLEAS — Command Center</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css" />
-  <link rel="stylesheet" href="/css/base.css" />
-  <link rel="stylesheet" href="/css/components.css" />
-  <link rel="stylesheet" href="/css/loading.css" />
-  <link rel="stylesheet" href="/css/assembly-room.css?v=eo4" />
+  <link rel="stylesheet" href="/css/tokens.css?v=px1" />
+  <link rel="stylesheet" href="/css/base.css?v=px1" />
+  <link rel="stylesheet" href="/css/components.css?v=px1" />
+  <link rel="stylesheet" href="/css/loading.css?v=px1" />
+  <link rel="stylesheet" href="/css/assembly-room.css?v=px1" />
 </head>
 <body>
   <a class="skip-link" href="#main-stage">Saltar al escenario</a>
@@ -19,7 +19,10 @@
   <div class="room" data-role="owner">
     <header class="room-header" role="banner">
       <div class="header-brand">
-        <h1 class="brand">ASAMBLEAS</h1>
+        <div>
+          <p class="command-eyebrow" style="margin:0 0 0.15rem">Assembly Command Center</p>
+          <h1 class="brand">ASAMBLEAS</h1>
+        </div>
         <span id="view-mode" class="badge badge-live"></span>
       </div>
       <div class="ph-name">
@@ -52,11 +55,11 @@
             <span>…</span>
           </div>
           <div id="media-connection-state" class="connection-banner media-connection-banner" hidden aria-live="polite"></div>
-          <div style="text-align:center; padding:2rem; width:100%">
+          <div class="stage-copy">
             <p id="speaker-name" class="speaker-name">Sala en espera</p>
             <p id="speaker-meta" class="speaker-meta">Preparando sesión</p>
             <p id="status-line" class="speaker-meta"></p>
-            <div id="video-mount" class="media-stage-grid" style="margin-top:1.5rem"></div>
+            <div id="video-mount" class="media-stage-grid"></div>
           </div>
           <div class="media-control-bar" role="toolbar" aria-label="Controles de audio y video">
             <button type="button" id="btn-mic" class="btn btn-secondary" aria-pressed="true" aria-label="Silenciar micrófono">Mic</button>
@@ -74,7 +77,7 @@
 
         <div class="stage-actions operator-action-bar">
           <div class="control-cluster owner-only" role="group" aria-label="Acciones del participante">
-            <button type="button" id="btn-request-speak" class="btn btn-gold">Pedir la palabra</button>
+            <button type="button" id="btn-request-speak" class="btn btn-gold">Solicitar la palabra</button>
           </div>
           <div class="control-cluster operator-only" role="group" aria-label="Controles de operación">
             <button type="button" id="btn-start" class="btn btn-primary">Iniciar asamblea</button>
@@ -82,7 +85,7 @@
             <button type="button" id="btn-pause" class="btn btn-secondary">Pausar</button>
           </div>
           <div class="control-cluster control-cluster-danger operator-only" role="group" aria-label="Acciones críticas">
-            <button type="button" id="btn-end" class="btn btn-danger">Cerrar asamblea</button>
+            <button type="button" id="btn-end" class="btn btn-danger">Finalizar asamblea</button>
           </div>
           <div class="control-cluster control-cluster-meta">
             <span id="user-chip" class="badge badge-live" aria-live="polite"></span>
@@ -92,32 +95,39 @@
         </div>
       </main>
 
-      <aside class="sidebar" aria-label="Panel de sesión">
+      <aside class="sidebar" aria-label="Panel de gobernanza">
         <section>
-          <h2 id="heading-agenda">Agenda</h2>
+          <h2 id="heading-agenda" class="section-title">Agenda</h2>
           <div id="agenda-panel"><div class="skeleton" style="height:5rem"></div></div>
         </section>
 
         <section>
-          <h2 id="heading-motion">Moción</h2>
-          <div id="motion-panel"><div class="empty-state">Sin moción presentada.</div></div>
+          <h2 id="heading-motion" class="section-title">Moción</h2>
+          <div id="motion-panel"><div class="empty-state">Aún no hay moción presentada. Cuando se presente, aparecerá aquí.</div></div>
         </section>
 
         <section>
-          <h2 id="heading-vote">Votación</h2>
-          <div id="vote-panel" class="vote-panel"><div class="empty-state">No hay votación abierta.</div></div>
+          <h2 id="heading-vote" class="section-title">Votación</h2>
+          <div id="vote-panel" class="vote-panel"><div class="empty-state">No hay votación abierta. Podrás emitir tu voto cuando el presidente la inicie.</div></div>
         </section>
 
         <section class="operator-only">
-          <h2 id="heading-speakers">Cola de oradores</h2>
+          <h2 id="heading-speakers" class="section-title">Intervenciones</h2>
           <div id="speaker-panel"><div class="skeleton" style="height:4rem"></div></div>
         </section>
       </aside>
     </div>
+
+    <nav class="mobile-action-bar" aria-label="Acciones rápidas">
+      <a href="#agenda-panel">Agenda</a>
+      <button type="button" id="m-btn-speak">Hablar</button>
+      <a href="#vote-panel">Votar</a>
+      <a id="m-link-more" href="#">Más</a>
+    </nav>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.9.1/dist/livekit-client.umd.min.js"></script>
-  <script type="module" src="/js/modules/room-app.js?v=eo4"></script>
+  <script type="module" src="/js/modules/room-app.js?v=px1"></script>
 </body>
 </html>

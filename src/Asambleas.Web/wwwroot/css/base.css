@@ -5,7 +5,8 @@
 }
 
 html {
-  color-scheme: light;
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -13,9 +14,11 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   font-family: var(--font-body);
-  color: var(--color-ink);
+  color: var(--text-primary);
   background: var(--bg-atmosphere);
-  line-height: 1.5;
+  background-attachment: fixed;
+  line-height: var(--lh-body);
+  overflow-x: clip;
 }
 
 .page-shell {
@@ -28,18 +31,116 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+.app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: var(--nav-width) 1fr;
+  grid-template-rows: var(--header-height) 1fr;
+  grid-template-areas:
+    "nav top"
+    "nav workspace";
+}
+
+.app-nav {
+  grid-area: nav;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-4);
+  border-right: 1px solid var(--border-subtle);
+  background:
+    linear-gradient(180deg, rgba(22, 32, 51, 0.92), rgba(11, 18, 32, 0.96)),
+    var(--surface-secondary);
+  backdrop-filter: blur(16px);
+}
+
+.app-nav .brand {
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.app-nav .nav-tenant {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-nav nav {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.app-nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
+}
+
+.app-nav a:hover {
+  color: var(--text-primary);
+  background: rgba(45, 212, 191, 0.08);
+}
+
+.app-nav a[aria-current="page"] {
+  color: var(--text-primary);
+  background: rgba(45, 212, 191, 0.12);
+  border-color: rgba(45, 212, 191, 0.28);
+  box-shadow: var(--glow-teal);
+}
+
+.app-top {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.app-workspace {
+  grid-area: workspace;
+  min-width: 0;
+  overflow: auto;
+}
+
 h1,
 h2,
 h3,
 .brand {
   font-family: var(--font-display);
   font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
+  letter-spacing: -0.015em;
+  line-height: var(--lh-tight);
+}
+
+.section-title {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-section);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 a {
-  color: var(--color-teal-700);
+  color: var(--brand-teal-300);
 }
 
 a:focus-visible,
@@ -61,6 +162,7 @@ button,
 input,
 select {
   font: inherit;
+  color: inherit;
 }
 
 .sr-only {
@@ -80,10 +182,11 @@ select {
   left: var(--space-3);
   top: -3rem;
   z-index: 1000;
-  background: var(--color-ink);
-  color: white;
+  background: var(--brand-teal-500);
+  color: var(--text-on-brand);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
+  font-weight: 600;
 }
 
 .skip-link:focus {
@@ -93,7 +196,7 @@ select {
 @keyframes fade-rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -104,10 +207,33 @@ select {
 @keyframes pulse-soft {
   0%,
   100% {
-    opacity: 0.55;
+    opacity: 0.45;
   }
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes quorum-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.0);
+  }
+  50% {
+    box-shadow: var(--glow-teal);
+  }
+}
+
+@media (max-width: 1023px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "top"
+      "workspace";
+  }
+
+  .app-nav {
+    display: none;
   }
 }
 

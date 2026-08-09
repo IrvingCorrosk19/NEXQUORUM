@@ -1000,6 +1000,15 @@ async function init() {
     }
   });
 
+  qs("#m-btn-speak")?.addEventListener("click", () => {
+    qs("#btn-request-speak")?.click();
+  });
+  qs("#m-link-more")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    const href = qs("#link-dashboard")?.getAttribute("href");
+    if (href) location.href = href;
+  });
+
   qs("#btn-logout")?.addEventListener("click", async () => {
     state.intentionalDisconnect = true;
     setConnectionLostVisible(false);

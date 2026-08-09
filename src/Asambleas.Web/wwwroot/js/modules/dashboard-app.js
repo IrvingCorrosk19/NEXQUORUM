@@ -166,6 +166,25 @@ async function init() {
   }
 
   qs("#user-chip").textContent = user.displayName;
+  const tenantLabel = user.tenantCode || user.tenantName || "Gobernanza";
+  const navTenant = qs("#nav-tenant");
+  if (navTenant) navTenant.textContent = tenantLabel;
+
+  const q = `assemblyId=${encodeURIComponent(assemblyId)}`;
+  const navMap = {
+    "#nav-checkin": `/checkin.html?${q}`,
+    "#nav-lobby": `/lobby.html?${q}`,
+    "#nav-assembly": `/assembly.html?${q}`,
+    "#nav-evidence": `/evidence.html?${q}`,
+    "#nav-minutes": `/minutes.html?${q}`
+  };
+  Object.entries(navMap).forEach(([sel, href]) => {
+    const el = qs(sel);
+    if (el) el.setAttribute("href", href);
+  });
+  const dashLink = document.querySelector('.app-nav a[href="/dashboard.html"]');
+  if (dashLink) dashLink.href = `/dashboard.html?${q}`;
+
   qs("#btn-logout")?.addEventListener("click", async () => {
     const { logout } = await import("./auth.js");
     await logout();

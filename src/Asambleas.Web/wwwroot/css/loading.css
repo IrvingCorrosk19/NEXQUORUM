@@ -1,7 +1,7 @@
 /* ASAMBLEAS — premium loading system (brand motion: assembly circle / quorum forming) */
 
 .asambleas-loader {
-  --loader-ink: var(--brand-teal-900);
+  --loader-ink: var(--text-primary);
   --loader-accent: var(--brand-teal-500);
   --loader-gold: var(--brand-gold-500);
   position: fixed;
@@ -11,8 +11,8 @@
   place-items: center;
   padding: 1.5rem;
   background:
-    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(215, 238, 241, 0.95), transparent 70%),
-    linear-gradient(165deg, var(--surface-primary) 0%, var(--surface-secondary) 100%);
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(45, 212, 191, 0.12), transparent 70%),
+    linear-gradient(165deg, rgba(7, 11, 20, 0.96) 0%, rgba(11, 18, 32, 0.98) 100%);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;

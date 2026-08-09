@@ -170,6 +170,20 @@ try
     app.UseDefaultFiles();
     app.UseStaticFiles();
 
+    // If login JS is blocked, a native form POST must not blank-404/405 the site root.
+    app.Use(async (context, next) =>
+    {
+        if (HttpMethods.IsPost(context.Request.Method)
+            && (context.Request.Path == "/"
+                || context.Request.Path.Equals("/index.html", StringComparison.OrdinalIgnoreCase)))
+        {
+            context.Response.Redirect("/");
+            return;
+        }
+
+        await next();
+    });
+
     app.UseRateLimiter();
     app.UseAuthentication();
     app.UseMiddleware<TenantResolutionMiddleware>();

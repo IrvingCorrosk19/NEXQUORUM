@@ -17,6 +17,8 @@ if [[ ! -f "$APP_ROOT/deploy/vps/.env" ]]; then
   echo "== Generating .env (first deploy) =="
   DB_PASS=$(openssl rand -base64 32 | tr -d '\n=/+' | cut -c1-40)
   LK_SECRET=$(openssl rand -base64 48 | tr -d '\n=/+' | cut -c1-64)
+  # Identity requires non-alphanumeric; keep printable and shell-safe for .env
+  DEMO_PASS="Asam!$(openssl rand -base64 18 | tr -d '\n=/+' | cut -c1-16)9#"
   cat > "$APP_ROOT/deploy/vps/.env" <<EOF
 POSTGRES_DB=asambleas
 POSTGRES_USER=asambleas_app
@@ -24,6 +26,8 @@ POSTGRES_PASSWORD=${DB_PASS}
 ASAMBLEAS_HOST_PORT=5090
 DEMO_ENABLED=true
 DEMO_PUBLIC_USER_LIST=true
+DEMO_PASSWORD=${DEMO_PASS}
+ASAMBLEAS_DEMO_PASSWORD=${DEMO_PASS}
 LIVEKIT_URL=wss://livekit-asambleas.164.68.99.83.nip.io
 LIVEKIT_API_KEY=ASAMBLEAS_DEVKEY
 LIVEKIT_API_SECRET=${LK_SECRET}

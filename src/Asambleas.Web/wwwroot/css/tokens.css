@@ -1,57 +1,66 @@
-/* ASAMBLEAS Design System V2 — single visual source for Assembly module */
+/* ASAMBLEAS Design System V3 — Executive Governance SaaS (dark premium) */
 :root {
-  /* ——— Semantic surfaces ——— */
-  --surface-primary: #f4f7f8;
-  --surface-secondary: #e6eef1;
-  --surface-elevated: #ffffff;
-  --surface-inverse: #0a3d44;
-  --surface-inverse-soft: #0f5c66;
+  /* Surfaces */
+  --surface-base: #070b14;
+  --surface-primary: #0b1220;
+  --surface-secondary: #121a2b;
+  --surface-elevated: #162033;
+  --surface-overlay: rgba(8, 12, 22, 0.72);
+  --surface-glass: color-mix(in srgb, #1a2740 78%, transparent);
+  --surface-inverse: #e8eef8;
+  --surface-inverse-soft: #c5d0e0;
 
-  /* ——— Text ——— */
-  --text-primary: #0f1c24;
-  --text-secondary: #3d5360;
-  --text-muted: #6a7f8c;
-  --text-on-inverse: #f4f7f8;
-  --text-on-brand: #ffffff;
+  /* Text */
+  --text-primary: #e8eef8;
+  --text-secondary: #a8b4c8;
+  --text-muted: #7a879c;
+  --text-on-inverse: #0b1220;
+  --text-on-brand: #061018;
 
-  /* ——— Borders ——— */
-  --border-default: #c5d4db;
-  --border-strong: #8aa0ab;
-  --border-focus: #1a7f8c;
+  /* Borders */
+  --border-subtle: rgba(148, 175, 210, 0.12);
+  --border-default: rgba(148, 175, 210, 0.18);
+  --border-strong: rgba(148, 175, 210, 0.34);
+  --border-focus: #2dd4bf;
 
-  /* ——— Brand / assembly ——— */
-  --brand-teal-900: #0a3d44;
-  --brand-teal-700: #0f5c66;
-  --brand-teal-500: #1a7f8c;
-  --brand-teal-300: #6eb8c2;
-  --brand-teal-100: #d7eef1;
-  --brand-gold-700: #8a6a1f;
-  --brand-gold-500: #c49a2e;
-  --brand-gold-300: #e2c56a;
+  /* Brand */
+  --brand-navy-950: #070b14;
+  --brand-navy-900: #0b1220;
+  --brand-navy-800: #121a2b;
+  --brand-navy-700: #1a2740;
+  --brand-teal-900: #0f766e;
+  --brand-teal-700: #14b8a6;
+  --brand-teal-500: #2dd4bf;
+  --brand-teal-300: #5eead4;
+  --brand-teal-100: rgba(45, 212, 191, 0.14);
+  --brand-gold-700: #b45309;
+  --brand-gold-500: #d4a017;
+  --brand-gold-300: #f0d78c;
+  --brand-cyan: #22d3ee;
 
-  /* ——— Status ——— */
-  --status-success: #1f7a4d;
-  --status-success-bg: #d8f0e4;
-  --status-warning: #9a6b12;
-  --status-warning-bg: #f8e7b8;
-  --status-danger: #9b2c2c;
-  --status-danger-bg: #f6d6d6;
-  --status-info: #1a7f8c;
-  --status-info-bg: #d7eef1;
+  /* Status */
+  --status-success: #34d399;
+  --status-success-bg: rgba(52, 211, 153, 0.14);
+  --status-warning: #fbbf24;
+  --status-warning-bg: rgba(251, 191, 36, 0.14);
+  --status-danger: #f87171;
+  --status-danger-bg: rgba(248, 113, 113, 0.14);
+  --status-info: #38bdf8;
+  --status-info-bg: rgba(56, 189, 248, 0.14);
 
-  /* ——— Assembly semantics ——— */
-  --assembly-live: #1f7a4d;
-  --assembly-quorum: #1a7f8c;
-  --assembly-voting: #c49a2e;
-  --assembly-stage: #0a3d44;
+  /* Assembly semantics */
+  --assembly-live: #34d399;
+  --assembly-quorum: #2dd4bf;
+  --assembly-voting: #d4a017;
+  --assembly-stage: #0b1220;
 
   --choice-favor: var(--status-success);
   --choice-against: var(--status-danger);
   --choice-abstain: var(--text-muted);
 
-  /* Legacy aliases (keep existing class names working) */
+  /* Legacy aliases */
   --color-ink: var(--text-primary);
-  --color-ink-soft: #243844;
+  --color-ink-soft: #c5d0e0;
   --color-slate: var(--text-secondary);
   --color-slate-muted: var(--text-muted);
   --color-surface: var(--surface-primary);
@@ -72,68 +81,75 @@
   --color-border: var(--border-default);
   --color-border-strong: var(--border-strong);
 
-  /* ——— Typography ——— */
+  /* Typography */
   --font-display: "Source Serif 4", "Source Serif Pro", Georgia, serif;
   --font-body: "DM Sans", "Segoe UI", sans-serif;
   --font-metric: "DM Sans", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
 
-  --text-display: clamp(2rem, 2.5vw, 2.75rem);
-  --text-h1: clamp(1.5rem, 2vw, 2rem);
+  --text-display: clamp(2.2rem, 3vw, 3.25rem);
+  --text-h1: clamp(1.55rem, 2.2vw, 2.1rem);
   --text-h2: 1.25rem;
-  --text-h3: 1.1rem;
-  --text-section: 0.95rem;
+  --text-h3: 1.05rem;
+  --text-section: 0.8rem;
   --text-body: 1rem;
   --text-body-sm: 0.9rem;
-  --text-label: 0.75rem;
-  --text-caption: 0.7rem;
-  --text-metric: clamp(1.35rem, 2vw, 1.75rem);
-  --text-metric-lg: clamp(1.75rem, 3vw, 2.5rem);
+  --text-label: 0.72rem;
+  --text-caption: 0.68rem;
+  --text-metric: clamp(1.45rem, 2.2vw, 1.9rem);
+  --text-metric-lg: clamp(2rem, 4vw, 3rem);
   --text-button: 0.95rem;
 
-  --lh-tight: 1.2;
-  --lh-body: 1.5;
+  --lh-tight: 1.15;
+  --lh-body: 1.55;
 
-  /* ——— Spacing scale (4–64) ——— */
-  --space-1: 0.25rem;  /* 4 */
-  --space-2: 0.5rem;   /* 8 */
-  --space-3: 0.75rem;  /* 12 */
-  --space-4: 1rem;     /* 16 */
-  --space-5: 1.25rem;  /* 20 */
-  --space-6: 1.5rem;   /* 24 */
-  --space-7: 2rem;     /* 32 */
-  --space-8: 2.5rem;   /* 40 */
-  --space-9: 3rem;     /* 48 */
-  --space-10: 4rem;    /* 64 */
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 2rem;
+  --space-8: 2.5rem;
+  --space-9: 3rem;
+  --space-10: 4rem;
+  --space-11: 5rem;
+  --space-12: 6rem;
 
-  /* ——— Radius / elevation ——— */
-  --radius-sm: 0.35rem;
-  --radius-md: 0.55rem;
-  --radius-lg: 0.9rem;
-  --radius-xl: 1.15rem;
-  --shadow-soft: 0 10px 30px rgba(15, 28, 36, 0.08);
-  --shadow-elevated: 0 16px 40px rgba(15, 28, 36, 0.12);
-  --shadow-focus: 0 0 0 3px rgba(26, 127, 140, 0.35);
+  /* Radius / elevation */
+  --radius-sm: 0.4rem;
+  --radius-md: 0.65rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.35rem;
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 12px 36px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.45);
+  --shadow-soft: var(--shadow-md);
+  --shadow-elevated: var(--shadow-lg);
+  --shadow-focus: 0 0 0 3px rgba(45, 212, 191, 0.35);
+  --glow-teal: 0 0 28px rgba(45, 212, 191, 0.22);
+  --glow-gold: 0 0 28px rgba(212, 160, 23, 0.2);
 
-  /* ——— Controls ——— */
-  --control-height: 2.75rem;
-  --control-height-lg: 3.25rem;
-  --content-max: 72rem;
-  --content-narrow: 40rem;
-  --sidebar-width: 22rem;
-  --header-height: 3.75rem;
+  /* Controls / layout */
+  --control-height: 2.85rem;
+  --control-height-lg: 3.35rem;
+  --content-max: 76rem;
+  --content-narrow: 42rem;
+  --sidebar-width: 22.5rem;
+  --nav-width: 15.5rem;
+  --header-height: 3.85rem;
+  --mobile-action-h: 4.25rem;
 
-  /* ——— Motion ——— */
+  /* Motion */
   --motion-fast: 160ms;
   --motion-med: 280ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* ——— Breakpoints (reference for JS/docs) ——— */
   --bp-sm: 390px;
   --bp-md: 768px;
   --bp-lg: 1024px;
   --bp-xl: 1366px;
 
-  /* ——— Z-index ——— */
   --z-sticky: 200;
   --z-drawer: 1100;
   --z-toast: 1200;
@@ -142,11 +158,13 @@
   --z-reconnect: 1500;
 
   --bg-atmosphere:
-    radial-gradient(1200px 600px at 10% -10%, rgba(26, 127, 140, 0.16), transparent 55%),
-    radial-gradient(900px 500px at 90% 0%, rgba(196, 154, 46, 0.1), transparent 50%),
-    linear-gradient(160deg, #eef5f7 0%, #f7fafb 45%, #e8f1f3 100%);
+    radial-gradient(1100px 700px at 8% -8%, rgba(45, 212, 191, 0.14), transparent 55%),
+    radial-gradient(900px 560px at 92% 0%, rgba(212, 160, 23, 0.1), transparent 50%),
+    radial-gradient(700px 500px at 50% 110%, rgba(34, 211, 238, 0.06), transparent 45%),
+    linear-gradient(165deg, #070b14 0%, #0b1220 42%, #101828 100%);
 
-  --connection-banner-bg: rgba(15, 28, 36, 0.92);
+  --connection-banner-bg: rgba(7, 11, 20, 0.92);
+  --asset-version: px1;
 }
 
 @media (prefers-reduced-motion: reduce) {
