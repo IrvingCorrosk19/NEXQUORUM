@@ -43,9 +43,10 @@ playwright-report/
 playwright/.cache/
 blob-report/
 
-# Local data / recordings
+# Local data / recordings (media bytes only — not docs or Contracts)
 **/App_Data/
-recordings/
+**/data/recordings/
+asambleas-recordings/
 *.db
 *.sqlite
 
