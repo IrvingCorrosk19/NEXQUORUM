@@ -99,14 +99,19 @@ let recordingTimer = null;
 let controlBarIdleTimer = null;
 let drawersWired = false;
 
+function sameUserId(a, b) {
+  if (a == null || b == null) return false;
+  return String(a).replace(/-/g, "").toLowerCase() === String(b).replace(/-/g, "").toLowerCase();
+}
+
 function mySpeakerRequest() {
-  const uid = state.user?.userId;
+  const uid = state.user?.userId || state.user?.id;
   const name = state.user?.displayName;
   return (
     state.queue?.queue?.find(
       (s) =>
         s.status === "Requested" &&
-        (s.userId === uid || (!uid && s.displayName === name))
+        (sameUserId(s.userId, uid) || (!!name && s.displayName === name))
     ) || null
   );
 }
@@ -114,8 +119,10 @@ function mySpeakerRequest() {
 function myGrantedFloor() {
   const current = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
   if (!current) return null;
-  const uid = state.user?.userId;
-  if (current.userId === uid || current.displayName === state.user?.displayName) return current;
+  const uid = state.user?.userId || state.user?.id;
+  if (sameUserId(current.userId, uid) || current.displayName === state.user?.displayName) {
+    return current;
+  }
   return null;
 }
 
@@ -393,6 +400,8 @@ function wireMeetingDrawers() {
   qs("#btn-more")?.addEventListener("click", () => openMeetingDrawer("#more-menu-drawer"));
   qs("#btn-hand")?.addEventListener("click", async () => {
     if (myGrantedFloor()) return;
+    const btn = qs("#btn-hand");
+    if (btn) btn.disabled = true;
     try {
       if (mySpeakerRequest()) {
         await cancelOwnFloor(assemblyId);
@@ -401,9 +410,13 @@ function wireMeetingDrawers() {
       }
       state.queue = await getQueue(assemblyId);
       refreshPanels();
+      syncMeetingControlBar();
       showError("");
     } catch (error) {
       showError(error.message);
+      syncMeetingControlBar();
+    } finally {
+      if (btn && !myGrantedFloor()) btn.disabled = false;
     }
   });
   qs("#btn-leave")?.addEventListener("click", async () => {

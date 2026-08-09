@@ -1402,6 +1402,26 @@
   .room--meeting-ux {
     padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
   }
+  .room--meeting-ux .room-body {
+    display: flex;
+    flex-direction: column;
+  }
+  .room--meeting-ux .stage-column {
+    order: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .room--meeting-ux .sidebar {
+    order: 2;
+    /* Governance panels move behind Más → Agenda / Votación on phones */
+    display: none;
+  }
+  .room--meeting-ux .video-stage {
+    min-height: min(58vh, 28rem);
+  }
+  .room--meeting-ux .stage-actions {
+    order: 1;
+  }
   .meeting-control-bar {
     width: calc(100vw - 0.5rem);
     bottom: max(0.35rem, env(safe-area-inset-bottom));
@@ -1419,9 +1439,6 @@
   }
   .mcb-label {
     font-size: 0.58rem;
-  }
-  .room--meeting-ux .sidebar {
-    /* keep accessible via Más → Agenda/Voto */
   }
   .media-stage-grid:not(.view-focus) {
     grid-template-columns: 1fr !important;
