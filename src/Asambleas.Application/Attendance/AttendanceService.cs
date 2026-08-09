@@ -343,7 +343,7 @@ public sealed class AttendanceService
             userId,
             AttendanceStatus.TemporarilyDisconnected,
             AuditEventType.ParticipantDisconnected,
-            requireAccredited: false,
+            requireAccredited: true,
             cancellationToken);
     }
 
@@ -369,7 +369,8 @@ public sealed class AttendanceService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, participant.TenantId);
 
-        // Technical connectivity must not create legal presence without accreditation.
+        // Connectivity telemetry must not invent legal attendance for non-accredited users.
+        // Only accredited participants move Present ⇄ TemporarilyDisconnected.
         if (requireAccredited && !participant.IsAccredited)
         {
             var unitCodeEarly = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);

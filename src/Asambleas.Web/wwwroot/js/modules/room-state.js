@@ -53,11 +53,14 @@ export async function resumeAssembly(assemblyId) {
 /**
  * Hydrate room state from dedicated endpoint, falling back to assembly detail + queue.
  * Never invents quorum/votes — only API data.
+ * @param {string} assemblyId
+ * @param {{ userId?: string }=} options  When set, resolves `self` from participants if API omits it.
  */
-export async function hydrateRoomState(assemblyId) {
+export async function hydrateRoomState(assemblyId, options = {}) {
+  const userId = options.userId || null;
   const room = await getRoomState(assemblyId);
   if (room.ok && room.data) {
-    return normalizeRoomState(room.data);
+    return normalizeRoomState(room.data, userId);
   }
 
   const assembly = await api(`/api/assemblies/${assemblyId}`);
@@ -70,27 +73,30 @@ export async function hydrateRoomState(assemblyId) {
 
   const participantsResult = await getParticipants(assemblyId);
 
-  return normalizeRoomState({
-    assembly,
-    quorum: null,
-    agenda: null,
-    motion: null,
-    votingSession: null,
-    session: null,
-    tally: null,
-    speakerQueue: queue,
-    queue,
-    participants: participantsResult.ok ? participantsResult.data : [],
-    viewerRole: null,
-    self: null,
-    myVote: null,
-    startedAtUtc: null,
-    _fallback: true,
-    _fallbackMessage: room.message
-  });
+  return normalizeRoomState(
+    {
+      assembly,
+      quorum: null,
+      agenda: null,
+      motion: null,
+      votingSession: null,
+      session: null,
+      tally: null,
+      speakerQueue: queue,
+      queue,
+      participants: participantsResult.ok ? participantsResult.data : [],
+      viewerRole: null,
+      self: null,
+      myVote: null,
+      startedAtUtc: null,
+      _fallback: true,
+      _fallbackMessage: room.message
+    },
+    userId
+  );
 }
 
-export function normalizeRoomState(raw) {
+export function normalizeRoomState(raw, userIdHint = null) {
   if (!raw) {
     return emptyRoomState();
   }
@@ -155,6 +161,19 @@ export function normalizeRoomState(raw) {
     };
   }
 
+  let self =
+    raw.self ||
+    raw.participant ||
+    raw.me ||
+    null;
+  if (!self && userIdHint) {
+    self =
+      participants.find(
+        (p) =>
+          String(p.userId || "").toLowerCase() === String(userIdHint).toLowerCase()
+      ) || null;
+  }
+
   return {
     assembly,
     quorum: raw.quorum || raw.quorumState || null,
@@ -165,7 +184,7 @@ export function normalizeRoomState(raw) {
     queue,
     participants,
     viewerRole: raw.viewerRole || raw.viewer?.role || null,
-    self: raw.self || raw.participant || raw.me || null,
+    self,
     myVote,
     startedAtUtc:
       raw.assemblyStartedAtUtc ||

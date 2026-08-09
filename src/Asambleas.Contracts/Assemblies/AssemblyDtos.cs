@@ -130,7 +130,8 @@ public sealed record AssemblyRoomStateDto(
     SpeakerQueueDto SpeakerQueue,
     MeetingRoomInfoDto? Meeting,
     string ViewerRole,
-    DateTimeOffset? AssemblyStartedAtUtc);
+    DateTimeOffset? AssemblyStartedAtUtc,
+    AssemblyParticipantDto? Self = null);
 
 public sealed record AssemblyMinutesMotionEntryDto(
     MotionDto Motion,

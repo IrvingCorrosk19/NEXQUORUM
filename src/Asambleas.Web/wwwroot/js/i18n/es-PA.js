@@ -101,6 +101,7 @@ export default {
     accredited: "Acreditado",
     notAccredited: "Sin acreditar",
     needAccreditation: "Debe estar acreditado para entrar a la asamblea.",
+    goToCheckin: "Ir a acreditación / check-in",
     assemblyNotJoinable: "La asamblea no admite ingreso en estado {status}.",
     enterGovernanceOnly: "Puede entrar: la gobernanza funcionará aunque el video no esté disponible.",
     meetingReady: "Sala de medios lista",

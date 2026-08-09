@@ -101,6 +101,7 @@ export default {
     accredited: "Accredited",
     notAccredited: "Not accredited",
     needAccreditation: "You must be accredited to enter the assembly.",
+    goToCheckin: "Go to accreditation / check-in",
     assemblyNotJoinable: "The assembly cannot be joined while status is {status}.",
     enterGovernanceOnly: "You can enter: governance works even if video is unavailable.",
     meetingReady: "Media room ready",

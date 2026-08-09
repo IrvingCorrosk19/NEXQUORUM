@@ -66,14 +66,30 @@ async function refreshDeviceLists() {
   }
 }
 
+function resolveSelf(room, user) {
+  if (room?.self) return room.self;
+  const uid = String(user?.id || user?.userId || "").toLowerCase();
+  if (!uid) return null;
+  return (
+    (room?.participants || []).find(
+      (p) => String(p.userId || "").toLowerCase() === uid
+    ) || null
+  );
+}
+
 function updateEnterGate(self, assembly) {
   const btn = qs("#btn-enter");
   const hint = qs("#enter-hint");
+  const checkinLink = qs("#link-checkin");
   const accredited = Boolean(self?.isAccredited);
   const status = assembly?.status || "";
   const joinable = !["Draft", "Cancelled", "Completed"].includes(status);
   joinReady = Boolean(assemblyId) && accredited && joinable;
   btn.disabled = !joinReady;
+  if (checkinLink) {
+    checkinLink.hidden = accredited;
+    checkinLink.href = `/checkin.html?assemblyId=${assemblyId}`;
+  }
   if (!accredited) {
     hint.textContent = t("lobby.needAccreditation");
   } else if (!joinable) {
@@ -152,8 +168,12 @@ async function enterAssembly() {
 
   try {
     stages.querySelector('[data-step="0"]')?.setAttribute("aria-current", "true");
-    const room = await hydrateRoomState(assemblyId);
-    if (!room.self?.isAccredited) {
+    const currentUser = await me();
+    const room = await hydrateRoomState(assemblyId, {
+      userId: currentUser?.id || currentUser?.userId
+    });
+    const self = resolveSelf(room, currentUser);
+    if (!self?.isAccredited) {
       throw new Error(t("lobby.needAccreditation"));
     }
 
@@ -196,6 +216,11 @@ async function init() {
   qs("#btn-enter").textContent = t("lobby.enter");
   qs("#link-dashboard").href = `/dashboard.html?assemblyId=${assemblyId}`;
   qs("#link-dashboard").textContent = t("back");
+  const checkinLink = qs("#link-checkin");
+  if (checkinLink) {
+    checkinLink.textContent = t("lobby.goToCheckin");
+    checkinLink.href = `/checkin.html?assemblyId=${assemblyId}`;
+  }
 
   if (!assemblyId) {
     showError(t("dashboard.missingId"));
@@ -212,7 +237,9 @@ async function init() {
 
   let room;
   try {
-    room = await hydrateRoomState(assemblyId);
+    room = await hydrateRoomState(assemblyId, {
+      userId: user?.id || user?.userId
+    });
   } catch (error) {
     showError(error.message);
     return;
@@ -228,12 +255,12 @@ async function init() {
     <span><strong>${escapeHtml(assembly?.title || "—")}</strong></span>
   `;
 
-  const self = room.self;
+  const self = resolveSelf(room, user);
   qs("#fact-participant").textContent = self?.displayName || user.displayName;
   qs("#fact-unit").textContent = self?.unitCode || "—";
   qs("#fact-accreditation").textContent = self?.isAccredited
     ? t("lobby.accredited")
-    : self?.attendanceStatus || t("lobby.notAccredited");
+    : t("lobby.notAccredited");
   const coeff = Number(self?.effectiveCoefficientPercent || self?.coefficientPercent || 0);
   qs("#fact-representation").textContent = `${coeff.toFixed(3)}%`;
   qs("#fact-connection").textContent = navigator.onLine ? t("connection.online") : t("connection.disconnected");

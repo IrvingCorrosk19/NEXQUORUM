@@ -105,6 +105,8 @@ public sealed class AssemblyRoomService
             .Select(p => p.RoleCode)
             .FirstOrDefaultAsync(cancellationToken);
 
+        var self = participants.FirstOrDefault(p => p.UserId == userId);
+
         DateTimeOffset? assemblyStartedAtUtc = null;
         if (detail.Status is nameof(AssemblyStatus.InProgress) or nameof(AssemblyStatus.Paused)
             or nameof(AssemblyStatus.Completed))
@@ -131,7 +133,8 @@ public sealed class AssemblyRoomService
             speakerQueue,
             meeting,
             AssemblyRoomRules.ResolveViewerRole(roleCode),
-            assemblyStartedAtUtc);
+            assemblyStartedAtUtc,
+            self);
     }
 
     public async Task<AssemblyReadinessDto> GetReadinessAsync(

@@ -712,7 +712,9 @@ function applyRoomState(room) {
 }
 
 async function rehydrate() {
-  const room = await hydrateRoomState(assemblyId);
+  const room = await hydrateRoomState(assemblyId, {
+    userId: state.user?.userId || state.user?.id
+  });
   applyRoomState(room);
   if (room._fallbackMessage) {
     showToast(room._fallbackMessage, "info");
