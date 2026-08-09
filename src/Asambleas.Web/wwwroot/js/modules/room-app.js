@@ -5,6 +5,7 @@ import { renderQuorum } from "./quorum.js";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, renderVotePanel } from "./voting.js";
 import {
   completeFloor,
+  cancelOwnFloor,
   getQueue,
   grantFloor,
   rejectFloor,
@@ -16,9 +17,11 @@ import { renderAgenda, setActiveAgendaItem } from "./agenda.js";
 import {
   connectLiveKit,
   disconnectLiveKit,
+  enumerateMediaDevices,
   fetchJoinToken,
   fetchRoomInfo,
   getLiveKitParticipantCounts,
+  getLocalPublishIntent,
   getMediaConnectionState,
   highlightOfficialSpeaker,
   listIncidents,
@@ -28,6 +31,8 @@ import {
   setLocalCameraEnabled,
   setLocalMicrophoneEnabled,
   setMediaViewMode,
+  switchLocalDevices,
+  syncHandRaisedIndicators,
   unlockRemoteAudio
 } from "./meeting.js";
 import { initI18n, statusLabel, t } from "../i18n/i18n.js";
@@ -91,6 +96,400 @@ const state = {
 let durationTimer = null;
 let mediaControlsWired = false;
 let recordingTimer = null;
+let controlBarIdleTimer = null;
+let drawersWired = false;
+
+function mySpeakerRequest() {
+  const uid = state.user?.userId;
+  const name = state.user?.displayName;
+  return (
+    state.queue?.queue?.find(
+      (s) =>
+        s.status === "Requested" &&
+        (s.userId === uid || (!uid && s.displayName === name))
+    ) || null
+  );
+}
+
+function myGrantedFloor() {
+  const current = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
+  if (!current) return null;
+  const uid = state.user?.userId;
+  if (current.userId === uid || current.displayName === state.user?.displayName) return current;
+  return null;
+}
+
+function requestedHands() {
+  return (state.queue?.queue || []).filter((s) => s.status === "Requested");
+}
+
+function closeMeetingDrawers() {
+  ["#participants-drawer", "#speaker-queue-drawer", "#more-menu-drawer"].forEach((sel) => {
+    const el = qs(sel);
+    if (el) el.hidden = true;
+  });
+  const backdrop = qs("#meeting-drawer-backdrop");
+  if (backdrop) backdrop.hidden = true;
+  document.body.classList.remove("meeting-drawer-open");
+}
+
+function openMeetingDrawer(id) {
+  closeMeetingDrawers();
+  const el = qs(id);
+  const backdrop = qs("#meeting-drawer-backdrop");
+  if (!el) return;
+  el.hidden = false;
+  if (backdrop) backdrop.hidden = false;
+  document.body.classList.add("meeting-drawer-open");
+  el.querySelector("button, [href], input, select")?.focus?.();
+}
+
+function revealControlBar() {
+  const bar = qs("#meeting-control-bar");
+  if (!bar) return;
+  bar.classList.remove("is-hidden");
+  bar.classList.add("is-visible");
+  if (controlBarIdleTimer) clearTimeout(controlBarIdleTimer);
+  const pinned =
+    state.session?.status === "Open" ||
+    bar.dataset.autohide !== "true" ||
+    window.matchMedia("(max-width: 767px)").matches ||
+    document.body.classList.contains("meeting-drawer-open");
+  if (pinned) return;
+  controlBarIdleTimer = window.setTimeout(() => {
+    if (document.activeElement?.closest?.("#meeting-control-bar")) return;
+    bar.classList.add("is-hidden");
+    bar.classList.remove("is-visible");
+  }, 3500);
+}
+
+function syncMeetingControlBar() {
+  const micBtn = qs("#btn-mic");
+  const camBtn = qs("#btn-cam");
+  const handBtn = qs("#btn-hand");
+  const queueBtn = qs("#btn-queue");
+  const peopleBadge = qs("#people-count-badge");
+  const queueBadge = qs("#queue-count-badge");
+  const intent = getLocalPublishIntent();
+  const micOn = Boolean(intent.mic);
+  const camOn = Boolean(intent.camera);
+  const handUp = Boolean(mySpeakerRequest());
+  const hasFloor = Boolean(myGrantedFloor());
+  const hands = requestedHands();
+  const people = state.participants.size;
+
+  if (micBtn) {
+    micBtn.setAttribute("aria-pressed", String(micOn));
+    micBtn.setAttribute("aria-label", micOn ? t("lobby.muteMic") : t("lobby.unmuteMic"));
+    micBtn.classList.toggle("is-off", !micOn);
+    micBtn.title = micOn ? t("lobby.muteMic") : t("lobby.unmuteMic");
+  }
+  if (camBtn) {
+    camBtn.setAttribute("aria-pressed", String(camOn));
+    camBtn.setAttribute(
+      "aria-label",
+      camOn ? t("lobby.turnCameraOff") : t("lobby.turnCameraOn")
+    );
+    camBtn.classList.toggle("is-off", !camOn);
+    camBtn.title = camOn ? t("lobby.turnCameraOff") : t("lobby.turnCameraOn");
+  }
+  if (handBtn) {
+    const pressed = handUp || hasFloor;
+    handBtn.setAttribute("aria-pressed", String(pressed));
+    handBtn.disabled = Boolean(hasFloor);
+    handBtn.classList.toggle("is-active", handUp);
+    handBtn.classList.toggle("has-floor", hasFloor);
+    handBtn.setAttribute(
+      "aria-label",
+      hasFloor
+        ? t("assembly.youHaveFloor")
+        : handUp
+          ? t("assembly.lowerHand")
+          : t("assembly.raiseHand")
+    );
+    handBtn.title = handBtn.getAttribute("aria-label");
+    const label = handBtn.querySelector(".mcb-label");
+    if (label) {
+      label.textContent = hasFloor
+        ? t("assembly.floorShort") || "Palabra"
+        : handUp
+          ? t("assembly.lowerHandShort") || "Bajar"
+          : t("assembly.raiseHandShort") || "Palabra";
+    }
+  }
+  if (queueBtn) {
+    const canMod = hasPermission(state.user, "meeting:moderate");
+    queueBtn.hidden = !canMod;
+    if (queueBadge) {
+      queueBadge.hidden = hands.length === 0;
+      queueBadge.textContent = String(hands.length);
+    }
+    queueBtn.setAttribute(
+      "aria-label",
+      `${t("assembly.speakerRequests") || "Solicitudes de palabra"}${hands.length ? ` ${hands.length}` : ""}`
+    );
+  }
+  if (peopleBadge) {
+    peopleBadge.hidden = people === 0;
+    peopleBadge.textContent = String(people);
+  }
+  const peopleBtn = qs("#btn-people");
+  if (peopleBtn) {
+    peopleBtn.setAttribute(
+      "aria-label",
+      `${t("assembly.participants")}${people ? ` ${people}` : ""}`
+    );
+  }
+
+  const votingChip = qs("#voting-open-chip");
+  if (votingChip) votingChip.hidden = state.session?.status !== "Open";
+
+  const endMore = qs("#btn-end-more");
+  if (endMore) {
+    const canClose = hasPermission(state.user, "assembly:close");
+    const status = state.assembly?.status;
+    endMore.hidden = !(canClose && (status === "InProgress" || status === "Paused"));
+  }
+
+  syncGovernanceSpeakerChip();
+  syncHandTiles();
+  revealControlBar();
+}
+
+function syncGovernanceSpeakerChip() {
+  const chip = qs("#governance-speaker-chip");
+  if (!chip) return;
+  const current = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
+  if (!current) {
+    chip.hidden = true;
+    chip.innerHTML = "";
+    return;
+  }
+  const participant = [...state.participants.values()].find((p) => p.userId === current.userId);
+  chip.hidden = false;
+  chip.innerHTML = `
+    <span class="gsc-eyebrow">${escapeHtml(t("assembly.hasFloor") || "TIENE LA PALABRA")}</span>
+    <strong>${escapeHtml(current.displayName)}</strong>
+    <span class="gsc-meta">${escapeHtml(participant?.unitCode || "")}</span>`;
+}
+
+function syncHandTiles() {
+  const ids = requestedHands().map((s) => s.userId).filter(Boolean);
+  syncHandRaisedIndicators(els.video, ids);
+}
+
+function renderParticipantsDrawer() {
+  const body = qs("#participants-drawer-body");
+  if (!body) return;
+  const items = [...state.participants.values()];
+  const currentId = state.queue?.currentSpeakerRequestId;
+  const hands = new Set(requestedHands().map((s) => s.userId));
+  if (!items.length) {
+    body.innerHTML = `<div class="empty-state">${escapeHtml(t("assembly.noParticipants"))}</div>`;
+    return;
+  }
+  const roleRank = (p) => {
+    const r = String(p.role || p.assemblyRole || "").toLowerCase();
+    if (r.includes("president")) return 0;
+    if (r.includes("secretary") || r.includes("secretario")) return 1;
+    if (r.includes("represent")) return 3;
+    return 2;
+  };
+  items.sort((a, b) => roleRank(a) - roleRank(b) || String(a.displayName || "").localeCompare(b.displayName || ""));
+  body.innerHTML = `
+    <ul class="meeting-people-list">
+      ${items
+        .map((p) => {
+          const hasFloor = state.queue?.queue?.some(
+            (s) => s.id === currentId && s.userId === p.userId
+          );
+          const hand = hands.has(p.userId);
+          const role = p.role || p.assemblyRole || p.presenceType || "";
+          return `<li class="${hasFloor ? "has-floor" : ""} ${hand ? "hand-up" : ""}">
+            <div>
+              <strong>${escapeHtml(p.displayName || "—")}</strong>
+              <span class="muted">${escapeHtml(p.unitCode || "—")} · ${escapeHtml(role || "—")}</span>
+            </div>
+            <div class="meeting-people-flags" aria-label="Estados">
+              ${hand ? `<span title="${escapeHtml(t("assembly.raiseHand"))}">✋</span>` : ""}
+              ${hasFloor ? `<span class="flag-floor">${escapeHtml(t("assembly.hasFloor") || "Palabra")}</span>` : ""}
+              <span class="muted">${escapeHtml(p.connectionStatus || p.attendanceStatus || "")}</span>
+            </div>
+          </li>`;
+        })
+        .join("")}
+    </ul>`;
+}
+
+function renderQueueDrawer() {
+  const root = qs("#speaker-queue-drawer-list");
+  if (!root) return;
+  const canModerate = hasPermission(state.user, "meeting:moderate");
+  const active = {
+    ...state.queue,
+    queue: (state.queue?.queue || []).filter(
+      (s) => s.status === "Requested" || s.status === "Granted"
+    )
+  };
+  renderSpeakerQueue(root, active, {
+    canModerate,
+    onGrant: async (id) => {
+      try {
+        await grantFloor(assemblyId, id);
+        state.queue = await getQueue(assemblyId);
+        refreshPanels();
+      } catch (error) {
+        showError(error.message);
+      }
+    },
+    onComplete: async (id) => {
+      try {
+        await completeFloor(assemblyId, id);
+        state.queue = await getQueue(assemblyId);
+        refreshPanels();
+      } catch (error) {
+        showError(error.message);
+      }
+    },
+    onReject: async (id) => {
+      try {
+        await rejectFloor(assemblyId, id);
+        state.queue = await getQueue(assemblyId);
+        refreshPanels();
+      } catch (error) {
+        showError(error.message);
+      }
+    },
+    onSkip: async (id) => {
+      try {
+        await skipFloor(assemblyId, id);
+        state.queue = await getQueue(assemblyId);
+        refreshPanels();
+      } catch (error) {
+        showError(error.message);
+      }
+    }
+  });
+}
+
+function wireMeetingDrawers() {
+  if (drawersWired) return;
+  drawersWired = true;
+  qs("#meeting-drawer-backdrop")?.addEventListener("click", closeMeetingDrawers);
+  document.querySelectorAll("[data-close-drawer]").forEach((btn) => {
+    btn.addEventListener("click", closeMeetingDrawers);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeMeetingDrawers();
+  });
+  qs("#btn-people")?.addEventListener("click", () => {
+    renderParticipantsDrawer();
+    openMeetingDrawer("#participants-drawer");
+  });
+  qs("#btn-queue")?.addEventListener("click", () => {
+    renderQueueDrawer();
+    openMeetingDrawer("#speaker-queue-drawer");
+  });
+  qs("#btn-more")?.addEventListener("click", () => openMeetingDrawer("#more-menu-drawer"));
+  qs("#btn-hand")?.addEventListener("click", async () => {
+    if (myGrantedFloor()) return;
+    try {
+      if (mySpeakerRequest()) {
+        await cancelOwnFloor(assemblyId);
+      } else {
+        await requestFloor(assemblyId, state.user.displayName);
+      }
+      state.queue = await getQueue(assemblyId);
+      refreshPanels();
+      showError("");
+    } catch (error) {
+      showError(error.message);
+    }
+  });
+  qs("#btn-leave")?.addEventListener("click", async () => {
+    const ok = await confirmDialog({
+      title: t("assembly.leaveMeeting") || "Salir de la reunión",
+      body:
+        t("assembly.confirmLeave") ||
+        "Saldrá de la videoconferencia. La asamblea continúa; no se finaliza la sesión.",
+      confirmLabel: t("assembly.leaveMeeting") || "Salir"
+    });
+    if (!ok) return;
+    state.intentionalDisconnect = true;
+    setConnectionLostVisible(false);
+    closeMeetingDrawers();
+    await state.hub?.stop(assemblyId);
+    await disconnectLiveKit();
+    location.href = `/lobby.html?assemblyId=${assemblyId}`;
+  });
+  qs("#btn-end-more")?.addEventListener("click", () => {
+    closeMeetingDrawers();
+    qs("#btn-end")?.click();
+  });
+  qs("#btn-device-settings")?.addEventListener("click", async () => {
+    closeMeetingDrawers();
+    await openDeviceSettings();
+  });
+  qs("#more-link-dashboard")?.setAttribute("href", `/dashboard.html?assemblyId=${assemblyId}`);
+  ["pointermove", "pointerdown", "keydown", "focusin"].forEach((ev) => {
+    document.addEventListener(ev, () => revealControlBar(), { passive: true });
+  });
+}
+
+async function openDeviceSettings() {
+  const dialog = qs("#device-settings-dialog");
+  if (!dialog) return;
+  const devices = await enumerateMediaDevices();
+  const prefs = loadDevicePrefs();
+  const fill = (sel, list, selected) => {
+    const el = qs(sel);
+    if (!el) return;
+    el.innerHTML = list
+      .map(
+        (d) =>
+          `<option value="${escapeHtml(d.deviceId)}" ${d.deviceId === selected ? "selected" : ""}>${escapeHtml(d.label || d.deviceId.slice(0, 8))}</option>`
+      )
+      .join("");
+  };
+  fill("#device-mic-select", devices.mics, prefs.micId);
+  fill("#device-cam-select", devices.cameras, prefs.cameraId);
+  const speakerWrap = qs("#device-speaker-wrap");
+  if (speakerWrap) speakerWrap.hidden = !devices.supportsSinkId || !devices.speakers.length;
+  fill("#device-speaker-select", devices.speakers, prefs.speakerId);
+  const hint = qs("#device-settings-hint");
+  if (hint) {
+    hint.textContent =
+      t("media.deviceSettingsHint") ||
+      "Los cambios se aplican sin salir de la reunión.";
+  }
+  dialog.showModal();
+  dialog.addEventListener(
+    "close",
+    async () => {
+      if (dialog.returnValue !== "ok") return;
+      const micId = qs("#device-mic-select")?.value;
+      const cameraId = qs("#device-cam-select")?.value;
+      const speakerId = qs("#device-speaker-select")?.value;
+      const result = await switchLocalDevices({ micId, cameraId, speakerId });
+      if (!result.ok) showToast(t("media.publishFailed"), "warn");
+      else showToast(t("media.devicesUpdated") || "Dispositivos actualizados", "success");
+      syncMeetingControlBar();
+    },
+    { once: true }
+  );
+}
+
+function setMediaBusy(message) {
+  const el = qs("#media-busy-hint");
+  if (!el) return;
+  if (!message) {
+    el.hidden = true;
+    el.textContent = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = message;
+}
 
 function showError(message) {
   if (!els.alert) return;
@@ -396,34 +795,28 @@ function syncContextPriority() {
 function syncFloorBanner() {
   const banner = qs("#floor-banner");
   if (!banner) return;
-  if (state.viewerRole === "Operator") {
-    banner.hidden = true;
-    return;
-  }
   const current = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
-  const isMine =
-    Boolean(current) &&
-    (current.userId === state.user?.userId || current.displayName === state.user?.displayName);
-  const myRequest = state.queue?.queue?.find(
-    (s) =>
-      s.status === "Requested" &&
-      (s.userId === state.user?.userId || s.displayName === state.user?.displayName)
-  );
+  const isMine = Boolean(myGrantedFloor());
+  const myRequest = mySpeakerRequest();
 
   if (isMine) {
     banner.hidden = false;
-    banner.innerHTML = `<strong>${escapeHtml(t("assembly.youHaveFloor"))}</strong>`;
+    banner.innerHTML = `<strong>${escapeHtml(t("assembly.youHaveFloor"))}</strong>
+      <span class="muted">${escapeHtml(t("assembly.floorVsMic") || "Gobernanza · distinto del micrófono")}</span>`;
     banner.classList.add("is-active");
   } else if (myRequest) {
     banner.hidden = false;
     const pos = myRequest.queueOrder ?? "—";
-    banner.innerHTML = `<strong>${escapeHtml(t("assembly.requestSent"))}</strong>
+    banner.innerHTML = `<strong>${escapeHtml(t("assembly.handRaised") || "Mano levantada")}</strong>
       <span>${escapeHtml(t("assembly.queuePosition", { n: pos }))}</span>`;
     banner.classList.remove("is-active");
+  } else if (current && state.viewerRole === "Operator") {
+    banner.hidden = true;
   } else {
     banner.hidden = true;
     banner.classList.remove("is-active");
   }
+  syncMeetingControlBar();
 }
 
 function renderQuorumDetails() {
@@ -816,12 +1209,7 @@ async function syncPublishForFloor() {
   if (mine) {
     try {
       await setLocalMicrophoneEnabled(true);
-      const micBtn = qs("#btn-mic");
-      if (micBtn) {
-        micBtn.setAttribute("aria-pressed", "true");
-        micBtn.setAttribute("aria-label", t("lobby.muteMic"));
-      }
-      showToast(t("media.floorMicEnabled"), "success");
+      showToast(t("assembly.youHaveFloor"), "success");
     } catch (error) {
       showToast(error.message || t("media.publishFailed"), "error");
       renderIncidentStrip();
@@ -830,6 +1218,7 @@ async function syncPublishForFloor() {
   renderMediaCockpit();
   renderIncidentStrip();
   updateMediaConnectionBanner();
+  syncMeetingControlBar();
 }
 
 function updateMediaConnectionBanner() {
@@ -862,35 +1251,70 @@ async function bootstrapMeeting() {
   const camBtn = qs("#btn-cam");
   if (!mediaControlsWired) {
     mediaControlsWired = true;
+    wireMeetingDrawers();
     if (micBtn) {
       micBtn.addEventListener("click", async () => {
         const next = micBtn.getAttribute("aria-pressed") !== "true";
-        micBtn.setAttribute("aria-pressed", String(next));
-        micBtn.setAttribute("aria-label", next ? t("lobby.muteMic") : t("lobby.unmuteMic"));
-        const result = await setLocalMicrophoneEnabled(next);
-        if (!result.ok) showToast(t("media.publishFailed"), "warn");
-        await unlockRemoteAudio();
+        setMediaBusy(next ? t("media.connectingMic") || "Conectando micrófono…" : "");
+        micBtn.disabled = true;
+        try {
+          const result = await setLocalMicrophoneEnabled(next);
+          if (!result.ok) {
+            if (result.code === "PERMISSION_DENIED") {
+              showToast(
+                t("media.permissionDenied") ||
+                  "Micrófono bloqueado por el navegador. Revise la configuración del sitio.",
+                "error"
+              );
+            } else {
+              showToast(t("media.publishFailed"), "warn");
+            }
+          }
+          await unlockRemoteAudio();
+        } finally {
+          micBtn.disabled = false;
+          setMediaBusy("");
+          syncMeetingControlBar();
+        }
       });
     }
     if (camBtn) {
       camBtn.addEventListener("click", async () => {
         const next = camBtn.getAttribute("aria-pressed") !== "true";
-        camBtn.setAttribute("aria-pressed", String(next));
-        camBtn.setAttribute("aria-label", next ? t("lobby.turnCameraOff") : t("lobby.turnCameraOn"));
-        const result = await setLocalCameraEnabled(next);
-        if (!result.ok) showToast(t("media.publishFailed"), "warn");
-        await unlockRemoteAudio();
+        setMediaBusy(next ? t("media.activatingCamera") || "Activando cámara…" : "");
+        camBtn.disabled = true;
+        try {
+          const result = await setLocalCameraEnabled(next);
+          if (!result.ok) {
+            if (result.code === "PERMISSION_DENIED") {
+              showToast(
+                t("media.permissionDenied") ||
+                  "Cámara bloqueada por el navegador. Revise la configuración del sitio.",
+                "error"
+              );
+            } else {
+              showToast(t("media.publishFailed"), "warn");
+            }
+          }
+          await unlockRemoteAudio();
+        } finally {
+          camBtn.disabled = false;
+          setMediaBusy("");
+          syncMeetingControlBar();
+        }
       });
     }
     qs("#btn-view-grid")?.addEventListener("click", () => {
       setMediaViewMode("grid");
       qs("#btn-view-grid")?.setAttribute("aria-pressed", "true");
       qs("#btn-view-focus")?.setAttribute("aria-pressed", "false");
+      closeMeetingDrawers();
     });
     qs("#btn-view-focus")?.addEventListener("click", () => {
       setMediaViewMode("focus");
       qs("#btn-view-grid")?.setAttribute("aria-pressed", "false");
       qs("#btn-view-focus")?.setAttribute("aria-pressed", "true");
+      closeMeetingDrawers();
     });
     qs("#btn-media-fullscreen")?.addEventListener("click", async () => {
       const stage = qs(".video-stage");
@@ -901,6 +1325,7 @@ async function bootstrapMeeting() {
       } catch {
         showToast(t("media.fullscreenUnavailable") || "Fullscreen unavailable", "warn");
       }
+      closeMeetingDrawers();
     });
     qs("#btn-leave-media")?.addEventListener("click", async () => {
       await disconnectLiveKit();
@@ -909,8 +1334,9 @@ async function bootstrapMeeting() {
       }
       updateMediaConnectionBanner();
       renderMediaCockpit();
+      syncMeetingControlBar();
+      closeMeetingDrawers();
     });
-    // First user gesture unlocks remote audio autoplay policies.
     document.addEventListener(
       "pointerdown",
       () => {
@@ -931,29 +1357,22 @@ async function bootstrapMeeting() {
     const token = await fetchJoinToken(assemblyId);
     const { identity } = syncOfficialSpeakerHighlight();
     const canPublish = Boolean(token.canPublish);
-    // Default on when lobby prefs were never set (direct room entry / automation).
     const wantCam = prefs.cameraEnabled !== false;
     const wantMic = prefs.micEnabled !== false;
-    // Multi-participant video: any joiner with canPublish may enable cam/mic from lobby prefs.
-    // Governance floor remains a separate highlight (not a publish gate).
     await connectLiveKit(els.video, token, {
       enableCamera: wantCam && canPublish,
       enableMic: wantMic && canPublish,
       officialSpeakerIdentity: identity
     });
-    if (micBtn) {
-      micBtn.setAttribute("aria-pressed", String(wantMic && canPublish));
-    }
-    if (camBtn) {
-      camBtn.setAttribute("aria-pressed", String(wantCam && canPublish));
-    }
     if (identity) setMediaViewMode("focus");
+    syncHandTiles();
   } catch (error) {
     renderAvBlocked(els.video, error.message || t("lobby.avBlocked"));
   }
   updateMediaConnectionBanner();
   renderMediaCockpit();
   renderIncidentStrip();
+  syncMeetingControlBar();
 }
 
 function wireOperatorControls() {
@@ -1070,7 +1489,6 @@ function localizeChrome() {
   qs("#heading-motion").textContent = t("assembly.motion");
   qs("#heading-vote").textContent = t("assembly.voting");
   qs("#heading-speakers").textContent = t("assembly.speakers");
-  qs("#btn-request-speak").textContent = t("assembly.requestSpeak");
   qs("#btn-start").textContent = t("assembly.startAssembly");
   qs("#btn-resume").textContent = t("assembly.resume");
   qs("#btn-pause").textContent = t("assembly.pause");
@@ -1078,6 +1496,7 @@ function localizeChrome() {
   qs("#btn-logout").textContent = t("logout");
   qs("#link-dashboard").textContent = t("dashboard.title");
   qs("#link-dashboard").href = `/dashboard.html?assemblyId=${assemblyId}`;
+  qs("#more-link-dashboard")?.setAttribute("href", `/dashboard.html?assemblyId=${assemblyId}`);
 }
 
 async function init() {
@@ -1204,26 +1623,8 @@ async function init() {
 
   durationTimer = window.setInterval(tickDuration, 1000);
   tickDuration();
-
-  qs("#btn-request-speak")?.addEventListener("click", async () => {
-    try {
-      await requestFloor(assemblyId, state.user.displayName);
-      state.queue = await getQueue(assemblyId);
-      refreshPanels();
-      showError("");
-    } catch (error) {
-      showError(error.message);
-    }
-  });
-
-  qs("#m-btn-speak")?.addEventListener("click", () => {
-    qs("#btn-request-speak")?.click();
-  });
-  qs("#m-link-more")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    const href = qs("#link-dashboard")?.getAttribute("href");
-    if (href) location.href = href;
-  });
+  wireMeetingDrawers();
+  syncMeetingControlBar();
 
   qs("#btn-logout")?.addEventListener("click", async () => {
     state.intentionalDisconnect = true;

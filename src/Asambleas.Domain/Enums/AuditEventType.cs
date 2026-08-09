@@ -31,6 +31,7 @@ public static class AuditEventType
     public const string SpeakerGranted = "SPEAKER_GRANTED";
     public const string SpeakerRejected = "SPEAKER_REJECTED";
     public const string SpeakerSkipped = "SPEAKER_SKIPPED";
+    public const string SpeakerCancelled = "SPEAKER_CANCELLED";
     public const string MotionPresented = "MOTION_PRESENTED";
     public const string VotingOpened = "VOTING_OPENED";
     public const string VoteCast = "VOTE_CAST";

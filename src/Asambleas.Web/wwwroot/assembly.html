@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ASAMBLEAS — Command Center</title>
+  <title>ASAMBLEAS — Sala en vivo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=av2" />
-  <link rel="stylesheet" href="/css/base.css?v=av2" />
-  <link rel="stylesheet" href="/css/components.css?v=av2" />
-  <link rel="stylesheet" href="/css/loading.css?v=av2" />
-  <link rel="stylesheet" href="/css/assembly-room.css?v=av2" />
+  <link rel="stylesheet" href="/css/tokens.css?v=mux2" />
+  <link rel="stylesheet" href="/css/base.css?v=mux2" />
+  <link rel="stylesheet" href="/css/components.css?v=mux2" />
+  <link rel="stylesheet" href="/css/loading.css?v=mux2" />
+  <link rel="stylesheet" href="/css/assembly-room.css?v=mux2" />
 </head>
 <body>
   <a class="skip-link" href="#main-stage">Saltar al escenario</a>
@@ -20,11 +20,11 @@
     ● ESTA SESIÓN ESTÁ SIENDO GRABADA
     <span id="recording-timer" class="metric-number"></span>
   </div>
-  <div class="room" data-role="owner">
+  <div class="room room--meeting-ux" data-role="owner">
     <header class="room-header" role="banner">
       <div class="header-brand">
         <div>
-          <p class="command-eyebrow" style="margin:0 0 0.15rem">Assembly Command Center</p>
+          <p class="command-eyebrow" style="margin:0 0 0.15rem">Asamblea en vivo</p>
           <h1 class="brand">ASAMBLEAS</h1>
         </div>
         <span id="view-mode" class="badge badge-live"></span>
@@ -39,6 +39,7 @@
           <span id="live-label">EN VIVO</span>
           <span id="duration-label" class="duration" aria-live="polite">00:00:00</span>
         </div>
+        <div id="voting-open-chip" class="voting-open-chip" hidden role="status">VOTACIÓN ABIERTA</div>
         <div id="quorum-chip" class="quorum-chip" aria-live="polite" aria-label="Estado de quórum">
           <div class="skeleton" style="width:10rem;height:1.5rem"></div>
           <div id="quorum-details" class="quorum-details" hidden></div>
@@ -52,41 +53,30 @@
         <div id="room-alert" class="alert" hidden role="alert"></div>
         <div id="incident-strip" class="incident-strip" hidden></div>
         <div id="floor-banner" class="floor-granted-banner" hidden></div>
+        <div id="governance-speaker-chip" class="governance-speaker-chip" hidden aria-live="polite"></div>
 
-        <section class="video-stage" aria-label="Escenario del orador">
+        <section class="video-stage" aria-label="Videoconferencia">
           <div id="connection-state" class="connection-banner" aria-live="polite">
             <span class="status-dot degraded"></span>
             <span>…</span>
           </div>
           <div id="media-connection-state" class="connection-banner media-connection-banner" hidden aria-live="polite"></div>
           <div class="stage-copy">
-            <p id="speaker-name" class="speaker-name">Sala en espera</p>
-            <p id="speaker-meta" class="speaker-meta">Preparando sesión</p>
-            <p id="status-line" class="speaker-meta"></p>
+            <p id="speaker-name" class="speaker-name sr-only">Sala en espera</p>
+            <p id="speaker-meta" class="speaker-meta sr-only">Preparando sesión</p>
+            <p id="status-line" class="speaker-meta sr-only"></p>
             <div id="video-mount" class="media-stage-grid"></div>
-          </div>
-          <div class="media-control-bar" role="toolbar" aria-label="Controles de audio y video">
-            <button type="button" id="btn-mic" class="btn btn-secondary" aria-pressed="true" aria-label="Silenciar micrófono">Mic</button>
-            <button type="button" id="btn-cam" class="btn btn-secondary" aria-pressed="false" aria-label="Encender cámara">Cam</button>
-            <button type="button" id="btn-view-grid" class="btn btn-ghost" aria-pressed="true" aria-label="Vista en cuadrícula">Cuadrícula</button>
-            <button type="button" id="btn-view-focus" class="btn btn-ghost" aria-pressed="false" aria-label="Vista enfocada">Enfoque</button>
-            <button type="button" id="btn-media-fullscreen" class="btn btn-ghost" aria-label="Pantalla completa">Pantalla completa</button>
-            <button type="button" id="btn-leave-media" class="btn btn-ghost" aria-label="Salir de audio y video">Salir A/V</button>
-            <span id="media-quality" class="muted media-quality" aria-live="polite"></span>
           </div>
         </section>
 
-        <section aria-label="Participantes" class="operator-only">
-          <h2 class="sr-only">Participantes</h2>
+        <section aria-label="Participantes (operación)" class="operator-only operator-cockpit">
+          <h2 class="sr-only">Cockpit de operación</h2>
           <div id="hybrid-cockpit" class="hybrid-cockpit" hidden></div>
           <div id="media-cockpit" class="media-cockpit" hidden></div>
-          <div id="participant-strip" class="participant-strip"></div>
+          <div id="participant-strip" class="participant-strip" hidden></div>
         </section>
 
         <div class="stage-actions operator-action-bar">
-          <div class="control-cluster owner-only" role="group" aria-label="Acciones del participante">
-            <button type="button" id="btn-request-speak" class="btn btn-gold">Solicitar la palabra</button>
-          </div>
           <div class="control-cluster operator-only" role="group" aria-label="Controles de operación">
             <button type="button" id="btn-start" class="btn btn-primary">Iniciar asamblea</button>
             <button type="button" id="btn-resume" class="btn btn-primary">Reanudar</button>
@@ -103,7 +93,6 @@
           <div class="control-cluster control-cluster-meta">
             <span id="user-chip" class="badge badge-live" aria-live="polite"></span>
             <a id="link-dashboard" class="btn btn-ghost live-admin-link" href="#">Panel</a>
-            <button type="button" id="btn-logout" class="btn btn-ghost">Salir</button>
           </div>
         </div>
       </main>
@@ -131,16 +120,124 @@
       </aside>
     </div>
 
-    <nav class="mobile-action-bar" aria-label="Acciones rápidas">
-      <a href="#agenda-panel">Agenda</a>
-      <button type="button" id="m-btn-speak">Hablar</button>
-      <a href="#vote-panel">Votar</a>
-      <a id="m-link-more" href="#">Más</a>
+    <!-- Meeting drawers -->
+    <div id="meeting-drawer-backdrop" class="meeting-drawer-backdrop" hidden></div>
+
+    <aside id="participants-drawer" class="meeting-drawer" hidden aria-labelledby="participants-drawer-title" role="dialog">
+      <header class="meeting-drawer__header">
+        <h2 id="participants-drawer-title">Participantes</h2>
+        <button type="button" class="btn btn-ghost meeting-drawer__close" data-close-drawer aria-label="Cerrar">×</button>
+      </header>
+      <div id="participants-drawer-body" class="meeting-drawer__body"></div>
+    </aside>
+
+    <aside id="speaker-queue-drawer" class="meeting-drawer" hidden aria-labelledby="speaker-queue-drawer-title" role="dialog">
+      <header class="meeting-drawer__header">
+        <h2 id="speaker-queue-drawer-title">Solicitudes de palabra</h2>
+        <button type="button" class="btn btn-ghost meeting-drawer__close" data-close-drawer aria-label="Cerrar">×</button>
+      </header>
+      <div id="speaker-queue-drawer-body" class="meeting-drawer__body">
+        <div id="speaker-queue-drawer-list"></div>
+      </div>
+    </aside>
+
+    <aside id="more-menu-drawer" class="meeting-drawer meeting-drawer--compact" hidden aria-labelledby="more-menu-title" role="dialog">
+      <header class="meeting-drawer__header">
+        <h2 id="more-menu-title">Más</h2>
+        <button type="button" class="btn btn-ghost meeting-drawer__close" data-close-drawer aria-label="Cerrar">×</button>
+      </header>
+      <div class="meeting-drawer__body meeting-more-list">
+        <button type="button" id="btn-device-settings" class="meeting-more-item">Dispositivos</button>
+        <button type="button" id="btn-view-grid" class="meeting-more-item" aria-pressed="true">Vista cuadrícula</button>
+        <button type="button" id="btn-view-focus" class="meeting-more-item" aria-pressed="false">Vista enfoque</button>
+        <button type="button" id="btn-media-fullscreen" class="meeting-more-item">Pantalla completa</button>
+        <button type="button" id="btn-leave-media" class="meeting-more-item">Desconectar A/V</button>
+        <a id="more-link-dashboard" class="meeting-more-item" href="#">Panel de control</a>
+        <a id="more-link-agenda" class="meeting-more-item" href="#agenda-panel">Agenda</a>
+        <a id="more-link-vote" class="meeting-more-item" href="#vote-panel">Votación</a>
+        <button type="button" id="btn-logout" class="meeting-more-item meeting-more-item--danger">Cerrar sesión</button>
+        <button type="button" id="btn-end-more" class="meeting-more-item meeting-more-item--danger operator-only" hidden>Finalizar asamblea</button>
+      </div>
+    </aside>
+
+    <dialog id="device-settings-dialog" class="device-settings-dialog">
+      <form method="dialog" class="device-settings-form">
+        <h2>Dispositivos</h2>
+        <label>
+          Micrófono
+          <select id="device-mic-select"></select>
+        </label>
+        <label>
+          Cámara
+          <select id="device-cam-select"></select>
+        </label>
+        <label id="device-speaker-wrap">
+          Altavoz
+          <select id="device-speaker-select"></select>
+        </label>
+        <p id="device-settings-hint" class="muted"></p>
+        <div class="cluster">
+          <button type="submit" class="btn btn-primary" value="ok">Listo</button>
+          <button type="submit" class="btn btn-ghost" value="cancel">Cancelar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Meeting Control Bar — primary A/V + governance actions -->
+    <nav id="meeting-control-bar" class="meeting-control-bar" role="toolbar" aria-label="Controles de la reunión" data-autohide="true">
+      <div class="meeting-control-bar__inner">
+        <button type="button" id="btn-mic" class="mcb-btn" aria-pressed="true" aria-label="Silenciar micrófono" title="Micrófono">
+          <span class="mcb-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 18v3"/><path d="M8 21h8"/></svg>
+          </span>
+          <span class="mcb-label">Micro</span>
+        </button>
+        <button type="button" id="btn-cam" class="mcb-btn" aria-pressed="false" aria-label="Encender cámara" title="Cámara">
+          <span class="mcb-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="m16 10 5-2v8l-5-2z"/></svg>
+          </span>
+          <span class="mcb-label">Cámara</span>
+        </button>
+        <button type="button" id="btn-hand" class="mcb-btn mcb-btn--hand" aria-pressed="false" aria-label="Levantar la mano" title="Levantar la mano">
+          <span class="mcb-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5"/><path d="M11 11V4.5a1.5 1.5 0 0 1 3 0V11"/><path d="M14 10.5V6a1.5 1.5 0 0 1 3 0v7c0 3.5-2.5 6-6 6h-1c-3 0-5-2-5-5v-3.5a1.5 1.5 0 0 1 3 0V13"/></svg>
+          </span>
+          <span class="mcb-label">Palabra</span>
+        </button>
+        <button type="button" id="btn-queue" class="mcb-btn mcb-btn--queue operator-only" aria-label="Solicitudes de palabra" title="Solicitudes de palabra" hidden>
+          <span class="mcb-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5"/><path d="M11 11V4.5a1.5 1.5 0 0 1 3 0V11"/><path d="M14 10.5V6a1.5 1.5 0 0 1 3 0v7c0 3.5-2.5 6-6 6h-1c-3 0-5-2-5-5v-3.5a1.5 1.5 0 0 1 3 0V13"/><circle cx="19" cy="5" r="3" fill="currentColor" stroke="none"/></svg>
+          </span>
+          <span class="mcb-label">Cola</span>
+          <span id="queue-count-badge" class="mcb-badge" hidden>0</span>
+        </button>
+        <button type="button" id="btn-people" class="mcb-btn" aria-label="Participantes" title="Participantes">
+          <span class="mcb-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="9" cy="8" r="3"/><path d="M3 19c0-2.8 2.7-5 6-5s6 2.2 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 19c0-1.8 1.3-3.3 3-4"/></svg>
+          </span>
+          <span class="mcb-label">Personas</span>
+          <span id="people-count-badge" class="mcb-badge" hidden>0</span>
+        </button>
+        <button type="button" id="btn-more" class="mcb-btn" aria-label="Más opciones" title="Más" aria-haspopup="dialog">
+          <span class="mcb-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><circle cx="6" cy="12" r="1.75"/><circle cx="12" cy="12" r="1.75"/><circle cx="18" cy="12" r="1.75"/></svg>
+          </span>
+          <span class="mcb-label">Más</span>
+        </button>
+        <button type="button" id="btn-leave" class="mcb-btn mcb-btn--leave" aria-label="Salir de la reunión" title="Salir">
+          <span class="mcb-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M10 6H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4"/><path d="M14 12H4"/><path d="m16 8 4 4-4 4"/></svg>
+          </span>
+          <span class="mcb-label">Salir</span>
+        </button>
+      </div>
+      <span id="media-quality" class="muted media-quality mcb-quality" aria-live="polite"></span>
+      <span id="media-busy-hint" class="mcb-busy" hidden aria-live="polite"></span>
     </nav>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.9.1/dist/livekit-client.umd.min.js"></script>
-  <script type="module" src="/js/modules/room-app.js?v=rec1"></script>
+  <script type="module" src="/js/modules/room-app.js?v=mux2"></script>
 </body>
 </html>

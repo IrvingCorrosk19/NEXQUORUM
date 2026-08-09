@@ -26,6 +26,14 @@ public sealed class SpeakersController : ControllerBase
         CancellationToken cancellationToken) =>
         _speakers.RequestAsync(assemblyId, request ?? new CreateSpeakerRequest(null), cancellationToken);
 
+    /// <summary>Lower own hand — cancels the caller's Requested entry only.</summary>
+    [HttpPost("cancel")]
+    [Authorize(Policy = Permissions.MeetingJoin)]
+    public Task<SpeakerRequestDto> CancelOwn(
+        Guid assemblyId,
+        CancellationToken cancellationToken) =>
+        _speakers.CancelOwnAsync(assemblyId, cancellationToken);
+
     [HttpPost("{speakerRequestId:guid}/grant")]
     [Authorize(Policy = Permissions.MeetingModerate)]
     public Task<SpeakerRequestDto> Grant(

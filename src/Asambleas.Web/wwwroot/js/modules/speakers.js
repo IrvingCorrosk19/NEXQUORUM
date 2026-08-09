@@ -9,6 +9,13 @@ export async function requestFloor(assemblyId, displayName = null) {
   });
 }
 
+/** Lower own raised hand (cancel Requested). */
+export async function cancelOwnFloor(assemblyId) {
+  return api(`/api/assemblies/${assemblyId}/speakers/cancel`, {
+    method: "POST"
+  });
+}
+
 export async function grantFloor(assemblyId, speakerRequestId) {
   return api(`/api/assemblies/${assemblyId}/speakers/${speakerRequestId}/grant`, {
     method: "POST"
@@ -121,5 +128,5 @@ function waitLabel(item) {
   const totalSec = Math.floor(ms / 1000);
   const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
   const ss = String(totalSec % 60).padStart(2, "0");
-  return `${mm}:${ss}`;
+  return t("assembly.waitAgo", { t: `${mm}:${ss}` }) || `${mm}:${ss}`;
 }

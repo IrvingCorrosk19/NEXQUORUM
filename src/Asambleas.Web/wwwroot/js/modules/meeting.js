@@ -254,6 +254,8 @@ function ensureTile(container, identity, label, { isLocal = false } = {}) {
       <div class="media-tile-video"></div>
       <div class="media-tile-avatar" aria-hidden="true"></div>
       <div class="media-tile-label"></div>
+      <div class="media-tile-cam-off" aria-hidden="true">Cámara off</div>
+      <div class="media-tile-hand" aria-hidden="true" title="Mano levantada"></div>
       <div class="media-tile-indicators" aria-hidden="true"></div>`;
     container.appendChild(tile);
   }
@@ -487,7 +489,7 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
 }
 
 async function applyLocalPublish({ camera, mic }) {
-  if (!liveKitRoom) return { ok: false, error: "no-room" };
+  if (!liveKitRoom) return { ok: false, error: "no-room", code: "NO_ROOM" };
   try {
     await liveKitRoom.localParticipant.setCameraEnabled(Boolean(camera));
     await liveKitRoom.localParticipant.setMicrophoneEnabled(Boolean(mic));
@@ -501,10 +503,25 @@ async function applyLocalPublish({ camera, mic }) {
       else tile.classList.remove("has-video");
     }
     clearIncident("publish-fail");
+    clearIncident("permission-denied");
+    saveDevicePrefs({ cameraEnabled: Boolean(camera), micEnabled: Boolean(mic) });
     return { ok: true };
   } catch (error) {
+    const name = error?.name || "";
+    const msg = String(error?.message || "");
+    const denied =
+      name === "NotAllowedError" ||
+      /Permission denied|NotAllowedError|PermissionDenied/i.test(msg);
+    if (denied) {
+      pushIncident(
+        "permission-denied",
+        t("media.permissionDenied") || "Cámara o micrófono bloqueados por el navegador.",
+        "error"
+      );
+      return { ok: false, error, code: "PERMISSION_DENIED" };
+    }
     pushIncident("publish-fail", t("media.publishFailed"), "error");
-    return { ok: false, error };
+    return { ok: false, error, code: "PUBLISH_FAILED" };
   }
 }
 
@@ -516,6 +533,60 @@ export async function setLocalCameraEnabled(enabled) {
 export async function setLocalMicrophoneEnabled(enabled) {
   localPublishIntent.mic = Boolean(enabled);
   return applyLocalPublish(localPublishIntent);
+}
+
+export function getLocalPublishIntent() {
+  return { ...localPublishIntent };
+}
+
+export function getLiveKitRoom() {
+  return liveKitRoom;
+}
+
+/** Mark tiles whose LiveKit identity matches raised-hand user ids (dashless GUID). */
+export function syncHandRaisedIndicators(container, raisedUserIds = []) {
+  if (!container) return;
+  const set = new Set(
+    (raisedUserIds || []).map((id) => String(id || "").replace(/-/g, "").toLowerCase())
+  );
+  container.querySelectorAll(".media-tile").forEach((tile) => {
+    const id = String(tile.dataset.identity || "").replace(/-/g, "").toLowerCase();
+    tile.classList.toggle("hand-raised", set.has(id));
+  });
+}
+
+export async function switchLocalDevices({ micId, cameraId, speakerId } = {}) {
+  const prefs = saveDevicePrefs({
+    ...(micId ? { micId } : {}),
+    ...(cameraId ? { cameraId } : {}),
+    ...(speakerId ? { speakerId } : {})
+  });
+  if (!liveKitRoom) return { ok: true, prefs };
+  try {
+    const { createLocalTracks } = window.LivekitClient || {};
+    if (!createLocalTracks) {
+      // Re-apply publish so browser picks ideal device on next enable.
+      return applyLocalPublish(localPublishIntent);
+    }
+    // Toggle off/on to refresh devices with prefs constraints when possible.
+    const wantCam = localPublishIntent.camera;
+    const wantMic = localPublishIntent.mic;
+    await liveKitRoom.localParticipant.setCameraEnabled(false);
+    await liveKitRoom.localParticipant.setMicrophoneEnabled(false);
+    if (wantCam || wantMic) {
+      await applyLocalPublish({ camera: wantCam, mic: wantMic });
+    }
+    if (speakerId && typeof HTMLMediaElement !== "undefined") {
+      mediaContainer?.querySelectorAll("audio, video").forEach((el) => {
+        if (typeof el.setSinkId === "function") {
+          el.setSinkId(speakerId).catch(() => {});
+        }
+      });
+    }
+    return { ok: true, prefs };
+  } catch (error) {
+    return { ok: false, error };
+  }
 }
 
 export async function refreshMediaToken(assemblyId, container, options = {}) {

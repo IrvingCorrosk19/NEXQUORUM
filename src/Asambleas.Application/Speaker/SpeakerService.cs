@@ -56,6 +56,36 @@ public sealed class SpeakerService
             ? participant.DisplayName
             : request.DisplayName.Trim();
 
+        // One active raise-hand per participant (multi-tab safe).
+        var existing = await _db.SpeakerRequests
+            .FirstOrDefaultAsync(
+                s => s.AssemblyId == assemblyId
+                     && s.UserId == userId
+                     && s.Status == SpeakerRequestStatus.Requested,
+                cancellationToken);
+        if (existing is not null)
+        {
+            if (!string.Equals(existing.DisplayName, displayName, StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(displayName))
+            {
+                existing.DisplayName = displayName;
+                existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                await PublishQueueAsync(assemblyId, cancellationToken);
+            }
+
+            return ToDto(existing);
+        }
+
+        if (await _db.SpeakerRequests.AnyAsync(
+                s => s.AssemblyId == assemblyId
+                     && s.UserId == userId
+                     && s.Status == SpeakerRequestStatus.Granted,
+                cancellationToken))
+        {
+            throw new DomainException("You already have the floor.");
+        }
+
         var maxOrder = await _db.SpeakerRequests
             .Where(s => s.AssemblyId == assemblyId)
             .Select(s => (int?)s.QueueOrder)
@@ -79,6 +109,43 @@ public sealed class SpeakerService
             AuditEventType.SpeakerRequested,
             assemblyId,
             metadata: new { entity.Id, entity.UserId, entity.QueueOrder },
+            cancellationToken: cancellationToken);
+
+        await PublishQueueAsync(assemblyId, cancellationToken);
+
+        return ToDto(entity);
+    }
+
+    /// <summary>
+    /// Participant lowers their own raised hand (cancels Requested only).
+    /// </summary>
+    public async Task<SpeakerRequestDto> CancelOwnAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+
+        var assembly = await RequireAssemblyAsync(assemblyId, cancellationToken);
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        var entity = await _db.SpeakerRequests
+            .Where(s => s.AssemblyId == assemblyId
+                        && s.UserId == userId
+                        && s.Status == SpeakerRequestStatus.Requested)
+            .OrderByDescending(s => s.QueueOrder)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new DomainException("No active speaker request to cancel.");
+
+        entity.Status = SpeakerRequestStatus.Cancelled;
+        entity.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.WriteAsync(
+            AuditEventType.SpeakerCancelled,
+            assemblyId,
+            metadata: new { entity.Id, entity.UserId },
             cancellationToken: cancellationToken);
 
         await PublishQueueAsync(assemblyId, cancellationToken);
