@@ -18,7 +18,16 @@ import {
   disconnectLiveKit,
   fetchJoinToken,
   fetchRoomInfo,
-  renderAvBlocked
+  getLiveKitParticipantCounts,
+  getMediaConnectionState,
+  highlightOfficialSpeaker,
+  listIncidents,
+  loadDevicePrefs,
+  refreshMediaToken,
+  renderAvBlocked,
+  setIncidentHandler,
+  setLocalCameraEnabled,
+  setLocalMicrophoneEnabled
 } from "./meeting.js";
 import { initI18n, statusLabel, t } from "../i18n/i18n.js";
 import {
@@ -77,6 +86,7 @@ const state = {
 };
 
 let durationTimer = null;
+let mediaControlsWired = false;
 
 function showError(message) {
   if (!els.alert) return;
@@ -123,6 +133,65 @@ function syncParticipantsFromList(list) {
   }
 }
 
+function renderHybridCockpit(items) {
+  const el = qs("#hybrid-cockpit");
+  if (!el) return;
+  if (state.viewerRole !== "Operator") {
+    el.hidden = true;
+    return;
+  }
+  let inPerson = 0;
+  let virtual = 0;
+  let represented = 0;
+  for (const p of items) {
+    const pt = (p.presenceType || "").toLowerCase();
+    if (pt === "inperson") inPerson += 1;
+    else if (pt === "virtual" || pt === "hybrid") virtual += 1;
+    represented += Number(p.representationCount || 0);
+  }
+  el.hidden = false;
+  el.innerHTML = `
+    <strong>${escapeHtml(t("assembly.hybridPresent"))}</strong>
+    <span>${escapeHtml(t("assembly.hybridInPerson"))}: ${inPerson}</span>
+    <span>${escapeHtml(t("assembly.hybridVirtual"))}: ${virtual}</span>
+    <span>${escapeHtml(t("assembly.hybridRepresented"))}: ${represented}</span>
+    <span>${escapeHtml(t("assembly.hybridLogical"))}: ${items.length}</span>`;
+}
+
+function renderMediaCockpit() {
+  const el = qs("#media-cockpit");
+  if (!el) return;
+  if (state.viewerRole !== "Operator") {
+    el.hidden = true;
+    return;
+  }
+  const media = getLiveKitParticipantCounts();
+  const attendance = state.participants.size;
+  const problems = listIncidents().length;
+  el.hidden = false;
+  el.innerHTML = `
+    <strong>MEDIA</strong>
+    <span>${escapeHtml(t("media.connected"))}: ${media.connected} / ${attendance}</span>
+    <span>${escapeHtml(t("media.problems"))}: ${problems}</span>
+    <span>${escapeHtml(t("media.activeMics"))}: ${media.mics}</span>
+    <span>${escapeHtml(t("media.cameras"))}: ${media.cameras}</span>`;
+}
+
+function renderIncidentStrip() {
+  const el = qs("#incident-strip");
+  if (!el) return;
+  const items = listIncidents();
+  if (!items.length) {
+    el.hidden = true;
+    el.innerHTML = "";
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = items
+    .map((i) => `<div class="incident incident-${escapeHtml(i.severity)}">${escapeHtml(i.message)}</div>`)
+    .join("");
+}
+
 function renderParticipants() {
   if (!els.participants) return;
   const items = [...state.participants.values()];
@@ -132,6 +201,9 @@ function renderParticipants() {
     els.participantCount.hidden = state.viewerRole !== "Operator";
     els.participantCount.textContent = `${t("assembly.participants")}: ${count}`;
   }
+
+  renderHybridCockpit(items);
+  renderMediaCockpit();
 
   if (!items.length) {
     els.participants.innerHTML = emptyState(
@@ -154,7 +226,7 @@ function renderParticipants() {
         <span class="avatar" aria-hidden="true">${escapeHtml(initials)}</span>
         <div class="participant-meta">
           <strong>${escapeHtml(p.displayName)}</strong>
-          <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(p.attendanceStatus || "")}</span>
+          <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(p.attendanceStatus || "")} · ${escapeHtml(p.presenceType || "—")}</span>
         </div>
       </article>`;
     })
@@ -256,11 +328,11 @@ function syncFloorBanner() {
   const current = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
   const isMine =
     Boolean(current) &&
-    (current.userId === state.user?.id || current.displayName === state.user?.displayName);
+    (current.userId === state.user?.userId || current.displayName === state.user?.displayName);
   const myRequest = state.queue?.queue?.find(
     (s) =>
       s.status === "Requested" &&
-      (s.userId === state.user?.id || s.displayName === state.user?.displayName)
+      (s.userId === state.user?.userId || s.displayName === state.user?.displayName)
   );
 
   if (isMine) {
@@ -626,20 +698,117 @@ async function rehydrate() {
   }
 }
 
+function syncOfficialSpeakerHighlight() {
+  const currentId = state.queue?.currentSpeakerRequestId;
+  const current = state.queue?.queue?.find((s) => s.id === currentId);
+  const identity = current?.userId ? String(current.userId).replace(/-/g, "") : null;
+  highlightOfficialSpeaker(els.video, identity);
+  return { current, identity };
+}
+
+async function syncPublishForFloor() {
+  const { current } = syncOfficialSpeakerHighlight();
+  const mine = current && state.user && current.userId === state.user.userId;
+  const prefs = loadDevicePrefs();
+  if (mine || state.viewerRole === "Operator") {
+    try {
+      await refreshMediaToken(assemblyId, els.video, {
+        enableCamera: Boolean(prefs.cameraEnabled),
+        enableMic: mine ? true : Boolean(prefs.micEnabled),
+        officialSpeakerIdentity: current?.userId
+          ? String(current.userId).replace(/-/g, "")
+          : null
+      });
+      if (mine) {
+        await setLocalMicrophoneEnabled(true);
+        showToast(t("media.floorMicEnabled"), "success");
+      }
+    } catch (error) {
+      showToast(error.message || t("media.publishFailed"), "error");
+      renderIncidentStrip();
+    }
+  } else {
+    await setLocalMicrophoneEnabled(false);
+  }
+  renderMediaCockpit();
+  renderIncidentStrip();
+  updateMediaConnectionBanner();
+}
+
+function updateMediaConnectionBanner() {
+  const el = qs("#media-connection-state");
+  if (!el) return;
+  const st = getMediaConnectionState();
+  if (st === "connected" || st === "idle") {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  const labels = {
+    connecting: t("media.connecting"),
+    reconnecting: t("media.reconnecting"),
+    disconnected: t("media.disconnectedGovernanceOk"),
+    "governance-only": t("media.governanceOnly")
+  };
+  el.textContent = labels[st] || st;
+}
+
 async function bootstrapMeeting() {
+  setIncidentHandler(() => {
+    renderIncidentStrip();
+    renderMediaCockpit();
+    updateMediaConnectionBanner();
+  });
+
+  const prefs = loadDevicePrefs();
+  const micBtn = qs("#btn-mic");
+  const camBtn = qs("#btn-cam");
+  if (!mediaControlsWired) {
+    mediaControlsWired = true;
+    if (micBtn) {
+      micBtn.addEventListener("click", async () => {
+        const next = micBtn.getAttribute("aria-pressed") !== "true";
+        micBtn.setAttribute("aria-pressed", String(next));
+        micBtn.setAttribute("aria-label", next ? t("lobby.muteMic") : t("lobby.unmuteMic"));
+        const result = await setLocalMicrophoneEnabled(next);
+        if (!result.ok) showToast(t("media.publishFailed"), "warn");
+      });
+    }
+    if (camBtn) {
+      camBtn.addEventListener("click", async () => {
+        const next = camBtn.getAttribute("aria-pressed") !== "true";
+        camBtn.setAttribute("aria-pressed", String(next));
+        camBtn.setAttribute("aria-label", next ? t("lobby.turnCameraOff") : t("lobby.turnCameraOn"));
+        const result = await setLocalCameraEnabled(next);
+        if (!result.ok) showToast(t("media.publishFailed"), "warn");
+      });
+    }
+  }
+
   try {
     const info = await fetchRoomInfo(assemblyId);
     if (!info.isAvailable) {
       renderAvBlocked(els.video, info.unavailableReason || t("lobby.avBlocked"));
+      updateMediaConnectionBanner();
       return;
     }
 
-    const canPublish = state.viewerRole === "Operator";
-    const token = await fetchJoinToken(assemblyId, canPublish);
-    await connectLiveKit(els.video, token);
+    const token = await fetchJoinToken(assemblyId);
+    const { identity } = syncOfficialSpeakerHighlight();
+    await connectLiveKit(els.video, token, {
+      enableCamera: Boolean(prefs.cameraEnabled) && Boolean(token.canPublish),
+      // Owners start muted; moderators may enable from prefs.
+      enableMic: state.viewerRole === "Operator" ? Boolean(prefs.micEnabled) : false,
+      officialSpeakerIdentity: identity
+    });
+    if (micBtn) micBtn.setAttribute("aria-pressed", "false");
+    if (camBtn) camBtn.setAttribute("aria-pressed", String(Boolean(prefs.cameraEnabled)));
   } catch (error) {
     renderAvBlocked(els.video, error.message || t("lobby.avBlocked"));
   }
+  updateMediaConnectionBanner();
+  renderMediaCockpit();
+  renderIncidentStrip();
 }
 
 function wireOperatorControls() {
@@ -763,6 +932,12 @@ async function init() {
     onReconnected: async () => {
       showToast(t("connection.restored"), "success");
       await rehydrate();
+      // Governance resync must not require media; re-bootstrap media best-effort.
+      try {
+        await bootstrapMeeting();
+      } catch {
+        /* media optional */
+      }
     },
     onReconnectError: (error) => showToast(error.message, "error"),
     quorumUpdated: (q) => {
@@ -780,6 +955,7 @@ async function init() {
     speakerQueueUpdated: (q) => {
       state.queue = q;
       refreshPanels();
+      syncPublishForFloor().catch(() => {});
     },
     motionUpdated: (m) => {
       state.motion = m;

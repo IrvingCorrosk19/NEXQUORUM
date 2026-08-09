@@ -46,7 +46,8 @@ public static class RolePermissionMap
                 Permissions.VoteClose,
                 Permissions.VoteResults,
                 Permissions.MeetingJoin,
-                Permissions.MeetingModerate
+                Permissions.MeetingModerate,
+                Permissions.AuditView
             ], StringComparer.Ordinal),
             [Roles.AssemblySecretary] = new HashSet<string>(
             [

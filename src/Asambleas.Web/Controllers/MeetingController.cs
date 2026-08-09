@@ -18,13 +18,13 @@ public sealed class MeetingController : ControllerBase
         _meetings = meetings;
     }
 
+    /// <summary>Mints a short-lived join token. Publish capability is server-derived (never from client).</summary>
     [HttpPost("join-token")]
     [Authorize(Policy = Permissions.MeetingJoin)]
     public Task<MeetingJoinTokenResponse> JoinToken(
         Guid assemblyId,
-        [FromQuery] bool canPublish = false,
         CancellationToken cancellationToken = default) =>
-        _meetings.GetJoinInfoAsync(assemblyId, canPublish, cancellationToken);
+        _meetings.GetJoinInfoAsync(assemblyId, cancellationToken);
 
     [HttpGet("room")]
     [Authorize(Policy = Permissions.MeetingJoin)]

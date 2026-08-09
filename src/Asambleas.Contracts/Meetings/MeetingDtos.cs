@@ -8,7 +8,9 @@ public sealed record MeetingJoinTokenResponse(
     string RoomName,
     string Token,
     string ServerUrl,
-    DateTimeOffset ExpiresAtUtc);
+    DateTimeOffset ExpiresAtUtc,
+    bool CanPublish = false,
+    string? Identity = null);
 
 public sealed record MeetingRoomInfoDto(
     Guid AssemblyId,

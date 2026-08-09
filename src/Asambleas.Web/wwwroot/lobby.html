@@ -13,50 +13,72 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
-  <div class="page-shell">
+  <div class="page-shell lobby-shell">
     <header class="page-header">
       <h1 class="brand">ASAMBLEAS</h1>
       <a id="link-dashboard" class="btn btn-secondary" href="#">Volver</a>
     </header>
-    <main id="main" class="page-main" style="width:min(720px,100%)">
+    <main id="main" class="page-main lobby-main">
       <div id="page-alert" class="alert" hidden role="alert"></div>
-      <section class="page-hero">
+      <section class="page-hero lobby-hero">
         <h1 id="lobby-title">Lobby de asamblea</h1>
         <div class="meta-row" id="lobby-meta"></div>
+        <p id="lobby-status" class="muted lobby-status" hidden></p>
       </section>
 
-      <div class="stack">
+      <div class="stack lobby-stack">
         <section class="panel">
           <dl class="accreditation-grid" id="participant-facts">
             <div><dt>Participante</dt><dd id="fact-participant">—</dd></div>
             <div><dt>Unidad</dt><dd id="fact-unit">—</dd></div>
             <div><dt>Acreditación</dt><dd id="fact-accreditation">—</dd></div>
+            <div><dt>Representación</dt><dd id="fact-representation">—</dd></div>
             <div><dt>Conexión</dt><dd id="fact-connection">—</dd></div>
             <div><dt>Quórum</dt><dd id="fact-quorum">—</dd></div>
+            <div><dt>Estado reunión</dt><dd id="fact-meeting">—</dd></div>
           </dl>
         </section>
 
         <section class="panel" aria-label="Vista previa">
           <div class="device-preview" id="preview-mount">
             <video id="preview-video" playsinline muted autoplay hidden></video>
-            <p id="preview-fallback" class="muted" style="padding:1rem;text-align:center;color:#f4f7f8"></p>
+            <p id="preview-fallback" class="muted" style="padding:1rem;text-align:center"></p>
+          </div>
+          <div class="device-selectors" style="margin-top:1rem;display:grid;gap:0.75rem">
+            <label class="field">
+              <span id="label-camera-select">Cámara</span>
+              <select id="select-camera" class="input"></select>
+            </label>
+            <label class="field">
+              <span id="label-mic-select">Micrófono</span>
+              <select id="select-mic" class="input"></select>
+            </label>
+            <label class="field" id="speaker-field" hidden>
+              <span id="label-speaker-select">Altavoz</span>
+              <select id="select-speaker" class="input"></select>
+            </label>
+            <div class="mic-meter" aria-label="Nivel de micrófono">
+              <span id="label-mic-level">Nivel</span>
+              <div class="mic-meter-track"><div id="mic-meter-fill" class="mic-meter-fill"></div></div>
+            </div>
           </div>
           <div class="device-toggles" style="margin-top:1rem">
             <div class="device-toggle">
               <span id="label-camera">Cámara</span>
-              <button type="button" id="toggle-camera" class="btn btn-secondary" aria-pressed="true">Activado</button>
+              <button type="button" id="toggle-camera" class="btn btn-secondary" aria-pressed="true" aria-label="Activar o desactivar cámara">Activado</button>
             </div>
             <div class="device-toggle">
               <span id="label-mic">Micrófono</span>
-              <button type="button" id="toggle-mic" class="btn btn-secondary" aria-pressed="true">Activado</button>
+              <button type="button" id="toggle-mic" class="btn btn-secondary" aria-pressed="true" aria-label="Activar o desactivar micrófono">Activado</button>
             </div>
           </div>
         </section>
 
         <section class="panel">
-          <button type="button" id="btn-enter" class="btn btn-primary" style="width:100%;padding:1rem;font-size:1.05rem">
+          <button type="button" id="btn-enter" class="btn btn-primary" style="width:100%;padding:1rem;font-size:1.05rem" disabled>
             ENTRAR A LA ASAMBLEA
           </button>
+          <p id="enter-hint" class="muted" style="margin-top:0.75rem"></p>
           <ul id="staged-loading" class="staged-loading" hidden aria-live="polite"></ul>
         </section>
       </div>

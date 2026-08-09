@@ -2,6 +2,7 @@ namespace Asambleas.Application.Meeting;
 
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Common;
+using Asambleas.Application.Security;
 using Asambleas.Contracts.Meetings;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Enums;
@@ -9,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 
 public sealed class MeetingService
 {
+    public static readonly TimeSpan DefaultTokenTtl = TimeSpan.FromMinutes(15);
+
     private readonly IAsambleasDbContext _db;
     private readonly ICurrentTenant _currentTenant;
     private readonly IMeetingProvider _meetingProvider;
@@ -25,7 +28,6 @@ public sealed class MeetingService
 
     public async Task<MeetingJoinTokenResponse> GetJoinInfoAsync(
         Guid assemblyId,
-        bool canPublish = false,
         CancellationToken cancellationToken = default)
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
@@ -61,6 +63,8 @@ public sealed class MeetingService
             throw new DomainException(room.UnavailableReason ?? "Meeting room is unavailable.");
         }
 
+        var canPublish = await ResolveCanPublishAsync(assemblyId, userId, participant.RoleCode, cancellationToken);
+
         var token = await _meetingProvider.CreateParticipantTokenAsync(
             new MeetingJoinRequest(
                 assemblyId,
@@ -68,7 +72,8 @@ public sealed class MeetingService
                 participant.DisplayName,
                 room.RoomName,
                 CanPublish: canPublish,
-                CanSubscribe: true),
+                CanSubscribe: true,
+                Ttl: DefaultTokenTtl),
             cancellationToken);
 
         return new MeetingJoinTokenResponse(
@@ -77,7 +82,9 @@ public sealed class MeetingService
             token.RoomName,
             token.Token,
             token.ServerUrl,
-            token.ExpiresAtUtc);
+            token.ExpiresAtUtc,
+            CanPublish: canPublish,
+            Identity: userId.ToString("N"));
     }
 
     public async Task<MeetingRoomInfoDto> GetRoomInfoAsync(
@@ -94,12 +101,15 @@ public sealed class MeetingService
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
         var roomName = $"assembly-{assemblyId:N}";
+        var providerName = await _meetingProvider.IsConfiguredAsync(cancellationToken)
+            ? (await _meetingProvider.EnsureRoomAsync(assemblyId, roomName, cancellationToken)).Provider
+            : "none";
 
         if (!await _meetingProvider.IsConfiguredAsync(cancellationToken))
         {
             return new MeetingRoomInfoDto(
                 assemblyId,
-                "livekit",
+                providerName,
                 roomName,
                 false,
                 "Meeting provider is not configured (LiveKit credentials required).");
@@ -113,5 +123,32 @@ public sealed class MeetingService
             room.RoomName,
             room.IsAvailable,
             room.UnavailableReason);
+    }
+
+    /// <summary>
+    /// Publish is server-derived: moderators always; owners only while they hold the floor.
+    /// Client query flags are never trusted.
+    /// </summary>
+    public static bool CanPublishFromRole(string roleCode) =>
+        RolePermissionMap.HasPermission([roleCode], Permissions.MeetingModerate);
+
+    private async Task<bool> ResolveCanPublishAsync(
+        Guid assemblyId,
+        Guid userId,
+        string roleCode,
+        CancellationToken cancellationToken)
+    {
+        if (CanPublishFromRole(roleCode))
+        {
+            return true;
+        }
+
+        return await _db.SpeakerRequests
+            .AsNoTracking()
+            .AnyAsync(
+                s => s.AssemblyId == assemblyId
+                     && s.UserId == userId
+                     && s.Status == SpeakerRequestStatus.Granted,
+                cancellationToken);
     }
 }

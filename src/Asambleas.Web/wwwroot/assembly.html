@@ -50,16 +50,24 @@
             <span class="status-dot degraded"></span>
             <span>…</span>
           </div>
+          <div id="media-connection-state" class="connection-banner media-connection-banner" hidden aria-live="polite"></div>
           <div style="text-align:center; padding:2rem; width:100%">
             <p id="speaker-name" class="speaker-name">Sala en espera</p>
             <p id="speaker-meta" class="speaker-meta">Preparando sesión</p>
             <p id="status-line" class="speaker-meta"></p>
-            <div id="video-mount" style="margin-top:1.5rem"></div>
+            <div id="video-mount" class="media-stage-grid" style="margin-top:1.5rem"></div>
+          </div>
+          <div class="media-control-bar" role="toolbar" aria-label="Controles de audio y video">
+            <button type="button" id="btn-mic" class="btn btn-secondary" aria-pressed="true" aria-label="Silenciar micrófono">Mic</button>
+            <button type="button" id="btn-cam" class="btn btn-secondary" aria-pressed="false" aria-label="Encender cámara">Cam</button>
+            <span id="media-quality" class="muted media-quality" aria-live="polite"></span>
           </div>
         </section>
 
         <section aria-label="Participantes" class="operator-only">
           <h2 class="sr-only">Participantes</h2>
+          <div id="hybrid-cockpit" class="hybrid-cockpit" hidden></div>
+          <div id="media-cockpit" class="media-cockpit" hidden></div>
           <div id="participant-strip" class="participant-strip"></div>
         </section>
 

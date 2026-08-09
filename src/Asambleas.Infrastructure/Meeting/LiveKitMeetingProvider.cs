@@ -60,7 +60,7 @@ public sealed class LiveKitMeetingProvider : IMeetingProvider
             throw new DomainException("Meeting provider is not configured (LiveKit credentials required).");
         }
 
-        var ttl = request.Ttl ?? TimeSpan.FromHours(2);
+        var ttl = request.Ttl ?? TimeSpan.FromMinutes(15);
         var identity = request.UserId.ToString("N");
         var token = LiveKitAccessToken.Create(
             _options.ApiKey,
