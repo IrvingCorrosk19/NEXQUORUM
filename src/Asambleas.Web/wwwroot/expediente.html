@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Expediente digital — ASAMBLEAS</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/assembly-room.css" />
+</head>
+<body class="app-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">ASAMBLEAS</p>
+      <h1 id="page-title">Expediente digital</h1>
+      <p id="page-sub" class="muted"></p>
+    </div>
+    <div class="topbar-actions">
+      <a id="link-back" class="btn btn-secondary" href="/dashboard.html">Volver</a>
+    </div>
+  </header>
+  <main class="page-narrow">
+    <div id="page-alert" class="inline-alert inline-alert-error" hidden></div>
+
+    <section class="panel" id="policy-panel" hidden>
+      <h2>Aviso de grabación</h2>
+      <p id="notice-text"></p>
+      <button type="button" id="btn-ack-notice" class="btn btn-primary">Entendido</button>
+    </section>
+
+    <section class="panel">
+      <h2>Grabaciones</h2>
+      <div id="recordings-list" class="stack"></div>
+    </section>
+
+    <section class="panel" id="player-panel" hidden>
+      <h2>Reproductor</h2>
+      <p id="player-meta" class="muted"></p>
+      <video id="player" controls playsinline style="width:100%;max-height:70vh;background:#000;border-radius:8px"></video>
+    </section>
+
+    <section class="panel">
+      <h2>Descargas del expediente</h2>
+      <p class="muted">La grabación de video se descarga por separado (no se incluye en el ZIP).</p>
+      <div class="stack" style="gap:0.75rem">
+        <button type="button" class="btn btn-secondary" data-dl="package">↓ Descargar expediente completo (ZIP)</button>
+      </div>
+      <ul id="timeline" class="stack" style="margin-top:1.25rem"></ul>
+    </section>
+  </main>
+  <script type="module" src="/js/modules/expediente-app.js?v=rec1"></script>
+</body>
+</html>

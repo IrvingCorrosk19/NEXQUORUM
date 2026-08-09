@@ -41,4 +41,14 @@ public static class AuditEventType
     public const string AssemblyScheduled = "ASSEMBLY_SCHEDULED";
     public const string AssemblyRescheduled = "ASSEMBLY_RESCHEDULED";
     public const string AssemblyCancelled = "ASSEMBLY_CANCELLED";
+
+    public const string RecordingStarted = "RECORDING_STARTED";
+    public const string RecordingStopped = "RECORDING_STOPPED";
+    public const string RecordingReady = "RECORDING_READY";
+    public const string RecordingFailed = "RECORDING_FAILED";
+    public const string RecordingNoticeAccepted = "RECORDING_NOTICE_ACCEPTED";
+    public const string RecordingViewed = "RECORDING_VIEWED";
+    public const string RecordingDownloaded = "RECORDING_DOWNLOADED";
+    public const string EvidencePackageGenerated = "EVIDENCE_PACKAGE_GENERATED";
+    public const string EvidencePackageDownloaded = "EVIDENCE_PACKAGE_DOWNLOADED";
 }

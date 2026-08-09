@@ -3,6 +3,7 @@ using System;
 using Asambleas.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Asambleas.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AsambleasDbContext))]
-    partial class AsambleasDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260809224304_EO009_VotingExperience360")]
+    partial class EO009_VotingExperience360
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -240,97 +243,6 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("assembly_participants", (string)null);
-                });
-
-            modelBuilder.Entity("Asambleas.Domain.Entities.AssemblyRecording", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AssemblyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ChecksumSha256")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("DisplayFileName")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<int?>("DurationSeconds")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("EndedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FailureReason")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<long?>("FileSizeBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("MimeType")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("ProviderEgressId")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<DateTimeOffset?>("RetentionUntilUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("RoomName")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<DateTimeOffset?>("StartedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("StorageKey")
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssemblyId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_assembly_recordings_AssemblyId_Active")
-                        .HasFilter("\"Status\" IN ('Starting', 'Recording', 'Processing')");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("StorageKey");
-
-                    b.HasIndex("TenantId");
-
-                    b.ToTable("assembly_recordings", (string)null);
                 });
 
             modelBuilder.Entity("Asambleas.Domain.Entities.AssemblyReminderOccurrence", b =>
@@ -1484,58 +1396,6 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                     b.ToTable("property_horizontals", (string)null);
                 });
 
-            modelBuilder.Entity("Asambleas.Domain.Entities.PropertyRecordingPolicy", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DownloadVisibility")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Mode")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("NoticeText")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<Guid>("PropertyHorizontalId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("RecordingEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("RequireNoticeAcknowledgement")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("RetentionDays")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PropertyHorizontalId")
-                        .IsUnique();
-
-                    b.HasIndex("TenantId");
-
-                    b.ToTable("property_recording_policies", (string)null);
-                });
-
             modelBuilder.Entity("Asambleas.Domain.Entities.QuorumSnapshot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1586,53 +1446,6 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("quorum_snapshots", (string)null);
-                });
-
-            modelBuilder.Entity("Asambleas.Domain.Entities.RecordingNoticeAcceptance", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("AcceptedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("AssemblyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ClientUserAgent")
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("NoticeVersion")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssemblyId");
-
-                    b.HasIndex("TenantId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("AssemblyId", "UserId", "NoticeVersion")
-                        .IsUnique();
-
-                    b.ToTable("recording_notice_acceptances", (string)null);
                 });
 
             modelBuilder.Entity("Asambleas.Domain.Entities.ReminderRule", b =>
@@ -2250,15 +2063,6 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
-            modelBuilder.Entity("Asambleas.Domain.Entities.AssemblyRecording", b =>
-                {
-                    b.HasOne("Asambleas.Domain.Entities.Assembly", null)
-                        .WithMany()
-                        .HasForeignKey("AssemblyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Asambleas.Domain.Entities.AssemblyReminderOccurrence", b =>
                 {
                     b.HasOne("Asambleas.Domain.Entities.Assembly", null)
@@ -2487,25 +2291,7 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Asambleas.Domain.Entities.PropertyRecordingPolicy", b =>
-                {
-                    b.HasOne("Asambleas.Domain.Entities.PropertyHorizontal", null)
-                        .WithMany()
-                        .HasForeignKey("PropertyHorizontalId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Asambleas.Domain.Entities.QuorumSnapshot", b =>
-                {
-                    b.HasOne("Asambleas.Domain.Entities.Assembly", null)
-                        .WithMany()
-                        .HasForeignKey("AssemblyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Asambleas.Domain.Entities.RecordingNoticeAcceptance", b =>
                 {
                     b.HasOne("Asambleas.Domain.Entities.Assembly", null)
                         .WithMany()

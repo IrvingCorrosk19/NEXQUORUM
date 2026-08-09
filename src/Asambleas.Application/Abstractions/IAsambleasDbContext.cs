@@ -34,6 +34,8 @@ public interface IAsambleasDbContext
 
     DbSet<VotingSession> VotingSessions { get; }
 
+    DbSet<VotingEligibilitySnapshot> VotingEligibilitySnapshots { get; }
+
     DbSet<Vote> Votes { get; }
 
     DbSet<QuorumSnapshot> QuorumSnapshots { get; }
@@ -65,6 +67,12 @@ public interface IAsambleasDbContext
     DbSet<AssemblyScheduleChange> AssemblyScheduleChanges { get; }
 
     DbSet<AssemblyReminderOccurrence> AssemblyReminderOccurrences { get; }
+
+    DbSet<AssemblyRecording> AssemblyRecordings { get; }
+
+    DbSet<PropertyRecordingPolicy> PropertyRecordingPolicies { get; }
+
+    DbSet<RecordingNoticeAcceptance> RecordingNoticeAcceptances { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -269,12 +269,38 @@ public sealed class AssemblyEvidenceService
                     session.ClosedAtUtc,
                     session.HidePartialResults,
                     session.AppliedDecisionRule,
-                    session.DecisionStatus);
+                    session.DecisionStatus,
+                    session.ResultVisibilityPolicy,
+                    session.OpenedByUserId,
+                    session.EligibleVoters,
+                    session.EligibleCoefficient);
 
                 if (session.Status == VotingSessionStatus.Closed
-                    || (session.Status == VotingSessionStatus.Open && !session.HidePartialResults))
+                    || session.Status == VotingSessionStatus.Open)
                 {
                     results = await _voting.TryGetOpenSessionResultsAsync(assemblyId, session.Id, cancellationToken);
+                    if (results is null && session.Status == VotingSessionStatus.Open)
+                    {
+                        var pulse = await _voting.GetResultsAsync(assemblyId, session.Id, cancellationToken);
+                        results = new VotingResultsDto(
+                            pulse.VotingSessionId,
+                            pulse.MotionId,
+                            pulse.InFavorCoefficient,
+                            pulse.AgainstCoefficient,
+                            pulse.AbstentionCoefficient,
+                            pulse.VotesCast,
+                            pulse.DecisionStatus,
+                            pulse.InFavorVotes,
+                            pulse.AgainstVotes,
+                            pulse.AbstentionVotes,
+                            pulse.AppliedDecisionRule,
+                            pulse.DecisionExplanation,
+                            pulse.EligibleVoters,
+                            pulse.ParticipatingCoefficient,
+                            pulse.EligibleCoefficient,
+                            pulse.TrendHidden,
+                            pulse.ResultVisibilityPolicy);
+                    }
                 }
             }
 

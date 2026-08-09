@@ -1100,6 +1100,118 @@
   animation: fade-rise var(--motion-med) var(--ease-out);
 }
 
+.result-reveal {
+  animation: result-reveal 520ms var(--ease-out);
+}
+
+@keyframes result-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.result-decision {
+  font-size: clamp(1.35rem, 3vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.result-decision.is-approved {
+  color: var(--color-success, #1f7a4d);
+}
+
+.result-decision.is-rejected {
+  color: var(--color-danger, #a33b3b);
+}
+
+.vote-now-kicker {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-gold-500, #c4a35a);
+}
+
+.vote-question {
+  margin: 0.35rem 0 0.75rem;
+  font-size: clamp(1.05rem, 2.4vw, 1.35rem);
+  line-height: 1.35;
+}
+
+.vote-question-body {
+  margin: 0 0 0.75rem;
+}
+
+.vote-meta-grid {
+  display: grid;
+  gap: 0.5rem 1rem;
+  margin: 0 0 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.vote-meta-grid dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.72;
+}
+
+.vote-meta-grid dd {
+  margin: 0.15rem 0 0;
+  font-weight: 600;
+}
+
+.vote-policy-fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  padding: 0.75rem;
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.vote-policy-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  cursor: pointer;
+}
+
+.vote-policy-option small {
+  display: block;
+  margin-top: 0.2rem;
+}
+
+.btn-vote-open,
+.btn-vote-confirm {
+  width: 100%;
+  min-height: 3rem;
+  font-size: 1.05rem;
+}
+
+.vote-participation {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in srgb, var(--color-surface-2, #1a1f27) 88%, transparent);
+}
+
+.vote-waiting {
+  margin-top: 0.75rem;
+}
+
+.vote-live-trend {
+  margin: 0.75rem 0 1rem;
+}
+
 .result-row {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -1113,6 +1225,10 @@
   .result-row {
     grid-template-columns: 1fr;
   }
+
+  .choice-card {
+    min-height: 4.5rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1121,5 +1237,10 @@
     animation: none;
     border-top-color: transparent;
     opacity: 0.7;
+  }
+
+  .result-reveal,
+  .result-premium {
+    animation: none;
   }
 }

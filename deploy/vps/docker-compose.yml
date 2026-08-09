@@ -51,8 +51,13 @@ services:
       LIVEKIT_DEFAULT_ROOM_PREFIX: ${LIVEKIT_DEFAULT_ROOM_PREFIX:-assembly-}
       ASAMBLEAS_DISABLE_HTTPS_REDIRECTION: "true"
       ASAMBLEAS_DISABLE_HTTPS_REDIRECT: "true"
+      ASAMBLEAS_RECORDING_SYNTHETIC: ${ASAMBLEAS_RECORDING_SYNTHETIC:-true}
+      Recording__AllowSyntheticFallback: ${ASAMBLEAS_RECORDING_SYNTHETIC:-true}
+      Recording__StorageRoot: /data/recordings
     ports:
       - "127.0.0.1:${ASAMBLEAS_HOST_PORT:-5090}:8080"
+    volumes:
+      - asambleas_recordings:/data/recordings
     networks:
       - asambleas_net
     healthcheck:
@@ -80,6 +85,8 @@ services:
 volumes:
   asambleas_postgres_data:
     name: asambleas_postgres_data
+  asambleas_recordings:
+    name: asambleas_recordings
 
 networks:
   asambleas_net:

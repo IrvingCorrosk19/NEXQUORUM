@@ -16,4 +16,5 @@ public static class RealtimeEventNames
     public const string VoteTallyUpdated = "voteTallyUpdated";
     public const string VotingClosed = "votingClosed";
     public const string AuditAppended = "auditAppended";
+    public const string RecordingUpdated = "recordingUpdated";
 }

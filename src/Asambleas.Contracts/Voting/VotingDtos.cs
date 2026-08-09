@@ -9,9 +9,16 @@ public sealed record VotingSessionDto(
     DateTimeOffset? ClosedAtUtc,
     bool HidePartialResults,
     string? AppliedDecisionRule = null,
-    string? DecisionStatus = null);
+    string? DecisionStatus = null,
+    string ResultVisibilityPolicy = "HiddenUntilClose",
+    Guid? OpenedByUserId = null,
+    int EligibleVoters = 0,
+    decimal EligibleCoefficient = 0m);
 
-public sealed record OpenVotingSessionRequest(Guid MotionId, bool HidePartialResults);
+public sealed record OpenVotingSessionRequest(
+    Guid MotionId,
+    bool HidePartialResults = true,
+    string? ResultVisibilityPolicy = null);
 
 public sealed record CastVoteRequest(string Choice, Guid? UnitId, string? ClientRequestId = null);
 
@@ -34,10 +41,15 @@ public sealed record VoteTallyDto(
     int AgainstVotes = 0,
     int AbstentionVotes = 0,
     string? AppliedDecisionRule = null,
-    string? DecisionExplanation = null);
+    string? DecisionExplanation = null,
+    int? EligibleVoters = null,
+    decimal? ParticipatingCoefficient = null,
+    decimal? EligibleCoefficient = null,
+    bool TrendHidden = false,
+    string? ResultVisibilityPolicy = null);
 
 /// <summary>
-/// Room hydrate results payload (aligned with <see cref="VoteTallyDto"/>). Null when partial results are hidden.
+/// Room hydrate results payload (aligned with <see cref="VoteTallyDto"/>). Null when trend is unauthorized.
 /// </summary>
 public sealed record VotingResultsDto(
     Guid VotingSessionId,
@@ -51,7 +63,12 @@ public sealed record VotingResultsDto(
     int AgainstVotes = 0,
     int AbstentionVotes = 0,
     string? AppliedDecisionRule = null,
-    string? DecisionExplanation = null);
+    string? DecisionExplanation = null,
+    int? EligibleVoters = null,
+    decimal? ParticipatingCoefficient = null,
+    decimal? EligibleCoefficient = null,
+    bool TrendHidden = false,
+    string? ResultVisibilityPolicy = null);
 
 public sealed record VoteReceiptDto(
     Guid VotingSessionId,

@@ -33,6 +33,12 @@ public static class Permissions
 
     public const string AuditView = "audit:view";
 
+    public const string RecordingControl = "recording:control";
+    public const string RecordingView = "recording:view";
+    public const string RecordingDownload = "recording:download";
+    public const string ExpedienteView = "expediente:view";
+    public const string ExpedienteDownload = "expediente:download";
+
     public const string CommunicationsView = "communications:view";
     public const string CommunicationsConfigure = "communications:configure";
     public const string CommunicationsTest = "communications:test";
@@ -68,6 +74,11 @@ public static class Permissions
         MeetingJoin,
         MeetingModerate,
         AuditView,
+        RecordingControl,
+        RecordingView,
+        RecordingDownload,
+        ExpedienteView,
+        ExpedienteDownload,
         CommunicationsView,
         CommunicationsConfigure,
         CommunicationsTest,

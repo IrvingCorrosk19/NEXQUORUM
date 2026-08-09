@@ -16,6 +16,10 @@
 <body>
   <a class="skip-link" href="#main-stage">Saltar al escenario</a>
 
+  <div id="recording-banner" class="recording-banner" hidden role="status" aria-live="polite">
+    ● ESTA SESIÓN ESTÁ SIENDO GRABADA
+    <span id="recording-timer" class="metric-number"></span>
+  </div>
   <div class="room" data-role="owner">
     <header class="room-header" role="banner">
       <div class="header-brand">
@@ -90,6 +94,11 @@
           </div>
           <div class="control-cluster control-cluster-danger operator-only" role="group" aria-label="Acciones críticas">
             <button type="button" id="btn-end" class="btn btn-danger">Finalizar asamblea</button>
+            <a id="link-expediente" class="btn btn-secondary" href="#">Expediente</a>
+            <div id="recording-controls" class="recording-controls" hidden>
+              <button type="button" id="btn-rec-start" class="btn btn-secondary">Iniciar grabación</button>
+              <button type="button" id="btn-rec-stop" class="btn btn-danger" hidden>Detener grabación</button>
+            </div>
           </div>
           <div class="control-cluster control-cluster-meta">
             <span id="user-chip" class="badge badge-live" aria-live="polite"></span>
@@ -132,6 +141,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.9.1/dist/livekit-client.umd.min.js"></script>
-  <script type="module" src="/js/modules/room-app.js?v=av2"></script>
+  <script type="module" src="/js/modules/room-app.js?v=rec1"></script>
 </body>
 </html>

@@ -44,6 +44,7 @@ public sealed class VotingService
         CancellationToken cancellationToken = default)
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
+        var openedBy = TenantGuard.RequireUserId(_currentTenant);
 
         var assembly = await _db.Assemblies
             .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
@@ -82,6 +83,15 @@ public sealed class VotingService
                 "Another voting session is already open for this assembly.");
         }
 
+        var policy = ResolvePolicy(request);
+        var eligibility = await BuildEligibilityAsync(assemblyId, cancellationToken);
+        if (eligibility.Count == 0)
+        {
+            throw new DomainException(
+                VotingCodes.NotEligible,
+                "Cannot open voting: no accredited eligible voters.");
+        }
+
         var now = DateTimeOffset.UtcNow;
         var session = new VotingSession
         {
@@ -90,14 +100,47 @@ public sealed class VotingService
             MotionId = motion.Id,
             Status = VotingSessionStatus.Open,
             OpenedAtUtc = now,
-            HidePartialResults = request.HidePartialResults
+            OpenedByUserId = openedBy,
+            ResultVisibilityPolicy = ResultVisibility.ToWire(policy),
+            HidePartialResults = ResultVisibility.HidesPublicTrend(policy),
+            EligibleVoters = eligibility.Count,
+            EligibleCoefficient = Math.Round(
+                eligibility.Sum(e => e.CoefficientPercent),
+                4,
+                MidpointRounding.AwayFromZero),
+            AppliedDecisionRule = _decisionRule.RuleCode
         };
 
         motion.Status = MotionStatus.Voting;
         motion.UpdatedAtUtc = now;
 
         _db.VotingSessions.Add(session);
-        await _db.SaveChangesAsync(cancellationToken);
+
+        foreach (var row in eligibility)
+        {
+            _db.VotingEligibilitySnapshots.Add(new VotingEligibilitySnapshot
+            {
+                TenantId = assembly.TenantId,
+                AssemblyId = assemblyId,
+                VotingSessionId = session.Id,
+                UserId = row.UserId,
+                UnitId = row.UnitId,
+                CoefficientPercent = row.CoefficientPercent,
+                UnitCode = row.UnitCode
+            });
+        }
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            throw new DomainException(
+                VotingCodes.OpenVotingExists,
+                "Another voting session is already open for this assembly.",
+                ex);
+        }
 
         await _quorum.RecalculateAndSnapshotAsync(assemblyId, "VotingOpen", cancellationToken);
 
@@ -110,7 +153,12 @@ public sealed class VotingService
             {
                 VotingSessionId = session.Id,
                 MotionId = motion.Id,
-                session.HidePartialResults
+                session.HidePartialResults,
+                session.ResultVisibilityPolicy,
+                session.EligibleVoters,
+                session.EligibleCoefficient,
+                OpenedByUserId = openedBy,
+                AppliedDecisionRule = session.AppliedDecisionRule
             },
             cancellationToken: cancellationToken);
 
@@ -126,6 +174,9 @@ public sealed class VotingService
                 motion.Body,
                 motion.Status.ToString()),
             cancellationToken);
+
+        // Initial participation pulse (trend per policy — usually hidden).
+        await PublishParticipationPulseAsync(session, cancellationToken);
 
         return dto;
     }
@@ -205,6 +256,20 @@ public sealed class VotingService
                 "Participant is not accredited and eligible to vote.");
         }
 
+        // Prefer frozen eligibility snapshot when present.
+        var snapshot = await _db.VotingEligibilitySnapshots
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                e => e.VotingSessionId == votingSessionId && e.UserId == userId,
+                cancellationToken);
+
+        if (session.EligibleVoters > 0 && snapshot is null)
+        {
+            throw new DomainException(
+                VotingCodes.NotEligible,
+                "Participant was not eligible when this voting session opened.");
+        }
+
         if (!Enum.TryParse<VoteChoice>(request.Choice, ignoreCase: true, out var choice))
         {
             throw new DomainException(
@@ -230,39 +295,52 @@ public sealed class VotingService
                 "Double vote is not allowed for this voting session.");
         }
 
-        // EO-006: coefficient from representation authority — never trust client coefficient.
-        var representations = await _representation.GetActiveForUserAsync(assemblyId, userId, cancellationToken);
+        // Coefficient: prefer snapshot; else representation authority — never trust client.
         decimal coefficient;
         Guid? unitId;
 
-        if (representations.Count > 0)
+        if (snapshot is not null)
         {
-            coefficient = Math.Round(
-                representations.Sum(r => r.CoefficientPercent),
-                4,
-                MidpointRounding.AwayFromZero);
-            // Primary unit for vote row: requested only if among representations; else first.
+            coefficient = snapshot.CoefficientPercent;
+            unitId = snapshot.UnitId;
             if (request.UnitId is Guid requested
-                && representations.Any(r => r.UnitId == requested))
+                && snapshot.UnitId is Guid snapUnit
+                && requested != snapUnit)
             {
-                unitId = requested;
-            }
-            else
-            {
-                unitId = representations[0].UnitId;
+                // Ignore foreign unitId from client when snapshot exists.
+                unitId = snapUnit;
             }
         }
         else
         {
-            // Accredited operator / zero-weight participant — no unit representation.
-            coefficient = participant.EffectiveCoefficientPercent;
-            unitId = participant.UnitId;
-            if (request.UnitId is Guid requestedUnit
-                && requestedUnit != participant.UnitId)
+            var representations = await _representation.GetActiveForUserAsync(assemblyId, userId, cancellationToken);
+            if (representations.Count > 0)
             {
-                throw new DomainException(
-                    VotingCodes.NotEligible,
-                    "Vote unit must match an accredited representation.");
+                coefficient = Math.Round(
+                    representations.Sum(r => r.CoefficientPercent),
+                    4,
+                    MidpointRounding.AwayFromZero);
+                if (request.UnitId is Guid requested
+                    && representations.Any(r => r.UnitId == requested))
+                {
+                    unitId = requested;
+                }
+                else
+                {
+                    unitId = representations[0].UnitId;
+                }
+            }
+            else
+            {
+                coefficient = participant.EffectiveCoefficientPercent;
+                unitId = participant.UnitId;
+                if (request.UnitId is Guid requestedUnit
+                    && requestedUnit != participant.UnitId)
+                {
+                    throw new DomainException(
+                        VotingCodes.NotEligible,
+                        "Vote unit must match an accredited representation.");
+                }
             }
         }
 
@@ -291,7 +369,6 @@ public sealed class VotingService
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex))
         {
-            // Concurrent cast: unique (VotingSessionId, UserId) or ClientRequestId won the race.
             var winner = await _db.Votes
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
@@ -326,6 +403,8 @@ public sealed class VotingService
             return ToCastResponse(winner, idempotentReplay: true);
         }
 
+        var policy = ResultVisibility.Parse(session.ResultVisibilityPolicy, session.HidePartialResults);
+
         await _audit.WriteAsync(
             AuditEventType.VoteCast,
             assemblyId,
@@ -335,32 +414,12 @@ public sealed class VotingService
                 vote.Id,
                 evidenceId,
                 clientRequestId,
-                // Choice intentionally omitted for secret ballots (ADR-006 / ADR-007).
-                HidePartialResults = session.HidePartialResults
+                // Choice intentionally omitted (secret-safe audit).
+                ResultVisibilityPolicy = ResultVisibility.ToWire(policy)
             },
             cancellationToken: cancellationToken);
 
-        if (!session.HidePartialResults)
-        {
-            var tally = await BuildTallyAsync(session, decisionStatus: null, cancellationToken);
-            await _realtime.PublishVoteTallyAsync(assemblyId, tally, cancellationToken);
-        }
-        else
-        {
-            // Progress without ballot content.
-            var votesCast = await _db.Votes.CountAsync(v => v.VotingSessionId == votingSessionId, cancellationToken);
-            await _realtime.PublishVoteTallyAsync(
-                assemblyId,
-                new VoteTallyDto(
-                    votingSessionId,
-                    session.MotionId,
-                    0m,
-                    0m,
-                    0m,
-                    votesCast,
-                    DecisionStatus: null),
-                cancellationToken);
-        }
+        await PublishParticipationPulseAsync(session, cancellationToken);
 
         return ToCastResponse(vote, idempotentReplay: false);
     }
@@ -388,12 +447,12 @@ public sealed class VotingService
 
         if (session.Status != VotingSessionStatus.Open)
         {
-            // Concurrent close: return calculated result if already closed.
             if (session.Status == VotingSessionStatus.Closed)
             {
                 var existingTally = await BuildTallyAsync(
                     session,
                     session.DecisionStatus,
+                    hideTrend: false,
                     cancellationToken);
                 return new CloseVotingSessionResponse(
                     session.Id,
@@ -426,7 +485,7 @@ public sealed class VotingService
         var abstentionVotes = votes.Count(v => v.Choice == VoteChoice.Abstention);
 
         var decision = _decisionRule.Decide(inFavor, against, abstention);
-        var ruleCode = _decisionRule.RuleCode;
+        var ruleCode = session.AppliedDecisionRule ?? _decisionRule.RuleCode;
 
         var now = DateTimeOffset.UtcNow;
         session.Status = VotingSessionStatus.Closed;
@@ -443,7 +502,12 @@ public sealed class VotingService
         await _quorum.RecalculateAndSnapshotAsync(assemblyId, "VotingClose", cancellationToken);
 
         var explanation =
-            $"Resultado calculado según la regla configurada ({ruleCode}): a favor {inFavor:0.####}% vs en contra {against:0.####}%.";
+            $"Método: coeficiente de copropiedad. Regla: {ruleCode}. " +
+            $"A favor {inFavor:0.####}% vs en contra {against:0.####}% " +
+            $"(abstención {abstention:0.####}% no decide). Decisión: {decision}.";
+
+        var participating = Math.Round(votes.Sum(v => v.CoefficientPercent), 4, MidpointRounding.AwayFromZero);
+        var policy = ResultVisibility.Parse(session.ResultVisibilityPolicy, session.HidePartialResults);
 
         var tally = new VoteTallyDto(
             session.Id,
@@ -457,7 +521,12 @@ public sealed class VotingService
             againstVotes,
             abstentionVotes,
             ruleCode,
-            explanation);
+            explanation,
+            session.EligibleVoters,
+            participating,
+            session.EligibleCoefficient,
+            TrendHidden: false,
+            ResultVisibility.ToWire(policy));
 
         var response = new CloseVotingSessionResponse(
             session.Id,
@@ -486,7 +555,9 @@ public sealed class VotingService
                 InFavorVotes = inFavorVotes,
                 AgainstVotes = againstVotes,
                 AbstentionVotes = abstentionVotes,
-                VotesCast = votes.Count
+                VotesCast = votes.Count,
+                session.EligibleVoters,
+                ParticipatingCoefficient = participating
             },
             cancellationToken: cancellationToken);
 
@@ -581,7 +652,19 @@ public sealed class VotingService
         decimal? coefficient = null;
         Guid? unitId = participant?.UnitId;
 
-        if (participant is not null)
+        var snapshot = await _db.VotingEligibilitySnapshots
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                e => e.VotingSessionId == votingSessionId && e.UserId == userId,
+                cancellationToken);
+
+        if (snapshot is not null)
+        {
+            coefficient = snapshot.CoefficientPercent;
+            unitId = snapshot.UnitId;
+            unitCode = snapshot.UnitCode;
+        }
+        else if (participant is not null)
         {
             var reps = await _representation.GetActiveForUserAsync(assemblyId, userId, cancellationToken);
             if (reps.Count > 0)
@@ -646,6 +729,18 @@ public sealed class VotingService
                 unitCode);
         }
 
+        if (session.EligibleVoters > 0 && snapshot is null)
+        {
+            return new MyVoteStatusDto(
+                votingSessionId,
+                VotingCodes.NotEligible,
+                null,
+                null,
+                coefficient,
+                unitId,
+                unitCode);
+        }
+
         if (!participant.IsAccredited
             || participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left)
         {
@@ -692,7 +787,7 @@ public sealed class VotingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, session.TenantId);
 
-        if (session.Status == VotingSessionStatus.Open && session.HidePartialResults)
+        if (!CanViewerSeeTrend(session))
         {
             return null;
         }
@@ -707,20 +802,8 @@ public sealed class VotingService
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
-        var tally = await BuildTallyAsync(session, decisionStatus, cancellationToken);
-        return new VotingResultsDto(
-            tally.VotingSessionId,
-            tally.MotionId,
-            tally.InFavorCoefficient,
-            tally.AgainstCoefficient,
-            tally.AbstentionCoefficient,
-            tally.VotesCast,
-            tally.DecisionStatus,
-            tally.InFavorVotes,
-            tally.AgainstVotes,
-            tally.AbstentionVotes,
-            tally.AppliedDecisionRule ?? session.AppliedDecisionRule,
-            tally.DecisionExplanation);
+        var tally = await BuildTallyAsync(session, decisionStatus, hideTrend: false, cancellationToken);
+        return ToResultsDto(tally);
     }
 
     public async Task<VoteTallyDto> GetResultsAsync(
@@ -746,9 +829,10 @@ public sealed class VotingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, session.TenantId);
 
-        if (session.Status == VotingSessionStatus.Open && session.HidePartialResults)
+        if (!CanViewerSeeTrend(session))
         {
-            throw new DomainException("Partial results are hidden while this voting session is open.");
+            // Participation-only response — never leak trend.
+            return await BuildTallyAsync(session, decisionStatus: null, hideTrend: true, cancellationToken);
         }
 
         string? decisionStatus = session.DecisionStatus;
@@ -761,12 +845,33 @@ public sealed class VotingService
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
-        return await BuildTallyAsync(session, decisionStatus, cancellationToken);
+        return await BuildTallyAsync(session, decisionStatus, hideTrend: false, cancellationToken);
+    }
+
+    private async Task PublishParticipationPulseAsync(
+        VotingSession session,
+        CancellationToken cancellationToken)
+    {
+        var policy = ResultVisibility.Parse(session.ResultVisibilityPolicy, session.HidePartialResults);
+        var broadcastTrend = policy == ResultVisibilityPolicy.LiveResults;
+
+        if (broadcastTrend)
+        {
+            var tally = await BuildTallyAsync(session, decisionStatus: null, hideTrend: false, cancellationToken);
+            await _realtime.PublishVoteTallyAsync(session.AssemblyId, tally, cancellationToken);
+            return;
+        }
+
+        // HiddenUntilClose + PresidentOnlyLive: broadcast participation only (zeros for trend).
+        // Presidents fetch live trend via authorized GET /results (not SignalR broadcast).
+        var pulse = await BuildTallyAsync(session, decisionStatus: null, hideTrend: true, cancellationToken);
+        await _realtime.PublishVoteTallyAsync(session.AssemblyId, pulse, cancellationToken);
     }
 
     private async Task<VoteTallyDto> BuildTallyAsync(
         VotingSession session,
         string? decisionStatus,
+        bool hideTrend,
         CancellationToken cancellationToken)
     {
         var votes = await _db.Votes
@@ -780,12 +885,36 @@ public sealed class VotingService
         var inFavor = votes.Where(v => v.Choice == VoteChoice.InFavor).Sum(v => v.CoefficientPercent);
         var against = votes.Where(v => v.Choice == VoteChoice.Against).Sum(v => v.CoefficientPercent);
         var abstention = votes.Where(v => v.Choice == VoteChoice.Abstention).Sum(v => v.CoefficientPercent);
+        var participating = Math.Round(votes.Sum(v => v.CoefficientPercent), 4, MidpointRounding.AwayFromZero);
+        var policy = ResultVisibility.Parse(session.ResultVisibilityPolicy, session.HidePartialResults);
 
         string? explanation = null;
         if (!string.IsNullOrWhiteSpace(decisionStatus) && !string.IsNullOrWhiteSpace(session.AppliedDecisionRule))
         {
             explanation =
                 $"Resultado calculado según la regla configurada ({session.AppliedDecisionRule}).";
+        }
+
+        if (hideTrend)
+        {
+            return new VoteTallyDto(
+                session.Id,
+                session.MotionId,
+                0m,
+                0m,
+                0m,
+                votes.Count,
+                DecisionStatus: null,
+                0,
+                0,
+                0,
+                session.AppliedDecisionRule,
+                DecisionExplanation: null,
+                session.EligibleVoters,
+                participating,
+                session.EligibleCoefficient,
+                TrendHidden: true,
+                ResultVisibility.ToWire(policy));
         }
 
         return new VoteTallyDto(
@@ -800,8 +929,115 @@ public sealed class VotingService
             againstVotes,
             abstentionVotes,
             session.AppliedDecisionRule,
-            explanation);
+            explanation,
+            session.EligibleVoters,
+            participating,
+            session.EligibleCoefficient,
+            TrendHidden: false,
+            ResultVisibility.ToWire(policy));
     }
+
+    private bool CanViewerSeeTrend(VotingSession session)
+    {
+        if (session.Status == VotingSessionStatus.Closed)
+        {
+            return true;
+        }
+
+        var policy = ResultVisibility.Parse(session.ResultVisibilityPolicy, session.HidePartialResults);
+        return ResultVisibility.AllowsLiveTrendForAudience(policy, IsOperatorResultsViewer());
+    }
+
+    private bool IsOperatorResultsViewer()
+    {
+        var perms = _currentTenant.Permissions;
+        if (perms.Any(p => string.Equals(p, "vote:open", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(p, "vote:close", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return _currentTenant.Roles.Any(r =>
+            r is "President" or "Secretary" or "PHAdmin" or "Operator");
+    }
+
+    private static ResultVisibilityPolicy ResolvePolicy(OpenVotingSessionRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.ResultVisibilityPolicy))
+        {
+            return ResultVisibility.Parse(request.ResultVisibilityPolicy, request.HidePartialResults);
+        }
+
+        return request.HidePartialResults
+            ? ResultVisibilityPolicy.HiddenUntilClose
+            : ResultVisibilityPolicy.LiveResults;
+    }
+
+    private async Task<List<EligibilityRow>> BuildEligibilityAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken)
+    {
+        var participants = await _db.AssemblyParticipants
+            .AsNoTracking()
+            .Where(p => p.AssemblyId == assemblyId
+                        && p.IsAccredited
+                        && p.AttendanceStatus != AttendanceStatus.Registered
+                        && p.AttendanceStatus != AttendanceStatus.Left)
+            .ToListAsync(cancellationToken);
+
+        var rows = new List<EligibilityRow>();
+        foreach (var participant in participants)
+        {
+            var reps = await _representation.GetActiveForUserAsync(assemblyId, participant.UserId, cancellationToken);
+            if (reps.Count > 0)
+            {
+                rows.Add(new EligibilityRow(
+                    participant.UserId,
+                    reps[0].UnitId,
+                    Math.Round(reps.Sum(r => r.CoefficientPercent), 4, MidpointRounding.AwayFromZero),
+                    string.Join(", ", reps.Select(r => r.UnitCode))));
+            }
+            else if (participant.EffectiveCoefficientPercent > 0 || participant.UnitId is not null)
+            {
+                string? code = null;
+                if (participant.UnitId is Guid uid)
+                {
+                    code = await _db.Units.AsNoTracking()
+                        .Where(u => u.Id == uid)
+                        .Select(u => u.Code)
+                        .FirstOrDefaultAsync(cancellationToken);
+                }
+
+                rows.Add(new EligibilityRow(
+                    participant.UserId,
+                    participant.UnitId,
+                    participant.EffectiveCoefficientPercent,
+                    code));
+            }
+        }
+
+        return rows;
+    }
+
+    private static VotingResultsDto ToResultsDto(VoteTallyDto tally) =>
+        new(
+            tally.VotingSessionId,
+            tally.MotionId,
+            tally.InFavorCoefficient,
+            tally.AgainstCoefficient,
+            tally.AbstentionCoefficient,
+            tally.VotesCast,
+            tally.DecisionStatus,
+            tally.InFavorVotes,
+            tally.AgainstVotes,
+            tally.AbstentionVotes,
+            tally.AppliedDecisionRule,
+            tally.DecisionExplanation,
+            tally.EligibleVoters,
+            tally.ParticipatingCoefficient,
+            tally.EligibleCoefficient,
+            tally.TrendHidden,
+            tally.ResultVisibilityPolicy);
 
     private static VotingSessionDto ToSessionDto(VotingSession session) =>
         new(
@@ -813,7 +1049,11 @@ public sealed class VotingService
             session.ClosedAtUtc,
             session.HidePartialResults,
             session.AppliedDecisionRule,
-            session.DecisionStatus);
+            session.DecisionStatus,
+            session.ResultVisibilityPolicy,
+            session.OpenedByUserId,
+            session.EligibleVoters,
+            session.EligibleCoefficient);
 
     private static CastVoteResponse ToCastResponse(Vote vote, bool idempotentReplay) =>
         new(vote.Id, vote.VotingSessionId, vote.EvidenceId, vote.CastAtUtc, idempotentReplay);
@@ -835,6 +1075,13 @@ public sealed class VotingService
         return message.Contains("unique", StringComparison.OrdinalIgnoreCase)
                || message.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
                || message.Contains("IX_votes_", StringComparison.OrdinalIgnoreCase)
-               || message.Contains("23505"); // PostgreSQL unique_violation
+               || message.Contains("IX_voting_sessions_", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("23505");
     }
+
+    private sealed record EligibilityRow(
+        Guid UserId,
+        Guid? UnitId,
+        decimal CoefficientPercent,
+        string? UnitCode);
 }

@@ -83,11 +83,14 @@ const state = {
   participants: new Map(),
   startedAtUtc: null,
   hub: null,
-  intentionalDisconnect: false
+  intentionalDisconnect: false,
+  recording: null,
+  recordingStartedAt: null
 };
 
 let durationTimer = null;
 let mediaControlsWired = false;
+let recordingTimer = null;
 
 function showError(message) {
   if (!els.alert) return;
@@ -124,6 +127,57 @@ function applyRoleChrome() {
   document.querySelectorAll(".owner-only").forEach((el) => {
     el.hidden = operator;
   });
+  const recControls = qs("#recording-controls");
+  if (recControls) {
+    recControls.hidden = !hasPermission(state.user, "recording:control");
+  }
+  const exp = qs("#link-expediente");
+  if (exp) {
+    exp.href = `/expediente.html?assemblyId=${assemblyId}`;
+    exp.hidden = !hasPermission(state.user, "expediente:view");
+  }
+}
+
+function syncRecordingBanner() {
+  const banner = qs("#recording-banner");
+  const timer = qs("#recording-timer");
+  const active =
+    state.recording &&
+    ["Recording", "Starting", "Processing"].includes(state.recording.status);
+  if (banner) banner.hidden = !active;
+  qs("#btn-rec-start") && (qs("#btn-rec-start").hidden = Boolean(active));
+  qs("#btn-rec-stop") && (qs("#btn-rec-stop").hidden = !active || state.recording?.status === "Processing");
+  if (recordingTimer) {
+    clearInterval(recordingTimer);
+    recordingTimer = null;
+  }
+  if (active && state.recording?.startedAtUtc) {
+    const started = new Date(state.recording.startedAtUtc).getTime();
+    const tick = () => {
+      const sec = Math.max(0, Math.floor((Date.now() - started) / 1000));
+      const h = String(Math.floor(sec / 3600)).padStart(2, "0");
+      const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+      const s = String(sec % 60).padStart(2, "0");
+      if (timer) timer.textContent = `${h}:${m}:${s}`;
+    };
+    tick();
+    recordingTimer = window.setInterval(tick, 1000);
+  } else if (timer) {
+    timer.textContent = "";
+  }
+}
+
+async function hydrateRecording() {
+  try {
+    const list = await api(`/api/assemblies/${assemblyId}/recordings`);
+    state.recording =
+      (list || []).find((r) => ["Recording", "Starting", "Processing"].includes(r.status)) ||
+      (list || [])[0] ||
+      null;
+    syncRecordingBanner();
+  } catch {
+    /* optional */
+  }
 }
 
 function syncParticipantsFromList(list) {
@@ -602,6 +656,8 @@ function refreshPanels() {
     session: state.session,
     tally: state.tally,
     myVote: state.myVote,
+    myStatus: state.myVoteStatus || null,
+    motion: state.motion,
     canCast: hasPermission(state.user, "vote:cast"),
     canOpen:
       operator &&
@@ -610,7 +666,11 @@ function refreshPanels() {
       state.session?.status !== "Open",
     canClose: operator && hasPermission(state.user, "vote:close"),
     operatorView: operator,
-    eligibleVoters: state.quorum?.eligibleUnits ?? (state.participants.size || null),
+    eligibleVoters:
+      state.session?.eligibleVoters ??
+      state.tally?.eligibleVoters ??
+      state.quorum?.eligibleUnits ??
+      (state.participants.size || null),
     onCast: async (choice) => {
       const receipt = await castVote(assemblyId, state.session.id, choice);
       state.myVote = {
@@ -627,6 +687,7 @@ function refreshPanels() {
       }
       try {
         const status = await getMyVoteStatus(assemblyId, state.session.id);
+        state.myVoteStatus = status;
         if (status?.evidenceId || status?.EvidenceId) {
           state.myVote = {
             evidenceId: status.evidenceId || status.EvidenceId,
@@ -640,7 +701,7 @@ function refreshPanels() {
       await rehydrate();
       return state.myVote;
     },
-    onOpen: async () => {
+    onOpen: async (policy = "HiddenUntilClose") => {
       if (!state.motion) {
         showError(t("assembly.noMotion"));
         return;
@@ -648,19 +709,31 @@ function refreshPanels() {
       const ok = await confirmDialog({
         title: t("assembly.openVoting"),
         body: t("assembly.confirmOpenVoting"),
-        confirmLabel: t("confirm")
+        confirmLabel: t("voting.open"),
+        cancelLabel: t("cancel")
       });
       if (!ok) return;
-      state.session = await openVoting(assemblyId, state.motion.id, true);
-      state.tally = null;
+      const hidePartial = policy !== "LiveResults";
+      state.session = await openVoting(assemblyId, state.motion.id, hidePartial, policy);
+      state.tally = {
+        votesCast: 0,
+        eligibleVoters: state.session.eligibleVoters,
+        eligibleCoefficient: state.session.eligibleCoefficient,
+        trendHidden: policy !== "LiveResults",
+        resultVisibilityPolicy: policy
+      };
       state.myVote = null;
       refreshPanels();
     },
     onClose: async () => {
+      const cast = state.tally?.votesCast ?? 0;
+      const eligible = state.session?.eligibleVoters ?? state.tally?.eligibleVoters ?? "—";
+      const pending =
+        typeof eligible === "number" ? Math.max(0, eligible - cast) : "—";
       const ok = await confirmDialog({
         title: t("assembly.closeVoting"),
-        body: t("assembly.confirmCloseVoting"),
-        confirmLabel: t("confirm"),
+        body: `${t("assembly.confirmCloseVoting")}\n\n${t("voting.votesReceived")}: ${cast} / ${eligible}\n${t("voting.pending")}: ${pending}`,
+        confirmLabel: t("voting.close"),
         danger: true
       });
       if (!ok) return;
@@ -695,6 +768,7 @@ function applyRoomState(room) {
   state.tally = room.tally;
   state.queue = room.queue;
   state.myVote = room.myVote;
+  state.myVoteStatus = room.myVoteStatus || state.myVoteStatus || null;
   state.startedAtUtc = room.startedAtUtc || state.startedAtUtc;
   if (room.viewerRole) {
     state.viewerRole = room.viewerRole;
@@ -959,6 +1033,36 @@ ${t("assembly.endPrecheck", {
       showError(error.message);
     }
   });
+
+  qs("#btn-rec-start")?.addEventListener("click", async () => {
+    try {
+      state.recording = await api(`/api/assemblies/${assemblyId}/recording/start`, { method: "POST" });
+      syncRecordingBanner();
+      showToast("Grabación iniciada", "success");
+    } catch (error) {
+      showError(error.message);
+    }
+  });
+  qs("#btn-rec-stop")?.addEventListener("click", async () => {
+    if (!state.recording?.id) return;
+    const ok = await confirmDialog({
+      title: "Detener grabación",
+      body: "¿Detener la grabación de esta sesión?",
+      confirmLabel: "Detener",
+      danger: true
+    });
+    if (!ok) return;
+    try {
+      state.recording = await api(
+        `/api/assemblies/${assemblyId}/recording/${state.recording.id}/stop`,
+        { method: "POST" }
+      );
+      syncRecordingBanner();
+      showToast("Grabación detenida / procesando", "info");
+    } catch (error) {
+      showError(error.message);
+    }
+  });
 }
 
 function localizeChrome() {
@@ -1034,27 +1138,68 @@ async function init() {
     },
     votingOpened: (s) => {
       state.session = s;
-      state.tally = null;
+      state.tally = {
+        votesCast: 0,
+        eligibleVoters: s.eligibleVoters,
+        eligibleCoefficient: s.eligibleCoefficient,
+        trendHidden: (s.resultVisibilityPolicy || "HiddenUntilClose") !== "LiveResults",
+        resultVisibilityPolicy: s.resultVisibilityPolicy
+      };
       state.myVote = null;
+      state.myVoteStatus = null;
       refreshPanels();
+      if (hasPermission(state.user, "vote:cast") && s?.id) {
+        getMyVoteStatus(assemblyId, s.id)
+          .then((st) => {
+            state.myVoteStatus = st;
+            refreshPanels();
+          })
+          .catch(() => {});
+      }
     },
-    voteTallyUpdated: (tally) => {
+    voteTallyUpdated: async (tally) => {
       state.tally = tally;
+      const policy =
+        state.session?.resultVisibilityPolicy ||
+        tally?.resultVisibilityPolicy ||
+        "HiddenUntilClose";
+      if (
+        policy === "PresidentOnlyLive" &&
+        (hasPermission(state.user, "vote:open") || hasPermission(state.user, "vote:close")) &&
+        state.session?.id
+      ) {
+        try {
+          const { getResults } = await import("./voting.js");
+          state.tally = await getResults(assemblyId, state.session.id);
+        } catch {
+          /* keep participation pulse */
+        }
+      }
       refreshPanels();
     },
     votingClosed: (result) => {
-      state.session = { id: result.votingSessionId, status: "Closed", motionId: result.motionId };
+      state.session = {
+        ...state.session,
+        id: result.votingSessionId,
+        status: "Closed",
+        motionId: result.motionId
+      };
       state.tally = result.tally;
       refreshPanels();
     },
     assemblyStatusChanged: (summary) => {
       state.assembly = { ...state.assembly, ...summary };
       refreshPanels();
+    },
+    recordingUpdated: (rec) => {
+      state.recording = rec;
+      syncRecordingBanner();
     }
   });
 
   await state.hub.start(assemblyId);
   refreshPanels();
+  await hydrateRecording();
   await bootstrapMeeting();
 
   durationTimer = window.setInterval(tickDuration, 1000);

@@ -11,6 +11,7 @@ using Asambleas.Application.Evidence;
 using Asambleas.Application.Meeting;
 using Asambleas.Application.Motion;
 using Asambleas.Application.Quorum;
+using Asambleas.Application.Recording;
 using Asambleas.Application.Representation;
 using Asambleas.Application.Speaker;
 using Asambleas.Application.Voting;
@@ -40,6 +41,8 @@ public static class DependencyInjection
         services.AddScoped<VotingService>();
         services.AddScoped<MeetingService>();
         services.AddScoped<AssemblyEvidenceService>();
+        services.AddScoped<EvidencePackageExportService>();
+        services.AddScoped<RecordingService>();
         services.AddScoped<CalendarSchedulingService>();
         services.AddScoped<CommunicationConfigurationService>();
         services.AddScoped<DeliveryDispatchService>();

@@ -4,6 +4,7 @@ using Asambleas.Contracts.Agenda;
 using Asambleas.Contracts.Assemblies;
 using Asambleas.Contracts.Motions;
 using Asambleas.Contracts.Quorum;
+using Asambleas.Contracts.Recordings;
 using Asambleas.Contracts.Speakers;
 using Asambleas.Contracts.Voting;
 
@@ -28,4 +29,6 @@ public interface IAssemblyRealtimePublisher
     Task PublishVoteTallyAsync(Guid assemblyId, VoteTallyDto tally, CancellationToken cancellationToken = default);
 
     Task PublishVotingClosedAsync(Guid assemblyId, CloseVotingSessionResponse result, CancellationToken cancellationToken = default);
+
+    Task PublishRecordingUpdatedAsync(Guid assemblyId, AssemblyRecordingDto recording, CancellationToken cancellationToken = default);
 }

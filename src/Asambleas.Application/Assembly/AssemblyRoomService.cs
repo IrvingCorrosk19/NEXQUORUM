@@ -89,10 +89,26 @@ public sealed class AssemblyRoomService
             hasVoted = receipt is not null;
             evidenceId = receipt?.EvidenceId;
 
-            if (!openSession.HidePartialResults)
-            {
-                openResults = await _voting.TryGetOpenSessionResultsAsync(assemblyId, openSession.Id, cancellationToken);
-            }
+            // Authorized trend or participation-only pulse (TrendHidden=true). Never invent client-side.
+            var pulse = await _voting.GetResultsAsync(assemblyId, openSession.Id, cancellationToken);
+            openResults = new VotingResultsDto(
+                pulse.VotingSessionId,
+                pulse.MotionId,
+                pulse.InFavorCoefficient,
+                pulse.AgainstCoefficient,
+                pulse.AbstentionCoefficient,
+                pulse.VotesCast,
+                pulse.DecisionStatus,
+                pulse.InFavorVotes,
+                pulse.AgainstVotes,
+                pulse.AbstentionVotes,
+                pulse.AppliedDecisionRule,
+                pulse.DecisionExplanation,
+                pulse.EligibleVoters,
+                pulse.ParticipatingCoefficient,
+                pulse.EligibleCoefficient,
+                pulse.TrendHidden,
+                pulse.ResultVisibilityPolicy);
         }
 
         var participants = await _attendance.ListParticipantsAsync(assemblyId, cancellationToken);
@@ -315,12 +331,40 @@ public sealed class AssemblyRoomService
                     session.Status.ToString(),
                     session.OpenedAtUtc,
                     session.ClosedAtUtc,
-                    session.HidePartialResults);
+                    session.HidePartialResults,
+                    session.AppliedDecisionRule,
+                    session.DecisionStatus,
+                    session.ResultVisibilityPolicy,
+                    session.OpenedByUserId,
+                    session.EligibleVoters,
+                    session.EligibleCoefficient);
 
                 if (session.Status == VotingSessionStatus.Closed
-                    || (session.Status == VotingSessionStatus.Open && !session.HidePartialResults))
+                    || session.Status == VotingSessionStatus.Open)
                 {
                     results = await _voting.TryGetOpenSessionResultsAsync(assemblyId, session.Id, cancellationToken);
+                    if (results is null && session.Status == VotingSessionStatus.Open)
+                    {
+                        var pulse = await _voting.GetResultsAsync(assemblyId, session.Id, cancellationToken);
+                        results = new VotingResultsDto(
+                            pulse.VotingSessionId,
+                            pulse.MotionId,
+                            pulse.InFavorCoefficient,
+                            pulse.AgainstCoefficient,
+                            pulse.AbstentionCoefficient,
+                            pulse.VotesCast,
+                            pulse.DecisionStatus,
+                            pulse.InFavorVotes,
+                            pulse.AgainstVotes,
+                            pulse.AbstentionVotes,
+                            pulse.AppliedDecisionRule,
+                            pulse.DecisionExplanation,
+                            pulse.EligibleVoters,
+                            pulse.ParticipatingCoefficient,
+                            pulse.EligibleCoefficient,
+                            pulse.TrendHidden,
+                            pulse.ResultVisibilityPolicy);
+                    }
                 }
             }
 

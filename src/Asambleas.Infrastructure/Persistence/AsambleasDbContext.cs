@@ -47,6 +47,8 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
 
     public DbSet<VotingSession> VotingSessions => Set<VotingSession>();
 
+    public DbSet<VotingEligibilitySnapshot> VotingEligibilitySnapshots => Set<VotingEligibilitySnapshot>();
+
     public DbSet<Vote> Votes => Set<Vote>();
 
     public DbSet<QuorumSnapshot> QuorumSnapshots => Set<QuorumSnapshot>();
@@ -78,6 +80,12 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
     public DbSet<AssemblyScheduleChange> AssemblyScheduleChanges => Set<AssemblyScheduleChange>();
 
     public DbSet<AssemblyReminderOccurrence> AssemblyReminderOccurrences => Set<AssemblyReminderOccurrence>();
+
+    public DbSet<AssemblyRecording> AssemblyRecordings => Set<AssemblyRecording>();
+
+    public DbSet<PropertyRecordingPolicy> PropertyRecordingPolicies => Set<PropertyRecordingPolicy>();
+
+    public DbSet<RecordingNoticeAcceptance> RecordingNoticeAcceptances => Set<RecordingNoticeAcceptance>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -122,6 +130,7 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
         builder.Entity<AgendaItem>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<Motion>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<VotingSession>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<VotingEligibilitySnapshot>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<Vote>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<QuorumSnapshot>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<SpeakerRequest>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
@@ -136,6 +145,9 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
         builder.Entity<CommunicationDeliveryEvent>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<PortalNotification>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<ReminderRule>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<AssemblyRecording>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<PropertyRecordingPolicy>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<RecordingNoticeAcceptance>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
 
         // Allow unfiltered user lookup when tenant is not yet resolved (login / design-time).
         builder.Entity<ApplicationUser>().HasQueryFilter(e =>

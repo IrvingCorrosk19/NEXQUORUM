@@ -1,7 +1,6 @@
 namespace Asambleas.Infrastructure.Meeting;
 
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
 
@@ -21,14 +20,7 @@ internal static class LiveKitAccessToken
         TimeSpan ttl,
         out DateTimeOffset expiresAtUtc)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(apiSecret);
-        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
         ArgumentException.ThrowIfNullOrWhiteSpace(roomName);
-
-        var now = DateTimeOffset.UtcNow;
-        expiresAtUtc = now.Add(ttl);
-
         var videoGrant = new Dictionary<string, object>
         {
             ["roomJoin"] = true,
@@ -37,6 +29,32 @@ internal static class LiveKitAccessToken
             ["canSubscribe"] = canSubscribe,
             ["canPublishData"] = canPublish
         };
+
+        return Write(apiKey, apiSecret, identity, name, videoGrant, ttl, out expiresAtUtc);
+    }
+
+    public static string CreateAdmin(
+        string apiKey,
+        string apiSecret,
+        IReadOnlyDictionary<string, object> videoGrant,
+        TimeSpan ttl) =>
+        Write(apiKey, apiSecret, "asambleas-egress", "ASAMBLEAS Egress", videoGrant, ttl, out _);
+
+    private static string Write(
+        string apiKey,
+        string apiSecret,
+        string identity,
+        string name,
+        IReadOnlyDictionary<string, object> videoGrant,
+        TimeSpan ttl,
+        out DateTimeOffset expiresAtUtc)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiSecret);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
+
+        var now = DateTimeOffset.UtcNow;
+        expiresAtUtc = now.Add(ttl);
 
         var credentials = new SigningCredentials(
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(apiSecret)),

@@ -8,6 +8,7 @@ using Asambleas.Infrastructure.Identity;
 using Asambleas.Infrastructure.Meeting;
 using Asambleas.Infrastructure.Persistence;
 using Asambleas.Infrastructure.Seed;
+using Asambleas.Infrastructure.Storage;
 using Asambleas.Infrastructure.Tenancy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -63,6 +64,9 @@ public static class DependencyInjection
             .AddDefaultTokenProviders();
 
         services.AddScoped<IMeetingProvider, LiveKitMeetingProvider>();
+        services.AddSingleton<IAssemblyRecordingStorage, LocalFileAssemblyRecordingStorage>();
+        services.AddHttpClient("livekit-egress");
+        services.AddScoped<IMeetingRecordingProvider, LiveKitMeetingRecordingProvider>();
         services.AddScoped<DemoDataSeeder>();
 
         services.AddDataProtection();

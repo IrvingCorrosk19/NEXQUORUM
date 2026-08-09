@@ -19,7 +19,18 @@ public class VotingSession : Entity, ITenantScoped
 
     public bool HidePartialResults { get; set; } = true;
 
-    /// <summary>Rule code applied at close (snapshot).</summary>
+    /// <summary>Wire name of <see cref="Enums.ResultVisibilityPolicy"/> (snapshot at open).</summary>
+    public string ResultVisibilityPolicy { get; set; } = Voting.ResultVisibility.HiddenUntilClose;
+
+    public Guid? OpenedByUserId { get; set; }
+
+    /// <summary>Eligible voter count frozen at open.</summary>
+    public int EligibleVoters { get; set; }
+
+    /// <summary>Sum of eligible coefficients frozen at open.</summary>
+    public decimal EligibleCoefficient { get; set; }
+
+    /// <summary>Decision rule code frozen at open (also refreshed at close).</summary>
     public string? AppliedDecisionRule { get; set; }
 
     /// <summary>Motion decision status snapshot at close (Approved/Rejected).</summary>

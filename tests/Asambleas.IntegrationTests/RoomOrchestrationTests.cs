@@ -58,6 +58,13 @@ public sealed class RoomOrchestrationTests
                 $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
                 new Contracts.Assemblies.CheckInRequest(null, "Virtual")))
             .EnsureSuccessStatusCode();
+
+        var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
+        (await owner.PostJsonAsync(
+                $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
+                new Contracts.Assemblies.CheckInRequest(DemoSeedConstants.Unit101Id, "Virtual")))
+            .EnsureSuccessStatusCode();
+
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start"))
             .EnsureSuccessStatusCode();
 

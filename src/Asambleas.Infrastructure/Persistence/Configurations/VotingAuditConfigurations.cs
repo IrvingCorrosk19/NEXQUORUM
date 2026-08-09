@@ -12,14 +12,38 @@ internal sealed class VotingSessionConfiguration : IEntityTypeConfiguration<Voti
         builder.ToTable("voting_sessions");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.ResultVisibilityPolicy).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.EligibleCoefficient).HasPrecision(7, 4);
         builder.Property(x => x.AppliedDecisionRule).HasMaxLength(64);
         builder.Property(x => x.DecisionStatus).HasMaxLength(32);
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.AssemblyId);
         builder.HasIndex(x => x.MotionId);
         builder.HasIndex(x => x.Status);
+        // At most one Open session per assembly (DB-level concurrency guard).
+        builder.HasIndex(x => x.AssemblyId)
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Open'")
+            .HasDatabaseName("IX_voting_sessions_AssemblyId_Open");
         builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<Motion>().WithMany().HasForeignKey(x => x.MotionId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class VotingEligibilitySnapshotConfiguration : IEntityTypeConfiguration<VotingEligibilitySnapshot>
+{
+    public void Configure(EntityTypeBuilder<VotingEligibilitySnapshot> builder)
+    {
+        builder.ToTable("voting_eligibility_snapshots");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.CoefficientPercent).HasPrecision(7, 4);
+        builder.Property(x => x.UnitCode).HasMaxLength(64);
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.AssemblyId);
+        builder.HasIndex(x => x.VotingSessionId);
+        builder.HasIndex(x => new { x.VotingSessionId, x.UserId }).IsUnique();
+        builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<VotingSession>().WithMany().HasForeignKey(x => x.VotingSessionId).OnDelete(DeleteBehavior.Cascade);
     }
 }
 

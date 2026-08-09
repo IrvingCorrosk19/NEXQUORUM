@@ -254,6 +254,7 @@ async function init() {
     <a class="btn btn-secondary" href="/lobby.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkLobby"))}</a>
     <a class="btn btn-secondary" href="/minutes.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkMinutes"))}</a>
     <a class="btn btn-secondary" href="/evidence.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkEvidence"))}</a>
+    <a class="btn btn-secondary" href="/expediente.html?assemblyId=${assemblyId}">Expediente</a>
     ${operator ? `<a class="btn btn-ghost" href="/projector.html?assemblyId=${assemblyId}" target="_blank" rel="noopener">${escapeHtml(t("dashboard.linkProjector"))}</a>` : ""}
   `;
 

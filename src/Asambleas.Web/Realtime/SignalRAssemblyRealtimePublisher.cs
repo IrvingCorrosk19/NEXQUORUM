@@ -6,6 +6,7 @@ using Asambleas.Contracts.Assemblies;
 using Asambleas.Contracts.Motions;
 using Asambleas.Contracts.Quorum;
 using Asambleas.Contracts.Realtime;
+using Asambleas.Contracts.Recordings;
 using Asambleas.Contracts.Speakers;
 using Asambleas.Contracts.Voting;
 using Asambleas.Web.Hubs;
@@ -49,6 +50,9 @@ public sealed class SignalRAssemblyRealtimePublisher : IAssemblyRealtimePublishe
 
     public Task PublishVotingClosedAsync(Guid assemblyId, CloseVotingSessionResponse result, CancellationToken cancellationToken = default) =>
         SendAsync(assemblyId, RealtimeEventNames.VotingClosed, result, cancellationToken);
+
+    public Task PublishRecordingUpdatedAsync(Guid assemblyId, AssemblyRecordingDto recording, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.RecordingUpdated, recording, cancellationToken);
 
     private Task SendAsync<T>(Guid assemblyId, string eventName, T payload, CancellationToken cancellationToken) =>
         _hub.Clients.Group(AssemblyHub.GroupName(assemblyId))
