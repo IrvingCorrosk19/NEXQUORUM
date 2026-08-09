@@ -34,10 +34,16 @@ Replaced scattered mic/camera/speak controls with a fixed bottom **Meeting Contr
 | MULTITENANT | PASS | Existing tenant query filters + hub groups |
 | ASSEMBLY ISOLATION | PASS | Hub scoped by assemblyId |
 | SECURITY | PASS | Grant/reject/skip require `meeting:moderate`; cancel is own-only |
-| BROWSER E2E | CONDITIONAL | Structural + API smoke; dual-browser A/V matrix on VPS |
-| VPS | PENDING | Deploy after push; retest HTTPS LiveKit |
+| BROWSER E2E | CONDITIONAL | Control bar visible on VPS HTTPS after owner login; dual-user LiveKit A/V matrix still P0 |
+| VPS | PASS | Deployed `bb805d4`+hotfixes; `/health`+`/health/ready` 200; `meeting-control-bar` in image |
 
 \*Remote camera depends on LiveKit availability on the environment.
+
+## Evidence (2026-08-09)
+
+- **API (VPS HTTPS):** raise → idempotent re-raise → cancel; owner grant **403**; president grant/complete **OK**
+- **Browser:** Meeting control bar renders (Micro / Cámara / Palabra / Personas / Más / Salir) on `assembly.html`
+- **Deploy:** Docker rebuild + nginx reload; BAR_IN_IMAGE=yes
 
 ## Backend changes
 
@@ -50,12 +56,12 @@ Replaced scattered mic/camera/speak controls with a fixed bottom **Meeting Contr
 - `assembly.html` — MeetingControlBar, drawers, device settings dialog
 - `room-app.js` — bar wiring, hand toggle, leave, participants/queue drawers
 - `meeting.js` — permission-denied UX, hand-raised tile sync, device switch helper
-- `assembly-room.css` — bar, drawers, mobile layout, camera-off / hand indicators
+- `assembly-room.css` — bar, drawers, mobile video-first layout, camera-off / hand indicators
 
 ## P0 OPEN
 
-1. Full dual-user LiveKit camera/mic matrix on VPS after deploy (browser evidence)
-2. Multi-owner FIFO raise order browser matrix (3 owners)
+1. Dual-browser LiveKit camera/mic matrix with stable SignalR (automation browser hit transient `Failed to fetch` / reconnect overlay)
+2. Multi-owner FIFO raise order browser matrix (3 owners) under stable sessions
 
 ## P1 OPEN
 
@@ -64,4 +70,4 @@ Replaced scattered mic/camera/speak controls with a fixed bottom **Meeting Contr
 
 ## FINAL VERDICT
 
-**CERTIFIED (CONDITIONAL)** — control bar UX + cancel-hand API + RBAC separation implemented and build-verified. Full dual-session LiveKit + VPS HTTPS evidence remains P0 open until post-deploy browser pass.
+**CERTIFIED (CONDITIONAL)** — Meeting control bar shipped on VPS with working raise/cancel/grant APIs and RBAC. Full dual-session LiveKit visual matrix remains P0 open when browser sessions stay connected.
