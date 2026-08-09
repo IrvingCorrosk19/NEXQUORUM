@@ -17,14 +17,17 @@ public sealed class SecurityHeadersMiddleware
             headers["X-Content-Type-Options"] = "nosniff";
             headers["X-Frame-Options"] = "DENY";
             headers["Referrer-Policy"] = "no-referrer";
-            headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=()";
+            headers["Permissions-Policy"] =
+                "camera=(self), microphone=(self), display-capture=(self), geolocation=()";
             headers["Content-Security-Policy"] =
                 "default-src 'self'; " +
                 "script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; " +
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
                 "font-src 'self' https://fonts.gstatic.com; " +
-                "img-src 'self' data:; " +
+                "img-src 'self' data: blob:; " +
+                "media-src 'self' blob:; " +
                 "connect-src 'self' ws: wss: https:; " +
+                "worker-src 'self' blob:; " +
                 "frame-ancestors 'none'; " +
                 "base-uri 'self'; " +
                 "form-action 'self'";
