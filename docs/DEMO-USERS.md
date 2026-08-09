@@ -1,7 +1,12 @@
-# Demo Users (Development only)
+# Demo Users (piloto / Development)
 
-**Password for all accounts:** `Demo!Pass123`  
-**Environment:** Development seed only — never use in Production.
+Passwords are **never** documented in Git or URLs.
+
+| Item | Value |
+|------|--------|
+| Password source | `Demo:Password` / `ASAMBLEAS_DEMO_PASSWORD` / VPS `.env` `DEMO_PASSWORD` |
+| Previously exposed password | **REVOKED** — must not authenticate |
+| Public metadata (no passwords) | `GET /api/demo/users` |
 
 Assembly: `44444444-4444-4444-4444-444444444401` (PH DEMO OCEAN TOWER)  
 Tenant: OCEAN (`11111111-1111-1111-1111-111111111101`)
@@ -21,4 +26,4 @@ Units 107/108 belong to absentee owners (no login). Quorum threshold: **50%**.
 
 Check-in: `/checkin.html?assemblyId=44444444-4444-4444-4444-444444444401`
 
-Public metadata (no passwords) at `GET /api/demo/users`.
+**Security:** never open `/?email=…&password=…`. Login is HTTPS + POST body only.

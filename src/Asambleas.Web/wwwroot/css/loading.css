@@ -1,0 +1,182 @@
+/* ASAMBLEAS — premium loading system (brand motion: assembly circle / quorum forming) */
+
+.asambleas-loader {
+  --loader-ink: var(--brand-teal-900);
+  --loader-accent: var(--brand-teal-500);
+  --loader-gold: var(--brand-gold-500);
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(215, 238, 241, 0.95), transparent 70%),
+    linear-gradient(165deg, var(--surface-primary) 0%, var(--surface-secondary) 100%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 280ms var(--ease-out, ease), visibility 280ms;
+}
+
+.asambleas-loader.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.asambleas-loader__panel {
+  width: min(22rem, 100%);
+  text-align: center;
+}
+
+.asambleas-loader__brand {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--loader-ink);
+  margin: 0 0 1.75rem;
+}
+
+.asambleas-loader__orbit {
+  position: relative;
+  width: 5.5rem;
+  height: 5.5rem;
+  margin: 0 auto 1.5rem;
+}
+
+.asambleas-loader__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--loader-accent) 35%, transparent);
+}
+
+.asambleas-loader__node {
+  position: absolute;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--loader-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--loader-accent) 20%, transparent);
+  top: 50%;
+  left: 50%;
+  margin: -0.35rem 0 0 -0.35rem;
+  transform-origin: center;
+  animation: asambleas-orbit 2.4s var(--ease-out, ease-in-out) infinite;
+}
+
+.asambleas-loader__node:nth-child(2) {
+  background: var(--loader-ink);
+  animation-delay: -0.6s;
+}
+
+.asambleas-loader__node:nth-child(3) {
+  background: var(--loader-gold);
+  animation-delay: -1.2s;
+}
+
+.asambleas-loader__node:nth-child(4) {
+  background: var(--brand-teal-300);
+  animation-delay: -1.8s;
+}
+
+.asambleas-loader__core {
+  position: absolute;
+  inset: 38%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--brand-teal-100), var(--loader-ink));
+  animation: asambleas-pulse 2.4s ease-in-out infinite;
+}
+
+.asambleas-loader__message {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--text-secondary);
+  min-height: 1.5em;
+}
+
+.asambleas-loader__hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.asambleas-loader__bar {
+  margin: 1.25rem auto 0;
+  width: min(12rem, 70%);
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--loader-accent) 25%, transparent);
+  overflow: hidden;
+}
+
+.asambleas-loader__bar > span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--loader-accent), var(--loader-gold));
+  animation: asambleas-bar 1.4s ease-in-out infinite;
+}
+
+.btn.is-loading {
+  position: relative;
+  pointer-events: none;
+  color: transparent !important;
+}
+
+.btn.is-loading::after {
+  content: "";
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: var(--text-on-brand, #fff);
+  animation: asambleas-spin 0.7s linear infinite;
+  left: 50%;
+  top: 50%;
+  margin: -0.5rem 0 0 -0.5rem;
+}
+
+.btn-secondary.is-loading::after,
+.btn-ghost.is-loading::after {
+  border-top-color: var(--brand-teal-700);
+}
+
+@keyframes asambleas-orbit {
+  0% { transform: rotate(0deg) translateX(2.1rem) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(2.1rem) rotate(-360deg); }
+}
+
+@keyframes asambleas-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes asambleas-bar {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(280%); }
+}
+
+@keyframes asambleas-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asambleas-loader__node,
+  .asambleas-loader__core,
+  .asambleas-loader__bar > span,
+  .btn.is-loading::after {
+    animation: none;
+  }
+
+  .asambleas-loader__node {
+    transform: rotate(calc(var(--i, 0) * 90deg)) translateX(2.1rem);
+  }
+}

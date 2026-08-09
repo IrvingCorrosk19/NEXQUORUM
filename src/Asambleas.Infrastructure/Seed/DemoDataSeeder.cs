@@ -8,6 +8,7 @@ using Asambleas.Infrastructure.Persistence;
 using Asambleas.Infrastructure.Tenancy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using AssemblyEntity = Asambleas.Domain.Entities.Assembly;
@@ -19,6 +20,7 @@ public sealed class DemoDataSeeder
     private readonly RoleManager<ApplicationRole> _roleManager;
     private readonly CurrentTenant _currentTenant;
     private readonly IHostEnvironment _environment;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<DemoDataSeeder> _logger;
 
     public DemoDataSeeder(
@@ -27,6 +29,7 @@ public sealed class DemoDataSeeder
         RoleManager<ApplicationRole> roleManager,
         CurrentTenant currentTenant,
         IHostEnvironment environment,
+        IConfiguration configuration,
         ILogger<DemoDataSeeder> logger)
     {
         _db = db;
@@ -34,21 +37,25 @@ public sealed class DemoDataSeeder
         _roleManager = roleManager;
         _currentTenant = currentTenant;
         _environment = environment;
+        _configuration = configuration;
         _logger = logger;
     }
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
-        if (_environment.IsProduction())
+        var seedUsers = _environment.IsDevelopment()
+            || _configuration.GetValue("Demo:SeedUsers", false);
+
+        if (_environment.IsProduction() && !seedUsers)
         {
-            _logger.LogInformation("Skipping demo seed in Production.");
+            _logger.LogInformation("Skipping demo seed in Production (Demo:SeedUsers not enabled).");
             return;
         }
 
-        if (!_environment.IsDevelopment())
+        if (!seedUsers)
         {
             _logger.LogInformation(
-                "Skipping demo user passwords outside Development (Environment={Environment}).",
+                "Seeding tenants/roles only (users skipped). Environment={Environment}.",
                 _environment.EnvironmentName);
         }
 
@@ -57,9 +64,10 @@ public sealed class DemoDataSeeder
         if (await _db.Tenants.IgnoreQueryFilters().AnyAsync(t => t.Id == DemoSeedConstants.TenantOceanId, cancellationToken))
         {
             _logger.LogInformation("Demo seed already present; ensuring EO-006 powers.");
-            if (_environment.IsDevelopment())
+            if (seedUsers)
             {
                 await EnsureEo006PowersAsync(cancellationToken);
+                await RotateDemoUserPasswordsAsync(cancellationToken);
             }
 
             return;
@@ -68,18 +76,64 @@ public sealed class DemoDataSeeder
         await SeedTenantOceanAsync(cancellationToken);
         await SeedTenantOtherAsync(cancellationToken);
 
-        if (_environment.IsDevelopment())
+        if (seedUsers)
         {
             await SeedUsersAsync(cancellationToken);
         }
         else
         {
-            _logger.LogWarning("Demo users were not created because environment is not Development.");
+            _logger.LogWarning("Demo users were not created (Demo:SeedUsers=false).");
         }
 
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Demo seed completed (tenants OCEAN + OTHERPH).");
     }
+
+    private async Task RotateDemoUserPasswordsAsync(CancellationToken cancellationToken)
+    {
+        if (!_configuration.GetValue("Demo:RotatePasswords", false)
+            && !_configuration.GetValue("Demo:SeedUsers", false))
+        {
+            return;
+        }
+
+        var password = DemoPasswordResolver.ResolveRequired(_configuration);
+        var emails = DemoUsersCatalogEmails();
+        var rotated = 0;
+        foreach (var email in emails)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user is null)
+            {
+                continue;
+            }
+
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var result = await _userManager.ResetPasswordAsync(user, token, password);
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to rotate password for demo user: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+            }
+
+            rotated++;
+        }
+
+        _logger.LogInformation("Demo user passwords rotated for {Count} accounts (value not logged).", rotated);
+    }
+
+    private static IReadOnlyList<string> DemoUsersCatalogEmails() =>
+    [
+        "president@ocean.demo",
+        "secretary@ocean.demo",
+        "owner101@ocean.demo",
+        "owner102@ocean.demo",
+        "owner103@ocean.demo",
+        "owner104@ocean.demo",
+        "owner105@ocean.demo",
+        "owner106@ocean.demo"
+    ];
 
     private async Task EnsureRolesAsync(CancellationToken cancellationToken)
     {
@@ -324,7 +378,8 @@ public sealed class DemoDataSeeder
                 DemoRole = role
             };
 
-            var createResult = await _userManager.CreateAsync(user, DemoSeedConstants.DemoPassword);
+            var password = DemoPasswordResolver.ResolveRequired(_configuration);
+            var createResult = await _userManager.CreateAsync(user, password);
             if (!createResult.Succeeded)
             {
                 throw new InvalidOperationException(

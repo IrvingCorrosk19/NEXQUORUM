@@ -1,0 +1,87 @@
+services:
+  asambleas_postgres:
+    image: postgres:16-alpine
+    container_name: asambleas_postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-asambleas}
+      POSTGRES_USER: ${POSTGRES_USER:-asambleas_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - asambleas_postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - asambleas_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  asambleas_web:
+    build:
+      context: ../..
+      dockerfile: deploy/vps/Dockerfile
+    container_name: asambleas_web
+    restart: unless-stopped
+    depends_on:
+      asambleas_postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=asambleas_postgres;Port=5432;Database=${POSTGRES_DB:-asambleas};Username=${POSTGRES_USER:-asambleas_app};Password=${POSTGRES_PASSWORD}
+      DEMO_ENABLED: ${DEMO_ENABLED:-true}
+      DEMO_PUBLIC_USER_LIST: ${DEMO_PUBLIC_USER_LIST:-true}
+      Demo__Enabled: ${DEMO_ENABLED:-true}
+      Demo__PublicUserList: ${DEMO_PUBLIC_USER_LIST:-true}
+      Demo__SeedUsers: "true"
+      Demo__RotatePasswords: "true"
+      Demo__Password: ${DEMO_PASSWORD}
+      ASAMBLEAS_APPLY_MIGRATIONS: "true"
+      ASAMBLEAS_ALLOW_INSECURE_LOGIN: "false"
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      LIVEKIT_DEFAULT_ROOM_PREFIX: ${LIVEKIT_DEFAULT_ROOM_PREFIX:-assembly-}
+      ASAMBLEAS_DISABLE_HTTPS_REDIRECTION: "true"
+      ASAMBLEAS_DISABLE_HTTPS_REDIRECT: "true"
+    ports:
+      - "127.0.0.1:${ASAMBLEAS_HOST_PORT:-5090}:8080"
+    networks:
+      - asambleas_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 90s
+
+  asambleas_livekit:
+    image: livekit/livekit-server:v1.8.4
+    container_name: asambleas_livekit
+    restart: unless-stopped
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      # Signaling stays loopback; browsers reach it via Nginx WSS.
+      - "127.0.0.1:${LIVEKIT_HTTP_PORT:-7880}:7880"
+      - "${LIVEKIT_RTC_TCP_PORT:-7881}:7881"
+      - "${LIVEKIT_UDP_PORT_RANGE:-7882-7892}:7882-7892/udp"
+    networks:
+      - asambleas_net
+
+volumes:
+  asambleas_postgres_data:
+    name: asambleas_postgres_data
+
+networks:
+  asambleas_net:
+    name: asambleas_net
+    driver: bridge

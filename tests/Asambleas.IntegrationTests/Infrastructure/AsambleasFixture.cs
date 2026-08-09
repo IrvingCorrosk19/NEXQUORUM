@@ -72,7 +72,12 @@ public sealed class AsambleasWebApplicationFactory : WebApplicationFactory<Progr
             {
                 ["ConnectionStrings:DefaultConnection"] = _connectionString,
                 ["Demo:Enabled"] = "true",
-                ["Demo:PublicUserList"] = "true"
+                ["Demo:PublicUserList"] = "true",
+                ["Demo:SeedUsers"] = "true",
+                ["Demo:RotatePasswords"] = "true",
+                ["Demo:Password"] = TestDemoCredentials.Password,
+                ["ASAMBLEAS_APPLY_MIGRATIONS"] = "true",
+                ["ASAMBLEAS_ALLOW_INSECURE_LOGIN"] = "true"
             });
         });
     }

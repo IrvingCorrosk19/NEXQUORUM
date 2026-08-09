@@ -58,7 +58,6 @@ public static class DemoSeedConstants
 
     public static readonly Guid Motion001Id = Guid.Parse("99999999-9999-9999-9999-999999999001");
 
-    public const string DemoPassword = "Demo!Pass123";
     public const string PermissionClaimType = "permission";
 
     public static readonly (string Code, decimal Coefficient, Guid Id)[] OceanUnits =

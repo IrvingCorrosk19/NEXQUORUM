@@ -10,6 +10,8 @@ using Asambleas.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Hosting;
 
 [ApiController]
 [Route("api/auth")]
@@ -28,23 +30,48 @@ public sealed class AuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("login")]
+    [EnableRateLimiting("auth-login")]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
+        // Remote pilot/production must not accept credentials over plain HTTP.
+        var forwardedProto = Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
+        var isHttps = Request.IsHttps
+            || string.Equals(forwardedProto, "https", StringComparison.OrdinalIgnoreCase);
+        var allowInsecure = HttpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment()
+            || HttpContext.RequestServices.GetRequiredService<IConfiguration>()
+                .GetValue("ASAMBLEAS_ALLOW_INSECURE_LOGIN", false);
+        if (!isHttps && !allowInsecure)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, CreateProblem(
+                "No pudimos iniciar sesión. Usa HTTPS."));
+        }
+
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return BadRequest(CreateProblem("Email and password are required."));
+            return BadRequest(CreateProblem("No pudimos iniciar sesión. Verifica tus credenciales."));
+        }
+
+        if (string.Equals(request.Password, DemoPasswordResolver.RevokedExposedPassword, StringComparison.Ordinal))
+        {
+            return Unauthorized(CreateProblem("No pudimos iniciar sesión. Verifica tus credenciales."));
         }
 
         var user = await _userManager.FindByEmailAsync(request.Email.Trim());
         if (user is null)
         {
-            return Unauthorized(CreateProblem("Invalid credentials."));
+            return Unauthorized(CreateProblem("No pudimos iniciar sesión. Verifica tus credenciales."));
         }
 
         var check = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
+        if (check.IsLockedOut)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests,
+                CreateProblem("No pudimos iniciar sesión. Intenta de nuevo más tarde."));
+        }
+
         if (!check.Succeeded)
         {
-            return Unauthorized(CreateProblem("Invalid credentials."));
+            return Unauthorized(CreateProblem("No pudimos iniciar sesión. Verifica tus credenciales."));
         }
 
         var roles = (await _userManager.GetRolesAsync(user)).ToList();
@@ -57,7 +84,9 @@ public sealed class AuthController : ControllerBase
         var permissions = RolePermissionMap.GetPermissions(roles).ToList();
         var extraClaims = BuildClaims(user, roles, permissions, existingClaims);
 
-        await _signInManager.SignInWithClaimsAsync(user, isPersistent: true, extraClaims);
+        // Mitigate session fixation: clear any prior cookie before issuing a new identity.
+        await _signInManager.SignOutAsync();
+        await _signInManager.SignInWithClaimsAsync(user, isPersistent: false, extraClaims);
 
         return Ok(new LoginResponse(
             user.Id,

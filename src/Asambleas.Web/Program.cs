@@ -7,12 +7,15 @@ using Asambleas.Web.Hubs;
 using Asambleas.Web.Middleware;
 using Asambleas.Web.Realtime;
 using Asambleas.Web.Security;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Events;
+using System.Threading.RateLimiting;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -37,12 +40,17 @@ try
         .AddAuthentication(IdentityConstants.ApplicationScheme)
         .AddIdentityCookies();
 
+    var cookieSecure = builder.Environment.IsDevelopment()
+        || string.Equals(builder.Environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase)
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+
     builder.Services.ConfigureApplicationCookie(options =>
     {
         options.Cookie.Name = "asambleas.auth";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Cookie.SecurePolicy = cookieSecure;
         options.SlidingExpiration = true;
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.Events.OnRedirectToLogin = context =>
@@ -54,7 +62,7 @@ try
                 return Task.CompletedTask;
             }
 
-            context.Response.Redirect(context.RedirectUri);
+            context.Response.Redirect("/");
             return Task.CompletedTask;
         };
         options.Events.OnRedirectToAccessDenied = context =>
@@ -66,21 +74,36 @@ try
                 return Task.CompletedTask;
             }
 
-            context.Response.Redirect(context.RedirectUri);
+            context.Response.Redirect("/");
             return Task.CompletedTask;
         };
     });
-
-    builder.Services.AddAsambleasPermissionPolicies();
 
     builder.Services.AddAntiforgery(options =>
     {
         options.HeaderName = "RequestVerificationToken";
         options.Cookie.Name = "asambleas.af";
         options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = cookieSecure;
         options.Cookie.SameSite = SameSiteMode.Lax;
     });
 
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        var permitLimit = builder.Environment.IsDevelopment() ? 200 : 10;
+        options.AddPolicy("auth-login", httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = permitLimit,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                }));
+    });
+
+    builder.Services.AddAsambleasPermissionPolicies();
     builder.Services.AddControllers(options =>
     {
         options.Filters.Add<CookieAntiforgeryFilter>();
@@ -109,26 +132,45 @@ try
     builder.Services.Configure<QuorumOptions>(builder.Configuration.GetSection(QuorumOptions.SectionName));
     builder.Services.Configure<DemoOptions>(builder.Configuration.GetSection(DemoOptions.SectionName));
 
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+
     var app = builder.Build();
 
+    app.UseForwardedHeaders();
+    app.UseMiddleware<CredentialQueryGuardMiddleware>();
     app.UseMiddleware<CorrelationIdMiddleware>();
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseMiddleware<SecurityHeadersMiddleware>();
 
-    app.UseSerilogRequestLogging();
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+        {
+            // Never enrich with raw query when it might contain secrets; path only.
+            diagnosticContext.Set("RequestPath", httpContext.Request.Path.Value ?? string.Empty);
+        };
+    });
 
     if (!app.Environment.IsDevelopment())
     {
         app.UseHsts();
     }
 
-    if (!app.Environment.IsDevelopment())
+    // Behind Nginx, TLS terminates at the proxy. Avoid redirect loops on HTTP pilot ports.
+    var disableHttpsRedirect = app.Configuration.GetValue("ASAMBLEAS_DISABLE_HTTPS_REDIRECT", false);
+    if (!app.Environment.IsDevelopment() && !disableHttpsRedirect)
     {
         app.UseHttpsRedirection();
     }
     app.UseDefaultFiles();
     app.UseStaticFiles();
 
+    app.UseRateLimiter();
     app.UseAuthentication();
     app.UseMiddleware<TenantResolutionMiddleware>();
     app.UseAuthorization();
@@ -146,14 +188,28 @@ try
     app.MapHub<AssemblyHub>("/hubs/assembly");
     app.MapControllers();
 
-    if (app.Environment.IsDevelopment())
+    var applyMigrations = app.Environment.IsDevelopment()
+        || app.Configuration.GetValue("ASAMBLEAS_APPLY_MIGRATIONS", false);
+    var demoOptions = app.Configuration.GetSection(DemoOptions.SectionName).Get<DemoOptions>()
+        ?? new DemoOptions();
+    var seedDemo = demoOptions.Enabled
+        && (app.Environment.IsDevelopment() || app.Configuration.GetValue("Demo:SeedUsers", false));
+    if (applyMigrations || seedDemo)
     {
         using var scope = app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
-        await db.Database.MigrateAsync();
+        if (applyMigrations)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
+            await db.Database.MigrateAsync();
+            Log.Information("EF Core migrations applied");
+        }
 
-        var seeder = scope.ServiceProvider.GetRequiredService<DemoDataSeeder>();
-        await seeder.SeedAsync();
+        if (seedDemo)
+        {
+            var seeder = scope.ServiceProvider.GetRequiredService<DemoDataSeeder>();
+            await seeder.SeedAsync();
+            Log.Information("Demo seed executed");
+        }
     }
 
     await app.RunAsync();

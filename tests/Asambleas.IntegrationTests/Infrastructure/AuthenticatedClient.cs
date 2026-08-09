@@ -1,7 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Asambleas.Contracts.Auth;
-using Asambleas.Infrastructure.Seed;
 
 namespace Asambleas.IntegrationTests.Infrastructure;
 
@@ -37,7 +36,7 @@ public sealed class AuthenticatedClient
 
         var loginResponse = await client.PostAsJsonAsync(
             "/api/auth/login",
-            new LoginRequest(email, password ?? DemoSeedConstants.DemoPassword));
+            new LoginRequest(email, password ?? TestDemoCredentials.Password));
 
         loginResponse.EnsureSuccessStatusCode();
         auth.User = (await loginResponse.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions))!;

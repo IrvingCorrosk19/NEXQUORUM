@@ -16,6 +16,7 @@ secrets.json
 .env
 .env.*
 !.env.example
+.demo-password.local
 *.pfx
 *.key
 user-secrets.json

@@ -27,5 +27,6 @@
   <ItemGroup>
     <Compile Include="..\Asambleas.IntegrationTests\Infrastructure\AsambleasFixture.cs" Link="Infrastructure\AsambleasFixture.cs" />
     <Compile Include="..\Asambleas.IntegrationTests\Infrastructure\AuthenticatedClient.cs" Link="Infrastructure\AuthenticatedClient.cs" />
+    <Compile Include="..\Asambleas.IntegrationTests\Infrastructure\TestDemoCredentials.cs" Link="Infrastructure\TestDemoCredentials.cs" />
   </ItemGroup>
 </Project>

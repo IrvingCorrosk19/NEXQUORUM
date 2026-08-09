@@ -7,7 +7,19 @@ export async function login(email, password) {
     method: "POST",
     body: { email, password }
   });
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+  // Persist identity metadata only — never the password.
+  sessionStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      userId: user.userId,
+      displayName: user.displayName,
+      email: user.email,
+      tenantId: user.tenantId,
+      tenantCode: user.tenantCode,
+      roles: user.roles,
+      permissions: user.permissions
+    })
+  );
   return user;
 }
 
@@ -21,7 +33,18 @@ export async function logout() {
 
 export async function me() {
   const user = await api("/api/auth/me");
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+  sessionStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      userId: user.userId,
+      displayName: user.displayName,
+      email: user.email,
+      tenantId: user.tenantId,
+      tenantCode: user.tenantCode,
+      roles: user.roles,
+      permissions: user.permissions
+    })
+  );
   return user;
 }
 
