@@ -125,6 +125,9 @@ public sealed class AssemblyHub : Hub
         _currentTenant.TenantId = ParseGuid(user, AsambleasClaimTypes.TenantId) ?? Guid.Empty;
         _currentTenant.OrganizationId = ParseGuid(user, AsambleasClaimTypes.OrganizationId);
         _currentTenant.PropertyHorizontalId = ParseGuid(user, AsambleasClaimTypes.PropertyHorizontalId);
+        _currentTenant.DisplayName = user.FindFirstValue(ClaimTypes.Name) ?? user.Identity?.Name;
+        _currentTenant.Roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        _currentTenant.Permissions = user.FindAll(AsambleasClaimTypes.Permission).Select(c => c.Value).Distinct(StringComparer.Ordinal).ToArray();
     }
 
     private Guid RequireUserId()

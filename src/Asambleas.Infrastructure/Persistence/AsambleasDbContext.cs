@@ -75,6 +75,10 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
 
     public DbSet<ReminderRule> ReminderRules => Set<ReminderRule>();
 
+    public DbSet<AssemblyScheduleChange> AssemblyScheduleChanges => Set<AssemblyScheduleChange>();
+
+    public DbSet<AssemblyReminderOccurrence> AssemblyReminderOccurrences => Set<AssemblyReminderOccurrence>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

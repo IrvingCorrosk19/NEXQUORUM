@@ -850,14 +850,44 @@
   }
 }
 
-/* EO-009 media stage */
+/* EO-009 / multi-participant video stage */
 .media-stage-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.75rem;
   width: 100%;
-  max-width: 960px;
+  max-width: 1100px;
   margin-inline: auto;
+  min-height: 12rem;
+  align-content: center;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.media-stage-grid.is-solo {
+  grid-template-columns: 1fr;
+  max-width: 720px;
+}
+.media-stage-grid.is-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.media-stage-grid.is-quad {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.media-stage-grid.is-oct {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+.media-stage-grid.is-crowd {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+.media-stage-grid.view-focus .media-tile.official-speaker,
+.media-stage-grid.view-focus .media-tile.is-speaking {
+  grid-column: 1 / -1;
+  min-height: 18rem;
+}
+.media-empty-hint {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: color-mix(in srgb, var(--text-primary, #e8eef2) 75%, transparent);
+  font-size: 0.95rem;
+  margin: 0.5rem 0 0;
 }
 .media-tile {
   position: relative;
@@ -866,10 +896,44 @@
   border-radius: 0.5rem;
   overflow: hidden;
   border: 2px solid transparent;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.media-tile.is-local .media-tile-video video.is-mirrored,
+.media-tile.is-local .media-tile-video .media-track.is-mirrored {
+  transform: scaleX(-1);
+}
+.media-tile.is-speaking {
+  border-color: color-mix(in srgb, var(--color-teal-400, #4db6ac) 80%, white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-teal-400, #4db6ac) 35%, transparent);
 }
 .media-tile.official-speaker {
   border-color: var(--color-gold, #c4a35a);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-gold, #c4a35a) 40%, transparent);
+}
+.media-tile.official-speaker::before {
+  content: "PALABRA";
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  z-index: 2;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--color-gold, #c4a35a) 92%, black);
+  color: #1a1510;
+}
+.media-tile[data-role="president"] .media-tile-label::after,
+.media-tile[data-role="secretary"] .media-tile-label::after {
+  content: attr(data-role-label);
+  margin-left: 0.35rem;
+  font-size: 0.7em;
+  opacity: 0.85;
+}
+.media-tile.mic-muted .media-tile-indicators::after {
+  content: " mic off";
+  opacity: 0.85;
 }
 .media-tile-video video,
 .media-tile-video .media-track {
@@ -877,6 +941,13 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+.media-tile-video audio {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 .media-tile.camera-off .media-tile-avatar,
 .media-tile:not(.has-video) .media-tile-avatar {
@@ -899,6 +970,10 @@
   background: rgba(0,0,0,0.55);
   color: #fff;
   font-size: 0.8rem;
+  max-width: calc(100% - 1rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .media-tile-indicators {
   position: absolute;
@@ -909,6 +984,20 @@
   background: rgba(0,0,0,0.45);
   padding: 0.1rem 0.35rem;
   border-radius: 0.25rem;
+}
+@media (max-width: 720px) {
+  .media-stage-grid.is-pair,
+  .media-stage-grid.is-quad,
+  .media-stage-grid.is-oct {
+    grid-template-columns: 1fr;
+  }
+  .media-stage-grid.view-focus .media-tile:not(.official-speaker):not(.is-speaking) {
+    display: none;
+  }
+  .media-stage-grid.view-focus .media-tile.official-speaker,
+  .media-stage-grid.view-focus .media-tile.is-speaking {
+    display: block;
+  }
 }
 .media-control-bar {
   display: flex;

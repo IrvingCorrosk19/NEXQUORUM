@@ -10,11 +10,18 @@ let micAnalyser = null;
 let micAudioCtx = null;
 let mediaIncidents = [];
 let onIncidentChange = null;
-let mediaConnectionState = "idle"; // idle | connecting | connected | reconnecting | disconnected | governance-only
+let mediaConnectionState = "idle";
 let localPublishIntent = { camera: false, mic: false };
+let mediaContainer = null;
+let officialSpeakerIdentity = null;
+let viewMode = "grid"; // grid | focus
 
 export function getMediaConnectionState() {
   return mediaConnectionState;
+}
+
+export function getMediaViewMode() {
+  return viewMode;
 }
 
 export function setIncidentHandler(handler) {
@@ -71,8 +78,9 @@ export async function enumerateMediaDevices() {
     return { cameras: [], mics: [], speakers: [], supportsSinkId: false };
   }
   const devices = await navigator.mediaDevices.enumerateDevices();
-  const supportsSinkId = typeof HTMLMediaElement !== "undefined"
-    && typeof HTMLMediaElement.prototype.setSinkId === "function";
+  const supportsSinkId =
+    typeof HTMLMediaElement !== "undefined" &&
+    typeof HTMLMediaElement.prototype.setSinkId === "function";
   return {
     cameras: devices.filter((d) => d.kind === "videoinput"),
     mics: devices.filter((d) => d.kind === "audioinput"),
@@ -86,7 +94,7 @@ function constraintsFromPrefs({ camera = true, mic = true } = {}) {
   const video = camera
     ? prefs.cameraId
       ? { deviceId: { ideal: prefs.cameraId } }
-      : true
+      : { facingMode: "user" }
     : false;
   const audio = mic
     ? prefs.micId
@@ -96,9 +104,6 @@ function constraintsFromPrefs({ camera = true, mic = true } = {}) {
   return { video, audio };
 }
 
-/**
- * Device preview via getUserMedia. Does not fake remote participants.
- */
 export async function startDevicePreview(videoEl, { camera = true, mic = true } = {}) {
   stopDevicePreview(videoEl);
   stopMicMeter();
@@ -122,6 +127,7 @@ export async function startDevicePreview(videoEl, { camera = true, mic = true } 
     if (videoEl) {
       videoEl.srcObject = previewStream;
       videoEl.muted = true;
+      videoEl.playsInline = true;
       await videoEl.play().catch(() => {});
     }
 
@@ -156,9 +162,7 @@ export async function startDevicePreview(videoEl, { camera = true, mic = true } 
 }
 
 export function setPreviewTracks({ camera, mic }) {
-  if (!previewStream) {
-    return;
-  }
+  if (!previewStream) return;
   previewStream.getVideoTracks().forEach((tr) => {
     tr.enabled = Boolean(camera);
   });
@@ -173,9 +177,7 @@ export function stopDevicePreview(videoEl) {
     previewStream.getTracks().forEach((tr) => tr.stop());
     previewStream = null;
   }
-  if (videoEl) {
-    videoEl.srcObject = null;
-  }
+  if (videoEl) videoEl.srcObject = null;
 }
 
 function startMicMeter(stream) {
@@ -198,7 +200,6 @@ function stopMicMeter() {
   micAnalyser = null;
 }
 
-/** @returns {number} 0..1 */
 export function getMicLevel() {
   if (!micAnalyser) return 0;
   const data = new Uint8Array(micAnalyser.frequencyBinCount);
@@ -212,7 +213,38 @@ function setMediaState(next) {
   mediaConnectionState = next;
 }
 
-function ensureTile(container, identity, label) {
+function updateGridLayout(container) {
+  if (!container) return;
+  const tiles = [...container.querySelectorAll(".media-tile")];
+  const n = tiles.length;
+  container.dataset.count = String(n);
+  container.classList.toggle("is-empty", n === 0);
+  container.classList.toggle("is-solo", n === 1);
+  container.classList.toggle("is-pair", n === 2);
+  container.classList.toggle("is-quad", n >= 3 && n <= 4);
+  container.classList.toggle("is-oct", n >= 5 && n <= 8);
+  container.classList.toggle("is-crowd", n > 8);
+  container.classList.toggle("view-focus", viewMode === "focus");
+  container.classList.toggle("view-grid", viewMode === "grid");
+
+  let empty = container.querySelector(".media-empty-hint");
+  if (n <= 1) {
+    if (!empty) {
+      empty = document.createElement("p");
+      empty.className = "media-empty-hint";
+      empty.setAttribute("role", "status");
+      container.appendChild(empty);
+    }
+    empty.textContent =
+      n === 0
+        ? t("media.waitingParticipants") || "Esperando participantes…"
+        : t("media.firstParticipant") || "Eres el primer participante. Esperando a los demás…";
+  } else if (empty) {
+    empty.remove();
+  }
+}
+
+function ensureTile(container, identity, label, { isLocal = false } = {}) {
   let tile = container.querySelector(`[data-identity="${CSS.escape(identity)}"]`);
   if (!tile) {
     tile = document.createElement("article");
@@ -225,8 +257,11 @@ function ensureTile(container, identity, label) {
       <div class="media-tile-indicators" aria-hidden="true"></div>`;
     container.appendChild(tile);
   }
+  tile.classList.toggle("is-local", isLocal);
   const labelEl = tile.querySelector(".media-tile-label");
-  if (labelEl) labelEl.textContent = label || identity.slice(0, 8);
+  const display =
+    (isLocal ? `${t("media.you") || "Tú"} · ` : "") + (label || identity.slice(0, 8));
+  if (labelEl) labelEl.textContent = display;
   const avatar = tile.querySelector(".media-tile-avatar");
   if (avatar) {
     const initials = (label || "?")
@@ -236,31 +271,76 @@ function ensureTile(container, identity, label) {
       .join("");
     avatar.textContent = initials || "?";
   }
+  if (officialSpeakerIdentity && identity === officialSpeakerIdentity) {
+    tile.classList.add("official-speaker");
+  }
+  updateGridLayout(container);
   return tile;
 }
 
-function attachTrackToTile(tile, track) {
+function attachTrackToTile(tile, track, { mirror = false } = {}) {
   const mount = tile.querySelector(".media-tile-video");
   if (!mount) return;
   const el = track.attach();
   el.classList.add("media-track");
+  el.playsInline = true;
   if (track.kind === "video") {
     mount.querySelectorAll("video").forEach((v) => v.remove());
+    el.classList.toggle("is-mirrored", mirror);
     mount.appendChild(el);
     tile.classList.add("has-video");
     tile.classList.remove("camera-off");
-  } else {
+    el.play?.().catch(() => {});
+  } else if (track.kind === "audio") {
+    mount.querySelectorAll("audio").forEach((a) => a.remove());
+    el.autoplay = true;
     mount.appendChild(el);
+    el.play?.().catch(() => {
+      pushIncident("audio-autoplay", t("media.tapToEnableAudio") || "Toca para habilitar audio", "warn");
+    });
   }
 }
 
+function detachTrack(track) {
+  track.detach().forEach((el) => el.remove());
+}
+
+function syncParticipantPublications(container, participant) {
+  const tile = ensureTile(
+    container,
+    participant.identity,
+    participant.name || participant.identity,
+    { isLocal: participant.isLocal }
+  );
+  for (const pub of participant.trackPublications.values()) {
+    if (!pub.track) continue;
+    if (!participant.isLocal && pub.isSubscribed === false) continue;
+    attachTrackToTile(tile, pub.track, { mirror: participant.isLocal && pub.kind === "video" });
+  }
+  const camOff = ![...participant.trackPublications.values()].some(
+    (p) => p.kind === "video" && p.track && !p.isMuted
+  );
+  tile.classList.toggle("camera-off", camOff);
+  tile.classList.toggle("has-video", !camOff);
+  tile.classList.toggle(
+    "mic-muted",
+    ![...participant.trackPublications.values()].some(
+      (p) => p.kind === "audio" && p.track && !p.isMuted
+    )
+  );
+}
+
 function mapQuality(q) {
-  // LiveKit ConnectionQuality: Excellent=1 Good=2 Poor=3 Lost=4 Unknown=0 (SDK may vary)
   const n = typeof q === "number" ? q : 0;
   if (n <= 1) return t("connection.excellent");
   if (n === 2) return t("connection.good");
   if (n === 3) return t("connection.unstable");
   return t("connection.veryUnstable");
+}
+
+export function setMediaViewMode(mode) {
+  viewMode = mode === "focus" ? "focus" : "grid";
+  if (mediaContainer) updateGridLayout(mediaContainer);
 }
 
 /**
@@ -274,9 +354,11 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
     return null;
   }
 
-  const { Room, RoomEvent, Track, ConnectionState } = window.LivekitClient;
+  const { Room, RoomEvent } = window.LivekitClient;
   await disconnectLiveKit();
 
+  mediaContainer = container;
+  officialSpeakerIdentity = options.officialSpeakerIdentity || null;
   liveKitRoom = new Room({
     adaptiveStream: true,
     dynacast: true
@@ -284,9 +366,8 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
 
   setMediaState("connecting");
   container.innerHTML = "";
-  container.classList.add("media-stage-grid");
-
-  const officialIdentity = options.officialSpeakerIdentity || null;
+  container.classList.add("media-stage-grid", "view-grid");
+  updateGridLayout(container);
 
   liveKitRoom.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
     const tile = ensureTile(
@@ -295,17 +376,40 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
       participant.name || participant.identity
     );
     attachTrackToTile(tile, track);
-    if (officialIdentity && participant.identity === officialIdentity) {
-      tile.classList.add("official-speaker");
+  });
+
+  liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => {
+    detachTrack(track);
+    const tile = container.querySelector(`[data-identity="${CSS.escape(participant.identity)}"]`);
+    if (tile && track.kind === "video") {
+      tile.classList.remove("has-video");
+      tile.classList.add("camera-off");
     }
   });
 
-  liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
-    track.detach().forEach((el) => el.remove());
+  liveKitRoom.on(RoomEvent.LocalTrackPublished, (pub, participant) => {
+    if (!pub.track) return;
+    const tile = ensureTile(
+      container,
+      participant.identity,
+      participant.name || t("media.you") || "Tú",
+      { isLocal: true }
+    );
+    attachTrackToTile(tile, pub.track, { mirror: pub.kind === "video" });
+  });
+
+  liveKitRoom.on(RoomEvent.LocalTrackUnpublished, (pub) => {
+    if (pub.track) detachTrack(pub.track);
+  });
+
+  liveKitRoom.on(RoomEvent.ParticipantConnected, (participant) => {
+    ensureTile(container, participant.identity, participant.name || participant.identity);
+    clearIncident(`media-disconnect-${participant.identity}`);
   });
 
   liveKitRoom.on(RoomEvent.ParticipantDisconnected, (participant) => {
     container.querySelector(`[data-identity="${CSS.escape(participant.identity)}"]`)?.remove();
+    updateGridLayout(container);
     pushIncident(
       `media-disconnect-${participant.identity}`,
       t("media.participantMediaIssue", { name: participant.name || participant.identity }),
@@ -313,16 +417,21 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
     );
   });
 
+  liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+    const ids = new Set(speakers.map((s) => s.identity));
+    container.querySelectorAll(".media-tile").forEach((tile) => {
+      tile.classList.toggle("is-speaking", ids.has(tile.dataset.identity));
+    });
+  });
+
   liveKitRoom.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
-    if (!participant?.isLocal) return;
-    const human = mapQuality(quality);
+    if (!participant) return;
     const tile = container.querySelector(`[data-identity="${CSS.escape(participant.identity)}"]`);
     const ind = tile?.querySelector(".media-tile-indicators");
-    if (ind) ind.textContent = human;
-    if (quality >= 3) {
-      pushIncident("local-quality", t("media.unstableConnection"), "warn");
-    } else {
-      clearIncident("local-quality");
+    if (ind) ind.textContent = mapQuality(quality);
+    if (participant.isLocal) {
+      if (quality >= 3) pushIncident("local-quality", t("media.unstableConnection"), "warn");
+      else clearIncident("local-quality");
     }
   });
 
@@ -346,19 +455,28 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
     setMediaState("connected");
     clearIncident("media-down");
 
-    // Local tile
     const local = liveKitRoom.localParticipant;
-    ensureTile(container, local.identity, local.name || t("media.you"));
+    ensureTile(container, local.identity, local.name || t("media.you") || "Tú", {
+      isLocal: true
+    });
 
-    // Owners start muted unless caller enables; moderators may publish immediately.
+    // Attach any already-subscribed remote tracks (race after connect).
+    for (const participant of liveKitRoom.remoteParticipants.values()) {
+      syncParticipantPublications(container, participant);
+    }
+    syncParticipantPublications(container, local);
+
     localPublishIntent = {
       camera: Boolean(options.enableCamera),
       mic: Boolean(options.enableMic)
     };
     if (joinInfo.canPublish) {
       await applyLocalPublish(localPublishIntent);
+    } else {
+      pushIncident("no-publish", t("media.publishFailed"), "warn");
     }
 
+    updateGridLayout(container);
     return liveKitRoom;
   } catch (error) {
     setMediaState("governance-only");
@@ -373,12 +491,14 @@ async function applyLocalPublish({ camera, mic }) {
   try {
     await liveKitRoom.localParticipant.setCameraEnabled(Boolean(camera));
     await liveKitRoom.localParticipant.setMicrophoneEnabled(Boolean(mic));
-    const tile = document.querySelector(
-      `.media-stage-grid [data-identity="${CSS.escape(liveKitRoom.localParticipant.identity)}"]`
+    const tile = mediaContainer?.querySelector(
+      `[data-identity="${CSS.escape(liveKitRoom.localParticipant.identity)}"]`
     );
     if (tile) {
       tile.classList.toggle("camera-off", !camera);
       tile.classList.toggle("mic-muted", !mic);
+      if (camera) tile.classList.add("has-video");
+      else tile.classList.remove("has-video");
     }
     clearIncident("publish-fail");
     return { ok: true };
@@ -400,15 +520,18 @@ export async function setLocalMicrophoneEnabled(enabled) {
 
 export async function refreshMediaToken(assemblyId, container, options = {}) {
   const token = await fetchJoinToken(assemblyId);
-  // Reconnect with new grants when publish capability changes.
   return connectLiveKit(container, token, options);
 }
 
 export function highlightOfficialSpeaker(container, identity) {
+  officialSpeakerIdentity = identity;
   if (!container) return;
   container.querySelectorAll(".media-tile").forEach((tile) => {
-    tile.classList.toggle("official-speaker", tile.dataset.identity === identity);
+    const isOfficial = tile.dataset.identity === identity;
+    tile.classList.toggle("official-speaker", isOfficial);
+    tile.classList.toggle("is-stage", viewMode === "focus" && isOfficial);
   });
+  updateGridLayout(container);
 }
 
 export async function disconnectLiveKit() {
@@ -420,6 +543,7 @@ export async function disconnectLiveKit() {
     }
     liveKitRoom = null;
   }
+  mediaContainer = null;
   setMediaState("idle");
 }
 
@@ -427,10 +551,9 @@ export function renderGovernanceOnly(container, reason) {
   if (!container) return;
   setMediaState("governance-only");
   const raw = String(reason || "");
-  const human =
-    /livekit|meeting provider|not configured/i.test(raw)
-      ? t("lobby.avBlocked")
-      : raw || t("lobby.avBlocked");
+  const human = /livekit|meeting provider|not configured/i.test(raw)
+    ? t("lobby.avBlocked")
+    : raw || t("lobby.avBlocked");
   container.innerHTML = `
     <div class="empty-state av-blocked governance-only" role="status" data-media="governance-only">
       <p class="empty-state-what">${escapeHtml(human)}</p>
@@ -440,7 +563,6 @@ export function renderGovernanceOnly(container, reason) {
   `;
 }
 
-/** Honest A/V blocked UI — never invents remote video tiles. */
 export function renderAvBlocked(container, reason) {
   renderGovernanceOnly(container, reason);
 }
@@ -460,4 +582,18 @@ export function getLiveKitParticipantCounts() {
     }
   }
   return { connected: parts.length, mics, cameras };
+}
+
+/** Unlock audio after a user gesture when browser blocks autoplay. */
+export async function unlockRemoteAudio() {
+  if (!mediaContainer) return;
+  const audios = mediaContainer.querySelectorAll("audio");
+  for (const a of audios) {
+    try {
+      await a.play();
+    } catch {
+      /* ignore */
+    }
+  }
+  clearIncident("audio-autoplay");
 }

@@ -11,4 +11,10 @@ public interface ICurrentTenant
     Guid? UserId { get; }
 
     bool IsAuthenticated { get; }
+
+    string? DisplayName { get; }
+
+    IReadOnlyList<string> Roles { get; }
+
+    IReadOnlyList<string> Permissions { get; }
 }

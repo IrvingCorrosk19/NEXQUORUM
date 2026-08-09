@@ -13,8 +13,13 @@ internal sealed class AssemblyConfiguration : IEntityTypeConfiguration<AssemblyE
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Title).HasMaxLength(512).IsRequired();
         builder.Property(x => x.Modality).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.AssemblyKind).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.LocationText).HasMaxLength(512);
+        builder.Property(x => x.Notes).HasMaxLength(4000);
+        builder.Property(x => x.CancelReason).HasMaxLength(2000);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.RequiredQuorumPercent).HasPrecision(7, 4);
+        builder.HasIndex(x => x.ScheduledAtUtc);
         builder.Property(x => x.RowVersion).IsRowVersion();
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.PropertyHorizontalId);

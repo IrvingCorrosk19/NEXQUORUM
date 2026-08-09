@@ -23,11 +23,12 @@ import {
   highlightOfficialSpeaker,
   listIncidents,
   loadDevicePrefs,
-  refreshMediaToken,
   renderAvBlocked,
   setIncidentHandler,
   setLocalCameraEnabled,
-  setLocalMicrophoneEnabled
+  setLocalMicrophoneEnabled,
+  setMediaViewMode,
+  unlockRemoteAudio
 } from "./meeting.js";
 import { initI18n, statusLabel, t } from "../i18n/i18n.js";
 import {
@@ -170,8 +171,9 @@ function renderMediaCockpit() {
   const problems = listIncidents().length;
   el.hidden = false;
   el.innerHTML = `
-    <strong>MEDIA</strong>
-    <span>${escapeHtml(t("media.connected"))}: ${media.connected} / ${attendance}</span>
+    <strong>${escapeHtml(t("media.liveKitLabel") || "LiveKit media")}</strong>
+    <span>${escapeHtml(t("media.connected"))}: ${media.connected}</span>
+    <span>${escapeHtml(t("assembly.hybridPresent") || "Attendance")}: ${attendance}</span>
     <span>${escapeHtml(t("media.problems"))}: ${problems}</span>
     <span>${escapeHtml(t("media.activeMics"))}: ${media.mics}</span>
     <span>${escapeHtml(t("media.cameras"))}: ${media.cameras}</span>`;
@@ -192,6 +194,24 @@ function renderIncidentStrip() {
     .join("");
 }
 
+function annotateMediaRoleBadges(items) {
+  if (!els.video) return;
+  for (const p of items) {
+    const identity = String(p.userId || "").replace(/-/g, "").toLowerCase();
+    if (!identity) continue;
+    const tile = els.video.querySelector(`[data-identity="${CSS.escape(identity)}"]`);
+    if (!tile) continue;
+    const role = String(p.roleCode || "").toLowerCase();
+    if (role.includes("president")) {
+      tile.dataset.role = "president";
+      tile.querySelector(".media-tile-label")?.setAttribute("data-role-label", "· Presidente");
+    } else if (role.includes("secretary")) {
+      tile.dataset.role = "secretary";
+      tile.querySelector(".media-tile-label")?.setAttribute("data-role-label", "· Secretario");
+    }
+  }
+}
+
 function renderParticipants() {
   if (!els.participants) return;
   const items = [...state.participants.values()];
@@ -204,6 +224,7 @@ function renderParticipants() {
 
   renderHybridCockpit(items);
   renderMediaCockpit();
+  annotateMediaRoleBadges(items);
 
   if (!items.length) {
     els.participants.innerHTML = emptyState(
@@ -707,28 +728,28 @@ function syncOfficialSpeakerHighlight() {
 }
 
 async function syncPublishForFloor() {
-  const { current } = syncOfficialSpeakerHighlight();
+  // Governance floor ≠ LiveKit publish gate. Do not mute/reconnect others when
+  // the president grants the floor — only highlight + optionally unmute the holder.
+  const { current, identity } = syncOfficialSpeakerHighlight();
   const mine = current && state.user && current.userId === state.user.userId;
-  const prefs = loadDevicePrefs();
-  if (mine || state.viewerRole === "Operator") {
+  if (identity) {
+    setMediaViewMode("focus");
+  } else {
+    setMediaViewMode("grid");
+  }
+  if (mine) {
     try {
-      await refreshMediaToken(assemblyId, els.video, {
-        enableCamera: Boolean(prefs.cameraEnabled),
-        enableMic: mine ? true : Boolean(prefs.micEnabled),
-        officialSpeakerIdentity: current?.userId
-          ? String(current.userId).replace(/-/g, "")
-          : null
-      });
-      if (mine) {
-        await setLocalMicrophoneEnabled(true);
-        showToast(t("media.floorMicEnabled"), "success");
+      await setLocalMicrophoneEnabled(true);
+      const micBtn = qs("#btn-mic");
+      if (micBtn) {
+        micBtn.setAttribute("aria-pressed", "true");
+        micBtn.setAttribute("aria-label", t("lobby.muteMic"));
       }
+      showToast(t("media.floorMicEnabled"), "success");
     } catch (error) {
       showToast(error.message || t("media.publishFailed"), "error");
       renderIncidentStrip();
     }
-  } else {
-    await setLocalMicrophoneEnabled(false);
   }
   renderMediaCockpit();
   renderIncidentStrip();
@@ -772,6 +793,7 @@ async function bootstrapMeeting() {
         micBtn.setAttribute("aria-label", next ? t("lobby.muteMic") : t("lobby.unmuteMic"));
         const result = await setLocalMicrophoneEnabled(next);
         if (!result.ok) showToast(t("media.publishFailed"), "warn");
+        await unlockRemoteAudio();
       });
     }
     if (camBtn) {
@@ -781,8 +803,45 @@ async function bootstrapMeeting() {
         camBtn.setAttribute("aria-label", next ? t("lobby.turnCameraOff") : t("lobby.turnCameraOn"));
         const result = await setLocalCameraEnabled(next);
         if (!result.ok) showToast(t("media.publishFailed"), "warn");
+        await unlockRemoteAudio();
       });
     }
+    qs("#btn-view-grid")?.addEventListener("click", () => {
+      setMediaViewMode("grid");
+      qs("#btn-view-grid")?.setAttribute("aria-pressed", "true");
+      qs("#btn-view-focus")?.setAttribute("aria-pressed", "false");
+    });
+    qs("#btn-view-focus")?.addEventListener("click", () => {
+      setMediaViewMode("focus");
+      qs("#btn-view-grid")?.setAttribute("aria-pressed", "false");
+      qs("#btn-view-focus")?.setAttribute("aria-pressed", "true");
+    });
+    qs("#btn-media-fullscreen")?.addEventListener("click", async () => {
+      const stage = qs(".video-stage");
+      if (!stage) return;
+      try {
+        if (!document.fullscreenElement) await stage.requestFullscreen();
+        else await document.exitFullscreen();
+      } catch {
+        showToast(t("media.fullscreenUnavailable") || "Fullscreen unavailable", "warn");
+      }
+    });
+    qs("#btn-leave-media")?.addEventListener("click", async () => {
+      await disconnectLiveKit();
+      if (els.video) {
+        els.video.innerHTML = `<div class="empty-state" role="status"><p>${escapeHtml(t("media.leftMedia") || "Audio/video desconectado.")}</p><p class="muted">${escapeHtml(t("media.governanceOnly"))}</p></div>`;
+      }
+      updateMediaConnectionBanner();
+      renderMediaCockpit();
+    });
+    // First user gesture unlocks remote audio autoplay policies.
+    document.addEventListener(
+      "pointerdown",
+      () => {
+        unlockRemoteAudio().catch(() => {});
+      },
+      { once: true, passive: true }
+    );
   }
 
   try {
@@ -795,14 +854,24 @@ async function bootstrapMeeting() {
 
     const token = await fetchJoinToken(assemblyId);
     const { identity } = syncOfficialSpeakerHighlight();
+    const canPublish = Boolean(token.canPublish);
+    // Default on when lobby prefs were never set (direct room entry / automation).
+    const wantCam = prefs.cameraEnabled !== false;
+    const wantMic = prefs.micEnabled !== false;
+    // Multi-participant video: any joiner with canPublish may enable cam/mic from lobby prefs.
+    // Governance floor remains a separate highlight (not a publish gate).
     await connectLiveKit(els.video, token, {
-      enableCamera: Boolean(prefs.cameraEnabled) && Boolean(token.canPublish),
-      // Owners start muted; moderators may enable from prefs.
-      enableMic: state.viewerRole === "Operator" ? Boolean(prefs.micEnabled) : false,
+      enableCamera: wantCam && canPublish,
+      enableMic: wantMic && canPublish,
       officialSpeakerIdentity: identity
     });
-    if (micBtn) micBtn.setAttribute("aria-pressed", "false");
-    if (camBtn) camBtn.setAttribute("aria-pressed", String(Boolean(prefs.cameraEnabled)));
+    if (micBtn) {
+      micBtn.setAttribute("aria-pressed", String(wantMic && canPublish));
+    }
+    if (camBtn) {
+      camBtn.setAttribute("aria-pressed", String(wantCam && canPublish));
+    }
+    if (identity) setMediaViewMode("focus");
   } catch (error) {
     renderAvBlocked(els.video, error.message || t("lobby.avBlocked"));
   }

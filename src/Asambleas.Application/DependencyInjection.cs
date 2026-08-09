@@ -5,6 +5,7 @@ using Asambleas.Application.Agenda;
 using Asambleas.Application.Assembly;
 using Asambleas.Application.Attendance;
 using Asambleas.Application.Audit;
+using Asambleas.Application.Calendar;
 using Asambleas.Application.Communications;
 using Asambleas.Application.Evidence;
 using Asambleas.Application.Meeting;
@@ -39,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<VotingService>();
         services.AddScoped<MeetingService>();
         services.AddScoped<AssemblyEvidenceService>();
+        services.AddScoped<CalendarSchedulingService>();
         services.AddScoped<CommunicationConfigurationService>();
         services.AddScoped<DeliveryDispatchService>();
         services.AddScoped<ConvocationService>();

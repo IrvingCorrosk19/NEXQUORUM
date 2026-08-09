@@ -122,10 +122,16 @@ export default {
     floorMicEnabled: "Tiene la palabra: micrófono habilitado.",
     unstableConnection: "Tu conexión está inestable. Ajustamos la calidad para mantenerte conectado.",
     participantMediaIssue: "{name} — problema de medios",
-    connected: "Conectados",
+    connected: "Conectados (media)",
     problems: "Con problema",
     activeMics: "Mic activos",
-    cameras: "Cámaras"
+    cameras: "Cámaras",
+    firstParticipant: "Eres el primer participante. Esperando a los demás…",
+    waitingParticipants: "Esperando participantes…",
+    tapToEnableAudio: "Toca la pantalla para habilitar el audio remoto",
+    liveKitLabel: "LiveKit media",
+    leftMedia: "Audio/video desconectado. La gobernanza sigue activa.",
+    fullscreenUnavailable: "Pantalla completa no disponible en este navegador"
   },
 
   assembly: {

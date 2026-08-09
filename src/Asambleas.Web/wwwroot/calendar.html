@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASAMBLEAS — Calendario</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=cal1" />
+  <link rel="stylesheet" href="/css/base.css?v=cal1" />
+  <link rel="stylesheet" href="/css/components.css?v=cal1" />
+  <link rel="stylesheet" href="/css/loading.css?v=cal1" />
+  <link rel="stylesheet" href="/css/calendar.css?v=cal2" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <div class="app-shell">
+    <aside class="app-nav" aria-label="Navegación">
+      <div>
+        <h1 class="brand">ASAMBLEAS</h1>
+        <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
+      </div>
+      <nav>
+        <a href="/dashboard.html">Panel</a>
+        <a href="/calendar.html" aria-current="page">Calendario</a>
+        <a id="nav-comms" href="#">Comunicaciones</a>
+        <a id="nav-convocation" href="#">Convocatoria</a>
+        <a id="nav-checkin" href="#">Acreditación</a>
+        <a id="nav-lobby" href="#">Lobby</a>
+        <a id="nav-assembly" href="#">Sala</a>
+        <a id="nav-evidence" href="#">Evidencias</a>
+        <a id="nav-minutes" href="#">Actas</a>
+      </nav>
+    </aside>
+
+    <header class="app-top" role="banner">
+      <div class="cluster">
+        <span class="command-eyebrow">Scheduling Center</span>
+        <span id="conn-chip" class="badge badge-live">Calendario</span>
+      </div>
+      <div class="cluster">
+        <span id="user-chip" class="badge badge-live"></span>
+        <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
+      </div>
+    </header>
+
+    <main id="main" class="app-workspace page-main calendar-page">
+      <div id="page-alert" class="alert" hidden role="alert"></div>
+      <div id="calendar-loading" class="calendar-loading" hidden role="status">Cargando calendario…</div>
+
+      <section id="next-assembly-banner" class="next-assembly-banner" aria-live="polite"></section>
+
+      <section class="page-hero calendar-hero">
+        <div>
+          <p class="command-eyebrow">Ciclo de vida</p>
+          <h1 class="brand-inline">Calendario de Asambleas</h1>
+        </div>
+        <div class="cluster calendar-toolbar">
+          <button type="button" id="btn-schedule" class="btn btn-primary" hidden>Agendar asamblea</button>
+        </div>
+      </section>
+
+      <div class="calendar-controls">
+        <div class="view-toggle" role="group" aria-label="Vista de calendario">
+          <button type="button" data-view="month" class="btn btn-ghost" aria-pressed="true">Mes</button>
+          <button type="button" data-view="week" class="btn btn-ghost" aria-pressed="false">Semana</button>
+          <button type="button" data-view="agenda" class="btn btn-ghost" aria-pressed="false">Agenda</button>
+          <button type="button" data-view="upcoming" class="btn btn-ghost" aria-pressed="false">Próximas</button>
+        </div>
+        <div class="cluster calendar-nav-range">
+          <button type="button" id="btn-prev" class="btn btn-ghost" aria-label="Periodo anterior">←</button>
+          <strong id="range-label"></strong>
+          <button type="button" id="btn-next" class="btn btn-ghost" aria-label="Periodo siguiente">→</button>
+          <button type="button" id="btn-today" class="btn btn-secondary">Hoy</button>
+        </div>
+        <div class="cluster calendar-filters">
+          <label class="sr-only" for="filter-status">Estado</label>
+          <select id="filter-status" class="input">
+            <option value="">Todos los estados</option>
+            <option value="Scheduled">Programada</option>
+            <option value="CheckIn">Acreditación</option>
+            <option value="InProgress">En vivo</option>
+            <option value="Completed">Finalizada</option>
+            <option value="Cancelled">Cancelada</option>
+          </select>
+          <label class="sr-only" for="filter-modality">Modalidad</label>
+          <select id="filter-modality" class="input">
+            <option value="">Todas las modalidades</option>
+            <option value="VIRTUAL">Virtual</option>
+            <option value="PRESENCIAL">Presencial</option>
+            <option value="HIBRIDA">Híbrida</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="calendar-root" class="calendar-root" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <aside id="event-drawer" class="event-drawer" hidden aria-hidden="true">
+    <div class="event-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+      <header class="event-drawer-head">
+        <p class="command-eyebrow" id="drawer-status"></p>
+        <h2 id="drawer-title"></h2>
+        <button type="button" id="drawer-close" class="btn btn-ghost" aria-label="Cerrar">✕</button>
+      </header>
+      <div id="drawer-body" class="event-drawer-body"></div>
+      <footer id="drawer-actions" class="event-drawer-actions"></footer>
+    </div>
+  </aside>
+
+  <div id="schedule-dialog" class="cal-dialog" hidden>
+    <form id="schedule-form" class="cal-dialog-panel" role="dialog" aria-labelledby="schedule-title">
+      <h2 id="schedule-title">Agendar asamblea</h2>
+      <label>Nombre<input name="title" class="input" required maxlength="512" /></label>
+      <label>Tipo
+        <select name="assemblyKind" class="input">
+          <option value="ORDINARY">Ordinaria</option>
+          <option value="EXTRAORDINARY">Extraordinaria</option>
+          <option value="OTHER">Otra</option>
+        </select>
+      </label>
+      <label>PH (Property Horizontal Id)<input name="propertyHorizontalId" class="input" required /></label>
+      <label>Inicio (UTC ISO)<input name="scheduledAtUtc" class="input" type="datetime-local" required /></label>
+      <label>Fin estimado<input name="estimatedEndAtUtc" class="input" type="datetime-local" /></label>
+      <label>Modalidad
+        <select name="modality" class="input">
+          <option value="VIRTUAL">Virtual</option>
+          <option value="PRESENCIAL">Presencial</option>
+          <option value="HIBRIDA">Híbrida</option>
+        </select>
+      </label>
+      <label>Ubicación<input name="locationText" class="input" maxlength="512" /></label>
+      <label>Lobby abre (minutos antes)<input name="joinWindowMinutesBefore" class="input" type="number" min="0" max="1440" value="30" /></label>
+      <label>Notas<textarea name="notes" class="input" rows="3"></textarea></label>
+      <div class="cluster">
+        <button type="button" class="btn btn-ghost" data-close="schedule-dialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="reschedule-dialog" class="cal-dialog" hidden>
+    <form id="reschedule-form" class="cal-dialog-panel" role="dialog" aria-labelledby="reschedule-title">
+      <h2 id="reschedule-title">Reagendar asamblea</h2>
+      <p id="reschedule-current" class="muted"></p>
+      <label>Nueva fecha/hora<input name="newScheduledAtUtc" class="input" type="datetime-local" required /></label>
+      <label>Motivo<textarea name="reason" class="input" rows="3" required minlength="3"></textarea></label>
+      <div id="reschedule-impact" class="impact-box" hidden></div>
+      <label class="cluster"><input type="checkbox" name="notifyParticipants" /> Ofrecer notificación de cambio (no envío ciego)</label>
+      <div class="cluster">
+        <button type="button" class="btn btn-ghost" data-close="reschedule-dialog">Cancelar</button>
+        <button type="button" id="btn-review-impact" class="btn btn-secondary">Revisar impacto</button>
+        <button type="submit" class="btn btn-primary">Confirmar reagendo</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="cancel-dialog" class="cal-dialog" hidden>
+    <form id="cancel-form" class="cal-dialog-panel" role="dialog" aria-labelledby="cancel-title">
+      <h2 id="cancel-title">Cancelar asamblea</h2>
+      <label>Motivo<textarea name="reason" class="input" rows="3" required minlength="3"></textarea></label>
+      <div class="cluster">
+        <button type="button" class="btn btn-ghost" data-close="cancel-dialog">Volver</button>
+        <button type="submit" class="btn btn-danger">Confirmar cancelación</button>
+      </div>
+    </form>
+  </div>
+
+  <script type="module" src="/js/modules/calendar-app.js?v=cal1"></script>
+</body>
+</html>

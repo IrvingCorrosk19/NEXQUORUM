@@ -6,6 +6,10 @@ public static class Permissions
     public const string AssemblyManage = "assembly:manage";
     public const string AssemblyStart = "assembly:start";
     public const string AssemblyClose = "assembly:close";
+    public const string AssemblySchedule = "assembly:schedule";
+    public const string AssemblyReschedule = "assembly:reschedule";
+    public const string AssemblyCancel = "assembly:cancel";
+    public const string CalendarView = "calendar:view";
 
     public const string AttendanceView = "attendance:view";
     public const string AttendanceManage = "attendance:manage";
@@ -45,6 +49,10 @@ public static class Permissions
         AssemblyManage,
         AssemblyStart,
         AssemblyClose,
+        AssemblySchedule,
+        AssemblyReschedule,
+        AssemblyCancel,
+        CalendarView,
         AttendanceView,
         AttendanceManage,
         QuorumView,

@@ -24,6 +24,9 @@ public sealed class TenantResolutionMiddleware
             currentTenant.TenantId = ParseGuid(user, AsambleasClaimTypes.TenantId) ?? Guid.Empty;
             currentTenant.OrganizationId = ParseGuid(user, AsambleasClaimTypes.OrganizationId);
             currentTenant.PropertyHorizontalId = ParseGuid(user, AsambleasClaimTypes.PropertyHorizontalId);
+            currentTenant.DisplayName = user.FindFirstValue(ClaimTypes.Name) ?? user.Identity?.Name;
+            currentTenant.Roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            currentTenant.Permissions = user.FindAll(AsambleasClaimTypes.Permission).Select(c => c.Value).Distinct(StringComparer.Ordinal).ToArray();
         }
 
         using (LogContext.PushProperty("TenantId", currentTenant.TenantId == Guid.Empty ? null : currentTenant.TenantId))

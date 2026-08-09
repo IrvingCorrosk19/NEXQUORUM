@@ -224,14 +224,34 @@ public sealed class DemoDataSeeder
             Id = DemoSeedConstants.AssemblyOceanId,
             TenantId = DemoSeedConstants.TenantOceanId,
             PropertyHorizontalId = DemoSeedConstants.PhOceanId,
-            Title = "ASAMBLEA GENERAL ORDINARIA â€” PH OCEAN TOWER",
+            Title = "ASAMBLEA GENERAL ORDINARIA — PH OCEAN TOWER",
             Modality = AssemblyEntity.ModalityVirtual,
+            AssemblyKind = "ORDINARY",
             Status = AssemblyStatus.Scheduled,
             ScheduledAtUtc = now.AddDays(1),
+            EstimatedEndAtUtc = now.AddDays(1).AddHours(2),
+            JoinWindowMinutesBefore = 30,
+            ScheduleVersion = 1,
             RequiredQuorumPercent = 50.00m,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });
+
+        foreach (var offset in new[] { 72, 24, 2 })
+        {
+            _db.ReminderRules.Add(new ReminderRule
+            {
+                Id = Guid.NewGuid(),
+                TenantId = DemoSeedConstants.TenantOceanId,
+                PropertyHorizontalId = DemoSeedConstants.PhOceanId,
+                Name = $"T-{offset}h",
+                OffsetHoursBeforeAssembly = offset,
+                ChannelsJson = "[\"Portal\",\"Email\"]",
+                IsEnabled = true,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
 
         var agenda = new[]
         {
@@ -326,10 +346,14 @@ public sealed class DemoDataSeeder
             Id = DemoSeedConstants.AssemblyOtherId,
             TenantId = DemoSeedConstants.TenantOtherId,
             PropertyHorizontalId = DemoSeedConstants.PhOtherId,
-            Title = "ASAMBLEA AISLAMIENTO â€” PH OTHER",
+            Title = "ASAMBLEA AISLAMIENTO — PH OTHER",
             Modality = AssemblyEntity.ModalityVirtual,
+            AssemblyKind = "ORDINARY",
             Status = AssemblyStatus.Scheduled,
             ScheduledAtUtc = now.AddDays(2),
+            EstimatedEndAtUtc = now.AddDays(2).AddHours(2),
+            JoinWindowMinutesBefore = 30,
+            ScheduleVersion = 1,
             RequiredQuorumPercent = 50.00m,
             CreatedAtUtc = now,
             UpdatedAtUtc = now

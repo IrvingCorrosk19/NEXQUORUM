@@ -62,5 +62,9 @@ public interface IAsambleasDbContext
 
     DbSet<ReminderRule> ReminderRules { get; }
 
+    DbSet<AssemblyScheduleChange> AssemblyScheduleChanges { get; }
+
+    DbSet<AssemblyReminderOccurrence> AssemblyReminderOccurrences { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

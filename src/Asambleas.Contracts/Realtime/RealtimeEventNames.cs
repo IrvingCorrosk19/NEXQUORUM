@@ -6,6 +6,7 @@ namespace Asambleas.Contracts.Realtime;
 public static class RealtimeEventNames
 {
     public const string AssemblyStatusChanged = "assemblyStatusChanged";
+    public const string AssemblyScheduleChanged = "assemblyScheduleChanged";
     public const string ParticipantUpdated = "participantUpdated";
     public const string QuorumUpdated = "quorumUpdated";
     public const string AgendaUpdated = "agendaUpdated";

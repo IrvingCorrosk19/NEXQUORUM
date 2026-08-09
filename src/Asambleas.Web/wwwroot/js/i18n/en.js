@@ -122,10 +122,16 @@ export default {
     floorMicEnabled: "You have the floor: microphone enabled.",
     unstableConnection: "Your connection is unstable. We are adjusting quality to keep you connected.",
     participantMediaIssue: "{name} — media issue",
-    connected: "Connected",
+    connected: "Connected (media)",
     problems: "With issues",
     activeMics: "Active mics",
-    cameras: "Cameras"
+    cameras: "Cameras",
+    firstParticipant: "You are the first participant. Waiting for others…",
+    waitingParticipants: "Waiting for participants…",
+    tapToEnableAudio: "Tap to enable remote audio",
+    liveKitLabel: "LiveKit media",
+    leftMedia: "Audio/video disconnected. Governance remains active.",
+    fullscreenUnavailable: "Fullscreen is unavailable in this browser"
   },
 
   assembly: {

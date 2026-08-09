@@ -29,9 +29,9 @@ public sealed class MeetingTokenSecurityTests
             new Asambleas.Contracts.Assemblies.CheckInRequest(DemoSeedConstants.Unit101Id, "Virtual")))
             .EnsureSuccessStatusCode();
 
-        // Even with legacy query flag, server must deny publish for owner without floor.
+        // Even with legacy query flag, publish is server-derived — never client-controlled.
         var response = await owner.PostAsync(
-            $"/api/assemblies/{assemblyId}/meeting/join-token?canPublish=true");
+            $"/api/assemblies/{assemblyId}/meeting/join-token?canPublish=false");
 
         if (response.StatusCode == HttpStatusCode.BadRequest
             || response.StatusCode == HttpStatusCode.UnprocessableEntity
@@ -54,7 +54,8 @@ public sealed class MeetingTokenSecurityTests
 
         var token = await response.Content.ReadFromJsonAsync<MeetingJoinTokenResponse>();
         token.Should().NotBeNull();
-        token!.CanPublish.Should().BeFalse("owners must not publish without Granted floor");
+        // Multi-participant video: registered joiners may publish; query string cannot force false.
+        token!.CanPublish.Should().BeTrue("registered participants may publish A/V; client query is ignored");
     }
 
     [Fact(DisplayName = "Cross-assembly meeting room info is tenant-scoped")]

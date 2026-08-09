@@ -13,6 +13,10 @@ public static class RolePermissionMap
                 Permissions.AssemblyManage,
                 Permissions.AssemblyStart,
                 Permissions.AssemblyClose,
+                Permissions.AssemblySchedule,
+                Permissions.AssemblyReschedule,
+                Permissions.AssemblyCancel,
+                Permissions.CalendarView,
                 Permissions.AttendanceView,
                 Permissions.AttendanceManage,
                 Permissions.QuorumView,
@@ -43,6 +47,10 @@ public static class RolePermissionMap
                 Permissions.AssemblyManage,
                 Permissions.AssemblyStart,
                 Permissions.AssemblyClose,
+                Permissions.AssemblySchedule,
+                Permissions.AssemblyReschedule,
+                Permissions.AssemblyCancel,
+                Permissions.CalendarView,
                 Permissions.AttendanceView,
                 Permissions.AttendanceManage,
                 Permissions.QuorumView,
@@ -70,6 +78,7 @@ public static class RolePermissionMap
             [Roles.AssemblySecretary] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
+                Permissions.CalendarView,
                 Permissions.AttendanceView,
                 Permissions.AttendanceManage,
                 Permissions.QuorumView,
@@ -96,6 +105,7 @@ public static class RolePermissionMap
             [Roles.AssemblyOperator] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
+                Permissions.CalendarView,
                 Permissions.AttendanceView,
                 Permissions.AttendanceManage,
                 Permissions.QuorumView,
@@ -113,6 +123,7 @@ public static class RolePermissionMap
             [Roles.Owner] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
+                Permissions.CalendarView,
                 Permissions.AttendanceView,
                 Permissions.QuorumView,
                 Permissions.AgendaView,
@@ -126,6 +137,7 @@ public static class RolePermissionMap
             [Roles.Auditor] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
+                Permissions.CalendarView,
                 Permissions.AttendanceView,
                 Permissions.QuorumView,
                 Permissions.AgendaView,

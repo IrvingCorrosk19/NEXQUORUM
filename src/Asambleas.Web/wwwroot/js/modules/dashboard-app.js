@@ -247,6 +247,7 @@ async function init() {
   }
 
   qs("#secondary-links").innerHTML = `
+    <a class="btn btn-secondary" href="/calendar.html">Calendario</a>
     <a class="btn btn-secondary" href="/communications.html?assemblyId=${assemblyId}">Comunicaciones</a>
     <a class="btn btn-secondary" href="/convocation.html?assemblyId=${assemblyId}">Convocatoria</a>
     <a class="btn btn-secondary" href="/checkin.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkCheckin"))}</a>
@@ -255,6 +256,31 @@ async function init() {
     <a class="btn btn-secondary" href="/evidence.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkEvidence"))}</a>
     ${operator ? `<a class="btn btn-ghost" href="/projector.html?assemblyId=${assemblyId}" target="_blank" rel="noopener">${escapeHtml(t("dashboard.linkProjector"))}</a>` : ""}
   `;
+
+  try {
+    const next = await api("/api/calendar/next");
+    const card = qs("#next-assembly-card");
+    if (card) {
+      const n = next?.next;
+      if (!n) {
+        card.innerHTML = `<p class="muted">No tienes Asambleas programadas próximamente.</p><a class="btn btn-ghost" href="/calendar.html">Abrir calendario</a>`;
+      } else {
+        const live = n.calendarStatus === "LIVE";
+        card.innerHTML = `
+          <p class="muted" style="margin:0">${live ? "● EN VIVO" : escapeHtml(n.countdownLabel || "")}</p>
+          <strong>${escapeHtml(n.title)}</strong>
+          <div class="muted">${escapeHtml(n.propertyHorizontalName)} · ${escapeHtml(n.modality)} · ${escapeHtml(formatDateTime(n.scheduledAtUtc))}</div>
+          <div class="cta-row" style="margin-top:0.75rem">
+            ${n.canJoin ? `<a class="btn btn-primary" href="/lobby.html?assemblyId=${n.assemblyId}">${live ? "Entrar ahora" : "Entrar"}</a>` : ""}
+            <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${n.assemblyId}">Ver</a>
+            <a class="btn btn-ghost" href="/calendar.html">Calendario</a>
+          </div>`;
+      }
+    }
+  } catch {
+    const card = qs("#next-assembly-card");
+    if (card) card.innerHTML = `<a class="btn btn-ghost" href="/calendar.html">Abrir calendario</a>`;
+  }
 }
 
 init().catch((error) => {

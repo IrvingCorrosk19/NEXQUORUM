@@ -11,6 +11,8 @@ public interface IAssemblyRealtimePublisher
 {
     Task PublishAssemblyStatusAsync(Guid assemblyId, AssemblySummaryDto assembly, CancellationToken cancellationToken = default);
 
+    Task PublishAssemblyScheduleChangedAsync(Guid assemblyId, AssemblySummaryDto assembly, CancellationToken cancellationToken = default);
+
     Task PublishAttendanceAsync(Guid assemblyId, AssemblyParticipantDto participant, CancellationToken cancellationToken = default);
 
     Task PublishQuorumAsync(Guid assemblyId, QuorumStateDto quorum, CancellationToken cancellationToken = default);

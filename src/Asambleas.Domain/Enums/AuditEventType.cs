@@ -37,4 +37,8 @@ public static class AuditEventType
     public const string VotingClosed = "VOTING_CLOSED";
     public const string ResultCalculated = "RESULT_CALCULATED";
     public const string AssemblyCompleted = "ASSEMBLY_COMPLETED";
+    public const string AssemblyCreated = "ASSEMBLY_CREATED";
+    public const string AssemblyScheduled = "ASSEMBLY_SCHEDULED";
+    public const string AssemblyRescheduled = "ASSEMBLY_RESCHEDULED";
+    public const string AssemblyCancelled = "ASSEMBLY_CANCELLED";
 }

@@ -126,29 +126,26 @@ public sealed class MeetingService
     }
 
     /// <summary>
-    /// Publish is server-derived: moderators always; owners only while they hold the floor.
-    /// Client query flags are never trusted.
+    /// Moderators always have elevated meeting controls. Media publish for the video
+    /// conference is granted separately to all registered join participants (see
+    /// <see cref="ResolveCanPublishAsync"/>); governance floor is not used to gate A/V.
     /// </summary>
     public static bool CanPublishFromRole(string roleCode) =>
         RolePermissionMap.HasPermission([roleCode], Permissions.MeetingModerate);
 
-    private async Task<bool> ResolveCanPublishAsync(
+    private Task<bool> ResolveCanPublishAsync(
         Guid assemblyId,
         Guid userId,
         string roleCode,
         CancellationToken cancellationToken)
     {
-        if (CanPublishFromRole(roleCode))
-        {
-            return true;
-        }
-
-        return await _db.SpeakerRequests
-            .AsNoTracking()
-            .AnyAsync(
-                s => s.AssemblyId == assemblyId
-                     && s.UserId == userId
-                     && s.Status == SpeakerRequestStatus.Granted,
-                cancellationToken);
+        // Multi-participant video (Teams/Meet-style): every authenticated assembly
+        // participant who can join may publish camera/mic. Official "floor" remains a
+        // governance overlay (highlight / queue), not a LiveKit publish gate.
+        _ = assemblyId;
+        _ = userId;
+        _ = roleCode;
+        _ = cancellationToken;
+        return Task.FromResult(true);
     }
 }

@@ -23,6 +23,9 @@ public sealed class SignalRAssemblyRealtimePublisher : IAssemblyRealtimePublishe
     public Task PublishAssemblyStatusAsync(Guid assemblyId, AssemblySummaryDto assembly, CancellationToken cancellationToken = default) =>
         SendAsync(assemblyId, RealtimeEventNames.AssemblyStatusChanged, assembly, cancellationToken);
 
+    public Task PublishAssemblyScheduleChangedAsync(Guid assemblyId, AssemblySummaryDto assembly, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.AssemblyScheduleChanged, assembly, cancellationToken);
+
     public Task PublishAttendanceAsync(Guid assemblyId, AssemblyParticipantDto participant, CancellationToken cancellationToken = default) =>
         SendAsync(assemblyId, RealtimeEventNames.ParticipantUpdated, participant, cancellationToken);
 
