@@ -172,6 +172,8 @@ async function init() {
 
   const q = `assemblyId=${encodeURIComponent(assemblyId)}`;
   const navMap = {
+    "#nav-comms": `/communications.html?${q}`,
+    "#nav-convocation": `/convocation.html?${q}`,
     "#nav-checkin": `/checkin.html?${q}`,
     "#nav-lobby": `/lobby.html?${q}`,
     "#nav-assembly": `/assembly.html?${q}`,
@@ -245,6 +247,8 @@ async function init() {
   }
 
   qs("#secondary-links").innerHTML = `
+    <a class="btn btn-secondary" href="/communications.html?assemblyId=${assemblyId}">Comunicaciones</a>
+    <a class="btn btn-secondary" href="/convocation.html?assemblyId=${assemblyId}">Convocatoria</a>
     <a class="btn btn-secondary" href="/checkin.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkCheckin"))}</a>
     <a class="btn btn-secondary" href="/lobby.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkLobby"))}</a>
     <a class="btn btn-secondary" href="/minutes.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkMinutes"))}</a>

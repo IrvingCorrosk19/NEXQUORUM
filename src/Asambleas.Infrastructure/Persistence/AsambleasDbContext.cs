@@ -55,6 +55,26 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
 
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
+    public DbSet<CommunicationProfile> CommunicationProfiles => Set<CommunicationProfile>();
+
+    public DbSet<ChannelConfiguration> ChannelConfigurations => Set<ChannelConfiguration>();
+
+    public DbSet<MessageTemplate> MessageTemplates => Set<MessageTemplate>();
+
+    public DbSet<Convocation> Convocations => Set<Convocation>();
+
+    public DbSet<ConvocationRecipient> ConvocationRecipients => Set<ConvocationRecipient>();
+
+    public DbSet<CommunicationBatch> CommunicationBatches => Set<CommunicationBatch>();
+
+    public DbSet<CommunicationDelivery> CommunicationDeliveries => Set<CommunicationDelivery>();
+
+    public DbSet<CommunicationDeliveryEvent> CommunicationDeliveryEvents => Set<CommunicationDeliveryEvent>();
+
+    public DbSet<PortalNotification> PortalNotifications => Set<PortalNotification>();
+
+    public DbSet<ReminderRule> ReminderRules => Set<ReminderRule>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -102,6 +122,16 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
         builder.Entity<QuorumSnapshot>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<SpeakerRequest>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<AuditEvent>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<CommunicationProfile>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<ChannelConfiguration>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<MessageTemplate>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<Convocation>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<ConvocationRecipient>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<CommunicationBatch>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<CommunicationDelivery>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<CommunicationDeliveryEvent>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<PortalNotification>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<ReminderRule>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
 
         // Allow unfiltered user lookup when tenant is not yet resolved (login / design-time).
         builder.Entity<ApplicationUser>().HasQueryFilter(e =>

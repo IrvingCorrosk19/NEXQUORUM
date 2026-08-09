@@ -1,0 +1,577 @@
+namespace Asambleas.Application.Communications;
+
+using System.Text.Json;
+using Asambleas.Application.Abstractions;
+using Asambleas.Application.Abstractions.Communications;
+using Asambleas.Application.Common;
+using Asambleas.Contracts.Communications;
+using Asambleas.Domain.Common;
+using Asambleas.Domain.Entities;
+using Asambleas.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+
+public sealed class CommunicationConfigurationService
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private readonly IAsambleasDbContext _db;
+    private readonly ICurrentTenant _currentTenant;
+    private readonly ISecretProtector _secrets;
+    private readonly ICommunicationEnvironment _environment;
+    private readonly IAuditService _audit;
+    private readonly Func<SmtpClientFactoryArgs, IEmailProvider> _smtpFactory;
+    private readonly IEmailProvider _mockEmail;
+    private readonly IWhatsAppProvider _mockWhatsApp;
+    private readonly ISmsProvider _mockSms;
+
+    public CommunicationConfigurationService(
+        IAsambleasDbContext db,
+        ICurrentTenant currentTenant,
+        ISecretProtector secrets,
+        ICommunicationEnvironment environment,
+        IAuditService audit,
+        Func<SmtpClientFactoryArgs, IEmailProvider> smtpFactory,
+        IEmailProvider mockEmail,
+        IWhatsAppProvider mockWhatsApp,
+        ISmsProvider mockSms)
+    {
+        _db = db;
+        _currentTenant = currentTenant;
+        _secrets = secrets;
+        _environment = environment;
+        _audit = audit;
+        _smtpFactory = smtpFactory;
+        _mockEmail = mockEmail;
+        _mockWhatsApp = mockWhatsApp;
+        _mockSms = mockSms;
+    }
+
+    public async Task<CommunicationProfileDto> GetOrCreateProfileAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
+
+        var profile = await _db.CommunicationProfiles
+            .FirstOrDefaultAsync(p => p.PropertyHorizontalId == propertyHorizontalId, cancellationToken);
+
+        if (profile is null)
+        {
+            profile = new CommunicationProfile
+            {
+                TenantId = _currentTenant.TenantId,
+                PropertyHorizontalId = propertyHorizontalId,
+                SandboxMode = _environment.IsNonProduction
+            };
+            _db.CommunicationProfiles.Add(profile);
+            await EnsureDefaultChannelsAsync(propertyHorizontalId, cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return ToProfileDto(profile);
+    }
+
+    public async Task<CommunicationProfileDto> UpdateProfileAsync(
+        Guid propertyHorizontalId,
+        UpdateCommunicationProfileRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
+
+        var profile = await GetOrCreateEntityAsync(propertyHorizontalId, cancellationToken);
+        profile.SandboxMode = request.SandboxMode;
+        profile.TestRecipientOverride = string.IsNullOrWhiteSpace(request.TestRecipientOverride)
+            ? null
+            : request.TestRecipientOverride.Trim();
+        profile.DefaultTimezoneId = string.IsNullOrWhiteSpace(request.DefaultTimezoneId)
+            ? "America/Panama"
+            : request.DefaultTimezoneId.Trim();
+        profile.DefaultFromDisplayName = request.DefaultFromDisplayName?.Trim();
+        profile.DefaultReplyTo = request.DefaultReplyTo?.Trim();
+
+        if (!_environment.IsNonProduction && !string.IsNullOrWhiteSpace(profile.TestRecipientOverride))
+        {
+            throw new DomainException("TEST_OVERRIDE_PROD", "Test recipient override is not allowed in production.");
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            "communications.profile.updated",
+            correlationId: profile.Id,
+            metadata: new { propertyHorizontalId, profile.SandboxMode },
+            cancellationToken: cancellationToken);
+
+        return ToProfileDto(profile);
+    }
+
+    public async Task<IReadOnlyList<ChannelConfigurationDto>> ListChannelsAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
+        await EnsureDefaultChannelsAsync(propertyHorizontalId, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var rows = await _db.ChannelConfigurations
+            .AsNoTracking()
+            .Where(c => c.PropertyHorizontalId == propertyHorizontalId)
+            .OrderBy(c => c.Channel)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(ToChannelDto).ToList();
+    }
+
+    public async Task<ChannelConfigurationDto> UpsertChannelAsync(
+        Guid propertyHorizontalId,
+        CommunicationChannel channel,
+        UpsertChannelConfigurationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
+
+        if (!Enum.TryParse<CommunicationProviderType>(request.ProviderType, ignoreCase: true, out var provider))
+        {
+            throw new DomainException("INVALID_PROVIDER", $"Unknown provider '{request.ProviderType}'.");
+        }
+
+        ValidateProviderForChannel(channel, provider);
+        ValidateSmtpSettings(channel, provider, request);
+
+        var row = await _db.ChannelConfigurations
+            .FirstOrDefaultAsync(
+                c => c.PropertyHorizontalId == propertyHorizontalId && c.Channel == channel,
+                cancellationToken);
+
+        if (row is null)
+        {
+            row = new ChannelConfiguration
+            {
+                TenantId = _currentTenant.TenantId,
+                PropertyHorizontalId = propertyHorizontalId,
+                Channel = channel
+            };
+            _db.ChannelConfigurations.Add(row);
+        }
+
+        row.ProviderType = provider;
+        row.IsEnabled = request.IsEnabled;
+        row.SettingsJson = JsonSerializer.Serialize(SanitizeSettings(request.Settings), JsonOptions);
+
+        if (!string.IsNullOrWhiteSpace(request.Secret))
+        {
+            row.SecretCiphertext = _secrets.Protect(request.Secret);
+            row.HasSecret = true;
+            await _audit.WriteAsync(
+                "communications.secret.updated",
+                correlationId: row.Id,
+                metadata: new { channel = channel.ToString(), propertyHorizontalId },
+                cancellationToken: cancellationToken);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return ToChannelDto(row);
+    }
+
+    public async Task<ChannelTestResultDto> TestChannelAsync(
+        Guid propertyHorizontalId,
+        CommunicationChannel channel,
+        ChannelTestRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
+
+        var profile = await GetOrCreateEntityAsync(propertyHorizontalId, cancellationToken);
+        var row = await _db.ChannelConfigurations
+            .FirstOrDefaultAsync(
+                c => c.PropertyHorizontalId == propertyHorizontalId && c.Channel == channel,
+                cancellationToken)
+            ?? throw new DomainException("CHANNEL_NOT_CONFIGURED", "Channel is not configured.");
+
+        var destination = string.IsNullOrWhiteSpace(request.Destination)
+            ? profile.TestRecipientOverride
+            : request.Destination.Trim();
+
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            throw new DomainException("TEST_DESTINATION_REQUIRED", "Provide a test destination.");
+        }
+
+        ProviderSendResult result;
+        var forceMock = profile.SandboxMode || _environment.IsNonProduction;
+
+        switch (channel)
+        {
+            case CommunicationChannel.Email:
+                var emailProvider = await ResolveEmailProviderAsync(row, forceMock, cancellationToken);
+                result = await emailProvider.SendAsync(
+                    new EmailMessage(
+                        destination,
+                        null,
+                        "ASAMBLEAS — Prueba de correo",
+                        "<p>Correo de prueba del Communication Center.</p>",
+                        "Correo de prueba del Communication Center.",
+                        null,
+                        profile.DefaultFromDisplayName,
+                        profile.DefaultReplyTo,
+                        null),
+                    cancellationToken);
+                break;
+            case CommunicationChannel.WhatsApp:
+                result = await _mockWhatsApp.SendAsync(
+                    new WhatsAppMessage(destination, "ASAMBLEAS prueba WhatsApp", null, null),
+                    cancellationToken);
+                break;
+            case CommunicationChannel.Sms:
+                result = await _mockSms.SendAsync(
+                    new SmsMessage(destination, "ASAMBLEAS prueba SMS"),
+                    cancellationToken);
+                break;
+            case CommunicationChannel.Portal:
+                result = new ProviderSendResult(true, DeliveryStatus.Delivered, null, "Portal does not require external test.", false);
+                break;
+            default:
+                throw new DomainException("CHANNEL_NOT_TESTABLE", "This channel cannot be tested yet.");
+        }
+
+        row.LastTestedAtUtc = DateTimeOffset.UtcNow;
+        row.LastTestSucceeded = result.Succeeded;
+        row.LastTestDetail = result.Detail;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.WriteAsync(
+            "communications.channel.tested",
+            correlationId: row.Id,
+            metadata: new { channel = channel.ToString(), result.Succeeded, sandbox = forceMock },
+            cancellationToken: cancellationToken);
+
+        return new ChannelTestResultDto(result.Succeeded, result.Detail ?? string.Empty, row.LastTestedAtUtc.Value);
+    }
+
+    public async Task<IReadOnlyList<MessageTemplateDto>> ListTemplatesAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
+
+        var rows = await _db.MessageTemplates
+            .AsNoTracking()
+            .Where(t => t.PropertyHorizontalId == propertyHorizontalId)
+            .OrderBy(t => t.Code)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(t => new MessageTemplateDto(
+            t.Id, t.Code, t.Name, t.ChannelScope.ToString(), t.Subject, t.BodyHtml, t.BodyText, t.IsActive, t.Version)).ToList();
+    }
+
+    public async Task<MessageTemplateDto> UpsertTemplateAsync(
+        Guid propertyHorizontalId,
+        UpsertMessageTemplateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
+
+        if (!Enum.TryParse<TemplateChannelScope>(request.ChannelScope, ignoreCase: true, out var scope))
+        {
+            throw new DomainException("INVALID_TEMPLATE_SCOPE", "Invalid template channel scope.");
+        }
+
+        SanitizeTemplateHtml(request.BodyHtml);
+
+        var code = request.Code.Trim();
+        var row = await _db.MessageTemplates
+            .FirstOrDefaultAsync(t => t.PropertyHorizontalId == propertyHorizontalId && t.Code == code, cancellationToken);
+
+        if (row is null)
+        {
+            row = new MessageTemplate
+            {
+                TenantId = _currentTenant.TenantId,
+                PropertyHorizontalId = propertyHorizontalId,
+                Code = code
+            };
+            _db.MessageTemplates.Add(row);
+        }
+        else
+        {
+            row.Version += 1;
+        }
+
+        row.Name = request.Name.Trim();
+        row.ChannelScope = scope;
+        row.Subject = request.Subject?.Trim();
+        row.BodyHtml = request.BodyHtml;
+        row.BodyText = request.BodyText;
+        row.IsActive = request.IsActive;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return new MessageTemplateDto(
+            row.Id, row.Code, row.Name, row.ChannelScope.ToString(), row.Subject, row.BodyHtml, row.BodyText, row.IsActive, row.Version);
+    }
+
+    internal async Task<(CommunicationProfile Profile, ChannelConfiguration? Email, ChannelConfiguration? WhatsApp, ChannelConfiguration? Sms, ChannelConfiguration? Portal)>
+        LoadRuntimeAsync(Guid propertyHorizontalId, CancellationToken cancellationToken)
+    {
+        var profile = await GetOrCreateEntityAsync(propertyHorizontalId, cancellationToken);
+        await EnsureDefaultChannelsAsync(propertyHorizontalId, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var channels = await _db.ChannelConfigurations
+            .Where(c => c.PropertyHorizontalId == propertyHorizontalId)
+            .ToListAsync(cancellationToken);
+
+        return (
+            profile,
+            channels.FirstOrDefault(c => c.Channel == CommunicationChannel.Email),
+            channels.FirstOrDefault(c => c.Channel == CommunicationChannel.WhatsApp),
+            channels.FirstOrDefault(c => c.Channel == CommunicationChannel.Sms),
+            channels.FirstOrDefault(c => c.Channel == CommunicationChannel.Portal));
+    }
+
+    internal async Task<IEmailProvider> ResolveEmailProviderAsync(
+        ChannelConfiguration? config,
+        bool forceMock,
+        CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        if (forceMock || config is null || config.ProviderType == CommunicationProviderType.Mock || !config.IsEnabled)
+        {
+            return _mockEmail;
+        }
+
+        if (config.ProviderType != CommunicationProviderType.Smtp)
+        {
+            return _mockEmail;
+        }
+
+        string? password = null;
+        if (config.HasSecret && !string.IsNullOrWhiteSpace(config.SecretCiphertext))
+        {
+            password = _secrets.Unprotect(config.SecretCiphertext);
+        }
+
+        var settings = SmtpClientFactoryArgs.FromChannel(config.SettingsJson, password);
+        return _smtpFactory(settings);
+    }
+
+    private async Task EnsurePhAccessAsync(Guid propertyHorizontalId, CancellationToken cancellationToken)
+    {
+        var ph = await _db.PropertyHorizontals
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == propertyHorizontalId, cancellationToken)
+            ?? throw new DomainException("PH_NOT_FOUND", "Property horizontal not found.");
+
+        TenantGuard.EnsureTenantMatch(_currentTenant, ph.TenantId);
+    }
+
+    private async Task<CommunicationProfile> GetOrCreateEntityAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken)
+    {
+        var profile = await _db.CommunicationProfiles
+            .FirstOrDefaultAsync(p => p.PropertyHorizontalId == propertyHorizontalId, cancellationToken);
+
+        if (profile is not null)
+        {
+            return profile;
+        }
+
+        profile = new CommunicationProfile
+        {
+            TenantId = _currentTenant.TenantId,
+            PropertyHorizontalId = propertyHorizontalId,
+            SandboxMode = _environment.IsNonProduction
+        };
+        _db.CommunicationProfiles.Add(profile);
+        await EnsureDefaultChannelsAsync(propertyHorizontalId, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+        return profile;
+    }
+
+    private async Task EnsureDefaultChannelsAsync(Guid propertyHorizontalId, CancellationToken cancellationToken)
+    {
+        var existing = await _db.ChannelConfigurations
+            .Where(c => c.PropertyHorizontalId == propertyHorizontalId)
+            .Select(c => c.Channel)
+            .ToListAsync(cancellationToken);
+
+        void AddIfMissing(CommunicationChannel channel, CommunicationProviderType provider, bool enabled)
+        {
+            if (existing.Contains(channel))
+            {
+                return;
+            }
+
+            _db.ChannelConfigurations.Add(new ChannelConfiguration
+            {
+                TenantId = _currentTenant.TenantId,
+                PropertyHorizontalId = propertyHorizontalId,
+                Channel = channel,
+                ProviderType = provider,
+                IsEnabled = enabled,
+                SettingsJson = "{}"
+            });
+        }
+
+        AddIfMissing(CommunicationChannel.Email, CommunicationProviderType.Mock, true);
+        AddIfMissing(CommunicationChannel.WhatsApp, CommunicationProviderType.Mock, false);
+        AddIfMissing(CommunicationChannel.Sms, CommunicationProviderType.Mock, false);
+        AddIfMissing(CommunicationChannel.Portal, CommunicationProviderType.Portal, true);
+        AddIfMissing(CommunicationChannel.Pdf, CommunicationProviderType.Mock, false);
+        AddIfMissing(CommunicationChannel.Physical, CommunicationProviderType.Mock, false);
+    }
+
+    private CommunicationProfileDto ToProfileDto(CommunicationProfile profile) =>
+        new(
+            profile.Id,
+            profile.PropertyHorizontalId,
+            profile.SandboxMode,
+            profile.TestRecipientOverride,
+            profile.DefaultTimezoneId,
+            profile.DefaultFromDisplayName,
+            profile.DefaultReplyTo,
+            _environment.IsNonProduction || profile.SandboxMode);
+
+    private static ChannelConfigurationDto ToChannelDto(ChannelConfiguration row)
+    {
+        var settings = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(row.SettingsJson) ? "{}" : row.SettingsJson);
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                if (IsSecretKey(prop.Name))
+                {
+                    continue;
+                }
+
+                settings[prop.Name] = prop.Value.ValueKind switch
+                {
+                    JsonValueKind.String => prop.Value.GetString(),
+                    JsonValueKind.Number => prop.Value.ToString(),
+                    JsonValueKind.True => "true",
+                    JsonValueKind.False => "false",
+                    _ => prop.Value.ToString()
+                };
+            }
+        }
+        catch (JsonException)
+        {
+            // ignore malformed stored settings for DTO projection
+        }
+
+        return new ChannelConfigurationDto(
+            row.Id,
+            row.Channel.ToString(),
+            row.ProviderType.ToString(),
+            row.IsEnabled,
+            settings,
+            row.HasSecret,
+            row.LastTestedAtUtc,
+            row.LastTestSucceeded,
+            row.LastTestDetail);
+    }
+
+    private static Dictionary<string, string?> SanitizeSettings(IReadOnlyDictionary<string, string?>? settings)
+    {
+        var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        if (settings is null)
+        {
+            return result;
+        }
+
+        foreach (var (key, value) in settings)
+        {
+            if (IsSecretKey(key))
+            {
+                continue;
+            }
+
+            result[key] = value;
+        }
+
+        return result;
+    }
+
+    private static bool IsSecretKey(string key) =>
+        key.Contains("password", StringComparison.OrdinalIgnoreCase)
+        || key.Contains("secret", StringComparison.OrdinalIgnoreCase)
+        || key.Contains("token", StringComparison.OrdinalIgnoreCase)
+        || key.Contains("apiKey", StringComparison.OrdinalIgnoreCase);
+
+    private static void ValidateProviderForChannel(CommunicationChannel channel, CommunicationProviderType provider)
+    {
+        var ok = (channel, provider) switch
+        {
+            (CommunicationChannel.Email, CommunicationProviderType.Mock or CommunicationProviderType.Smtp) => true,
+            (CommunicationChannel.WhatsApp, CommunicationProviderType.Mock or CommunicationProviderType.MetaWhatsApp) => true,
+            (CommunicationChannel.Sms, CommunicationProviderType.Mock or CommunicationProviderType.TwilioSms) => true,
+            (CommunicationChannel.Portal, CommunicationProviderType.Portal or CommunicationProviderType.Mock) => true,
+            (CommunicationChannel.Pdf, CommunicationProviderType.Mock) => true,
+            (CommunicationChannel.Physical, CommunicationProviderType.Mock) => true,
+            _ => false
+        };
+
+        if (!ok)
+        {
+            throw new DomainException("PROVIDER_CHANNEL_MISMATCH", $"Provider {provider} is not valid for {channel}.");
+        }
+    }
+
+    private static void ValidateSmtpSettings(
+        CommunicationChannel channel,
+        CommunicationProviderType provider,
+        UpsertChannelConfigurationRequest request)
+    {
+        if (channel != CommunicationChannel.Email || provider != CommunicationProviderType.Smtp || !request.IsEnabled)
+        {
+            return;
+        }
+
+        var settings = request.Settings ?? new Dictionary<string, string?>();
+        if (!settings.TryGetValue("host", out var host) || string.IsNullOrWhiteSpace(host))
+        {
+            throw new DomainException("SMTP_HOST_REQUIRED", "SMTP host is required when Email/SMTP is enabled.");
+        }
+
+        if (!settings.TryGetValue("port", out var portRaw) || !int.TryParse(portRaw, out var port) || port is < 1 or > 65535)
+        {
+            throw new DomainException("SMTP_PORT_INVALID", "SMTP port must be an integer between 1 and 65535.");
+        }
+
+        if (settings.TryGetValue("useSsl", out var sslRaw)
+            && !string.IsNullOrWhiteSpace(sslRaw)
+            && !bool.TryParse(sslRaw, out _))
+        {
+            throw new DomainException("SMTP_SSL_INVALID", "useSsl must be true or false.");
+        }
+
+        if (!settings.TryGetValue("fromAddress", out var from) || string.IsNullOrWhiteSpace(from))
+        {
+            throw new DomainException("SMTP_FROM_REQUIRED", "fromAddress is required for SMTP.");
+        }
+    }
+
+    private static void SanitizeTemplateHtml(string html)
+    {
+        if (html.Contains("<script", StringComparison.OrdinalIgnoreCase)
+            || html.Contains("javascript:", StringComparison.OrdinalIgnoreCase)
+            || html.Contains("onerror=", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new DomainException("UNSAFE_TEMPLATE_HTML", "Template HTML contains forbidden content.");
+        }
+    }
+}
+
+/// <summary>Factory args for SMTP provider creation without leaking Infrastructure types into Application DI graphs incorrectly.</summary>
+public sealed record SmtpClientFactoryArgs(string SettingsJson, string? Password)
+{
+    public static SmtpClientFactoryArgs FromChannel(string settingsJson, string? password) =>
+        new(settingsJson, password);
+}

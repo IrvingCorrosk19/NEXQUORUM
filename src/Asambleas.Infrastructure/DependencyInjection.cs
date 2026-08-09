@@ -1,6 +1,9 @@
 namespace Asambleas.Infrastructure;
 
 using Asambleas.Application.Abstractions;
+using Asambleas.Application.Abstractions.Communications;
+using Asambleas.Application.Communications;
+using Asambleas.Infrastructure.Communications;
 using Asambleas.Infrastructure.Identity;
 using Asambleas.Infrastructure.Meeting;
 using Asambleas.Infrastructure.Persistence;
@@ -10,6 +13,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 public static class DependencyInjection
 {
@@ -60,6 +64,20 @@ public static class DependencyInjection
 
         services.AddScoped<IMeetingProvider, LiveKitMeetingProvider>();
         services.AddScoped<DemoDataSeeder>();
+
+        services.AddDataProtection();
+        services.AddScoped<ISecretProtector, DataProtectionSecretProtector>();
+        services.AddSingleton<ICommunicationEnvironment, HostCommunicationEnvironment>();
+        services.AddScoped<MockEmailProvider>();
+        services.AddScoped<IEmailProvider>(sp => sp.GetRequiredService<MockEmailProvider>());
+        services.AddScoped<IWhatsAppProvider, MockWhatsAppProvider>();
+        services.AddScoped<ISmsProvider, MockSmsProvider>();
+        services.AddScoped<IPortalNotificationProvider, PortalNotificationProvider>();
+        services.AddScoped<Func<SmtpClientFactoryArgs, IEmailProvider>>(sp => args =>
+        {
+            var settings = SmtpClientSettings.FromJson(args.SettingsJson, args.Password);
+            return new SmtpEmailProvider(settings, sp.GetRequiredService<ILogger<SmtpEmailProvider>>());
+        });
 
         return services;
     }

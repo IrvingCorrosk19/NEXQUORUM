@@ -3,6 +3,7 @@ using System;
 using Asambleas.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Asambleas.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AsambleasDbContext))]
-    partial class AsambleasDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260809192332_EO007_CommunicationCenter")]
+    partial class EO007_CommunicationCenter
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

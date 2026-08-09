@@ -42,5 +42,25 @@ public interface IAsambleasDbContext
 
     DbSet<AuditEvent> AuditEvents { get; }
 
+    DbSet<CommunicationProfile> CommunicationProfiles { get; }
+
+    DbSet<ChannelConfiguration> ChannelConfigurations { get; }
+
+    DbSet<MessageTemplate> MessageTemplates { get; }
+
+    DbSet<Convocation> Convocations { get; }
+
+    DbSet<ConvocationRecipient> ConvocationRecipients { get; }
+
+    DbSet<CommunicationBatch> CommunicationBatches { get; }
+
+    DbSet<CommunicationDelivery> CommunicationDeliveries { get; }
+
+    DbSet<CommunicationDeliveryEvent> CommunicationDeliveryEvents { get; }
+
+    DbSet<PortalNotification> PortalNotifications { get; }
+
+    DbSet<ReminderRule> ReminderRules { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

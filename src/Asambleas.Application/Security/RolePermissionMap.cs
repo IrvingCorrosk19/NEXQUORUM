@@ -26,7 +26,16 @@ public static class RolePermissionMap
                 Permissions.VoteResults,
                 Permissions.MeetingJoin,
                 Permissions.MeetingModerate,
-                Permissions.AuditView
+                Permissions.AuditView,
+                Permissions.CommunicationsView,
+                Permissions.CommunicationsConfigure,
+                Permissions.CommunicationsTest,
+                Permissions.TemplatesView,
+                Permissions.TemplatesManage,
+                Permissions.ConvocationsCreate,
+                Permissions.ConvocationsSend,
+                Permissions.ConvocationsResend,
+                Permissions.ConvocationsViewEvidence
             ], StringComparer.Ordinal),
             [Roles.AssemblyPresident] = new HashSet<string>(
             [
@@ -47,7 +56,16 @@ public static class RolePermissionMap
                 Permissions.VoteResults,
                 Permissions.MeetingJoin,
                 Permissions.MeetingModerate,
-                Permissions.AuditView
+                Permissions.AuditView,
+                Permissions.CommunicationsView,
+                Permissions.CommunicationsConfigure,
+                Permissions.CommunicationsTest,
+                Permissions.TemplatesView,
+                Permissions.TemplatesManage,
+                Permissions.ConvocationsCreate,
+                Permissions.ConvocationsSend,
+                Permissions.ConvocationsResend,
+                Permissions.ConvocationsViewEvidence
             ], StringComparer.Ordinal),
             [Roles.AssemblySecretary] = new HashSet<string>(
             [
@@ -65,7 +83,15 @@ public static class RolePermissionMap
                 Permissions.VoteResults,
                 Permissions.MeetingJoin,
                 Permissions.MeetingModerate,
-                Permissions.AuditView
+                Permissions.AuditView,
+                Permissions.CommunicationsView,
+                Permissions.CommunicationsTest,
+                Permissions.TemplatesView,
+                Permissions.TemplatesManage,
+                Permissions.ConvocationsCreate,
+                Permissions.ConvocationsSend,
+                Permissions.ConvocationsResend,
+                Permissions.ConvocationsViewEvidence
             ], StringComparer.Ordinal),
             [Roles.AssemblyOperator] = new HashSet<string>(
             [
@@ -80,7 +106,9 @@ public static class RolePermissionMap
                 Permissions.VoteOpen,
                 Permissions.VoteClose,
                 Permissions.MeetingJoin,
-                Permissions.MeetingModerate
+                Permissions.MeetingModerate,
+                Permissions.CommunicationsView,
+                Permissions.ConvocationsCreate
             ], StringComparer.Ordinal),
             [Roles.Owner] = new HashSet<string>(
             [
@@ -92,7 +120,8 @@ public static class RolePermissionMap
                 Permissions.VoteView,
                 Permissions.VoteCast,
                 Permissions.VoteResults,
-                Permissions.MeetingJoin
+                Permissions.MeetingJoin,
+                Permissions.CommunicationsView
             ], StringComparer.Ordinal),
             [Roles.Auditor] = new HashSet<string>(
             [
@@ -103,7 +132,9 @@ public static class RolePermissionMap
                 Permissions.MotionView,
                 Permissions.VoteView,
                 Permissions.VoteResults,
-                Permissions.AuditView
+                Permissions.AuditView,
+                Permissions.CommunicationsView,
+                Permissions.ConvocationsViewEvidence
             ], StringComparer.Ordinal)
         };
 

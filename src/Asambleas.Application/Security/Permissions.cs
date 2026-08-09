@@ -29,6 +29,16 @@ public static class Permissions
 
     public const string AuditView = "audit:view";
 
+    public const string CommunicationsView = "communications:view";
+    public const string CommunicationsConfigure = "communications:configure";
+    public const string CommunicationsTest = "communications:test";
+    public const string TemplatesView = "templates:view";
+    public const string TemplatesManage = "templates:manage";
+    public const string ConvocationsCreate = "convocations:create";
+    public const string ConvocationsSend = "convocations:send";
+    public const string ConvocationsResend = "convocations:resend";
+    public const string ConvocationsViewEvidence = "convocations:view-evidence";
+
     public static IReadOnlyList<string> All { get; } =
     [
         AssemblyView,
@@ -49,6 +59,15 @@ public static class Permissions
         VoteResults,
         MeetingJoin,
         MeetingModerate,
-        AuditView
+        AuditView,
+        CommunicationsView,
+        CommunicationsConfigure,
+        CommunicationsTest,
+        TemplatesView,
+        TemplatesManage,
+        ConvocationsCreate,
+        ConvocationsSend,
+        ConvocationsResend,
+        ConvocationsViewEvidence
     ];
 }
