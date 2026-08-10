@@ -307,16 +307,51 @@ async function openEvent(id) {
     }
     if (ev.canReschedule) actions.push(`<button type="button" class="btn btn-ghost" id="act-reschedule">Reagendar</button>`);
     if (ev.canCancel) actions.push(`<button type="button" class="btn btn-danger" id="act-cancel">Cancelar</button>`);
-    actions.push(`<a class="btn btn-ghost" href="/api/assemblies/${ev.assemblyId}/calendar.ics">Descargar .ics</a>`);
-    actions.push(`<button type="button" class="btn btn-ghost" id="act-links">Google / Outlook</button>`);
+    actions.push(`<a class="btn btn-ghost" href="/api/assemblies/${ev.assemblyId}/calendar.ics" download>Descargar .ics</a>`);
+    actions.push(`<button type="button" class="btn btn-ghost" id="act-links">Añadir al calendario</button>`);
     qs("#drawer-actions").innerHTML = actions.join("");
     drawer.hidden = false;
     drawer.setAttribute("aria-hidden", "false");
     qs("#act-reschedule")?.addEventListener("click", () => openReschedule(ev));
     qs("#act-cancel")?.addEventListener("click", () => openCancel(ev));
     qs("#act-links")?.addEventListener("click", async () => {
-      const links = await api(`/api/assemblies/${ev.assemblyId}/calendar-links`);
-      window.open(links.googleCalendarUrl, "_blank", "noopener");
+      try {
+        const links = await api(`/api/assemblies/${ev.assemblyId}/calendar-links`);
+        const lobbyUrl = `${location.origin}/lobby.html?assemblyId=${ev.assemblyId}`;
+        const panel = document.createElement("div");
+        panel.className = "calendar-link-sheet";
+        panel.setAttribute("role", "dialog");
+        panel.setAttribute("aria-label", "Añadir al calendario");
+        panel.innerHTML = `
+          <div class="calendar-link-sheet__card">
+            <h3>Añadir al calendario</h3>
+            <p class="muted">Si Google Calendar no abre (DNS/red), use <strong>Descargar .ics</strong> o copie el enlace del lobby.</p>
+            <div class="cluster">
+              <a class="btn btn-secondary" href="${escapeHtml(links.googleCalendarUrl)}" target="_blank" rel="noopener">Google Calendar</a>
+              <a class="btn btn-secondary" href="${escapeHtml(links.outlookCalendarUrl)}" target="_blank" rel="noopener">Outlook</a>
+              <a class="btn btn-primary" href="${escapeHtml(links.icsDownloadPath)}" download>Descargar .ics</a>
+              <button type="button" class="btn btn-ghost" data-copy-lobby>Copiar enlace lobby</button>
+              <button type="button" class="btn btn-ghost" data-close-sheet>Cerrar</button>
+            </div>
+            <p class="muted" style="word-break:break-all;margin-top:0.75rem">${escapeHtml(lobbyUrl)}</p>
+          </div>`;
+        document.body.appendChild(panel);
+        const close = () => panel.remove();
+        panel.querySelector("[data-close-sheet]")?.addEventListener("click", close);
+        panel.addEventListener("click", (e) => {
+          if (e.target === panel) close();
+        });
+        panel.querySelector("[data-copy-lobby]")?.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(lobbyUrl);
+            showToast("Enlace del lobby copiado", "success");
+          } catch {
+            showToast(lobbyUrl, "info");
+          }
+        });
+      } catch (err) {
+        showToast(err.message || "No se pudieron obtener enlaces de calendario", "error");
+      }
     });
   } catch (e) {
     showToast(e.message || "No se pudo abrir el evento", "error");

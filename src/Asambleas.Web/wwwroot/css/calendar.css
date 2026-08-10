@@ -123,6 +123,25 @@
   border: 1px solid var(--border-default); font-size: 0.9rem;
 }
 .impact-box.warn { border-color: var(--brand-gold-500); }
+.calendar-link-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(6, 10, 18, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+.calendar-link-sheet__card {
+  width: min(28rem, 100%);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  display: grid;
+  gap: 0.75rem;
+}
+.calendar-link-sheet__card h3 { margin: 0; }
 @media (max-width: 768px) {
   .cal-month, .cal-week { display: none; }
   .calendar-root[data-view="month"] .cal-agenda-mobile,
