@@ -98,6 +98,11 @@ let mediaControlsWired = false;
 let recordingTimer = null;
 let controlBarIdleTimer = null;
 let drawersWired = false;
+let connectionLostTimer = null;
+
+function speakerStatus(item) {
+  return String(item?.status ?? item?.Status ?? "").toLowerCase();
+}
 
 function sameUserId(a, b) {
   if (a == null || b == null) return false;
@@ -108,26 +113,31 @@ function mySpeakerRequest() {
   const uid = state.user?.userId || state.user?.id;
   const name = state.user?.displayName;
   return (
-    state.queue?.queue?.find(
-      (s) =>
-        s.status === "Requested" &&
-        (sameUserId(s.userId, uid) || (!!name && s.displayName === name))
-    ) || null
+    state.queue?.queue?.find((s) => {
+      if (speakerStatus(s) !== "requested") return false;
+      const sid = s.userId ?? s.UserId;
+      const dname = s.displayName ?? s.DisplayName;
+      return sameUserId(sid, uid) || (!!name && dname === name);
+    }) || null
   );
 }
 
 function myGrantedFloor() {
-  const current = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
+  const current = state.queue?.queue?.find(
+    (s) => s.id === state.queue.currentSpeakerRequestId || s.Id === state.queue.currentSpeakerRequestId
+  );
   if (!current) return null;
   const uid = state.user?.userId || state.user?.id;
-  if (sameUserId(current.userId, uid) || current.displayName === state.user?.displayName) {
+  const sid = current.userId ?? current.UserId;
+  const dname = current.displayName ?? current.DisplayName;
+  if (sameUserId(sid, uid) || dname === state.user?.displayName) {
     return current;
   }
   return null;
 }
 
 function requestedHands() {
-  return (state.queue?.queue || []).filter((s) => s.status === "Requested");
+  return (state.queue?.queue || []).filter((s) => speakerStatus(s) === "requested");
 }
 
 function closeMeetingDrawers() {
@@ -202,19 +212,18 @@ function syncMeetingControlBar() {
   }
   if (handBtn) {
     const pressed = handUp || hasFloor;
-    handBtn.setAttribute("aria-pressed", String(pressed));
+    // Always clear disabled when only hand-up (allow lower); keep disabled with floor.
     handBtn.disabled = Boolean(hasFloor);
-    handBtn.classList.toggle("is-active", handUp);
+    handBtn.setAttribute("aria-pressed", String(pressed));
+    handBtn.classList.toggle("is-active", handUp && !hasFloor);
     handBtn.classList.toggle("has-floor", hasFloor);
-    handBtn.setAttribute(
-      "aria-label",
-      hasFloor
-        ? t("assembly.youHaveFloor")
-        : handUp
-          ? t("assembly.lowerHand")
-          : t("assembly.raiseHand")
-    );
-    handBtn.title = handBtn.getAttribute("aria-label");
+    const handLabel = hasFloor
+      ? t("assembly.youHaveFloor")
+      : handUp
+        ? t("assembly.lowerHand")
+        : t("assembly.raiseHand");
+    handBtn.setAttribute("aria-label", handLabel);
+    handBtn.title = handLabel;
     const label = handBtn.querySelector(".mcb-label");
     if (label) {
       label.textContent = hasFloor
@@ -223,6 +232,7 @@ function syncMeetingControlBar() {
           ? t("assembly.lowerHandShort") || "Bajar"
           : t("assembly.raiseHandShort") || "Palabra";
     }
+    handBtn.dataset.handState = hasFloor ? "floor" : handUp ? "raised" : "idle";
   }
   if (queueBtn) {
     const canMod = hasPermission(state.user, "meeting:moderate");
@@ -345,6 +355,8 @@ function renderQueueDrawer() {
         await grantFloor(assemblyId, id);
         state.queue = await getQueue(assemblyId);
         refreshPanels();
+        renderQueueDrawer();
+        syncMeetingControlBar();
       } catch (error) {
         showError(error.message);
       }
@@ -354,6 +366,8 @@ function renderQueueDrawer() {
         await completeFloor(assemblyId, id);
         state.queue = await getQueue(assemblyId);
         refreshPanels();
+        renderQueueDrawer();
+        syncMeetingControlBar();
       } catch (error) {
         showError(error.message);
       }
@@ -363,6 +377,8 @@ function renderQueueDrawer() {
         await rejectFloor(assemblyId, id);
         state.queue = await getQueue(assemblyId);
         refreshPanels();
+        renderQueueDrawer();
+        syncMeetingControlBar();
       } catch (error) {
         showError(error.message);
       }
@@ -372,6 +388,8 @@ function renderQueueDrawer() {
         await skipFloor(assemblyId, id);
         state.queue = await getQueue(assemblyId);
         refreshPanels();
+        renderQueueDrawer();
+        syncMeetingControlBar();
       } catch (error) {
         showError(error.message);
       }
@@ -523,10 +541,22 @@ function setConnectionState(status) {
     <span>${escapeHtml(label)}</span>
   `;
 
-  // Fullscreen reconnect UX while recovering or after unexpected drop.
-  setConnectionLostVisible(
-    !state.intentionalDisconnect && (status === "reconnecting" || status === "disconnected")
-  );
+  // Keep the room usable during SignalR reconnect — fullscreen only on hard drop.
+  if (connectionLostTimer) {
+    clearTimeout(connectionLostTimer);
+    connectionLostTimer = null;
+  }
+  if (state.intentionalDisconnect || status === "connected" || status === "reconnecting") {
+    setConnectionLostVisible(false);
+    return;
+  }
+  if (status === "disconnected") {
+    connectionLostTimer = window.setTimeout(() => {
+      if (!state.intentionalDisconnect) {
+        setConnectionLostVisible(true);
+      }
+    }, 4000);
+  }
 }
 
 function applyRoleChrome() {
@@ -819,7 +849,7 @@ function syncFloorBanner() {
     banner.classList.add("is-active");
   } else if (myRequest) {
     banner.hidden = false;
-    const pos = myRequest.queueOrder ?? "—";
+    const pos = myRequest.queueOrder ?? myRequest.QueueOrder ?? "—";
     banner.innerHTML = `<strong>${escapeHtml(t("assembly.handRaised") || "Mano levantada")}</strong>
       <span>${escapeHtml(t("assembly.queuePosition", { n: pos }))}</span>`;
     banner.classList.remove("is-active");
