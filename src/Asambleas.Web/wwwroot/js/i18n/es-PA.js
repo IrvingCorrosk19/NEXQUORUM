@@ -71,7 +71,25 @@ export default {
     empty: "No hay participantes para mostrar.",
     noApi: "Lista de participantes no disponible. Use su propio check-in.",
     selfCheckIn: "Registrar mi asistencia",
-    success: "Asistencia registrada."
+    success: "Asistencia registrada.",
+    review: "Revisar",
+    viewDetails: "Ver ficha",
+    openDesk: "Abrir mesa de acreditación",
+    deskClosed: "La mesa de acreditación está cerrada. Estado actual: {status}.",
+    deskOpen: "Mesa abierta — puede acreditar participantes.",
+    deskOpening: "Abriendo mesa…",
+    ownedUnits: "Unidades propias",
+    representedUnits: "Representación",
+    effectiveTotal: "Coeficiente efectivo",
+    role: "Rol",
+    presence: "Presencia",
+    noUnits: "Sin unidades vinculadas",
+    conflictTitle: "Conflicto de representación",
+    confirmAccredit: "Acreditar y registrar asistencia",
+    cancel: "Cancelar",
+    close: "Cerrar",
+    alreadyAccredited: "Ya acreditado",
+    assemblyStatus: "Estado de asamblea"
   },
 
   lobby: {

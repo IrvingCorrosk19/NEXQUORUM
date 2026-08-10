@@ -95,17 +95,17 @@ public sealed class AttendanceService
         {
             throw new DomainException(
                 AttendanceCodes.AssemblyNotOpen,
-                $"Check-in is not allowed while assembly is '{assembly.Status}'.");
+                "La mesa de acreditación no está abierta. Un operador debe iniciar el check-in desde el panel de la asamblea.");
         }
 
         if (!Enum.TryParse<PresenceType>(presenceTypeRaw, ignoreCase: true, out var presenceType))
         {
-            throw new DomainException($"Unknown presence type '{presenceTypeRaw}'.");
+            throw new DomainException($"Tipo de presencia desconocido '{presenceTypeRaw}'.");
         }
 
         var participant = await _db.AssemblyParticipants
             .FirstOrDefaultAsync(p => p.AssemblyId == assemblyId && p.UserId == targetUserId, cancellationToken)
-            ?? throw new DomainException("Participant is not registered for this assembly.");
+            ?? throw new DomainException("El participante no está inscrito en esta asamblea.");
 
         TenantGuard.EnsureTenantMatch(_currentTenant, participant.TenantId);
 

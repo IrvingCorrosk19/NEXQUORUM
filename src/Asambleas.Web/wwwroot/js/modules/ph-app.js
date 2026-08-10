@@ -50,7 +50,7 @@ async function init() {
   try {
     user = await me();
   } catch {
-    location.href = "/login.html";
+    location.href = "/";
     return;
   }
 
@@ -58,7 +58,7 @@ async function init() {
   $("#nav-tenant").textContent = user.tenantCode || "Gobernanza";
   $("#btn-logout").addEventListener("click", async () => {
     await logout();
-    location.href = "/login.html";
+    location.href = "/";
   });
 
   if (!hasPermission(user, "ph:view")) {

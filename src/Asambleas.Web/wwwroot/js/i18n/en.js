@@ -71,7 +71,25 @@ export default {
     empty: "No participants to show.",
     noApi: "Participant list unavailable. Use self check-in.",
     selfCheckIn: "Register my attendance",
-    success: "Attendance registered."
+    success: "Attendance registered.",
+    review: "Review",
+    viewDetails: "View profile",
+    openDesk: "Open accreditation desk",
+    deskClosed: "Accreditation desk is closed. Current status: {status}.",
+    deskOpen: "Desk open — you can accredit participants.",
+    deskOpening: "Opening desk…",
+    ownedUnits: "Owned units",
+    representedUnits: "Representation",
+    effectiveTotal: "Effective coefficient",
+    role: "Role",
+    presence: "Presence",
+    noUnits: "No linked units",
+    conflictTitle: "Representation conflict",
+    confirmAccredit: "Accredit and check in",
+    cancel: "Cancel",
+    close: "Close",
+    alreadyAccredited: "Already accredited",
+    assemblyStatus: "Assembly status"
   },
 
   lobby: {

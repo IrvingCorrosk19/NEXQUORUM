@@ -36,7 +36,7 @@ document.getElementById("form-activate").addEventListener("submit", async (ev) =
     });
     showAlert("Cuenta activada. Ya puedes iniciar sesión.", "ok");
     setTimeout(() => {
-      location.href = "/login.html";
+      location.href = "/";
     }, 1200);
   } catch (err) {
     showAlert(err.message || String(err));

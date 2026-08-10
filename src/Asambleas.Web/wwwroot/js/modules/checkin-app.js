@@ -1,5 +1,5 @@
 import { api } from "./api.js";
-import { me } from "./auth.js";
+import { me, hasPermission } from "./auth.js";
 import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { getParticipants, hydrateRoomState } from "./room-state.js";
@@ -13,6 +13,10 @@ let user = null;
 let pendingPreview = null;
 let recent = [];
 let quorum = null;
+let assembly = null;
+let assemblyStatus = null;
+
+const OPEN_STATUSES = new Set(["CheckIn", "InProgress", "Paused"]);
 
 function showError(message) {
   const el = qs("#page-alert");
@@ -38,6 +42,44 @@ function isPresent(p) {
   return Boolean(p.isAccredited) || ["Present", "CheckedIn"].includes(p.attendanceStatus);
 }
 
+function deskIsOpen() {
+  return OPEN_STATUSES.has(String(assemblyStatus || ""));
+}
+
+function canOpenDesk() {
+  return (
+    isOperator(user) &&
+    hasPermission(user, "assembly:start") &&
+    String(assemblyStatus || "") === "Scheduled"
+  );
+}
+
+function errorMessage(error) {
+  const code = error?.payload?.code || error?.payload?.extensions?.code;
+  if (code === "ASSEMBLY_NOT_OPEN_FOR_CHECKIN") {
+    return t("checkin.deskClosed", { status: assemblyStatus || "—" });
+  }
+  return error?.message || t("networkError");
+}
+
+function updateDeskBanner() {
+  const banner = qs("#desk-banner");
+  const text = qs("#desk-banner-text");
+  const btn = qs("#btn-open-desk");
+  if (!banner || !text || !btn) return;
+
+  banner.hidden = false;
+  banner.classList.toggle("is-open", deskIsOpen());
+  if (deskIsOpen()) {
+    text.textContent = t("checkin.deskOpen");
+    btn.hidden = true;
+  } else {
+    text.textContent = t("checkin.deskClosed", { status: assemblyStatus || "—" });
+    btn.hidden = !canOpenDesk();
+    btn.textContent = t("checkin.openDesk");
+  }
+}
+
 function updateLive() {
   const accredited = participants.filter((p) => p.isAccredited).length;
   const present = participants.filter((p) => isPresent(p)).length;
@@ -50,6 +92,9 @@ function updateLive() {
     qs("#live-quorum-meta").textContent = quorum.quorumReached
       ? t("quorum.reached")
       : `Falta ${missing.toFixed(2)}%`;
+  } else {
+    root.textContent = "—";
+    qs("#live-quorum-meta").textContent = deskIsOpen() ? "" : t("checkin.assemblyStatus") + ": " + (assemblyStatus || "—");
   }
 
   const recentRoot = qs("#recent-root");
@@ -66,12 +111,17 @@ function updateLive() {
   }
 }
 
+function formatCoeff(value) {
+  if (value == null || Number.isNaN(Number(value))) return "—";
+  return `${Number(value).toFixed(3)}%`;
+}
+
 function renderCards(filter = "") {
   const root = qs("#cards-root");
   const q = filter.trim().toLowerCase();
   const list = participants.filter((p) => {
     if (!q) return true;
-    const hay = `${p.displayName || ""} ${p.unitCode || ""} ${p.identification || ""}`.toLowerCase();
+    const hay = `${p.displayName || ""} ${p.unitCode || ""} ${p.roleCode || ""} ${p.identification || ""}`.toLowerCase();
     return hay.includes(q);
   });
 
@@ -85,17 +135,15 @@ function renderCards(filter = "") {
       const present = isPresent(p);
       const coeff =
         p.effectiveCoefficientPercent != null && p.isAccredited
-          ? `${Number(p.effectiveCoefficientPercent).toFixed(3)}%`
-          : p.coefficientPercent != null
-            ? `${Number(p.coefficientPercent).toFixed(3)}%`
-            : "—";
+          ? formatCoeff(p.effectiveCoefficientPercent)
+          : formatCoeff(p.coefficientPercent);
       const reps =
         p.representationCount > 0
           ? `<div><dt>Representaciones</dt><dd>${escapeHtml(String(p.representationCount))}</dd></div>`
           : "";
       return `
       <article class="accreditation-card" data-user-id="${escapeHtml(p.userId || "")}">
-        <div class="owner-label">${escapeHtml(t("checkin.owner"))}</div>
+        <p class="owner-label">${escapeHtml(t("checkin.owner"))}</p>
         <h2 class="owner-name">${escapeHtml(p.displayName || "—")}</h2>
         <dl class="accreditation-grid">
           <div>
@@ -106,6 +154,10 @@ function renderCards(filter = "") {
             <dt>${escapeHtml(t("checkin.coefficient"))}</dt>
             <dd>${escapeHtml(coeff)}</dd>
           </div>
+          <div>
+            <dt>${escapeHtml(t("checkin.role"))}</dt>
+            <dd>${escapeHtml(p.roleCode || "—")}</dd>
+          </div>
           ${reps}
           <div>
             <dt>${escapeHtml(t("checkin.status"))}</dt>
@@ -114,80 +166,169 @@ function renderCards(filter = "") {
             )}</span></dd>
           </div>
         </dl>
-        ${
-          present
-            ? ""
-            : `<button type="button" class="btn btn-primary" data-review="${escapeHtml(p.userId || "")}">
-                ${escapeHtml(isOperator(user) ? "Revisar" : t("checkin.checkIn"))}
-              </button>`
-        }
+        <div class="card-actions">
+          <button type="button" class="btn btn-secondary" data-view="${escapeHtml(p.userId || "")}">
+            ${escapeHtml(t("checkin.viewDetails"))}
+          </button>
+          ${
+            present
+              ? ""
+              : `<button type="button" class="btn btn-primary" data-review="${escapeHtml(p.userId || "")}">
+                  ${escapeHtml(isOperator(user) ? t("checkin.review") : t("checkin.checkIn"))}
+                </button>`
+          }
+        </div>
       </article>`;
     })
     .join("");
 
+  root.querySelectorAll("[data-view]").forEach((btn) => {
+    btn.addEventListener("click", () => openOwnerModal(btn.getAttribute("data-view"), { accreditMode: false }));
+  });
   root.querySelectorAll("[data-review]").forEach((btn) => {
-    btn.addEventListener("click", () => openReview(btn.getAttribute("data-review")));
+    btn.addEventListener("click", () => openOwnerModal(btn.getAttribute("data-review"), { accreditMode: true }));
   });
 }
 
-async function openReview(targetUserId) {
+function unitListHtml(units, emptyLabel) {
+  if (!units?.length) {
+    return `<p class="muted">${escapeHtml(emptyLabel)}</p>`;
+  }
+  return `<ul class="unit-list">${units
+    .map((u) => {
+      const conflict = u.conflictWithDisplayName
+        ? `<div class="unit-meta">conflicto · ${escapeHtml(u.conflictWithDisplayName)}</div>`
+        : `<div class="unit-meta">${escapeHtml(formatCoeff(u.coefficientPercent))}</div>`;
+      return `<li><span class="unit-code">${escapeHtml(u.unitCode || "—")}</span>${conflict}</li>`;
+    })
+    .join("")}</ul>`;
+}
+
+function renderOwnerModalBody(preview, participant) {
+  const conflicts = preview.conflicts || [];
+  const statusLabel = preview.isAccredited
+    ? t("checkin.accredited")
+    : preview.canAccredit
+      ? t("checkin.eligible")
+      : t("checkin.conflictTitle");
+
+  return `
+    <div class="owner-metrics">
+      <div class="owner-metric">
+        <div class="label">${escapeHtml(t("checkin.effectiveTotal"))}</div>
+        <div class="value">${escapeHtml(formatCoeff(preview.effectiveCoefficientPercent))}</div>
+      </div>
+      <div class="owner-metric">
+        <div class="label">${escapeHtml(t("checkin.status"))}</div>
+        <div class="value" style="font-size:1.05rem">${escapeHtml(statusLabel)}</div>
+      </div>
+    </div>
+    <div class="owner-section">
+      <h3>${escapeHtml(t("checkin.role"))} / ${escapeHtml(t("checkin.presence"))}</h3>
+      <p style="margin:0">${escapeHtml(participant?.roleCode || "—")} · ${escapeHtml(
+        preview.attendanceStatus || participant?.attendanceStatus || "—"
+      )}${participant?.presenceType ? ` · ${escapeHtml(participant.presenceType)}` : ""}</p>
+    </div>
+    <div class="owner-section">
+      <h3>${escapeHtml(t("checkin.ownedUnits"))}</h3>
+      ${unitListHtml(preview.owned, t("checkin.noUnits"))}
+    </div>
+    <div class="owner-section">
+      <h3>${escapeHtml(t("checkin.representedUnits"))}</h3>
+      ${unitListHtml(preview.represented, t("checkin.noUnits"))}
+    </div>
+    ${
+      conflicts.length
+        ? `<div class="conflict-box" role="alert"><strong>${escapeHtml(t("checkin.conflictTitle"))}</strong><ul>${conflicts
+            .map((c) => `<li>${escapeHtml(c.message)}</li>`)
+            .join("")}</ul></div>`
+        : ""
+    }
+  `;
+}
+
+async function openOwnerModal(targetUserId, { accreditMode }) {
   showError("");
+  const dialog = qs("#owner-dialog");
+  const accreditBtn = qs("#btn-dialog-accredit");
   try {
     const preview = await api(
       `/api/assemblies/${assemblyId}/attendance/participants/${targetUserId}/preview`
     );
     pendingPreview = preview;
-    const body = qs("#review-body");
-    const conflicts = preview.conflicts || [];
-    const owned = (preview.owned || [])
-      .map((u) => `<dd>${escapeHtml(u.unitCode)} · ${Number(u.coefficientPercent).toFixed(3)}%</dd>`)
-      .join("") || "<dd>—</dd>";
-    const represented = (preview.represented || [])
-      .map((u) => `<dd>${escapeHtml(u.unitCode)} · ${Number(u.coefficientPercent).toFixed(3)}%${
-        u.conflictWithDisplayName ? ` · conflicto` : ""
-      }</dd>`)
-      .join("") || "<dd>—</dd>";
+    const participant = participants.find((p) => String(p.userId) === String(targetUserId));
 
-    body.innerHTML = `
-      <p><strong>${escapeHtml(preview.displayName)}</strong></p>
-      <dl>
-        <dt>Propiedad</dt>
-        ${owned}
-        <dt>Representación</dt>
-        ${represented}
-        <dt>Total efectivo</dt>
-        <dd><strong>${Number(preview.effectiveCoefficientPercent).toFixed(3)}%</strong></dd>
-        <dt>Estado</dt>
-        <dd>${preview.isAccredited ? "Acreditada" : preview.canAccredit ? "Habilitada" : "Con conflictos"}</dd>
-      </dl>
-      ${
-        conflicts.length
-          ? `<div class="conflict-box" role="alert"><strong>Conflicto de representación</strong><ul>${conflicts
-              .map((c) => `<li>${escapeHtml(c.message)}</li>`)
-              .join("")}</ul></div>`
-          : ""
-      }
-    `;
+    qs("#owner-dialog-kicker").textContent = t("checkin.owner");
+    qs("#owner-dialog-title").textContent = preview.displayName || "—";
+    qs("#owner-dialog-subtitle").textContent = [
+      participant?.unitCode,
+      assembly?.propertyHorizontalName,
+      assembly?.title
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    qs("#owner-dialog-body").innerHTML = renderOwnerModalBody(preview, participant);
 
-    const confirm = qs("#btn-review-confirm");
-    confirm.disabled = !preview.canAccredit || conflicts.length > 0;
-    qs("#review-panel").hidden = false;
-    confirm.focus();
+    const canAccredit =
+      accreditMode &&
+      !preview.isAccredited &&
+      preview.canAccredit &&
+      !(preview.conflicts || []).length;
+
+    accreditBtn.hidden = !accreditMode;
+    accreditBtn.disabled = !canAccredit && !preview.isAccredited;
+    accreditBtn.textContent = preview.isAccredited
+      ? t("checkin.alreadyAccredited")
+      : t("checkin.confirmAccredit");
+
+    if (typeof dialog.showModal === "function") {
+      dialog.showModal();
+    } else {
+      dialog.setAttribute("open", "");
+    }
+    (canAccredit ? accreditBtn : qs("#btn-dialog-close")).focus();
   } catch (error) {
-    showError(error.message);
+    showError(errorMessage(error));
   }
 }
 
-function closeReview() {
-  qs("#review-panel").hidden = true;
+function closeOwnerModal() {
+  const dialog = qs("#owner-dialog");
+  if (dialog?.open) dialog.close();
+  else dialog?.removeAttribute("open");
   pendingPreview = null;
+}
+
+async function ensureDeskOpen() {
+  if (deskIsOpen()) return true;
+  if (!canOpenDesk()) {
+    throw Object.assign(new Error(t("checkin.deskClosed", { status: assemblyStatus || "—" })), {
+      payload: { code: "ASSEMBLY_NOT_OPEN_FOR_CHECKIN" }
+    });
+  }
+  qs("#btn-open-desk").disabled = true;
+  qs("#btn-open-desk").textContent = t("checkin.deskOpening");
+  try {
+    const updated = await api(`/api/assemblies/${assemblyId}/start-checkin`, { method: "POST" });
+    assemblyStatus = updated?.status || "CheckIn";
+    if (assembly) assembly.status = assemblyStatus;
+    updateDeskBanner();
+    announce(t("checkin.deskOpen"));
+    showToast(t("checkin.deskOpen"), "success");
+    return true;
+  } finally {
+    qs("#btn-open-desk").disabled = false;
+    qs("#btn-open-desk").textContent = t("checkin.openDesk");
+  }
 }
 
 async function confirmAccredit() {
   if (!pendingPreview) return;
-  const btn = qs("#btn-review-confirm");
+  const btn = qs("#btn-dialog-accredit");
   btn.disabled = true;
   try {
+    await ensureDeskOpen();
+
     const targetId = pendingPreview.userId;
     const operator = isOperator(user);
     const isSelf = String(user?.userId || "") === String(targetId);
@@ -213,7 +354,7 @@ async function confirmAccredit() {
 
     announce(`Acreditación completada: ${pendingPreview.displayName}`);
     showToast(
-      `✓ ${pendingPreview.displayName} · ${Number(result.effectiveCoefficientPercent ?? 0).toFixed(3)}%`,
+      `✓ ${pendingPreview.displayName} · ${formatCoeff(result.effectiveCoefficientPercent ?? 0)}`,
       "success"
     );
 
@@ -229,13 +370,13 @@ async function confirmAccredit() {
       };
     }
 
-    closeReview();
+    closeOwnerModal();
     await reloadParticipants();
     await reloadQuorum();
     qs("#participant-filter")?.focus();
   } catch (error) {
-    showError(error.message);
-    announce(error.message);
+    showError(errorMessage(error));
+    announce(errorMessage(error));
     btn.disabled = false;
   }
 }
@@ -244,9 +385,10 @@ async function selfCheckIn() {
   try {
     const meId = user?.userId;
     if (meId) {
-      await openReview(meId);
+      await openOwnerModal(meId, { accreditMode: true });
       return;
     }
+    await ensureDeskOpen();
     await api(`/api/assemblies/${assemblyId}/attendance/check-in`, {
       method: "POST",
       body: { unitId: null, presenceType: "Virtual" }
@@ -255,7 +397,7 @@ async function selfCheckIn() {
     await reloadParticipants();
     await reloadQuorum();
   } catch (error) {
-    showError(error.message);
+    showError(errorMessage(error));
   }
 }
 
@@ -276,10 +418,17 @@ async function reloadParticipants() {
 
 async function reloadQuorum() {
   try {
-    quorum = await api(`/api/assemblies/${assemblyId}/quorum`);
+    quorum =
+      (await api(`/api/assemblies/${assemblyId}/quorum`)) ||
+      (await api(`/api/assemblies/${assemblyId}/quorum/latest`));
     updateLive();
   } catch {
-    // ignore
+    try {
+      quorum = await api(`/api/assemblies/${assemblyId}/quorum/latest`);
+      updateLive();
+    } catch {
+      // ignore until first accreditation
+    }
   }
 }
 
@@ -291,6 +440,9 @@ async function init() {
   qs("#link-lobby").href = `/lobby.html?assemblyId=${assemblyId}`;
   qs("#link-dashboard").href = `/dashboard.html?assemblyId=${assemblyId}`;
   qs("#link-dashboard").textContent = t("back");
+  qs("#btn-dialog-close").textContent = t("checkin.close");
+  qs("#btn-dialog-accredit").textContent = t("checkin.confirmAccredit");
+  qs("#btn-open-desk").textContent = t("checkin.openDesk");
 
   const filter = qs("#participant-filter");
   filter.placeholder = t("checkin.searchPlaceholder");
@@ -309,21 +461,33 @@ async function init() {
   }
 
   try {
-    const assembly = await api(`/api/assemblies/${assemblyId}`);
+    assembly = await api(`/api/assemblies/${assemblyId}`);
+    assemblyStatus = assembly.status;
     qs("#assembly-label").textContent = `${assembly.propertyHorizontalName || ""} · ${assembly.title || ""}`;
   } catch {
     // ignore
   }
 
+  updateDeskBanner();
   await reloadParticipants();
   await reloadQuorum();
 
   filter.addEventListener("input", () => renderCards(filter.value));
   qs("#btn-self-checkin").addEventListener("click", selfCheckIn);
-  qs("#btn-review-cancel").addEventListener("click", closeReview);
-  qs("#btn-review-confirm").addEventListener("click", confirmAccredit);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !qs("#review-panel").hidden) closeReview();
+  qs("#btn-dialog-close").addEventListener("click", closeOwnerModal);
+  qs("#btn-dialog-accredit").addEventListener("click", confirmAccredit);
+  qs("#btn-open-desk").addEventListener("click", async () => {
+    try {
+      await ensureDeskOpen();
+    } catch (error) {
+      showError(errorMessage(error));
+    }
+  });
+  qs("#owner-dialog").addEventListener("close", () => {
+    pendingPreview = null;
+  });
+  qs("#owner-dialog").addEventListener("click", (e) => {
+    if (e.target === qs("#owner-dialog")) closeOwnerModal();
   });
 
   try {
@@ -336,6 +500,12 @@ async function init() {
         },
         participantUpdated: async () => {
           await reloadParticipants();
+        },
+        assemblyUpdated: (a) => {
+          if (a?.status) {
+            assemblyStatus = a.status;
+            updateDeskBanner();
+          }
         }
       });
       await hub.start(assemblyId);

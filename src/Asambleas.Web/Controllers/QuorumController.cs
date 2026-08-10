@@ -18,6 +18,12 @@ public sealed class QuorumController : ControllerBase
         _quorum = quorum;
     }
 
+    /// <summary>Current quorum snapshot (alias of <c>/latest</c> for UI clients).</summary>
+    [HttpGet]
+    [Authorize(Policy = Permissions.QuorumView)]
+    public Task<QuorumDto?> Current(Guid assemblyId, CancellationToken cancellationToken) =>
+        _quorum.GetLatestAsync(assemblyId, cancellationToken);
+
     [HttpGet("latest")]
     [Authorize(Policy = Permissions.QuorumView)]
     public Task<QuorumDto?> Latest(Guid assemblyId, CancellationToken cancellationToken) =>

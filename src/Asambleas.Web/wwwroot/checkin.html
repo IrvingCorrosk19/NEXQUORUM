@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ASAMBLEAS — Check-in</title>
+  <title>ASAMBLEAS — Acreditación</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
@@ -12,50 +12,83 @@
   <link rel="stylesheet" href="/css/components.css?v=px1" />
   <style>
     .checkin-shell { display: grid; gap: 1.25rem; }
-    @media (min-width: 768px) {
+    @media (min-width: 900px) {
       .checkin-shell { grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem); align-items: start; }
     }
+    .checkin-banner {
+      display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
+      padding: 0.9rem 1.05rem;
+      border: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
+      background: color-mix(in srgb, var(--color-surface) 92%, var(--brand-gold-300, #d4a017) 8%);
+    }
+    .checkin-banner.is-open {
+      background: color-mix(in srgb, var(--color-surface) 90%, var(--brand-teal-500, #1a5f4a) 10%);
+    }
+    .checkin-banner .banner-text { margin: 0; flex: 1 1 14rem; }
     .checkin-live {
       display: grid; gap: 0.75rem; padding: 1rem 1.1rem;
       background: color-mix(in srgb, var(--color-surface) 88%, var(--color-accent, #1a5f4a) 12%);
-      border-radius: 0;
     }
     .checkin-live .metric { font-family: "Source Serif 4", Georgia, serif; font-size: 1.75rem; font-weight: 600; }
-    .checkin-search input {
-      min-height: 3rem; font-size: 1.05rem; width: 100%;
-    }
+    .checkin-search input { min-height: 3rem; font-size: 1.05rem; width: 100%; }
     .accreditation-card {
-      padding: 1.1rem 1.15rem; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
+      padding: 1.1rem 1.15rem;
+      border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
       display: grid; gap: 0.65rem;
     }
+    .accreditation-card .owner-label {
+      font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.65; margin: 0;
+    }
     .accreditation-card .owner-name { font-family: "Source Serif 4", Georgia, serif; font-size: 1.35rem; margin: 0; }
-    .accreditation-card .btn { min-height: 3rem; font-size: 1rem; }
-    .review-panel {
-      position: fixed; inset: 0; background: color-mix(in srgb, #0a1210 55%, transparent);
-      display: grid; place-items: end center; z-index: 40; padding: 0;
+    .accreditation-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: 0.55rem 1rem; margin: 0;
     }
-    .review-panel[hidden] { display: none !important; }
-    .review-sheet {
-      width: min(100%, 32rem); max-height: 92vh; overflow: auto;
+    .accreditation-grid dt { font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.65; margin: 0; }
+    .accreditation-grid dd { margin: 0.15rem 0 0; font-size: 1.02rem; }
+    .card-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .card-actions .btn { min-height: 2.75rem; font-size: 0.95rem; }
+    .owner-dialog {
+      border: none; padding: 0; max-width: min(34rem, calc(100vw - 1.5rem));
+      width: 100%; background: transparent; color: inherit;
+    }
+    .owner-dialog::backdrop { background: rgba(10, 18, 16, 0.55); }
+    .owner-sheet {
       background: var(--color-surface, #f7f4ef); color: var(--color-ink, #14201c);
-      padding: 1.25rem 1.25rem 1.75rem; display: grid; gap: 0.85rem;
+      padding: 1.25rem 1.25rem 1.5rem; display: grid; gap: 1rem;
+      max-height: min(92vh, 40rem); overflow: auto;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.22);
     }
-    .review-sheet h2 { font-family: "Source Serif 4", Georgia, serif; margin: 0; font-size: 1.5rem; }
-    .review-sheet dl { display: grid; gap: 0.35rem; margin: 0; }
-    .review-sheet dt { font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.7; }
-    .review-sheet dd { margin: 0; font-size: 1.05rem; }
+    .owner-sheet header { display: grid; gap: 0.25rem; }
+    .owner-sheet h2 { font-family: "Source Serif 4", Georgia, serif; margin: 0; font-size: 1.55rem; }
+    .owner-sheet .subtitle { margin: 0; opacity: 0.7; font-size: 0.95rem; }
+    .owner-section { display: grid; gap: 0.45rem; }
+    .owner-section h3 {
+      margin: 0; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.7;
+    }
+    .unit-list { display: grid; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
+    .unit-list li {
+      display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline;
+      padding: 0.55rem 0.65rem;
+      background: color-mix(in srgb, var(--color-ink) 4%, transparent);
+    }
+    .unit-list .unit-code { font-weight: 650; }
+    .unit-list .unit-meta { font-size: 0.9rem; opacity: 0.75; text-align: right; }
+    .owner-metrics {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem;
+    }
+    .owner-metric {
+      padding: 0.65rem 0.75rem;
+      background: color-mix(in srgb, var(--brand-teal-500, #1a5f4a) 8%, transparent);
+    }
+    .owner-metric .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
+    .owner-metric .value { font-family: "Source Serif 4", Georgia, serif; font-size: 1.35rem; font-weight: 600; }
     .conflict-box {
       border-left: 3px solid var(--color-danger, #9b2c2c);
       padding: 0.75rem 0.85rem; background: color-mix(in srgb, #9b2c2c 8%, transparent);
     }
-    .success-panel { text-align: center; display: grid; gap: 0.5rem; padding: 1.5rem 0.5rem; }
-    .success-panel .check { font-size: 2rem; color: var(--color-accent, #1a5f4a); }
+    .conflict-box ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
     .recent-list { display: grid; gap: 0.35rem; font-size: 0.95rem; }
     .sr-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-    @media (min-width: 768px) {
-      .review-panel { place-items: center; }
-      .review-sheet { border-radius: 0; }
-    }
   </style>
 </head>
 <body>
@@ -69,9 +102,13 @@
       <div id="page-alert" class="alert" hidden role="alert"></div>
       <p id="sr-announcer" class="sr-live" aria-live="polite"></p>
       <section class="page-hero">
-        <h1 id="page-title">Check-in</h1>
+        <h1 id="page-title">Acreditación</h1>
         <p class="muted" id="assembly-label"></p>
       </section>
+      <div id="desk-banner" class="checkin-banner" hidden>
+        <p class="banner-text" id="desk-banner-text"></p>
+        <button type="button" id="btn-open-desk" class="btn btn-primary" hidden>Abrir mesa de acreditación</button>
+      </div>
       <div class="checkin-shell">
         <div class="stack">
           <div class="field checkin-search">
@@ -103,18 +140,22 @@
     </main>
   </div>
 
-  <div id="review-panel" class="review-panel" hidden role="dialog" aria-modal="true" aria-labelledby="review-title">
-    <div class="review-sheet">
-      <h2 id="review-title">Revisar acreditación</h2>
-      <div id="review-body"></div>
-      <div class="cta-row">
-        <button type="button" id="btn-review-cancel" class="btn btn-secondary">Cancelar</button>
-        <button type="button" id="btn-review-confirm" class="btn btn-primary">Acreditar y check-in</button>
+  <dialog id="owner-dialog" class="owner-dialog" aria-labelledby="owner-dialog-title">
+    <div class="owner-sheet">
+      <header>
+        <p class="owner-label" id="owner-dialog-kicker">Propietario</p>
+        <h2 id="owner-dialog-title">—</h2>
+        <p class="subtitle" id="owner-dialog-subtitle"></p>
+      </header>
+      <div id="owner-dialog-body"></div>
+      <div class="cta-row" id="owner-dialog-actions">
+        <button type="button" id="btn-dialog-close" class="btn btn-secondary">Cerrar</button>
+        <button type="button" id="btn-dialog-accredit" class="btn btn-primary">Acreditar</button>
       </div>
     </div>
-  </div>
+  </dialog>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/js/modules/checkin-app.js?v=px1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
+  <script type="module" src="/js/modules/checkin-app.js?v=ck2"></script>
 </body>
 </html>

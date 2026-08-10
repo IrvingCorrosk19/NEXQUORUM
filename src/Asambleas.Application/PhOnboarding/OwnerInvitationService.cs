@@ -100,7 +100,7 @@ public sealed class OwnerInvitationService
                 Guid.Empty,
                 email,
                 DateTimeOffset.UtcNow,
-                "/login.html",
+                "/",
                 ExistingUserLinked: true);
         }
 
