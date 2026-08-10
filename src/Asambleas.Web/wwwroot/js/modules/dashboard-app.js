@@ -248,6 +248,7 @@ async function init() {
 
   qs("#secondary-links").innerHTML = `
     <a class="btn btn-secondary" href="/calendar.html">Calendario</a>
+    <a class="btn btn-secondary" href="/ph.html">Administrar PH</a>
     <a class="btn btn-secondary" href="/communications.html?assemblyId=${assemblyId}">Comunicaciones</a>
     <a class="btn btn-secondary" href="/convocation.html?assemblyId=${assemblyId}">Convocatoria</a>
     <a class="btn btn-secondary" href="/checkin.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkCheckin"))}</a>
@@ -257,6 +258,34 @@ async function init() {
     <a class="btn btn-secondary" href="/expediente.html?assemblyId=${assemblyId}">Expediente</a>
     ${operator ? `<a class="btn btn-ghost" href="/projector.html?assemblyId=${assemblyId}" target="_blank" rel="noopener">${escapeHtml(t("dashboard.linkProjector"))}</a>` : ""}
   `;
+
+  try {
+    if (user.permissions?.includes("ph:view")) {
+      const phs = await api("/api/ph");
+      const phId = user.propertyHorizontalId || assembly.propertyHorizontalId;
+      const ph = phs.find((p) => p.id === phId) || phs[0];
+      const panel = qs("#ph-admin-panel");
+      const card = qs("#ph-admin-card");
+      if (panel && card && ph) {
+        panel.hidden = false;
+        const next = ph.nextAssemblyAtUtc
+          ? formatDateTime(ph.nextAssemblyAtUtc)
+          : "—";
+        card.innerHTML = `
+          <h3 style="margin:0 0 .5rem;font-family:Source Serif 4,serif">${escapeHtml(ph.name)}</h3>
+          <div class="meta-row">
+            <span>${ph.unitCount} Unidades</span>
+            <span>${ph.ownerCount} Propietarios</span>
+            <span>${ph.activeUserCount || 0} Usuarios activos</span>
+            <span>${Number(ph.coefficientTotalPercent).toFixed(0)}% Coeficiente</span>
+          </div>
+          <p class="lede" style="margin:.75rem 0">Próxima Asamblea: ${escapeHtml(next)}${ph.nextAssemblyTitle ? ` · ${escapeHtml(ph.nextAssemblyTitle)}` : ""}</p>
+          <a class="btn btn-primary" href="/ph.html?phId=${ph.id}">Administrar PH</a>`;
+      }
+    }
+  } catch {
+    /* PH panel is optional when onboarding APIs unavailable */
+  }
 
   try {
     const next = await api("/api/calendar/next");

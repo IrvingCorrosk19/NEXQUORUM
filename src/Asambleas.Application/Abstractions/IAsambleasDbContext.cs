@@ -18,6 +18,10 @@ public interface IAsambleasDbContext
 
     DbSet<Ownership> Ownerships { get; }
 
+    DbSet<OwnerInvitation> OwnerInvitations { get; }
+
+    DbSet<UserPropertyMembership> UserPropertyMemberships { get; }
+
     DbSet<Power> Powers { get; }
 
     DbSet<AssemblyRepresentation> AssemblyRepresentations { get; }

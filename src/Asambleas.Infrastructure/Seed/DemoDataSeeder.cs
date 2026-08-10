@@ -63,10 +63,11 @@ public sealed class DemoDataSeeder
 
         if (await _db.Tenants.IgnoreQueryFilters().AnyAsync(t => t.Id == DemoSeedConstants.TenantOceanId, cancellationToken))
         {
-            _logger.LogInformation("Demo seed already present; ensuring EO-006 powers.");
+            _logger.LogInformation("Demo seed already present; ensuring EO-006 powers and PH memberships.");
             if (seedUsers)
             {
                 await EnsureEo006PowersAsync(cancellationToken);
+                await EnsureUserPropertyMembershipsAsync(cancellationToken);
                 await RotateDemoUserPasswordsAsync(cancellationToken);
             }
 
@@ -200,7 +201,13 @@ public sealed class DemoDataSeeder
             OrganizationId = DemoSeedConstants.OrgOceanId,
             Code = "OCEAN-PH",
             Name = "PH DEMO OCEAN TOWER",
+            LegalName = "Propiedad Horizontal Demo Ocean Tower",
+            Country = "Panamá",
+            City = "Panamá",
             TimeZoneId = "America/Bogota",
+            AdminEmail = "admin@ocean.demo",
+            Status = PhLifecycleStatus.Active,
+            OnboardingStep = 8,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });
@@ -214,6 +221,7 @@ public sealed class DemoDataSeeder
                 PropertyHorizontalId = DemoSeedConstants.PhOceanId,
                 Code = code,
                 CoefficientPercent = coefficient,
+                IsActive = true,
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now
             });
@@ -419,6 +427,22 @@ public sealed class DemoDataSeeder
                     new System.Security.Claims.Claim(DemoSeedConstants.PermissionClaimType, permission));
             }
 
+            await _userManager.AddClaimAsync(
+                user,
+                new System.Security.Claims.Claim("property_horizontal_id", DemoSeedConstants.PhOceanId.ToString("D")));
+
+            _db.UserPropertyMemberships.Add(new UserPropertyMembership
+            {
+                Id = Guid.NewGuid(),
+                TenantId = DemoSeedConstants.TenantOceanId,
+                UserId = userId,
+                PropertyHorizontalId = DemoSeedConstants.PhOceanId,
+                RoleHint = role,
+                IsActive = true,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+
             if (ownerId is Guid oid)
             {
                 _db.Owners.Add(new Owner
@@ -428,6 +452,7 @@ public sealed class DemoDataSeeder
                     DisplayName = displayName,
                     Email = email,
                     UserId = userId,
+                    Status = OwnerLifecycleStatus.Active,
                     CreatedAtUtc = now,
                     UpdatedAtUtc = now
                 });
@@ -442,6 +467,8 @@ public sealed class DemoDataSeeder
                     UnitId = uid,
                     OwnerId = ownershipOwnerId,
                     SharePercent = 100.00m,
+                    EffectiveFromUtc = now,
+                    IsActive = true,
                     CreatedAtUtc = now,
                     UpdatedAtUtc = now
                 });
@@ -469,6 +496,7 @@ public sealed class DemoDataSeeder
             DisplayName = "Propietario Ausente 107",
             Email = "absentee107@ocean.demo",
             UserId = null,
+            Status = OwnerLifecycleStatus.Active,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });
@@ -479,6 +507,7 @@ public sealed class DemoDataSeeder
             DisplayName = "Propietario Ausente 108",
             Email = "absentee108@ocean.demo",
             UserId = null,
+            Status = OwnerLifecycleStatus.Active,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });
@@ -489,6 +518,8 @@ public sealed class DemoDataSeeder
             UnitId = DemoSeedConstants.Unit107Id,
             OwnerId = DemoSeedConstants.OwnerAbsentee107Id,
             SharePercent = 100.00m,
+            EffectiveFromUtc = now,
+            IsActive = true,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });
@@ -499,6 +530,8 @@ public sealed class DemoDataSeeder
             UnitId = DemoSeedConstants.Unit108Id,
             OwnerId = DemoSeedConstants.OwnerAbsentee108Id,
             SharePercent = 100.00m,
+            EffectiveFromUtc = now,
+            IsActive = true,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });
@@ -537,6 +570,44 @@ public sealed class DemoDataSeeder
 
         await _db.SaveChangesAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    /// <summary>
+    /// Backfill active PH memberships for demo users (multi-PH switcher).
+    /// </summary>
+    private async Task EnsureUserPropertyMembershipsAsync(CancellationToken cancellationToken)
+    {
+        _currentTenant.TenantId = Guid.Empty;
+        var now = DateTimeOffset.UtcNow;
+        var users = await _userManager.Users.IgnoreQueryFilters()
+            .Where(u => u.TenantId == DemoSeedConstants.TenantOceanId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var user in users)
+        {
+            var exists = await _db.UserPropertyMemberships.IgnoreQueryFilters().AnyAsync(
+                m => m.UserId == user.Id && m.PropertyHorizontalId == DemoSeedConstants.PhOceanId,
+                cancellationToken);
+            if (exists)
+            {
+                continue;
+            }
+
+            _db.UserPropertyMemberships.Add(new UserPropertyMembership
+            {
+                Id = Guid.NewGuid(),
+                TenantId = DemoSeedConstants.TenantOceanId,
+                UserId = user.Id,
+                PropertyHorizontalId = DemoSeedConstants.PhOceanId,
+                RoleHint = string.IsNullOrWhiteSpace(user.DemoRole) ? Roles.Owner : user.DemoRole,
+                IsActive = true,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        _currentTenant.TenantId = DemoSeedConstants.TenantOceanId;
     }
 
     /// <summary>
@@ -588,6 +659,8 @@ public sealed class DemoDataSeeder
             UnitId = DemoSeedConstants.Unit107Id,
             OwnerId = DemoSeedConstants.OwnerAbsentee107Id,
             SharePercent = 100.00m,
+            EffectiveFromUtc = now,
+            IsActive = true,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });
@@ -598,6 +671,8 @@ public sealed class DemoDataSeeder
             UnitId = DemoSeedConstants.Unit108Id,
             OwnerId = DemoSeedConstants.OwnerAbsentee108Id,
             SharePercent = 100.00m,
+            EffectiveFromUtc = now,
+            IsActive = true,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });

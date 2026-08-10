@@ -10,6 +10,7 @@ using Asambleas.Application.Communications;
 using Asambleas.Application.Evidence;
 using Asambleas.Application.Meeting;
 using Asambleas.Application.Motion;
+using Asambleas.Application.PhOnboarding;
 using Asambleas.Application.Quorum;
 using Asambleas.Application.Recording;
 using Asambleas.Application.Representation;
@@ -47,6 +48,9 @@ public static class DependencyInjection
         services.AddScoped<CommunicationConfigurationService>();
         services.AddScoped<DeliveryDispatchService>();
         services.AddScoped<ConvocationService>();
+        services.AddScoped<PhOnboardingService>();
+        services.AddScoped<PhImportService>();
+        services.AddScoped<OwnerInvitationService>();
 
         return services;
     }

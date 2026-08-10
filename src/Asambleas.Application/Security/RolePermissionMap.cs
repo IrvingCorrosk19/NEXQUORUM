@@ -44,7 +44,15 @@ public static class RolePermissionMap
                 Permissions.ConvocationsCreate,
                 Permissions.ConvocationsSend,
                 Permissions.ConvocationsResend,
-                Permissions.ConvocationsViewEvidence
+                Permissions.ConvocationsViewEvidence,
+                Permissions.PhView,
+                Permissions.PhManage,
+                Permissions.UnitView,
+                Permissions.UnitManage,
+                Permissions.OwnerView,
+                Permissions.OwnerManage,
+                Permissions.OwnerInvite,
+                Permissions.PhImport
             ], StringComparer.Ordinal),
             [Roles.AssemblyPresident] = new HashSet<string>(
             [
@@ -83,7 +91,15 @@ public static class RolePermissionMap
                 Permissions.ConvocationsCreate,
                 Permissions.ConvocationsSend,
                 Permissions.ConvocationsResend,
-                Permissions.ConvocationsViewEvidence
+                Permissions.ConvocationsViewEvidence,
+                Permissions.PhView,
+                Permissions.PhManage,
+                Permissions.UnitView,
+                Permissions.UnitManage,
+                Permissions.OwnerView,
+                Permissions.OwnerManage,
+                Permissions.OwnerInvite,
+                Permissions.PhImport
             ], StringComparer.Ordinal),
             [Roles.AssemblySecretary] = new HashSet<string>(
             [
@@ -115,7 +131,10 @@ public static class RolePermissionMap
                 Permissions.ConvocationsCreate,
                 Permissions.ConvocationsSend,
                 Permissions.ConvocationsResend,
-                Permissions.ConvocationsViewEvidence
+                Permissions.ConvocationsViewEvidence,
+                Permissions.PhView,
+                Permissions.UnitView,
+                Permissions.OwnerView
             ], StringComparer.Ordinal),
             [Roles.AssemblyOperator] = new HashSet<string>(
             [
@@ -135,7 +154,10 @@ public static class RolePermissionMap
                 Permissions.RecordingControl,
                 Permissions.RecordingView,
                 Permissions.CommunicationsView,
-                Permissions.ConvocationsCreate
+                Permissions.ConvocationsCreate,
+                Permissions.PhView,
+                Permissions.UnitView,
+                Permissions.OwnerView
             ], StringComparer.Ordinal),
             [Roles.Owner] = new HashSet<string>(
             [
@@ -153,7 +175,8 @@ public static class RolePermissionMap
                 Permissions.RecordingDownload,
                 Permissions.ExpedienteView,
                 Permissions.ExpedienteDownload,
-                Permissions.CommunicationsView
+                Permissions.CommunicationsView,
+                Permissions.PhView
             ], StringComparer.Ordinal),
             [Roles.Auditor] = new HashSet<string>(
             [

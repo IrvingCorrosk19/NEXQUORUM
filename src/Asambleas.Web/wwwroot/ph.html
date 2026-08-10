@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASAMBLEAS — Administración de PH</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=ph1" />
+  <link rel="stylesheet" href="/css/base.css?v=ph1" />
+  <link rel="stylesheet" href="/css/components.css?v=ph1" />
+  <link rel="stylesheet" href="/css/loading.css?v=ph1" />
+  <link rel="stylesheet" href="/css/ph.css?v=ph1" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <div class="app-shell">
+    <aside class="app-nav" aria-label="Navegación">
+      <div>
+        <h1 class="brand">ASAMBLEAS</h1>
+        <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
+      </div>
+      <nav>
+        <a href="/dashboard.html">Panel</a>
+        <a href="/ph.html" aria-current="page">Propiedades</a>
+        <a href="/calendar.html">Calendario</a>
+        <a id="nav-comms" href="/communications.html">Comunicaciones</a>
+      </nav>
+    </aside>
+
+    <header class="app-top" role="banner">
+      <div class="cluster">
+        <span class="command-eyebrow">Onboarding Center</span>
+        <div class="ph-switcher" id="ph-switcher" hidden>
+          <label for="ph-switch-select">PH activo</label>
+          <select id="ph-switch-select" aria-label="Cambiar propiedad horizontal"></select>
+        </div>
+      </div>
+      <div class="cluster">
+        <span id="user-chip" class="badge badge-live"></span>
+        <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
+      </div>
+    </header>
+
+    <main id="main" class="app-workspace page-main">
+      <div id="page-alert" class="alert" hidden role="alert"></div>
+
+        <section id="view-list">
+        <section class="page-hero">
+          <p class="command-eyebrow">Administración</p>
+          <h1>Onboarding Center</h1>
+          <p class="lede">Crea un PH, configura unidades y propietarios, valida coeficientes e invita al portal — sin scripts SQL.</p>
+          <div class="cta-row">
+            <button type="button" id="btn-create-ph" class="btn btn-primary">+ Crear PH</button>
+          </div>
+        </section>
+        <div id="ph-empty" class="panel empty-hero" hidden>
+          <h2>Todavía no tienes un PH configurado</h2>
+          <p>Configura tu propiedad horizontal para comenzar a organizar propietarios y asambleas.</p>
+          <button type="button" id="btn-create-first" class="btn btn-primary">Crear primer PH</button>
+        </div>
+        <div id="ph-list" class="ph-grid" aria-live="polite"></div>
+      </section>
+
+      <dialog id="dlg-ph-created">
+        <div class="panel" style="min-width:min(28rem,90vw)">
+          <h2 class="section-title">PH creado</h2>
+          <p id="dlg-ph-created-name" class="lede"></p>
+          <p>Siguiente paso: configurar unidades.</p>
+          <div class="cta-row">
+            <button type="button" id="btn-continue-config" class="btn btn-primary">Continuar configuración</button>
+          </div>
+        </div>
+      </dialog>
+
+      <section id="view-detail" hidden>
+        <section class="page-hero">
+          <p class="command-eyebrow">PH seleccionado</p>
+          <h1 id="ph-title">—</h1>
+          <div class="meta-row" id="ph-meta"></div>
+          <div class="cta-row">
+            <button type="button" id="btn-back-list" class="btn btn-secondary">Mis PH</button>
+            <button type="button" id="btn-mark-ready" class="btn btn-primary">Listo para asamblea</button>
+            <button type="button" id="btn-activate-ph" class="btn btn-secondary">Activar PH</button>
+          </div>
+        </section>
+
+        <div class="wizard-steps" id="wizard-steps" aria-label="Progreso de onboarding"></div>
+
+        <div class="tabs" role="tablist" aria-label="Módulos del PH">
+          <button type="button" class="is-active" data-tab="info">Información</button>
+          <button type="button" data-tab="units">Unidades</button>
+          <button type="button" data-tab="owners">Propietarios</button>
+          <button type="button" data-tab="coefficients">Coeficientes</button>
+          <button type="button" data-tab="import">Importar</button>
+          <button type="button" data-tab="readiness">Readiness</button>
+        </div>
+
+        <section class="panel wizard-panel" data-panel="info">
+          <h2 class="section-title">Información del PH</h2>
+          <form id="form-ph" class="form-grid">
+            <label>Nombre <input name="name" required /></label>
+            <label>Nombre legal <input name="legalName" /></label>
+            <label>Código <input name="code" required readonly /></label>
+            <label>País <input name="country" /></label>
+            <label>Provincia/Estado <input name="stateProvince" /></label>
+            <label>Ciudad <input name="city" /></label>
+            <label>Dirección <input name="address" /></label>
+            <label>Zona horaria <input name="timeZoneId" required /></label>
+            <label>Email administrativo <input name="adminEmail" type="email" /></label>
+            <label>Teléfono <input name="phone" /></label>
+            <div class="cta-row" style="grid-column:1/-1">
+              <button type="submit" class="btn btn-primary">Guardar</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel wizard-panel" data-panel="units" hidden>
+          <h2 class="section-title">Unidades</h2>
+          <div class="cta-row">
+            <input id="unit-search" placeholder="Buscar unidad..." aria-label="Buscar unidad" />
+            <button type="button" id="btn-new-unit" class="btn btn-primary">+ Nueva unidad</button>
+            <button type="button" id="btn-bulk-units" class="btn btn-secondary">Generar unidades</button>
+          </div>
+          <div id="unit-form-wrap" hidden>
+            <form id="form-unit" class="form-grid" style="margin:1rem 0">
+              <label>Código <input name="code" required /></label>
+              <label>Torre/Bloque <input name="tower" /></label>
+              <label>Piso <input name="floor" type="number" /></label>
+              <label>Tipo <input name="unitType" /></label>
+              <label>Coeficiente % <input name="coefficientPercent" type="number" step="0.0001" required /></label>
+              <div class="cta-row" style="grid-column:1/-1">
+                <button type="submit" class="btn btn-primary">Guardar unidad</button>
+              </div>
+            </form>
+          </div>
+          <div id="bulk-form-wrap" hidden>
+            <form id="form-bulk" class="form-grid" style="margin:1rem 0">
+              <label>Torre <input name="tower" /></label>
+              <label>Prefijo <input name="prefix" placeholder="A-" /></label>
+              <label>Piso desde <input name="floorFrom" type="number" required /></label>
+              <label>Piso hasta <input name="floorTo" type="number" required /></label>
+              <label>Apto desde <input name="unitFrom" type="number" required /></label>
+              <label>Apto hasta <input name="unitTo" type="number" required /></label>
+              <label>Padding <input name="unitNumberPad" type="number" value="2" min="1" max="6" /></label>
+              <label>Coef. default % <input name="defaultCoefficientPercent" type="number" step="0.0001" value="0" /></label>
+              <div class="cta-row" style="grid-column:1/-1">
+                <button type="button" id="btn-bulk-preview" class="btn btn-secondary">Vista previa</button>
+                <button type="submit" class="btn btn-primary">Confirmar generación</button>
+              </div>
+            </form>
+            <pre id="bulk-preview" class="panel" hidden></pre>
+          </div>
+          <div class="table-wrap"><table class="data-table" id="units-table"><thead><tr><th>Código</th><th>Torre</th><th>Piso</th><th>Coef.</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+        </section>
+
+        <section class="panel wizard-panel" data-panel="owners" hidden>
+          <h2 class="section-title">Propietarios</h2>
+          <div class="cta-row filters-row">
+            <input id="owner-search" placeholder="Buscar nombre, ID, unidad o email..." aria-label="Buscar propietario" />
+            <select id="filter-tower" aria-label="Torre"><option value="">Torre</option></select>
+            <select id="filter-status" aria-label="Estado">
+              <option value="">Estado</option>
+              <option value="Draft">Borrador</option>
+              <option value="Invited">Invitado</option>
+              <option value="Active">Activo</option>
+              <option value="Inactive">Inactivo</option>
+            </select>
+            <select id="filter-email" aria-label="Email">
+              <option value="">Email</option>
+              <option value="true">Con email</option>
+              <option value="false">Sin email</option>
+            </select>
+            <select id="filter-user" aria-label="Usuario">
+              <option value="">Usuario</option>
+              <option value="true">Con usuario</option>
+              <option value="false">Sin usuario</option>
+            </select>
+            <select id="filter-invited" aria-label="Invitación">
+              <option value="">Invitación</option>
+              <option value="true">Invitado/activo</option>
+              <option value="false">No invitado</option>
+            </select>
+          </div>
+          <div class="cta-row">
+            <button type="button" id="btn-new-owner" class="btn btn-primary">+ Propietario</button>
+            <button type="button" id="btn-goto-import" class="btn btn-secondary">Importar Excel</button>
+            <button type="button" id="btn-export-owners" class="btn btn-secondary">Exportar</button>
+            <button type="button" id="btn-validate-owners" class="btn btn-secondary">Validar</button>
+            <button type="button" id="btn-bulk-invite" class="btn btn-secondary">Enviar invitaciones</button>
+          </div>
+          <div id="owners-empty" class="panel" hidden>
+            <p>No hay propietarios todavía.</p>
+            <p>Puedes agregarlos manualmente o importar un archivo.</p>
+            <div class="cta-row">
+              <button type="button" class="btn btn-primary" id="btn-empty-add-owner">+ Agregar</button>
+              <button type="button" class="btn btn-secondary" id="btn-empty-import">Importar Excel</button>
+            </div>
+          </div>
+          <div id="owner-form-wrap" hidden>
+            <form id="form-owner" class="form-grid" style="margin:1rem 0">
+              <label>Nombre <input name="firstName" /></label>
+              <label>Apellido <input name="lastName" /></label>
+              <label>Tipo ID <input name="identificationType" placeholder="Cédula" /></label>
+              <label>Identificación <input name="identification" /></label>
+              <label>Email <input name="email" type="email" required /></label>
+              <label>Teléfono <input name="phone" /></label>
+              <label>Unidad (código)
+                <select name="unitId" id="owner-unit-select"><option value="">— asociar después —</option></select>
+              </label>
+              <div class="cta-row" style="grid-column:1/-1">
+                <button type="submit" class="btn btn-primary">Guardar propietario</button>
+              </div>
+            </form>
+          </div>
+          <div class="table-wrap"><table class="data-table" id="owners-table"><thead><tr><th><input type="checkbox" id="owners-check-all" aria-label="Seleccionar todos" /></th><th>Nombre</th><th>Unidades</th><th>Coef.</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div id="owner-detail" class="panel" hidden style="margin-top:1rem"></div>
+        </section>
+
+        <section class="panel wizard-panel" data-panel="coefficients" hidden>
+          <h2 class="section-title">Coeficientes</h2>
+          <div id="coeff-panel"></div>
+        </section>
+
+        <section class="panel wizard-panel" data-panel="import" hidden>
+          <h2 class="section-title">Importación masiva</h2>
+          <div class="cta-row">
+            <a id="btn-template" class="btn btn-secondary" href="#">Descargar plantilla</a>
+            <input type="file" id="import-file" accept=".csv,.xlsx" />
+            <button type="button" id="btn-analyze" class="btn btn-primary">Analizar</button>
+          </div>
+          <div id="import-map" class="import-map" hidden></div>
+          <div class="cta-row" id="import-actions" hidden>
+            <button type="button" id="btn-validate-import" class="btn btn-secondary">Validar</button>
+            <button type="button" id="btn-commit-import" class="btn btn-primary">Confirmar importación</button>
+            <a id="btn-import-errors" class="btn btn-secondary" href="#" hidden>Descargar errores</a>
+          </div>
+          <div id="import-preview"></div>
+        </section>
+
+        <section class="panel wizard-panel" data-panel="readiness" hidden>
+          <h2 class="section-title">PH Readiness</h2>
+          <div id="readiness-panel" class="readiness-list"></div>
+        </section>
+      </section>
+
+      <dialog id="dlg-create-ph">
+        <form method="dialog" id="form-create-ph" class="panel" style="min-width:min(32rem,90vw)">
+          <h2 class="section-title">Crear propiedad horizontal</h2>
+          <div class="form-grid">
+            <label>Nombre <input name="name" required /></label>
+            <label>Nombre legal <input name="legalName" /></label>
+            <label>Código interno <input name="code" required /></label>
+            <label>País <input name="country" value="Panamá" /></label>
+            <label>Provincia/Estado <input name="stateProvince" /></label>
+            <label>Ciudad <input name="city" /></label>
+            <label>Dirección <input name="address" /></label>
+            <label>Zona horaria <input name="timeZoneId" value="America/Panama" required /></label>
+            <label>Email administrativo <input name="adminEmail" type="email" required /></label>
+            <label>Teléfono <input name="phone" /></label>
+          </div>
+          <div class="cta-row" style="margin-top:1rem">
+            <button type="submit" class="btn btn-primary" value="create">Crear</button>
+            <button type="button" class="btn btn-secondary" id="btn-cancel-create">Cancelar</button>
+          </div>
+        </form>
+      </dialog>
+    </main>
+  </div>
+  <script type="module" src="/js/modules/ph-app.js?v=ph1"></script>
+</body>
+</html>

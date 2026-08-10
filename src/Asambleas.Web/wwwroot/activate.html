@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASAMBLEAS — Activar acceso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=ph1" />
+  <link rel="stylesheet" href="/css/base.css?v=ph1" />
+  <link rel="stylesheet" href="/css/components.css?v=ph1" />
+  <link rel="stylesheet" href="/css/ph.css?v=ph1" />
+</head>
+<body>
+  <main class="app-workspace page-main" style="max-width:28rem;margin:4rem auto">
+    <h1 class="brand">ASAMBLEAS</h1>
+    <p class="lede">Activa tu acceso al portal. Define tu contraseña — nunca la enviamos por enlace.</p>
+    <div id="page-alert" class="alert" hidden role="alert"></div>
+    <form id="form-activate" class="form-grid panel">
+      <label>Nombre para mostrar <input name="displayName" /></label>
+      <label>Contraseña (mín. 12) <input name="password" type="password" required minlength="12" /></label>
+      <label>Confirmar <input name="confirm" type="password" required minlength="12" /></label>
+      <button type="submit" class="btn btn-primary">Activar cuenta</button>
+    </form>
+  </main>
+  <script type="module" src="/js/modules/activate-app.js?v=ph1"></script>
+</body>
+</html>

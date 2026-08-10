@@ -31,6 +31,10 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
 
     public DbSet<Ownership> Ownerships => Set<Ownership>();
 
+    public DbSet<OwnerInvitation> OwnerInvitations => Set<OwnerInvitation>();
+
+    public DbSet<UserPropertyMembership> UserPropertyMemberships => Set<UserPropertyMembership>();
+
     public DbSet<Power> Powers => Set<Power>();
 
     public DbSet<AssemblyRepresentation> AssemblyRepresentations => Set<AssemblyRepresentation>();
@@ -122,6 +126,8 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
         builder.Entity<Unit>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<Owner>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<Ownership>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<OwnerInvitation>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<UserPropertyMembership>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<Power>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<AssemblyRepresentation>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<AssemblyEntity>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);

@@ -3,6 +3,7 @@ using System;
 using Asambleas.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Asambleas.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AsambleasDbContext))]
-    partial class AsambleasDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810011550_EO011_PhOwnerOnboarding")]
+    partial class EO011_PhOwnerOnboarding
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1380,9 +1383,7 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
@@ -1926,9 +1927,7 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("PropertyHorizontalId")
                         .HasColumnType("uuid");
@@ -1993,6 +1992,8 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                     b.HasIndex("PropertyHorizontalId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("UserId");
 
                     b.HasIndex("UserId", "PropertyHorizontalId")
                         .IsUnique();

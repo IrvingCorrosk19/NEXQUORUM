@@ -16,6 +16,7 @@ export async function login(email, password) {
       email: user.email,
       tenantId: user.tenantId,
       tenantCode: user.tenantCode,
+      propertyHorizontalId: user.propertyHorizontalId,
       roles: user.roles,
       permissions: user.permissions
     })
@@ -41,6 +42,7 @@ export async function me() {
       email: user.email,
       tenantId: user.tenantId,
       tenantCode: user.tenantCode,
+      propertyHorizontalId: user.propertyHorizontalId,
       roles: user.roles,
       permissions: user.permissions
     })

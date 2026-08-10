@@ -1,0 +1,284 @@
+namespace Asambleas.Contracts.PhOnboarding;
+
+public sealed record PhSummaryDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string? LegalName,
+    string Status,
+    int OnboardingStep,
+    int UnitCount,
+    int OwnerCount,
+    int ActiveUserCount,
+    decimal CoefficientTotalPercent,
+    bool CoefficientsComplete,
+    string TimeZoneId,
+    DateTimeOffset? NextAssemblyAtUtc,
+    string? NextAssemblyTitle);
+
+public sealed record PhDetailDto(
+    Guid Id,
+    Guid OrganizationId,
+    string Code,
+    string Name,
+    string? LegalName,
+    string? Country,
+    string? StateProvince,
+    string? City,
+    string? Address,
+    string TimeZoneId,
+    string? AdminEmail,
+    string? Phone,
+    string Status,
+    int OnboardingStep);
+
+public sealed record CreatePhRequest(
+    string Name,
+    string? LegalName,
+    string Code,
+    string? Country,
+    string? StateProvince,
+    string? City,
+    string? Address,
+    string TimeZoneId,
+    string? AdminEmail,
+    string? Phone,
+    Guid? OrganizationId);
+
+public sealed record UpdatePhRequest(
+    string Name,
+    string? LegalName,
+    string? Country,
+    string? StateProvince,
+    string? City,
+    string? Address,
+    string TimeZoneId,
+    string? AdminEmail,
+    string? Phone,
+    int? OnboardingStep);
+
+public sealed record UnitDto(
+    Guid Id,
+    Guid PropertyHorizontalId,
+    string Code,
+    string? Tower,
+    int? Floor,
+    string? UnitType,
+    decimal CoefficientPercent,
+    bool IsActive);
+
+public sealed record CreateUnitRequest(
+    string Code,
+    string? Tower,
+    int? Floor,
+    string? UnitType,
+    decimal CoefficientPercent,
+    bool IsActive = true);
+
+public sealed record UpdateUnitRequest(
+    string Code,
+    string? Tower,
+    int? Floor,
+    string? UnitType,
+    decimal CoefficientPercent,
+    bool IsActive);
+
+public sealed record BulkGenerateUnitsRequest(
+    string? Tower,
+    int FloorFrom,
+    int FloorTo,
+    int UnitFrom,
+    int UnitTo,
+    int UnitNumberPad,
+    string? Prefix,
+    string? UnitType,
+    decimal DefaultCoefficientPercent,
+    bool PreviewOnly);
+
+public sealed record BulkGenerateUnitsResultDto(
+    int WouldCreate,
+    int SkippedExisting,
+    IReadOnlyList<string> PreviewCodes,
+    IReadOnlyList<UnitDto> Created);
+
+public sealed record OwnerListItemDto(
+    Guid Id,
+    string DisplayName,
+    string Email,
+    string? Identification,
+    string Status,
+    IReadOnlyList<string> UnitCodes,
+    decimal CoefficientPercent,
+    bool HasUser,
+    bool HasEmail,
+    Guid? UserId);
+
+public sealed record OwnerDetailDto(
+    Guid Id,
+    string DisplayName,
+    string? FirstName,
+    string? LastName,
+    string? IdentificationType,
+    string? Identification,
+    string Email,
+    string? Phone,
+    string Status,
+    Guid? UserId,
+    IReadOnlyList<OwnerUnitLinkDto> Units);
+
+public sealed record OwnerUnitLinkDto(
+    Guid OwnershipId,
+    Guid UnitId,
+    string UnitCode,
+    string? Tower,
+    decimal UnitCoefficientPercent,
+    decimal SharePercent,
+    bool IsActive,
+    DateTimeOffset EffectiveFromUtc,
+    DateTimeOffset? EffectiveToUtc);
+
+public sealed record CreateOwnerRequest(
+    string? FirstName,
+    string? LastName,
+    string? DisplayName,
+    string? IdentificationType,
+    string? Identification,
+    string Email,
+    string? Phone,
+    Guid? UnitId,
+    decimal? SharePercent);
+
+public sealed record UpdateOwnerRequest(
+    string? FirstName,
+    string? LastName,
+    string? DisplayName,
+    string? IdentificationType,
+    string? Identification,
+    string Email,
+    string? Phone,
+    string? Status);
+
+public sealed record CreateOwnershipRequest(
+    Guid OwnerId,
+    Guid UnitId,
+    decimal SharePercent,
+    DateTimeOffset? EffectiveFromUtc);
+
+public sealed record CoefficientValidationDto(
+    Guid PropertyHorizontalId,
+    decimal TotalPercent,
+    decimal ExpectedPercent,
+    decimal DeltaPercent,
+    bool IsComplete,
+    int ActiveUnitCount,
+    string Message);
+
+public sealed record PhReadinessDto(
+    Guid PropertyHorizontalId,
+    string Name,
+    bool GeneralInfoComplete,
+    int UnitCount,
+    bool UnitsComplete,
+    int OwnerCount,
+    bool OwnersComplete,
+    CoefficientValidationDto Coefficients,
+    int InvitedUserCount,
+    bool AssemblyConfigComplete,
+    bool ReadyForAssembly,
+    IReadOnlyList<string> BlockingIssues);
+
+public sealed record ImportColumnMappingDto(
+    string SystemField,
+    string? SourceColumn);
+
+public sealed record ImportAnalyzeResultDto(
+    Guid SessionId,
+    IReadOnlyList<string> DetectedColumns,
+    IReadOnlyList<ImportColumnMappingDto> SuggestedMappings,
+    int RowCount);
+
+public sealed record ImportValidateRequest(
+    Guid SessionId,
+    IReadOnlyList<ImportColumnMappingDto> Mappings);
+
+public sealed record ImportRowIssueDto(
+    int RowNumber,
+    string Field,
+    string? Value,
+    string Problem,
+    string SuggestedAction,
+    string Severity);
+
+public sealed record ImportPreviewDto(
+    Guid SessionId,
+    int TotalRows,
+    int ValidRows,
+    int WarningRows,
+    int ErrorRows,
+    IReadOnlyList<ImportRowIssueDto> Issues,
+    IReadOnlyList<ImportPreviewRowDto> SampleRows);
+
+public sealed record ImportPreviewRowDto(
+    int RowNumber,
+    string? UnitCode,
+    string? Tower,
+    int? Floor,
+    decimal? CoefficientPercent,
+    string? FirstName,
+    string? LastName,
+    string? Identification,
+    string? Email,
+    string? Phone,
+    bool IsValid);
+
+public sealed record ImportCommitResultDto(
+    int UnitsCreated,
+    int OwnersCreated,
+    int OwnershipsCreated,
+    int Skipped,
+    IReadOnlyList<ImportRowIssueDto> RemainingIssues);
+
+public sealed record InviteOwnerResultDto(
+    Guid InvitationId,
+    string Email,
+    DateTimeOffset ExpiresAtUtc,
+    string ActivationPath,
+    bool ExistingUserLinked);
+
+public sealed record ActivateInvitationRequest(
+    string Token,
+    string Password,
+    string? DisplayName);
+
+public sealed record PhMembershipDto(
+    Guid PropertyHorizontalId,
+    string Code,
+    string Name,
+    string RoleHint,
+    bool IsCurrent);
+
+public sealed record SwitchPhRequest(Guid PropertyHorizontalId);
+
+public sealed record OwnerQuery(
+    string? Search = null,
+    string? Tower = null,
+    int? Floor = null,
+    string? Status = null,
+    bool? HasEmail = null,
+    bool? Invited = null,
+    bool? HasUser = null);
+
+public sealed record BulkInviteRequest(IReadOnlyList<Guid> OwnerIds);
+
+public sealed record BulkInviteResultDto(
+    int Sent,
+    int LinkedExisting,
+    int Failed,
+    IReadOnlyList<string> Errors);
+
+public sealed record BulkValidateOwnersResultDto(
+    int OwnerCount,
+    int WithoutEmail,
+    int WithoutUnit,
+    int WithoutUser,
+    IReadOnlyList<string> Issues);

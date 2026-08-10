@@ -10,8 +10,17 @@ public class Unit : Entity, ITenantScoped, IPropertyHorizontalScoped
 
     public string Code { get; set; } = string.Empty;
 
+    /// <summary>Optional tower/block label. Null when PH has flat unit layout.</summary>
+    public string? Tower { get; set; }
+
+    public int? Floor { get; set; }
+
+    public string? UnitType { get; set; }
+
     /// <summary>
     /// Ownership coefficient as a percentage, precision decimal(7,4).
     /// </summary>
     public decimal CoefficientPercent { get; set; }
+
+    public bool IsActive { get; set; } = true;
 }

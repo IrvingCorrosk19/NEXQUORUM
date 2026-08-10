@@ -49,6 +49,15 @@ public static class Permissions
     public const string ConvocationsResend = "convocations:resend";
     public const string ConvocationsViewEvidence = "convocations:view-evidence";
 
+    public const string PhView = "ph:view";
+    public const string PhManage = "ph:manage";
+    public const string UnitView = "unit:view";
+    public const string UnitManage = "unit:manage";
+    public const string OwnerView = "owner:view";
+    public const string OwnerManage = "owner:manage";
+    public const string OwnerInvite = "owner:invite";
+    public const string PhImport = "ph:import";
+
     public static IReadOnlyList<string> All { get; } =
     [
         AssemblyView,
@@ -87,6 +96,14 @@ public static class Permissions
         ConvocationsCreate,
         ConvocationsSend,
         ConvocationsResend,
-        ConvocationsViewEvidence
+        ConvocationsViewEvidence,
+        PhView,
+        PhManage,
+        UnitView,
+        UnitManage,
+        OwnerView,
+        OwnerManage,
+        OwnerInvite,
+        PhImport
     ];
 }
