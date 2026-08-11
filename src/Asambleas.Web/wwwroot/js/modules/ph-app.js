@@ -498,7 +498,9 @@ async function showUnit(unitId) {
   const total = Number(detail.activeShareTotalPercent || 0);
   const statusLabel = detail.ownershipComplete
     ? `✓ Titularidad completa (${total.toFixed(2)}%)`
-    : `⚠ Titularidad ${total.toFixed(2)}% — falta ${Number(detail.missingSharePercent || 0).toFixed(2)}%`;
+    : total > 100.0001
+      ? `⚠ Titularidad ${total.toFixed(2)}% — excede 100%`
+      : `⚠ Titularidad ${total.toFixed(2)}% — falta ${Number(detail.missingSharePercent || 0).toFixed(2)}%`;
   const active = (detail.owners || []).filter((o) => o.isActive);
   const history = (detail.owners || []).filter((o) => !o.isActive);
   el.innerHTML = `

@@ -1223,11 +1223,17 @@ public sealed class PhOnboardingService
         }
 
         var effectiveFrom = request.EffectiveFromUtc ?? DateTimeOffset.UtcNow;
-        if (effectiveFrom < from.EffectiveFromUtc)
+        // Allow tiny client/server clock skew; reject meaningfully earlier dates.
+        if (effectiveFrom < from.EffectiveFromUtc.AddSeconds(-5))
         {
             throw new DomainException(
                 "OWNERSHIP_EFFECTIVE_INVALID",
                 "La fecha efectiva no puede ser anterior al inicio de la titularidad actual.");
+        }
+
+        if (effectiveFrom < from.EffectiveFromUtc)
+        {
+            effectiveFrom = from.EffectiveFromUtc;
         }
 
         // Close old ownership (preserve row).
@@ -1328,7 +1334,11 @@ public sealed class PhOnboardingService
 
         var activeTotal = CoefficientValidator.Normalize(
             links.Where(x => x.IsActive).Sum(x => x.SharePercent));
-        var missing = Math.Max(0m, CoefficientValidator.Normalize(100m - activeTotal));
+        var missing = activeTotal >= 100m
+            ? 0m
+            : CoefficientValidator.Normalize(100m - activeTotal);
+        // Complete only when active share totals ~100% (not when over-assigned).
+        var ownershipComplete = activeTotal >= 99.9999m && activeTotal <= 100.0001m;
         return new UnitOwnershipDetailDto(
             unit.Id,
             unit.Code,
@@ -1337,7 +1347,7 @@ public sealed class PhOnboardingService
             unit.CoefficientPercent,
             unit.IsActive,
             activeTotal,
-            activeTotal >= 99.9999m,
+            ownershipComplete,
             missing,
             links);
     }
@@ -1759,16 +1769,20 @@ public sealed class PhOnboardingService
 
     /// <summary>
     /// Active ownership shares for a unit must not exceed 100%.
-    /// Uses tracked EF state so validation works inside the same unit-of-work.
+    /// Loads from DB then reads EF Local so Added/Modified rows in the same UoW are included.
     /// </summary>
     private async Task EnsureActiveShareTotalAsync(
         Guid unitId,
         Guid? excludeOwnershipId,
         CancellationToken cancellationToken)
     {
-        var active = await _db.Ownerships
+        await _db.Ownerships
+            .Where(o => o.UnitId == unitId)
+            .LoadAsync(cancellationToken);
+
+        var active = _db.Ownerships.Local
             .Where(o => o.UnitId == unitId && o.IsActive)
-            .ToListAsync(cancellationToken);
+            .ToList();
         if (excludeOwnershipId is Guid exclude)
         {
             active = active.Where(o => o.Id != exclude).ToList();
