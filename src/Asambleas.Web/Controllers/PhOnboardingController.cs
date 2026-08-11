@@ -442,6 +442,24 @@ public sealed class PhOnboardingController : ControllerBase
         CancellationToken cancellationToken) =>
         _invitations.InviteAsync(propertyHorizontalId, ownerId, cancellationToken);
 
+    [HttpPost("{propertyHorizontalId:guid}/owners/{ownerId:guid}/invite/revoke")]
+    [Authorize(Policy = Permissions.OwnerInvite)]
+    public async Task<IActionResult> RevokeOwnerInvitation(
+        Guid propertyHorizontalId,
+        Guid ownerId,
+        CancellationToken cancellationToken)
+    {
+        await _invitations.RevokeOutstandingAsync(propertyHorizontalId, ownerId, cancellationToken);
+        return Ok(new { revoked = true });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("invitations/preview")]
+    public Task<InvitationPreviewDto> PreviewInvitation(
+        [FromQuery] string token,
+        CancellationToken cancellationToken) =>
+        _invitations.PreviewTokenAsync(token, cancellationToken);
+
     [AllowAnonymous]
     [HttpPost("invitations/activate")]
     public async Task<IActionResult> ActivateInvitation(
@@ -450,6 +468,16 @@ public sealed class PhOnboardingController : ControllerBase
     {
         await _invitations.ActivateAsync(request, cancellationToken);
         return Ok(new { activated = true });
+    }
+
+    [HttpPost("invitations/accept")]
+    [Authorize]
+    public async Task<IActionResult> AcceptInvitation(
+        [FromBody] AcceptInvitationRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _invitations.AcceptAuthenticatedAsync(request, cancellationToken);
+        return Ok(new { accepted = true });
     }
 
     private static List<Claim> BuildSessionClaims(
