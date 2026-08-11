@@ -81,4 +81,7 @@ public static class AuditEventType
     public const string OwnerReactivated = "OWNER_REACTIVATED";
     public const string OwnerDeleted = "OWNER_DELETED";
     public const string OwnershipChanged = "OWNERSHIP_CHANGED";
+    public const string OwnershipCreated = "OWNERSHIP_CREATED";
+    public const string OwnershipEnded = "OWNERSHIP_ENDED";
+    public const string OwnershipTransferred = "OWNERSHIP_TRANSFERRED";
 }

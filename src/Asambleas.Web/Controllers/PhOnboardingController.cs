@@ -267,6 +267,22 @@ public sealed class PhOnboardingController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{propertyHorizontalId:guid}/ownerships/transfer")]
+    [Authorize(Policy = Permissions.OwnerManage)]
+    public Task<OwnershipTransferResultDto> TransferOwnership(
+        Guid propertyHorizontalId,
+        [FromBody] TransferOwnershipRequest request,
+        CancellationToken cancellationToken) =>
+        _ph.TransferOwnershipAsync(propertyHorizontalId, request, cancellationToken);
+
+    [HttpGet("{propertyHorizontalId:guid}/units/{unitId:guid}/ownerships")]
+    [Authorize(Policy = Permissions.OwnerView)]
+    public Task<UnitOwnershipDetailDto> UnitOwnerships(
+        Guid propertyHorizontalId,
+        Guid unitId,
+        CancellationToken cancellationToken) =>
+        _ph.GetUnitOwnershipDetailAsync(propertyHorizontalId, unitId, cancellationToken);
+
     [HttpGet("{propertyHorizontalId:guid}/coefficients")]
     [Authorize(Policy = Permissions.PhView)]
     public Task<CoefficientValidationDto> Coefficients(

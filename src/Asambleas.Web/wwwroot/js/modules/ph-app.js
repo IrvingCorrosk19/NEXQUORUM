@@ -143,6 +143,11 @@ function wireUi() {
     runBulk(false);
   });
   $("#unit-search").addEventListener("input", () => loadUnits());
+  $("#form-transfer")?.addEventListener("submit", onTransferOwnership);
+  $("#btn-cancel-transfer")?.addEventListener("click", () => {
+    const dlg = $("#transfer-dialog");
+    if (dlg) dlg.hidden = true;
+  });
 
   $("#btn-new-owner").addEventListener("click", () => startOwnerCreate());
   $("#btn-empty-add-owner")?.addEventListener("click", () => startOwnerCreate());
@@ -450,15 +455,25 @@ async function loadUnits() {
   const tbody = $("#units-table tbody");
   tbody.innerHTML = units
     .map(
-      (u) => `<tr>
+      (u) => `<tr data-unit-id="${u.id}" style="cursor:pointer">
       <td>${escapeHtml(u.code)}</td>
       <td>${escapeHtml(u.tower || "—")}</td>
       <td>${u.floor ?? "—"}</td>
       <td>${Number(u.coefficientPercent).toFixed(4)}%</td>
-      <td>${u.isActive ? "Activo" : "Inactivo"}</td>
+      <td>${u.isActive ? "Activa" : "Inactiva"}</td>
+      <td><button type="button" class="btn btn-ghost" data-open-unit="${u.id}">Ver</button></td>
     </tr>`
     )
     .join("");
+  tbody.querySelectorAll("[data-open-unit]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showUnit(btn.dataset.openUnit);
+    });
+  });
+  tbody.querySelectorAll("tr[data-unit-id]").forEach((tr) => {
+    tr.addEventListener("click", () => showUnit(tr.dataset.unitId));
+  });
 
   const select = $("#owner-unit-select");
   const current = select.value;
@@ -474,6 +489,120 @@ async function loadUnits() {
     towerSelect.innerHTML = `<option value="">Torre</option>` + towers.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
     towerSelect.value = prev;
   }
+}
+
+async function showUnit(unitId) {
+  const detail = await api(`/api/ph/${currentPhId}/units/${unitId}/ownerships`);
+  const el = $("#unit-detail");
+  el.hidden = false;
+  const total = Number(detail.activeShareTotalPercent || 0);
+  const statusLabel = detail.ownershipComplete
+    ? `✓ Titularidad completa (${total.toFixed(2)}%)`
+    : `⚠ Titularidad ${total.toFixed(2)}% — falta ${Number(detail.missingSharePercent || 0).toFixed(2)}%`;
+  const active = (detail.owners || []).filter((o) => o.isActive);
+  const history = (detail.owners || []).filter((o) => !o.isActive);
+  el.innerHTML = `
+    <h3>Unidad ${escapeHtml(detail.unitCode)}</h3>
+    <p class="muted">Torre ${escapeHtml(detail.tower || "—")} · Piso ${detail.floor ?? "—"} · Coeficiente ${Number(detail.coefficientPercent).toFixed(4)}% · ${detail.isActive ? "Activa" : "Inactiva"}</p>
+    <p><strong>${statusLabel}</strong></p>
+    <h4>Propietarios activos</h4>
+    <ul>${active.length
+      ? active
+          .map(
+            (o) => `<li>
+              <strong>${escapeHtml(o.ownerDisplayName)}</strong> · ${Number(o.sharePercent).toFixed(2)}%
+              <span class="muted">${formatDate(o.effectiveFromUtc)} → actual</span>
+              <button type="button" class="btn btn-secondary" data-transfer="${o.ownershipId}" data-unit="${detail.unitId}" data-owner-name="${escapeHtml(o.ownerDisplayName)}" data-unit-code="${escapeHtml(detail.unitCode)}">Transferir</button>
+              <button type="button" class="btn btn-ghost" data-end-unit-own="${o.ownershipId}">Finalizar</button>
+            </li>`
+          )
+          .join("")
+      : "<li class='muted'>Sin titulares activos</li>"}</ul>
+    <div class="cta-row">
+      <button type="button" class="btn btn-primary" id="btn-add-coowner" data-unit="${detail.unitId}">+ Agregar copropietario</button>
+    </div>
+    <h4>Historial</h4>
+    <ul>${history.length
+      ? history
+          .map(
+            (o) => `<li class="muted">${escapeHtml(o.ownerDisplayName)} · ${Number(o.sharePercent).toFixed(2)}% · ${formatDate(o.effectiveFromUtc)} → ${formatDate(o.effectiveToUtc)}</li>`
+          )
+          .join("")
+      : "<li class='muted'>Sin cambios previos</li>"}</ul>`;
+
+  el.querySelectorAll("[data-transfer]").forEach((btn) => {
+    btn.addEventListener("click", () => openTransferDialog(btn.dataset));
+  });
+  el.querySelectorAll("[data-end-unit-own]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("¿Finalizar esta titularidad?")) return;
+      await api(`/api/ph/${currentPhId}/ownerships/${btn.dataset.endUnitOwn}/end`, { method: "POST" });
+      showAlert("Titularidad finalizada.", "ok");
+      await showUnit(unitId);
+      await loadOwners();
+    });
+  });
+  el.querySelector("#btn-add-coowner")?.addEventListener("click", () => {
+    startOwnerCreate();
+    const select = $("#owner-unit-select");
+    if (select) select.value = unitId;
+    switchTab("owners");
+    showAlert("Selecciona o crea el propietario y confirma la participación %.", "ok");
+  });
+}
+
+function formatDate(iso) {
+  if (!iso) return "—";
+  try {
+    return new Intl.DateTimeFormat("es-PA", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(iso));
+  } catch {
+    return String(iso).slice(0, 10);
+  }
+}
+
+async function openTransferDialog(dataset) {
+  const owners = await api(`/api/ph/${currentPhId}/owners?status=Active`).catch(() => api(`/api/ph/${currentPhId}/owners`));
+  const list = Array.isArray(owners) ? owners : owners?.items || [];
+  const select = $("#transfer-owner-select");
+  select.innerHTML = list
+    .map((o) => `<option value="${o.id}">${escapeHtml(o.displayName || o.email)}</option>`)
+    .join("");
+  const form = $("#form-transfer");
+  form.fromOwnershipId.value = dataset.transfer;
+  form.unitId.value = dataset.unit;
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  form.effectiveFrom.value = tomorrow.toISOString().slice(0, 10);
+  $("#transfer-summary").textContent = `Unidad ${dataset.unitCode || ""} · Actual: ${dataset.ownerName || ""}`;
+  const dlg = $("#transfer-dialog");
+  dlg.hidden = false;
+  dlg.style.display = "grid";
+}
+
+async function onTransferOwnership(ev) {
+  ev.preventDefault();
+  const data = formData(ev.target);
+  const effective = data.effectiveFrom
+    ? new Date(`${data.effectiveFrom}T12:00:00`).toISOString()
+    : null;
+  const result = await api(`/api/ph/${currentPhId}/ownerships/transfer`, {
+    method: "POST",
+    body: {
+      fromOwnershipId: data.fromOwnershipId,
+      toOwnerId: data.toOwnerId,
+      effectiveFromUtc: effective,
+      reason: data.reason || null
+    }
+  });
+  const dlg = $("#transfer-dialog");
+  dlg.hidden = true;
+  dlg.style.display = "none";
+  showAlert(
+    `Transferencia OK: ${result.fromOwnerName} → ${result.toOwnerName} (unidad ${result.unitCode}).`,
+    "ok"
+  );
+  await showUnit(result.unitId);
+  await loadOwners();
 }
 
 async function onCreateUnit(ev) {
@@ -719,6 +848,7 @@ async function showOwner(ownerId) {
       )
       .join("") || "<li>Sin unidades</li>"}</ul>
     <div class="cta-row">
+      <button type="button" class="btn btn-primary" data-assoc-unit="${o.id}">+ Asociar unidad</button>
       <button type="button" class="btn btn-secondary" data-edit-owner="${o.id}">Editar</button>
       ${
         inactive
@@ -727,6 +857,15 @@ async function showOwner(ownerId) {
       }
       <button type="button" class="btn btn-secondary" data-delete-owner="${o.id}">Eliminar…</button>
     </div>`;
+  el.querySelectorAll("[data-assoc-unit]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      editingOwnerId = btn.dataset.assocUnit;
+      $("#owner-form-wrap").hidden = false;
+      $("#btn-save-owner").textContent = "Asociar unidad";
+      showAlert("Elige una unidad y el % de participación, luego guarda.", "ok");
+      $("#owner-unit-select")?.focus();
+    });
+  });
   el.querySelectorAll("[data-edit-owner]").forEach((btn) =>
     btn.addEventListener("click", () => startOwnerEdit(btn.dataset.editOwner))
   );

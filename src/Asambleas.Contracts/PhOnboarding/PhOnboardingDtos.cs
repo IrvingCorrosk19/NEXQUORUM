@@ -177,6 +177,47 @@ public sealed record CreateOwnershipRequest(
     decimal SharePercent,
     DateTimeOffset? EffectiveFromUtc);
 
+public sealed record TransferOwnershipRequest(
+    Guid FromOwnershipId,
+    Guid ToOwnerId,
+    DateTimeOffset? EffectiveFromUtc,
+    decimal? SharePercent,
+    string? Reason);
+
+public sealed record UnitOwnerLinkDto(
+    Guid OwnershipId,
+    Guid OwnerId,
+    string OwnerDisplayName,
+    string? OwnerEmail,
+    decimal SharePercent,
+    bool IsActive,
+    DateTimeOffset EffectiveFromUtc,
+    DateTimeOffset? EffectiveToUtc);
+
+public sealed record UnitOwnershipDetailDto(
+    Guid UnitId,
+    string UnitCode,
+    string? Tower,
+    int? Floor,
+    decimal CoefficientPercent,
+    bool IsActive,
+    decimal ActiveShareTotalPercent,
+    bool OwnershipComplete,
+    decimal MissingSharePercent,
+    IReadOnlyList<UnitOwnerLinkDto> Owners);
+
+public sealed record OwnershipTransferResultDto(
+    Guid EndedOwnershipId,
+    Guid NewOwnershipId,
+    Guid UnitId,
+    string UnitCode,
+    Guid FromOwnerId,
+    string FromOwnerName,
+    Guid ToOwnerId,
+    string ToOwnerName,
+    decimal SharePercent,
+    DateTimeOffset EffectiveFromUtc);
+
 public sealed record CoefficientValidationDto(
     Guid PropertyHorizontalId,
     decimal TotalPercent,
