@@ -82,19 +82,23 @@ public sealed class CommunicationConfigurationService
 
         var profile = await GetOrCreateEntityAsync(propertyHorizontalId, cancellationToken);
         profile.SandboxMode = request.SandboxMode;
-        profile.TestRecipientOverride = string.IsNullOrWhiteSpace(request.TestRecipientOverride)
+        profile.TestRecipientOverride = NormalizeOptionalEmail(
+            request.TestRecipientOverride,
+            "TEST_RECIPIENT_INVALID",
+            "El destinatario de prueba no es un correo válido.");
+        profile.DefaultTimezoneId = NormalizeTimezoneId(request.DefaultTimezoneId);
+        profile.DefaultFromDisplayName = string.IsNullOrWhiteSpace(request.DefaultFromDisplayName)
             ? null
-            : request.TestRecipientOverride.Trim();
-        profile.DefaultTimezoneId = string.IsNullOrWhiteSpace(request.DefaultTimezoneId)
-            ? "America/Panama"
-            : request.DefaultTimezoneId.Trim();
-        profile.DefaultFromDisplayName = request.DefaultFromDisplayName?.Trim();
-        profile.DefaultReplyTo = request.DefaultReplyTo?.Trim();
+            : request.DefaultFromDisplayName.Trim();
+        profile.DefaultReplyTo = NormalizeOptionalEmail(
+            request.DefaultReplyTo,
+            "REPLY_TO_INVALID",
+            "Reply-To no es un correo válido.");
 
-        if (!_environment.IsNonProduction && !string.IsNullOrWhiteSpace(profile.TestRecipientOverride))
-        {
-            throw new DomainException("TEST_OVERRIDE_PROD", "Test recipient override is not allowed in production.");
-        }
+        // TestRecipientOverride is the default destination for channel tests and the sandbox
+        // redirect target. It must NOT redirect live deliveries when SandboxMode=false
+        // (DeliveryDispatchService only redirects when forceMock is true).
+        // Blocking it in Production made the Communications UI unable to save a test recipient.
 
         await _db.SaveChangesAsync(cancellationToken);
         await _audit.WriteAsync(
@@ -198,11 +202,20 @@ public sealed class CommunicationConfigurationService
 
         if (string.IsNullOrWhiteSpace(destination))
         {
-            throw new DomainException("TEST_DESTINATION_REQUIRED", "Provide a test destination.");
+            throw new DomainException(
+                "TEST_DESTINATION_REQUIRED",
+                "Configura un destinatario de prueba en el perfil o indícalo al probar el canal.");
+        }
+
+        if (!IsValidEmail(destination))
+        {
+            throw new DomainException("INVALID_RECIPIENT", "El destinatario de prueba no es válido.");
         }
 
         ProviderSendResult result;
-        var forceMock = profile.SandboxMode || _environment.IsNonProduction;
+        // SandboxMode forces mock. Host environment alone must NOT force mock when admin
+        // explicitly disabled sandbox and configured real SMTP in Production.
+        var forceMock = profile.SandboxMode;
 
         switch (channel)
         {
@@ -240,7 +253,11 @@ public sealed class CommunicationConfigurationService
 
         row.LastTestedAtUtc = DateTimeOffset.UtcNow;
         row.LastTestSucceeded = result.Succeeded;
-        row.LastTestDetail = result.Detail;
+        var resolved = forceMock || row.ProviderType == CommunicationProviderType.Mock
+            ? "Mock"
+            : row.ProviderType.ToString();
+        row.LastTestDetail =
+            $"{result.Detail} | ResolvedProvider={resolved} | Sandbox={(forceMock ? "true" : "false")}";
         await _db.SaveChangesAsync(cancellationToken);
 
         await _audit.WriteAsync(
@@ -353,11 +370,42 @@ public sealed class CommunicationConfigurationService
         string? password = null;
         if (config.HasSecret && !string.IsNullOrWhiteSpace(config.SecretCiphertext))
         {
-            password = _secrets.Unprotect(config.SecretCiphertext);
+            try
+            {
+                password = _secrets.Unprotect(config.SecretCiphertext);
+            }
+            catch (Exception ex)
+            {
+                throw new DomainException(
+                    "SMTP_SECRET_DECRYPT_FAILED",
+                    "No pudimos leer el secreto SMTP guardado. Vuelve a guardar la contraseña de aplicación.",
+                    ex);
+            }
         }
 
-        var settings = SmtpClientFactoryArgs.FromChannel(config.SettingsJson, password);
-        return _smtpFactory(settings);
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            throw new DomainException(
+                "SMTP_SECRET_REQUIRED",
+                "La configuración SMTP está incompleta: falta la contraseña/App Password.");
+        }
+
+        try
+        {
+            var settings = SmtpClientFactoryArgs.FromChannel(config.SettingsJson, password);
+            return _smtpFactory(settings);
+        }
+        catch (DomainException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new DomainException(
+                "CONFIGURATION_ERROR",
+                "La configuración SMTP está incompleta o es inválida.",
+                ex);
+        }
     }
 
     private async Task EnsurePhAccessAsync(Guid propertyHorizontalId, CancellationToken cancellationToken)
@@ -565,6 +613,57 @@ public sealed class CommunicationConfigurationService
             || html.Contains("onerror=", StringComparison.OrdinalIgnoreCase))
         {
             throw new DomainException("UNSAFE_TEMPLATE_HTML", "Template HTML contains forbidden content.");
+        }
+    }
+
+    private static string NormalizeTimezoneId(string? timezoneId)
+    {
+        var tz = string.IsNullOrWhiteSpace(timezoneId) ? "America/Panama" : timezoneId.Trim();
+        try
+        {
+            _ = TimeZoneInfo.FindSystemTimeZoneById(tz);
+            return tz;
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            throw new DomainException(
+                "TIMEZONE_INVALID",
+                $"La zona horaria '{tz}' no es válida. Usa un ID IANA (ej. America/Panama).");
+        }
+        catch (InvalidTimeZoneException)
+        {
+            throw new DomainException(
+                "TIMEZONE_INVALID",
+                $"La zona horaria '{tz}' no es válida. Usa un ID IANA (ej. America/Panama).");
+        }
+    }
+
+    private static string? NormalizeOptionalEmail(string? value, string code, string message)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var email = value.Trim();
+        if (!IsValidEmail(email))
+        {
+            throw new DomainException(code, message);
+        }
+
+        return email;
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return string.Equals(addr.Address, email, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
         }
     }
 }

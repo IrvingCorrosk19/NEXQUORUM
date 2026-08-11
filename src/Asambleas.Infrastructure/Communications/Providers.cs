@@ -100,8 +100,63 @@ public sealed class SmtpEmailProvider : IEmailProvider
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "SMTP send failed to {To}", message.To);
-            return new ProviderSendResult(false, DeliveryStatus.Failed, null, ex.Message, UsedSandbox: false);
+            var (code, detail) = MapSmtpException(ex);
+            return new ProviderSendResult(
+                false,
+                DeliveryStatus.Failed,
+                null,
+                $"{code}: {detail}",
+                UsedSandbox: false);
         }
+    }
+
+    private static (string Code, string Detail) MapSmtpException(Exception ex)
+    {
+        var text = ex.ToString();
+        if (ex is SmtpException smtp)
+        {
+            if (smtp.StatusCode is SmtpStatusCode.MailboxUnavailable
+                or SmtpStatusCode.MailboxNameNotAllowed)
+            {
+                return ("INVALID_RECIPIENT", "El destinatario de prueba no es válido.");
+            }
+
+            if (smtp.StatusCode == SmtpStatusCode.MustIssueStartTlsFirst
+                || text.Contains("SSL", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("TLS", StringComparison.OrdinalIgnoreCase))
+            {
+                return ("TLS_FAILED", "No fue posible establecer una conexión segura con SMTP.");
+            }
+        }
+
+        if (text.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+            || ex is TimeoutException)
+        {
+            return ("CONNECTION_TIMEOUT", "No pudimos conectar con el servidor SMTP.");
+        }
+
+        if (text.Contains("Authentication", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("5.7.0", StringComparison.Ordinal)
+            || text.Contains("5.7.8", StringComparison.Ordinal)
+            || text.Contains("535", StringComparison.Ordinal)
+            || text.Contains("Username and Password not accepted", StringComparison.OrdinalIgnoreCase))
+        {
+            return (
+                "AUTHENTICATION_FAILED",
+                "No pudimos autenticar la cuenta de correo. Verifica la contraseña de aplicación.");
+        }
+
+        if (text.Contains("No connection", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("actively refused", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("Name or service not known", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("Network is unreachable", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("CONNECTION_TIMEOUT", "No pudimos conectar con el servidor SMTP.");
+        }
+
+        // Never echo raw exception details that might include credentials.
+        return ("UNKNOWN", "No se pudo enviar el correo de prueba. Revisa la configuración SMTP.");
     }
 }
 
@@ -124,15 +179,40 @@ public sealed class SmtpClientSettings
             root.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
 
         int port = 587;
-        if (root.TryGetProperty("port", out var portEl) && portEl.TryGetInt32(out var parsed))
+        if (root.TryGetProperty("port", out var portEl))
         {
-            port = parsed;
+            if (portEl.ValueKind == JsonValueKind.Number && portEl.TryGetInt32(out var parsedNum))
+            {
+                port = parsedNum;
+            }
+            else if (portEl.ValueKind == JsonValueKind.String
+                     && int.TryParse(portEl.GetString(), out var parsedStr)
+                     && parsedStr is >= 1 and <= 65535)
+            {
+                // UI stores port as string from <input>; accept both Number and String.
+                port = parsedStr;
+            }
         }
 
         var useSsl = true;
-        if (root.TryGetProperty("useSsl", out var sslEl) && sslEl.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        if (root.TryGetProperty("useSsl", out var sslEl))
         {
-            useSsl = sslEl.GetBoolean();
+            if (sslEl.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                useSsl = sslEl.GetBoolean();
+            }
+            else if (sslEl.ValueKind == JsonValueKind.String
+                     && bool.TryParse(sslEl.GetString(), out var parsedSsl))
+            {
+                useSsl = parsedSsl;
+            }
+        }
+
+        // Port 587 = SMTP submission with STARTTLS (EnableSsl=true on SmtpClient).
+        // Port 465 = implicit SSL; leave UseSsl true as well.
+        if (port == 587)
+        {
+            useSsl = true;
         }
 
         return new SmtpClientSettings

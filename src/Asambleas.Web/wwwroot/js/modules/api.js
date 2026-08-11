@@ -62,6 +62,11 @@ export async function api(path, options = {}) {
     const error = new Error(detail || `Request failed (${response.status})`);
     error.status = response.status;
     error.payload = payload;
+    error.code = typeof payload === "object" && payload ? payload.code || payload.extensions?.code : undefined;
+    error.correlationId =
+      typeof payload === "object" && payload
+        ? payload.correlationId || payload.extensions?.correlationId
+        : undefined;
     throw error;
   }
 

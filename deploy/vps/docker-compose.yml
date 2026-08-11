@@ -54,10 +54,12 @@ services:
       ASAMBLEAS_RECORDING_SYNTHETIC: ${ASAMBLEAS_RECORDING_SYNTHETIC:-true}
       Recording__AllowSyntheticFallback: ${ASAMBLEAS_RECORDING_SYNTHETIC:-true}
       Recording__StorageRoot: /data/recordings
+      ASAMBLEAS_DP_KEYS_PATH: /data/dp-keys
     ports:
       - "127.0.0.1:${ASAMBLEAS_HOST_PORT:-5090}:8080"
     volumes:
       - asambleas_recordings:/data/recordings
+      - asambleas_dp_keys:/data/dp-keys
     networks:
       - asambleas_net
     healthcheck:
@@ -87,6 +89,8 @@ volumes:
     name: asambleas_postgres_data
   asambleas_recordings:
     name: asambleas_recordings
+  asambleas_dp_keys:
+    name: asambleas_dp_keys
 
 networks:
   asambleas_net:

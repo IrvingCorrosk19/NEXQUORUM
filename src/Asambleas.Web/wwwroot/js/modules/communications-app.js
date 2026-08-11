@@ -14,6 +14,34 @@ function showError(message) {
   el.textContent = message || "";
 }
 
+function clearFieldErrors() {
+  document.querySelectorAll("[data-field-hint]").forEach((el) => {
+    el.textContent = "";
+    el.className = "muted";
+  });
+}
+
+function setFieldHint(inputId, text, kind) {
+  const input = qs(`#${inputId}`);
+  if (!input) return;
+  let hint = input.parentElement?.querySelector("[data-field-hint]");
+  if (!hint) {
+    hint = document.createElement("small");
+    hint.setAttribute("data-field-hint", "");
+    input.parentElement?.appendChild(hint);
+  }
+  hint.textContent = text;
+  hint.className = kind === "ok" ? "muted" : "alert";
+}
+
+function showFieldErrorFromApi(err) {
+  const code = err?.code || err?.problem?.code || "";
+  const msg = err?.message || String(err);
+  if (code === "TIMEZONE_INVALID") setFieldHint("profile-tz", `⚠ ${msg}`, "err");
+  else if (code === "TEST_RECIPIENT_INVALID" || code === "INVALID_RECIPIENT") setFieldHint("profile-override", `⚠ ${msg}`, "err");
+  else if (code === "REPLY_TO_INVALID") setFieldHint("profile-reply", `⚠ ${msg}`, "err");
+}
+
 async function loadAssemblyContext() {
   if (!assemblyId) {
     assemblyId = await resolveDefaultAssemblyId();
@@ -99,9 +127,19 @@ function renderChannels(channels) {
           method: "POST",
           body: { destination }
         });
-        card.querySelector("[data-test-result]").textContent = result.detail;
-        showToast(result.succeeded ? "Prueba OK" : "Prueba falló", result.succeeded ? "success" : "warn");
+        const el = card.querySelector("[data-test-result]");
+        if (result.succeeded) {
+          const mock = /ResolvedProvider=Mock|MOCK/i.test(result.detail || "");
+          el.textContent = mock
+            ? `⚠ ${result.detail}`
+            : `✓ CORREO DE PRUEBA ENVIADO — El servidor SMTP aceptó el mensaje. Destinatario: ${destination}. ${result.detail || ""}`;
+          showToast(mock ? "Prueba usó Mock (revisa Sandbox)" : "Correo de prueba aceptado por SMTP", mock ? "warn" : "success");
+        } else {
+          el.textContent = `⚠ ${result.detail || "Prueba falló"}`;
+          showToast("Prueba falló", "warn");
+        }
       } catch (e) {
+        card.querySelector("[data-test-result]").textContent = e.message;
         showToast(e.message, "warn");
       }
     });
@@ -173,6 +211,7 @@ async function init() {
       showToast("Sin permiso para configurar", "warn");
       return;
     }
+    clearFieldErrors();
     const btn = ev.submitter || qs("#profile-form button[type=submit]");
     btn?.setAttribute("aria-busy", "true");
     btn?.classList.add("is-loading");
@@ -188,9 +227,11 @@ async function init() {
         }
       });
       chip.hidden = !(updated.isSandboxEnvironment || updated.sandboxMode);
+      setFieldHint("profile-tz", "✓ Zona horaria válida", "ok");
       showToast("Perfil guardado", "success");
     } catch (e) {
-      showToast(e.message, "warn");
+      showFieldErrorFromApi(e);
+      showToast(e.message || "No se pudo guardar el perfil", "warn");
     } finally {
       btn?.removeAttribute("aria-busy");
       btn?.classList.remove("is-loading");

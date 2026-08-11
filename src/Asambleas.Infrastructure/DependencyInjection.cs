@@ -11,6 +11,7 @@ using Asambleas.Infrastructure.PhOnboarding;
 using Asambleas.Infrastructure.Seed;
 using Asambleas.Infrastructure.Storage;
 using Asambleas.Infrastructure.Tenancy;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -70,7 +71,10 @@ public static class DependencyInjection
         services.AddScoped<IMeetingRecordingProvider, LiveKitMeetingRecordingProvider>();
         services.AddScoped<DemoDataSeeder>();
 
-        services.AddDataProtection();
+        services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(
+                Environment.GetEnvironmentVariable("ASAMBLEAS_DP_KEYS_PATH")
+                ?? "/data/dp-keys"));
         services.AddScoped<ISecretProtector, DataProtectionSecretProtector>();
         services.AddSingleton<ICommunicationEnvironment, HostCommunicationEnvironment>();
         services.AddScoped<MockEmailProvider>();
