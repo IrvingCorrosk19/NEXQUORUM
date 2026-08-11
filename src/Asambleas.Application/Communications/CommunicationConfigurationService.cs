@@ -266,7 +266,7 @@ public sealed class CommunicationConfigurationService
             metadata: new { channel = channel.ToString(), result.Succeeded, sandbox = forceMock },
             cancellationToken: cancellationToken);
 
-        return new ChannelTestResultDto(result.Succeeded, result.Detail ?? string.Empty, row.LastTestedAtUtc.Value);
+        return new ChannelTestResultDto(result.Succeeded, row.LastTestDetail ?? result.Detail ?? string.Empty, row.LastTestedAtUtc.Value);
     }
 
     public async Task<IReadOnlyList<MessageTemplateDto>> ListTemplatesAsync(
