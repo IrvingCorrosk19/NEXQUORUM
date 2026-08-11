@@ -1,5 +1,6 @@
 import { api } from "/js/modules/api.js";
 import { login, me } from "/js/modules/auth.js";
+import { resolveDefaultAssemblyId } from "/js/modules/assembly-context.js";
 import {
   scrubCredentialQueryFromLocation,
   showGlobalLoader,
@@ -21,21 +22,32 @@ function showError(message) {
   errorEl.textContent = message || "";
 }
 
+async function resolvePostLoginAssemblyId() {
+  if (defaultAssemblyId) return defaultAssemblyId;
+  try {
+    const users = await api("/api/demo/users");
+    if (users?.[0]?.assemblyId) return String(users[0].assemblyId);
+  } catch {
+    /* fall through */
+  }
+  return resolveDefaultAssemblyId();
+}
+
 function goDashboard(assemblyId) {
-  if (!assemblyId) {
-    showError("No hay asamblea demo disponible.");
+  if (assemblyId) {
+    location.assign(`/dashboard.html?assemblyId=${encodeURIComponent(assemblyId)}`);
     return;
   }
-  location.assign(`/dashboard.html?assemblyId=${encodeURIComponent(assemblyId)}`);
+  // Dashboard will resolve the next/active assembly and rewrite the URL.
+  location.assign("/dashboard.html");
 }
 
 try {
   await me();
-  const users = await api("/api/demo/users");
-  defaultAssemblyId = users?.[0]?.assemblyId;
-  if (defaultAssemblyId) {
-    goDashboard(defaultAssemblyId);
-  }
+  const users = await api("/api/demo/users").catch(() => null);
+  defaultAssemblyId = users?.[0]?.assemblyId || null;
+  const assemblyId = (await resolvePostLoginAssemblyId()) || defaultAssemblyId;
+  goDashboard(assemblyId);
 } catch {
   // not authenticated
 }
@@ -79,9 +91,8 @@ document.querySelector("#login-form").addEventListener("submit", async (event) =
 
   try {
     await login(email, password);
-    const users = await api("/api/demo/users");
-    const assemblyId = users?.[0]?.assemblyId || defaultAssemblyId;
     showGlobalLoader("Preparando tu asamblea…");
+    const assemblyId = await resolvePostLoginAssemblyId();
     goDashboard(assemblyId);
   } catch {
     hideGlobalLoader();

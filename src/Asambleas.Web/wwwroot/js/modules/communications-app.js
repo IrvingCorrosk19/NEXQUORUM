@@ -1,8 +1,9 @@
 import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
+import { resolveDefaultAssemblyId } from "./assembly-context.js";
 
-const assemblyId = assemblyIdFromUrl();
+let assemblyId = assemblyIdFromUrl();
 let phId = null;
 let canConfigure = false;
 
@@ -15,6 +16,11 @@ function showError(message) {
 
 async function loadAssemblyContext() {
   if (!assemblyId) {
+    assemblyId = await resolveDefaultAssemblyId();
+    if (assemblyId) {
+      location.replace(`/communications.html?assemblyId=${encodeURIComponent(assemblyId)}`);
+      return null;
+    }
     throw new Error("Falta assemblyId en la URL.");
   }
   const assembly = await api(`/api/assemblies/${assemblyId}`);
@@ -132,6 +138,14 @@ async function init() {
   qs("#user-chip").textContent = user.displayName;
   qs("#nav-tenant").textContent = user.tenantCode || user.tenantName || "Gobernanza";
 
+  try {
+    const ctx = await loadAssemblyContext();
+    if (!ctx) return;
+  } catch (e) {
+    showError(e.message);
+    return;
+  }
+
   const q = `assemblyId=${encodeURIComponent(assemblyId || "")}`;
   qs("#nav-dashboard").href = `/dashboard.html?${q}`;
   qs("#nav-convocation").href = `/convocation.html?${q}`;
@@ -141,13 +155,6 @@ async function init() {
     await logout();
     location.href = "/";
   });
-
-  try {
-    await loadAssemblyContext();
-  } catch (e) {
-    showError(e.message);
-    return;
-  }
 
   const profile = await api(`/api/communications/ph/${phId}/profile`);
   qs("#profile-sandbox").checked = profile.sandboxMode;

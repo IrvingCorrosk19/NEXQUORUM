@@ -942,6 +942,7 @@ function wireChrome() {
 function wireNav(assemblyId) {
   const q = assemblyId ? `?assemblyId=${assemblyId}` : "";
   const map = {
+    "#nav-dashboard": `/dashboard.html${q}`,
     "#nav-comms": `/communications.html${q}`,
     "#nav-convocation": `/convocation.html${q}`,
     "#nav-checkin": `/checkin.html${q}`,
@@ -972,10 +973,18 @@ async function init() {
     b.setAttribute("aria-pressed", String(b.dataset.view === state.view));
   });
   wireChrome();
+  let navAssemblyId = null;
+  try {
+    const next = await api("/api/calendar/next");
+    navAssemblyId = next?.next?.assemblyId || next?.assemblyId || null;
+  } catch {
+    /* ignore */
+  }
   const assemblies = await api("/api/assemblies").catch(() => []);
   const first = Array.isArray(assemblies) ? assemblies[0] : null;
   if (first?.propertyHorizontalId) state.phId = first.propertyHorizontalId;
-  wireNav(first?.id);
+  if (!navAssemblyId) navAssemblyId = first?.id || null;
+  wireNav(navAssemblyId);
   await loadNextBanner();
   await loadEvents();
 }

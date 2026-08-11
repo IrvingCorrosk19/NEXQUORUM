@@ -15,6 +15,7 @@ import {
   primaryCtaForStatus
 } from "./room-state.js";
 import { isOperator } from "./roles.js";
+import { ensureAssemblyIdInUrl, resolveDefaultAssemblyId } from "./assembly-context.js";
 
 let assemblyId = assemblyIdFromUrl();
 
@@ -25,44 +26,10 @@ function showError(message) {
   el.textContent = message || "";
 }
 
-const ACTIVE_STATUSES = new Set(["CheckIn", "InProgress", "Paused"]);
-
 /** Prefer URL, then calendar next, then user's assemblies (live first, then soonest scheduled). */
 async function resolveAssemblyId() {
   if (assemblyId) return assemblyId;
-
-  try {
-    const next = await api("/api/calendar/next");
-    const id = next?.next?.assemblyId || next?.assemblyId;
-    if (id) return String(id);
-  } catch {
-    /* fall through */
-  }
-
-  try {
-    const list = await api("/api/assemblies");
-    if (!Array.isArray(list) || !list.length) return null;
-    const active = list.find((a) => ACTIVE_STATUSES.has(String(a.status || "")));
-    if (active?.id) return String(active.id);
-    const open = list
-      .filter((a) => !["Completed", "Cancelled"].includes(String(a.status || "")))
-      .sort((a, b) => new Date(a.scheduledAtUtc || 0) - new Date(b.scheduledAtUtc || 0));
-    if (open[0]?.id) return String(open[0].id);
-    const sorted = [...list].sort(
-      (a, b) => new Date(b.scheduledAtUtc || 0) - new Date(a.scheduledAtUtc || 0)
-    );
-    return sorted[0]?.id ? String(sorted[0].id) : null;
-  } catch {
-    return null;
-  }
-}
-
-function syncUrlWithAssemblyId(id) {
-  if (!id || typeof history === "undefined" || !history.replaceState) return;
-  const url = new URL(location.href);
-  if (url.searchParams.get("assemblyId") === id) return;
-  url.searchParams.set("assemblyId", id);
-  history.replaceState({}, "", url.pathname + url.search + url.hash);
+  return resolveDefaultAssemblyId();
 }
 
 function renderNoAssemblyState() {
@@ -226,11 +193,12 @@ async function init() {
 
   assemblyId = await resolveAssemblyId();
   if (assemblyId) {
-    syncUrlWithAssemblyId(assemblyId);
+    ensureAssemblyIdInUrl(assemblyId);
   }
 
   const q = assemblyId ? `assemblyId=${encodeURIComponent(assemblyId)}` : "";
   const navMap = {
+    "#nav-dashboard": q ? `/dashboard.html?${q}` : "/dashboard.html",
     "#nav-comms": q ? `/communications.html?${q}` : "/communications.html",
     "#nav-convocation": q ? `/convocation.html?${q}` : "/convocation.html",
     "#nav-checkin": q ? `/checkin.html?${q}` : "/calendar.html",
@@ -243,8 +211,9 @@ async function init() {
     const el = qs(sel);
     if (el) el.setAttribute("href", href);
   });
-  const dashLink = document.querySelector('.app-nav a[href="/dashboard.html"]');
-  if (dashLink) dashLink.href = q ? `/dashboard.html?${q}` : "/dashboard.html";
+  document.querySelectorAll('.app-nav a[href="/dashboard.html"], .app-nav a[href^="/dashboard.html?"]').forEach((el) => {
+    el.href = q ? `/dashboard.html?${q}` : "/dashboard.html";
+  });
 
   const operator = isOperator(user);
 
