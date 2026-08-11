@@ -50,8 +50,23 @@ public sealed class CalendarSchedulingService
         var userId = TenantGuard.RequireUserId(_currentTenant);
         var canManage = RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage);
 
+        // Clamp padding so extreme/default DateTimeOffset values cannot overflow AddDays.
+        static DateTimeOffset PadStart(DateTimeOffset value)
+        {
+            try { return value.AddDays(-1); }
+            catch (ArgumentOutOfRangeException) { return DateTimeOffset.MinValue; }
+        }
+
+        static DateTimeOffset PadEnd(DateTimeOffset value)
+        {
+            try { return value.AddDays(1); }
+            catch (ArgumentOutOfRangeException) { return DateTimeOffset.MaxValue; }
+        }
+
+        var rangeStart = PadStart(fromUtc);
+        var rangeEnd = PadEnd(toUtc);
         var windowed = await ScopedAssembliesQuery(userId, canManage)
-            .Where(a => a.ScheduledAtUtc >= fromUtc.AddDays(-1) && a.ScheduledAtUtc <= toUtc.AddDays(1))
+            .Where(a => a.ScheduledAtUtc >= rangeStart && a.ScheduledAtUtc <= rangeEnd)
             .ToListAsync(cancellationToken);
 
         windowed = windowed
@@ -129,19 +144,21 @@ public sealed class CalendarSchedulingService
 
         if (string.IsNullOrWhiteSpace(request.Title))
         {
-            throw new DomainException("Assembly title is required.");
+            throw new DomainException("ASSEMBLY_TITLE_REQUIRED", "Ingresa un nombre para la asamblea.");
         }
 
         if (request.ScheduledAtUtc < DateTimeOffset.UtcNow.AddMinutes(-5))
         {
-            throw new DomainException("Cannot schedule an assembly in the past.");
+            throw new DomainException("ASSEMBLY_IN_PAST", "No se puede programar una asamblea en el pasado.");
         }
 
         var ph = await _db.PropertyHorizontals
             .FirstOrDefaultAsync(p => p.Id == request.PropertyHorizontalId, cancellationToken)
-            ?? throw new DomainException("Property horizontal was not found.");
+            ?? throw new DomainException("PH_NOT_FOUND", "No encontramos esa propiedad horizontal.");
 
         TenantGuard.EnsureTenantMatch(_currentTenant, ph.TenantId);
+        await EnsureCanScheduleOnPhAsync(ph.Id, userId, cancellationToken);
+
         if (ph.Status == PhLifecycleStatus.Inactive)
         {
             throw new DomainException(
@@ -149,10 +166,47 @@ public sealed class CalendarSchedulingService
                 "No se pueden programar asambleas en un PH desactivado. Reactívalo primero.");
         }
 
+        var modality = string.IsNullOrWhiteSpace(request.Modality)
+            ? AssemblyEntity.ModalityVirtual
+            : request.Modality.Trim().ToUpperInvariant();
+        if (modality is "PRESENCIAL" or "HIBRIDA"
+            && string.IsNullOrWhiteSpace(request.LocationText))
+        {
+            throw new DomainException(
+                "LOCATION_REQUIRED",
+                "Indica el lugar de la asamblea para modalidad presencial o híbrida.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.ClientRequestId))
+        {
+            var token = request.ClientRequestId.Trim();
+            if (token.Length is > 0 and <= 64)
+            {
+                var duplicate = await _db.Assemblies.AsNoTracking().AnyAsync(
+                    a => a.TenantId == tenantId
+                         && a.PropertyHorizontalId == ph.Id
+                         && a.Title == request.Title.Trim()
+                         && a.ScheduledAtUtc == request.ScheduledAtUtc.ToUniversalTime()
+                         && a.CreatedAtUtc >= DateTimeOffset.UtcNow.AddMinutes(-2),
+                    cancellationToken);
+                if (duplicate)
+                {
+                    var existing = await _db.Assemblies.AsNoTracking()
+                        .Where(a => a.TenantId == tenantId
+                                    && a.PropertyHorizontalId == ph.Id
+                                    && a.Title == request.Title.Trim()
+                                    && a.ScheduledAtUtc == request.ScheduledAtUtc.ToUniversalTime())
+                        .OrderByDescending(a => a.CreatedAtUtc)
+                        .FirstAsync(cancellationToken);
+                    return await ToDetailAsync(existing, cancellationToken);
+                }
+            }
+        }
+
         var end = request.EstimatedEndAtUtc ?? request.ScheduledAtUtc.AddHours(2);
         if (end <= request.ScheduledAtUtc)
         {
-            throw new DomainException("Estimated end must be after start.");
+            throw new DomainException("ASSEMBLY_END_INVALID", "La hora de fin debe ser posterior al inicio.");
         }
 
         var conflicts = await FindConflictsAsync(
@@ -164,7 +218,8 @@ public sealed class CalendarSchedulingService
         if (conflicts.Count > 0 && !RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage))
         {
             throw new DomainException(
-                $"Scheduling conflict with '{conflicts[0].Title}'. Choose another time or override as manager.");
+                "ASSEMBLY_CONFLICT",
+                $"Ya existe una asamblea programada que se solapa: «{conflicts[0].Title}». Elige otro horario.");
         }
 
         var assembly = new AssemblyEntity
@@ -173,12 +228,12 @@ public sealed class CalendarSchedulingService
             TenantId = tenantId,
             PropertyHorizontalId = ph.Id,
             Title = request.Title.Trim(),
-            Modality = string.IsNullOrWhiteSpace(request.Modality) ? AssemblyEntity.ModalityVirtual : request.Modality.Trim().ToUpperInvariant(),
+            Modality = modality,
             AssemblyKind = string.IsNullOrWhiteSpace(request.AssemblyKind) ? "ORDINARY" : request.AssemblyKind.Trim().ToUpperInvariant(),
             ScheduledAtUtc = request.ScheduledAtUtc.ToUniversalTime(),
             EstimatedEndAtUtc = end.ToUniversalTime(),
             RequiredQuorumPercent = request.RequiredQuorumPercent <= 0 ? 50m : request.RequiredQuorumPercent,
-            LocationText = request.LocationText,
+            LocationText = string.IsNullOrWhiteSpace(request.LocationText) ? null : request.LocationText.Trim(),
             Notes = request.Notes,
             JoinWindowMinutesBefore = request.JoinWindowMinutesBefore is > 0 and <= 24 * 60
                 ? request.JoinWindowMinutesBefore.Value
@@ -215,6 +270,126 @@ public sealed class CalendarSchedulingService
             cancellationToken: cancellationToken);
 
         return await ToDetailAsync(assembly, cancellationToken);
+    }
+
+    public async Task<CalendarEventDto> UpdateScheduledDetailsAsync(
+        Guid assemblyId,
+        UpdateScheduledAssemblyRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        EnsurePermission(Permissions.AssemblySchedule);
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+
+        if (string.IsNullOrWhiteSpace(request.Title))
+        {
+            throw new DomainException("ASSEMBLY_TITLE_REQUIRED", "Ingresa un nombre para la asamblea.");
+        }
+
+        if (request.ScheduledAtUtc < DateTimeOffset.UtcNow.AddMinutes(-5))
+        {
+            throw new DomainException("ASSEMBLY_IN_PAST", "No se puede programar una asamblea en el pasado.");
+        }
+
+        var assembly = await RequireScopedAssemblyAsync(assemblyId, track: true, cancellationToken);
+        if (assembly.Status is not (AssemblyStatus.Draft or AssemblyStatus.Scheduled or AssemblyStatus.CheckIn))
+        {
+            throw new DomainException(
+                "ASSEMBLY_EDIT_FORBIDDEN",
+                $"No se puede editar una asamblea en estado '{assembly.Status}'.");
+        }
+
+        await EnsureCanScheduleOnPhAsync(assembly.PropertyHorizontalId, userId, cancellationToken);
+
+        var modality = string.IsNullOrWhiteSpace(request.Modality)
+            ? assembly.Modality
+            : request.Modality.Trim().ToUpperInvariant();
+        if (modality is "PRESENCIAL" or "HIBRIDA"
+            && string.IsNullOrWhiteSpace(request.LocationText))
+        {
+            throw new DomainException(
+                "LOCATION_REQUIRED",
+                "Indica el lugar de la asamblea para modalidad presencial o híbrida.");
+        }
+
+        var end = request.EstimatedEndAtUtc ?? request.ScheduledAtUtc.AddHours(2);
+        if (end <= request.ScheduledAtUtc)
+        {
+            throw new DomainException("ASSEMBLY_END_INVALID", "La hora de fin debe ser posterior al inicio.");
+        }
+
+        var timeChanged = assembly.ScheduledAtUtc != request.ScheduledAtUtc.ToUniversalTime()
+            || assembly.ResolveEstimatedEndAtUtc() != end.ToUniversalTime();
+
+        if (timeChanged)
+        {
+            var conflicts = await FindConflictsAsync(
+                assembly.PropertyHorizontalId,
+                request.ScheduledAtUtc,
+                end,
+                excludeAssemblyId: assembly.Id,
+                cancellationToken);
+            if (conflicts.Count > 0 && !RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage))
+            {
+                throw new DomainException(
+                    "ASSEMBLY_CONFLICT",
+                    $"Ya existe una asamblea programada que se solapa: «{conflicts[0].Title}». Elige otro horario.");
+            }
+        }
+
+        var originalStart = assembly.ScheduledAtUtc;
+        var originalEnd = assembly.EstimatedEndAtUtc;
+
+        assembly.Title = request.Title.Trim();
+        assembly.Modality = modality;
+        assembly.AssemblyKind = string.IsNullOrWhiteSpace(request.AssemblyKind)
+            ? assembly.AssemblyKind
+            : request.AssemblyKind.Trim().ToUpperInvariant();
+        assembly.ScheduledAtUtc = request.ScheduledAtUtc.ToUniversalTime();
+        assembly.EstimatedEndAtUtc = end.ToUniversalTime();
+        assembly.LocationText = string.IsNullOrWhiteSpace(request.LocationText) ? null : request.LocationText.Trim();
+        assembly.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+        if (request.JoinWindowMinutesBefore is > 0 and <= 24 * 60)
+        {
+            assembly.JoinWindowMinutesBefore = request.JoinWindowMinutesBefore.Value;
+        }
+
+        assembly.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        if (timeChanged)
+        {
+            assembly.ScheduleVersion += 1;
+            _db.AssemblyScheduleChanges.Add(new AssemblyScheduleChange
+            {
+                Id = Guid.NewGuid(),
+                TenantId = assembly.TenantId,
+                AssemblyId = assembly.Id,
+                OriginalScheduledAtUtc = originalStart,
+                OriginalEstimatedEndAtUtc = originalEnd,
+                NewScheduledAtUtc = assembly.ScheduledAtUtc,
+                NewEstimatedEndAtUtc = assembly.EstimatedEndAtUtc,
+                Reason = "Actualización de programación",
+                ChangedByUserId = userId,
+                ChangedAtUtc = DateTimeOffset.UtcNow,
+                NotificationStatus = "Skipped",
+                ImpactJson = "{}",
+                ScheduleVersionAfter = assembly.ScheduleVersion,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            });
+            await CancelPendingRemindersAsync(assembly.Id, "Edited", cancellationToken);
+            await RebuildReminderOccurrencesAsync(assembly, cancellationToken);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            AuditEventType.AssemblyUpdated,
+            assembly.Id,
+            metadata: new { assembly.Title, assembly.Modality, assembly.ScheduledAtUtc, timeChanged },
+            cancellationToken: cancellationToken);
+
+        var mapped = await MapEventsAsync([assembly], cancellationToken);
+        return mapped[0];
     }
 
     public async Task<RescheduleImpactDto> PreviewRescheduleAsync(
@@ -555,6 +730,36 @@ public sealed class CalendarSchedulingService
         return assembly;
     }
 
+    private async Task EnsureCanScheduleOnPhAsync(
+        Guid propertyHorizontalId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        if (RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage)
+            || _currentTenant.Roles.Contains(Roles.PlatformAdmin, StringComparer.Ordinal)
+            || _currentTenant.Roles.Contains(Roles.TenantAdmin, StringComparer.Ordinal)
+            || _currentTenant.Roles.Contains(Roles.PHAdmin, StringComparer.Ordinal)
+            || _currentTenant.Roles.Contains(Roles.AssemblyPresident, StringComparer.Ordinal))
+        {
+            // Still require membership for non-platform unless they have manage on tenant scope.
+            if (_currentTenant.Roles.Contains(Roles.PlatformAdmin, StringComparer.Ordinal)
+                || _currentTenant.Roles.Contains(Roles.TenantAdmin, StringComparer.Ordinal))
+            {
+                return;
+            }
+        }
+
+        var membership = await _db.UserPropertyMemberships.AsNoTracking().AnyAsync(
+            m => m.UserId == userId && m.PropertyHorizontalId == propertyHorizontalId && m.IsActive,
+            cancellationToken);
+        if (!membership)
+        {
+            throw new DomainException(
+                "PH_SCHEDULE_FORBIDDEN",
+                "No tienes permiso para programar asambleas en esta propiedad horizontal.");
+        }
+    }
+
     private static void EnsureCanReschedule(AssemblyEntity assembly)
     {
         if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled or AssemblyStatus.InProgress or AssemblyStatus.Paused)
@@ -766,6 +971,8 @@ public sealed class CalendarSchedulingService
         var canCancel = RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyCancel)
             || RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage);
         var canManage = RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage);
+        var canSchedule = RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblySchedule)
+            || canManage;
         var now = DateTimeOffset.UtcNow;
 
         var list = new List<CalendarEventDto>();
@@ -807,7 +1014,8 @@ public sealed class CalendarSchedulingService
                 FormatCountdown(a, now, joinOpens),
                 canReschedule && a.Status is AssemblyStatus.Draft or AssemblyStatus.Scheduled or AssemblyStatus.CheckIn,
                 canCancel && a.Status is AssemblyStatus.Draft or AssemblyStatus.Scheduled or AssemblyStatus.CheckIn,
-                canManage));
+                canManage,
+                CanEdit: canSchedule && a.Status is AssemblyStatus.Draft or AssemblyStatus.Scheduled or AssemblyStatus.CheckIn));
         }
 
         return list;

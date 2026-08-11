@@ -25,7 +25,8 @@ public sealed record CalendarEventDto(
     string CountdownLabel,
     bool CanReschedule,
     bool CanCancel,
-    bool CanManage);
+    bool CanManage,
+    bool CanEdit = false);
 
 public sealed record CalendarListResponse(
     IReadOnlyList<CalendarEventDto> Events,
@@ -67,7 +68,8 @@ public sealed record ScheduleAssemblyRequest(
     string? LocationText,
     string? Notes,
     int? JoinWindowMinutesBefore,
-    bool PublishAsScheduled = true);
+    bool PublishAsScheduled = true,
+    string? ClientRequestId = null);
 
 public sealed record RescheduleAssemblyRequest(
     DateTimeOffset NewScheduledAtUtc,
@@ -75,6 +77,16 @@ public sealed record RescheduleAssemblyRequest(
     string Reason,
     bool NotifyParticipants = false,
     uint? ExpectedRowVersion = null);
+
+public sealed record UpdateScheduledAssemblyRequest(
+    string Title,
+    string Modality,
+    DateTimeOffset ScheduledAtUtc,
+    DateTimeOffset? EstimatedEndAtUtc,
+    string? AssemblyKind,
+    string? LocationText,
+    string? Notes,
+    int? JoinWindowMinutesBefore);
 
 public sealed record CancelAssemblyRequest(
     string Reason,

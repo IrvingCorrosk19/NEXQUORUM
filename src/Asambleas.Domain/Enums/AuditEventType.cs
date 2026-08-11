@@ -55,6 +55,7 @@ public static class AuditEventType
     public const string AssemblyCompleted = "ASSEMBLY_COMPLETED";
     public const string AssemblyCreated = "ASSEMBLY_CREATED";
     public const string AssemblyScheduled = "ASSEMBLY_SCHEDULED";
+    public const string AssemblyUpdated = "ASSEMBLY_UPDATED";
     public const string AssemblyRescheduled = "ASSEMBLY_RESCHEDULED";
     public const string AssemblyCancelled = "ASSEMBLY_CANCELLED";
 

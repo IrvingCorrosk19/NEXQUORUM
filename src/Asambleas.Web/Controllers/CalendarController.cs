@@ -52,6 +52,14 @@ public sealed class AssemblySchedulingController : ControllerBase
     public Task<AssemblyDetailDto> Create([FromBody] ScheduleAssemblyRequest request, CancellationToken cancellationToken) =>
         _calendar.CreateAndScheduleAsync(request, cancellationToken);
 
+    [HttpPut("{assemblyId:guid}")]
+    [Authorize(Policy = Permissions.AssemblySchedule)]
+    public Task<CalendarEventDto> Update(
+        Guid assemblyId,
+        [FromBody] UpdateScheduledAssemblyRequest request,
+        CancellationToken cancellationToken) =>
+        _calendar.UpdateScheduledDetailsAsync(assemblyId, request, cancellationToken);
+
     [HttpGet("{assemblyId:guid}/reschedule/impact")]
     [Authorize(Policy = Permissions.AssemblyReschedule)]
     public Task<RescheduleImpactDto> Impact(

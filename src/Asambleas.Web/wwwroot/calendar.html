@@ -7,11 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=cal1" />
-  <link rel="stylesheet" href="/css/base.css?v=cal1" />
-  <link rel="stylesheet" href="/css/components.css?v=cal1" />
-  <link rel="stylesheet" href="/css/loading.css?v=cal1" />
-  <link rel="stylesheet" href="/css/calendar.css?v=cal3" />
+  <link rel="stylesheet" href="/css/tokens.css?v=cal5" />
+  <link rel="stylesheet" href="/css/base.css?v=cal5" />
+  <link rel="stylesheet" href="/css/components.css?v=cal5" />
+  <link rel="stylesheet" href="/css/loading.css?v=cal5" />
+  <link rel="stylesheet" href="/css/calendar.css?v=cal5" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -57,7 +57,7 @@
           <h1 class="brand-inline">Calendario de Asambleas</h1>
         </div>
         <div class="cluster calendar-toolbar">
-          <button type="button" id="btn-schedule" class="btn btn-primary" hidden>Agendar asamblea</button>
+          <button type="button" id="btn-schedule" class="btn btn-primary" hidden>Nueva asamblea</button>
         </div>
       </section>
 
@@ -111,63 +111,207 @@
   </aside>
 
   <div id="schedule-dialog" class="cal-dialog" hidden>
-    <form id="schedule-form" class="cal-dialog-panel" role="dialog" aria-labelledby="schedule-title">
-      <h2 id="schedule-title">Agendar asamblea</h2>
-      <label>Nombre<input name="title" class="input" required maxlength="512" /></label>
-      <label>Tipo
-        <select name="assemblyKind" class="input">
-          <option value="ORDINARY">Ordinaria</option>
-          <option value="EXTRAORDINARY">Extraordinaria</option>
-          <option value="OTHER">Otra</option>
-        </select>
-      </label>
-      <label>PH (Property Horizontal Id)<input name="propertyHorizontalId" class="input" required /></label>
-      <label>Inicio (UTC ISO)<input name="scheduledAtUtc" class="input" type="datetime-local" required /></label>
-      <label>Fin estimado<input name="estimatedEndAtUtc" class="input" type="datetime-local" /></label>
-      <label>Modalidad
-        <select name="modality" class="input">
-          <option value="VIRTUAL">Virtual</option>
-          <option value="PRESENCIAL">Presencial</option>
-          <option value="HIBRIDA">Híbrida</option>
-        </select>
-      </label>
-      <label>Ubicación<input name="locationText" class="input" maxlength="512" /></label>
-      <label>Lobby abre (minutos antes)<input name="joinWindowMinutesBefore" class="input" type="number" min="0" max="1440" value="30" /></label>
-      <label>Notas<textarea name="notes" class="input" rows="3"></textarea></label>
-      <div class="cluster">
-        <button type="button" class="btn btn-ghost" data-close="schedule-dialog">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Guardar</button>
+    <form id="schedule-form" class="cal-dialog-panel schedule-sheet" role="dialog" aria-modal="true" aria-labelledby="schedule-title">
+      <header class="schedule-sheet__head">
+        <div>
+          <p class="command-eyebrow">Programación</p>
+          <h2 id="schedule-title">Nueva asamblea</h2>
+          <p class="schedule-sheet__lede">Programa una nueva sesión para tu propiedad horizontal.</p>
+        </div>
+        <button type="button" class="btn btn-ghost schedule-sheet__close" data-close="schedule-dialog" aria-label="Cerrar">✕</button>
+      </header>
+
+      <div class="schedule-sheet__body">
+        <div class="field" id="field-ph">
+          <label for="sched-ph">Propiedad horizontal</label>
+          <select id="sched-ph" name="propertyHorizontalId" class="input" required aria-describedby="sched-ph-hint"></select>
+          <p id="sched-ph-hint" class="field-hint"></p>
+          <p class="field-error" id="err-ph" hidden></p>
+        </div>
+
+        <div class="field">
+          <label for="sched-title">Nombre de la asamblea</label>
+          <input id="sched-title" name="title" class="input" required maxlength="512" placeholder="Asamblea Ordinaria — Agosto 2026" autocomplete="off" />
+          <p class="field-error" id="err-title" hidden></p>
+        </div>
+
+        <fieldset class="field field-seg">
+          <legend>Tipo</legend>
+          <div class="seg-control" role="radiogroup" aria-label="Tipo de asamblea">
+            <label class="seg-option"><input type="radio" name="assemblyKind" value="ORDINARY" checked /><span>Ordinaria</span></label>
+            <label class="seg-option"><input type="radio" name="assemblyKind" value="EXTRAORDINARY" /><span>Extraordinaria</span></label>
+            <label class="seg-option"><input type="radio" name="assemblyKind" value="OTHER" /><span>Otra</span></label>
+          </div>
+        </fieldset>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="sched-date">Fecha</label>
+            <input id="sched-date" name="dateLocal" class="input" type="date" required />
+            <p class="field-error" id="err-date" hidden></p>
+          </div>
+          <div class="field">
+            <label for="sched-time">Hora de inicio</label>
+            <select id="sched-time" name="timeLocal" class="input" required></select>
+            <p id="sched-tz-hint" class="field-hint">Hora local del PH</p>
+            <p class="field-error" id="err-time" hidden></p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="sched-duration">Duración estimada</label>
+          <select id="sched-duration" name="durationMinutes" class="input">
+            <option value="30">30 minutos</option>
+            <option value="60">1 hora</option>
+            <option value="90">1 hora 30 min</option>
+            <option value="120" selected>2 horas</option>
+            <option value="180">3 horas</option>
+            <option value="custom">Personalizada…</option>
+          </select>
+        </div>
+        <div class="field" id="field-end-custom" hidden>
+          <label for="sched-end-time">Hora de fin</label>
+          <input id="sched-end-time" name="endTimeLocal" class="input" type="time" />
+          <p class="field-error" id="err-end" hidden></p>
+        </div>
+
+        <fieldset class="field field-seg">
+          <legend>Modalidad</legend>
+          <div class="modality-grid" role="radiogroup" aria-label="Modalidad">
+            <label class="modality-card"><input type="radio" name="modality" value="VIRTUAL" checked /><span class="modality-card__inner"><strong>Virtual</strong><small>Sala ASAMBLEAS</small></span></label>
+            <label class="modality-card"><input type="radio" name="modality" value="PRESENCIAL" /><span class="modality-card__inner"><strong>Presencial</strong><small>Lugar físico</small></span></label>
+            <label class="modality-card"><input type="radio" name="modality" value="HIBRIDA" /><span class="modality-card__inner"><strong>Híbrida</strong><small>Lugar + virtual</small></span></label>
+          </div>
+        </fieldset>
+
+        <div class="field" id="field-virtual-info">
+          <div class="info-callout">
+            <strong>Videoconferencia</strong>
+            <p>Sala virtual de ASAMBLEAS — se provisiona automáticamente. No necesitas una URL.</p>
+          </div>
+        </div>
+
+        <div class="field" id="field-location" hidden>
+          <label for="sched-location">Lugar de la asamblea</label>
+          <input id="sched-location" name="locationText" class="input" maxlength="512" placeholder="Salón de eventos — Ocean Residences" />
+          <p class="field-error" id="err-location" hidden></p>
+        </div>
+
+        <div class="field-hint-block" id="lobby-summary">
+          Los participantes podrán ingresar <strong>30 minutos</strong> antes.
+        </div>
+
+        <details class="advanced-block" id="sched-advanced">
+          <summary>Opciones avanzadas</summary>
+          <div class="advanced-block__body">
+            <div class="field">
+              <label for="sched-lobby">Los participantes podrán ingresar</label>
+              <select id="sched-lobby" name="joinWindowMinutesBefore" class="input">
+                <option value="10">10 minutos antes</option>
+                <option value="15">15 minutos antes</option>
+                <option value="30" selected>30 minutos antes</option>
+                <option value="45">45 minutos antes</option>
+                <option value="60">60 minutos antes</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="sched-notes">Descripción o indicaciones</label>
+              <textarea id="sched-notes" name="notes" class="input" rows="2" maxlength="2000" placeholder="Agrega información adicional para los participantes…"></textarea>
+            </div>
+          </div>
+        </details>
       </div>
+
+      <footer class="schedule-sheet__foot">
+        <button type="button" class="btn btn-secondary" data-close="schedule-dialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-create-assembly">Crear asamblea</button>
+      </footer>
     </form>
   </div>
 
-  <div id="reschedule-dialog" class="cal-dialog" hidden>
-    <form id="reschedule-form" class="cal-dialog-panel" role="dialog" aria-labelledby="reschedule-title">
-      <h2 id="reschedule-title">Reagendar asamblea</h2>
-      <p id="reschedule-current" class="muted"></p>
-      <label>Nueva fecha/hora<input name="newScheduledAtUtc" class="input" type="datetime-local" required /></label>
-      <label>Motivo<textarea name="reason" class="input" rows="3" required minlength="3"></textarea></label>
-      <div id="reschedule-impact" class="impact-box" hidden></div>
-      <label class="cluster"><input type="checkbox" name="notifyParticipants" /> Ofrecer notificación de cambio (no envío ciego)</label>
-      <div class="cluster">
-        <button type="button" class="btn btn-ghost" data-close="reschedule-dialog">Cancelar</button>
-        <button type="button" id="btn-review-impact" class="btn btn-secondary">Revisar impacto</button>
-        <button type="submit" class="btn btn-primary">Confirmar reagendo</button>
+  <div id="schedule-success-dialog" class="cal-dialog" hidden>
+    <div class="cal-dialog-panel schedule-success" role="dialog" aria-modal="true" aria-labelledby="success-title">
+      <p class="success-kicker">Asamblea programada</p>
+      <h2 id="success-title"></h2>
+      <p id="success-meta" class="muted"></p>
+      <div class="cta-row schedule-success__actions">
+        <a class="btn btn-primary" id="success-view" href="#">Ver asamblea</a>
+        <a class="btn btn-secondary" id="success-agenda" href="#">Preparar agenda</a>
+        <a class="btn btn-secondary" id="success-convocation" href="#">Enviar convocatoria</a>
+        <button type="button" class="btn btn-ghost" data-close="schedule-success-dialog">Cerrar</button>
       </div>
+    </div>
+  </div>
+
+  <div id="reschedule-dialog" class="cal-dialog" hidden>
+    <form id="reschedule-form" class="cal-dialog-panel schedule-sheet" role="dialog" aria-modal="true" aria-labelledby="reschedule-title">
+      <header class="schedule-sheet__head">
+        <div>
+          <p class="command-eyebrow">Reprogramación</p>
+          <h2 id="reschedule-title">Reagendar asamblea</h2>
+          <p id="reschedule-current" class="schedule-sheet__lede"></p>
+        </div>
+        <button type="button" class="btn btn-ghost schedule-sheet__close" data-close="reschedule-dialog" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="schedule-sheet__body">
+        <div class="field-row">
+          <div class="field">
+            <label for="re-date">Nueva fecha</label>
+            <input id="re-date" name="dateLocal" class="input" type="date" required />
+          </div>
+          <div class="field">
+            <label for="re-time">Nueva hora</label>
+            <select id="re-time" name="timeLocal" class="input" required></select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="re-reason">Motivo</label>
+          <textarea id="re-reason" name="reason" class="input" rows="3" required minlength="3" placeholder="Explica por qué se reprograma…"></textarea>
+        </div>
+        <div id="reschedule-impact" class="impact-box" hidden></div>
+        <label class="check-row"><input type="checkbox" name="notifyParticipants" /> Ofrecer notificación a participantes (no envío automático)</label>
+      </div>
+      <footer class="schedule-sheet__foot">
+        <button type="button" class="btn btn-secondary" data-close="reschedule-dialog">Cancelar</button>
+        <button type="button" id="btn-review-impact" class="btn btn-ghost">Revisar impacto</button>
+        <button type="submit" class="btn btn-primary">Confirmar reprogramación</button>
+      </footer>
     </form>
   </div>
 
   <div id="cancel-dialog" class="cal-dialog" hidden>
-    <form id="cancel-form" class="cal-dialog-panel" role="dialog" aria-labelledby="cancel-title">
-      <h2 id="cancel-title">Cancelar asamblea</h2>
-      <label>Motivo<textarea name="reason" class="input" rows="3" required minlength="3"></textarea></label>
-      <div class="cluster">
-        <button type="button" class="btn btn-ghost" data-close="cancel-dialog">Volver</button>
-        <button type="submit" class="btn btn-danger">Confirmar cancelación</button>
+    <form id="cancel-form" class="cal-dialog-panel schedule-sheet" role="dialog" aria-modal="true" aria-labelledby="cancel-title">
+      <header class="schedule-sheet__head">
+        <div>
+          <h2 id="cancel-title">Cancelar asamblea</h2>
+          <p class="schedule-sheet__lede">La asamblea se conservará en el historial. No se elimina físicamente.</p>
+        </div>
+        <button type="button" class="btn btn-ghost schedule-sheet__close" data-close="cancel-dialog" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="schedule-sheet__body">
+        <div class="field">
+          <label for="cancel-reason">Motivo</label>
+          <textarea id="cancel-reason" name="reason" class="input" rows="3" required minlength="3"></textarea>
+        </div>
       </div>
+      <footer class="schedule-sheet__foot">
+        <button type="button" class="btn btn-secondary" data-close="cancel-dialog">Volver</button>
+        <button type="submit" class="btn btn-danger">Confirmar cancelación</button>
+      </footer>
     </form>
   </div>
 
-  <script type="module" src="/js/modules/calendar-app.js?v=cal3"></script>
+  <div id="discard-dialog" class="cal-dialog" hidden>
+    <div class="cal-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="discard-title">
+      <h2 id="discard-title">¿Descartar cambios?</h2>
+      <p class="muted">Perderás la información ingresada en el formulario.</p>
+      <div class="cta-row">
+        <button type="button" class="btn btn-secondary" id="btn-keep-editing">Seguir editando</button>
+        <button type="button" class="btn btn-danger" id="btn-discard-changes">Descartar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/modules/calendar-app.js?v=cal5"></script>
 </body>
 </html>

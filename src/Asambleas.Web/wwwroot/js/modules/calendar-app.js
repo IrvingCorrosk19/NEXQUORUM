@@ -1,6 +1,14 @@
 import { api } from "./api.js";
 import { logout, me, hasPermission } from "./auth.js";
 import { escapeHtml, qs, showToast } from "./ui.js";
+import {
+  fillTimeSelect,
+  phLocalToUtcIso,
+  utcIsoToPhLocalParts,
+  suggestTitle,
+  formatHumanRange,
+  modalityLabel
+} from "./schedule-time.js";
 
 const state = {
   user: null,
@@ -8,7 +16,12 @@ const state = {
   cursor: startOfMonth(new Date()),
   events: [],
   selected: null,
-  phId: null
+  phId: null,
+  schedulablePhs: [],
+  scheduleDirty: false,
+  scheduleSubmitting: false,
+  titleTouched: false,
+  editingAssemblyId: null
 };
 
 function startOfMonth(d) {
@@ -259,7 +272,7 @@ function emptyState() {
   const canSchedule = hasPermission(state.user, "assembly:schedule") || hasPermission(state.user, "assembly:manage");
   return `<div class="calendar-empty">
     <p>No tienes Asambleas programadas próximamente.</p>
-    ${canSchedule ? `<button type="button" class="btn btn-primary" id="empty-schedule">Agendar asamblea</button>` : ""}
+    ${canSchedule ? `<button type="button" class="btn btn-primary" id="empty-schedule">Nueva asamblea</button>` : ""}
   </div>`;
 }
 
@@ -273,7 +286,7 @@ function wireChips(root) {
       }
     });
   });
-  qs("#empty-schedule")?.addEventListener("click", () => openDialog("schedule-dialog"));
+  qs("#empty-schedule")?.addEventListener("click", () => openScheduleDialog());
 }
 
 function render() {
@@ -305,13 +318,15 @@ async function openEvent(id) {
       const live = ev.calendarStatus === "LIVE";
       actions.push(`<a class="btn btn-primary" href="/lobby.html?assemblyId=${ev.assemblyId}">${live ? "Entrar ahora" : "Entrar"}</a>`);
     }
+    if (ev.canEdit) actions.push(`<button type="button" class="btn btn-ghost" id="act-edit">Editar</button>`);
     if (ev.canReschedule) actions.push(`<button type="button" class="btn btn-ghost" id="act-reschedule">Reagendar</button>`);
-    if (ev.canCancel) actions.push(`<button type="button" class="btn btn-danger" id="act-cancel">Cancelar</button>`);
+    if (ev.canCancel) actions.push(`<button type="button" class="btn btn-danger" id="act-cancel">Cancelar asamblea</button>`);
     actions.push(`<a class="btn btn-ghost" href="/api/assemblies/${ev.assemblyId}/calendar.ics" download>Descargar .ics</a>`);
     actions.push(`<button type="button" class="btn btn-ghost" id="act-links">Añadir al calendario</button>`);
     qs("#drawer-actions").innerHTML = actions.join("");
     drawer.hidden = false;
     drawer.setAttribute("aria-hidden", "false");
+    qs("#act-edit")?.addEventListener("click", () => openEditDialog(ev));
     qs("#act-reschedule")?.addEventListener("click", () => openReschedule(ev));
     qs("#act-cancel")?.addEventListener("click", () => openCancel(ev));
     qs("#act-links")?.addEventListener("click", async () => {
@@ -376,9 +391,22 @@ function closeDialog(id) {
 }
 
 function openReschedule(ev) {
-  qs("#reschedule-current").textContent = `Actual: ${formatInTz(ev.scheduledAtUtc, ev.timeZoneId)}`;
+  qs("#reschedule-current").textContent = `Fecha actual: ${formatInTz(ev.scheduledAtUtc, ev.timeZoneId)}`;
   qs("#reschedule-form").dataset.assemblyId = ev.assemblyId;
-  qs("#reschedule-form").elements.newScheduledAtUtc.value = toLocalInputValue(ev.scheduledAtUtc);
+  qs("#reschedule-form").dataset.timeZoneId = ev.timeZoneId || "America/Panama";
+  fillTimeSelect(qs("#re-time"), "19:00");
+  const parts = utcIsoToPhLocalParts(ev.scheduledAtUtc, ev.timeZoneId);
+  qs("#re-date").value = parts.date;
+  const reTime = qs("#re-time");
+  if ([...reTime.options].some((o) => o.value === parts.time)) {
+    reTime.value = parts.time;
+  } else {
+    const opt = document.createElement("option");
+    opt.value = parts.time;
+    opt.textContent = parts.time;
+    opt.selected = true;
+    reTime.appendChild(opt);
+  }
   qs("#reschedule-impact").hidden = true;
   openDialog("reschedule-dialog");
 }
@@ -386,6 +414,320 @@ function openReschedule(ev) {
 function openCancel(ev) {
   qs("#cancel-form").dataset.assemblyId = ev.assemblyId;
   openDialog("cancel-dialog");
+}
+
+function clearFieldErrors() {
+  ["err-ph", "err-title", "err-date", "err-time", "err-end", "err-location"].forEach((id) => {
+    const el = qs(`#${id}`);
+    if (el) {
+      el.hidden = true;
+      el.textContent = "";
+    }
+  });
+}
+
+function setFieldError(id, message) {
+  const el = qs(`#${id}`);
+  if (!el) return;
+  el.hidden = !message;
+  el.textContent = message || "";
+}
+
+function selectedPh() {
+  const id = qs("#sched-ph")?.value;
+  return state.schedulablePhs.find((p) => p.id === id) || null;
+}
+
+function currentModality() {
+  return qs('#schedule-form input[name="modality"]:checked')?.value || "VIRTUAL";
+}
+
+function currentKind() {
+  return qs('#schedule-form input[name="assemblyKind"]:checked')?.value || "ORDINARY";
+}
+
+function syncModalityUi() {
+  const m = currentModality();
+  const loc = qs("#field-location");
+  const virt = qs("#field-virtual-info");
+  if (loc) loc.hidden = m === "VIRTUAL";
+  if (virt) virt.hidden = m === "PRESENCIAL";
+  if (m === "VIRTUAL" && qs("#sched-location")) qs("#sched-location").value = "";
+}
+
+function syncDurationUi() {
+  const wrap = qs("#field-end-custom");
+  if (wrap) wrap.hidden = qs("#sched-duration")?.value !== "custom";
+}
+
+function syncLobbySummary() {
+  const mins = qs("#sched-lobby")?.value || "30";
+  const el = qs("#lobby-summary");
+  if (el) el.innerHTML = `Los participantes podrán ingresar <strong>${escapeHtml(mins)} minutos</strong> antes.`;
+}
+
+function syncTitleSuggestion() {
+  if (state.titleTouched) return;
+  const title = qs("#sched-title");
+  if (title) title.value = suggestTitle(currentKind(), qs("#sched-date")?.value);
+}
+
+function syncTzHint() {
+  const ph = selectedPh();
+  const hint = qs("#sched-tz-hint");
+  const phHint = qs("#sched-ph-hint");
+  if (hint) {
+    hint.textContent = humanTzLabel(ph?.timeZoneId);
+  }
+  if (phHint) {
+    const bits = [ph?.city, ph?.unitCount != null ? `${ph.unitCount} unidades` : null].filter(Boolean);
+    phHint.textContent = bits.join(" · ");
+  }
+}
+
+function humanTzLabel(timeZoneId) {
+  if (!timeZoneId) return "Hora local del PH";
+  if (timeZoneId === "America/Panama") return "Hora de Panamá";
+  if (timeZoneId === "America/Bogota") return "Hora de Bogotá";
+  return `Hora local · ${timeZoneId.replace("America/", "").replaceAll("_", " ")}`;
+}
+
+async function loadSchedulablePhs() {
+  const [memberships, list] = await Promise.all([
+    api("/api/ph/memberships/mine").catch(() => []),
+    api("/api/ph").catch(() => [])
+  ]);
+  const byId = new Map((list || []).map((p) => [p.id, p]));
+  let phs = (memberships || [])
+    .map((m) => {
+      const full = byId.get(m.propertyHorizontalId);
+      return {
+        id: m.propertyHorizontalId,
+        name: m.name || full?.name || "PH",
+        timeZoneId: full?.timeZoneId || "America/Panama",
+        city: full?.city,
+        unitCount: full?.unitCount,
+        status: full?.status
+      };
+    })
+    .filter((p) => p.status !== "Inactive");
+
+  if (!phs.length && list?.length) {
+    phs = list
+      .filter((p) => p.status !== "Inactive")
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        timeZoneId: p.timeZoneId || "America/Panama",
+        city: p.city,
+        unitCount: p.unitCount,
+        status: p.status
+      }));
+  }
+
+  state.schedulablePhs = phs;
+  const select = qs("#sched-ph");
+  if (!select) return;
+  if (!phs.length) {
+    select.innerHTML = `<option value="">No hay propiedades disponibles</option>`;
+    return;
+  }
+  const preferred = state.phId && phs.some((p) => p.id === state.phId) ? state.phId : phs[0].id;
+  select.innerHTML = phs
+    .map((p) => `<option value="${p.id}" ${p.id === preferred ? "selected" : ""}>${escapeHtml(p.name)}</option>`)
+    .join("");
+  qs("#field-ph")?.classList.toggle("is-single", phs.length === 1);
+  syncTzHint();
+}
+
+function resetScheduleForm() {
+  const f = qs("#schedule-form");
+  if (!f) return;
+  f.reset();
+  state.titleTouched = false;
+  state.scheduleDirty = false;
+  state.scheduleSubmitting = false;
+  state.editingAssemblyId = null;
+  clearFieldErrors();
+  fillTimeSelect(qs("#sched-time"), "19:00");
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const pad = (n) => String(n).padStart(2, "0");
+  qs("#sched-date").value = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+  if (state.schedulablePhs.length) {
+    const preferred =
+      state.phId && state.schedulablePhs.some((p) => p.id === state.phId)
+        ? state.phId
+        : state.schedulablePhs[0].id;
+    qs("#sched-ph").value = preferred;
+  }
+  qs("#sched-duration").value = "120";
+  qs("#sched-lobby").value = "30";
+  qs("#schedule-title").textContent = "Nueva asamblea";
+  qs("#btn-create-assembly").textContent = "Crear asamblea";
+  qs("#field-ph")?.classList.toggle("is-single", state.schedulablePhs.length === 1);
+  const phSelect = qs("#sched-ph");
+  if (phSelect) phSelect.disabled = false;
+  syncModalityUi();
+  syncDurationUi();
+  syncLobbySummary();
+  syncTitleSuggestion();
+  syncTzHint();
+  const btn = qs("#btn-create-assembly");
+  if (btn) btn.disabled = false;
+}
+
+async function openScheduleDialog() {
+  clearFieldErrors();
+  await loadSchedulablePhs();
+  resetScheduleForm();
+  openDialog("schedule-dialog");
+  qs("#sched-title")?.focus();
+}
+
+async function openEditDialog(ev) {
+  clearFieldErrors();
+  await loadSchedulablePhs();
+  resetScheduleForm();
+  state.editingAssemblyId = ev.assemblyId;
+  state.titleTouched = true;
+  qs("#schedule-title").textContent = "Editar asamblea";
+  qs("#btn-create-assembly").textContent = "Guardar cambios";
+  const phSelect = qs("#sched-ph");
+  if (phSelect) {
+    phSelect.value = ev.propertyHorizontalId;
+    phSelect.disabled = true;
+  }
+  qs("#field-ph")?.classList.add("is-single");
+  qs("#sched-title").value = ev.title || "";
+  const kind = (ev.assemblyKind || "ORDINARY").toUpperCase();
+  const kindRadio = qs(`#schedule-form input[name="assemblyKind"][value="${kind}"]`);
+  if (kindRadio) kindRadio.checked = true;
+  const modality = (ev.modality || "VIRTUAL").toUpperCase();
+  const modRadio = qs(`#schedule-form input[name="modality"][value="${modality}"]`);
+  if (modRadio) modRadio.checked = true;
+  const parts = utcIsoToPhLocalParts(ev.scheduledAtUtc, ev.timeZoneId);
+  qs("#sched-date").value = parts.date;
+  fillTimeSelect(qs("#sched-time"), parts.time);
+  const startMs = new Date(ev.scheduledAtUtc).getTime();
+  const endMs = new Date(ev.estimatedEndAtUtc || startMs + 2 * 3600000).getTime();
+  const mins = Math.round((endMs - startMs) / 60000);
+  const duration = qs("#sched-duration");
+  if (["30", "60", "90", "120", "180"].includes(String(mins))) {
+    duration.value = String(mins);
+  } else {
+    duration.value = "custom";
+    const endParts = utcIsoToPhLocalParts(ev.estimatedEndAtUtc, ev.timeZoneId);
+    qs("#sched-end-time").value = endParts.time;
+  }
+  qs("#sched-location").value = ev.locationText || "";
+  qs("#sched-lobby").value = String(ev.joinWindowMinutesBefore || 30);
+  qs("#sched-notes").value = ev.notes || "";
+  syncModalityUi();
+  syncDurationUi();
+  syncLobbySummary();
+  syncTzHint();
+  openDialog("schedule-dialog");
+  qs("#sched-title")?.focus();
+}
+
+function requestCloseSchedule() {
+  if (!state.scheduleDirty) {
+    closeDialog("schedule-dialog");
+    return;
+  }
+  openDialog("discard-dialog");
+}
+
+function validateScheduleForm() {
+  clearFieldErrors();
+  let ok = true;
+  if (!qs("#sched-ph")?.value) {
+    setFieldError("err-ph", "Selecciona una propiedad horizontal.");
+    ok = false;
+  }
+  if (!qs("#sched-title")?.value.trim()) {
+    setFieldError("err-title", "Ingresa un nombre para continuar.");
+    ok = false;
+  }
+  const date = qs("#sched-date")?.value;
+  const time = qs("#sched-time")?.value;
+  if (!date) {
+    setFieldError("err-date", "Elige una fecha.");
+    ok = false;
+  }
+  if (!time) {
+    setFieldError("err-time", "Elige una hora de inicio.");
+    ok = false;
+  }
+  const modality = currentModality();
+  if ((modality === "PRESENCIAL" || modality === "HIBRIDA") && !qs("#sched-location")?.value.trim()) {
+    setFieldError("err-location", "Indica el lugar de la asamblea.");
+    ok = false;
+  }
+  const ph = selectedPh();
+  if (date && time && ph) {
+    const startIso = phLocalToUtcIso(date, time, ph.timeZoneId);
+    if (new Date(startIso).getTime() < Date.now() - 5 * 60 * 1000) {
+      setFieldError("err-date", "No se puede programar en el pasado.");
+      ok = false;
+    }
+    if (qs("#sched-duration")?.value === "custom") {
+      const endTime = qs("#sched-end-time")?.value;
+      if (!endTime) {
+        setFieldError("err-end", "Indica la hora de fin.");
+        ok = false;
+      } else if (new Date(phLocalToUtcIso(date, endTime, ph.timeZoneId)) <= new Date(startIso)) {
+        setFieldError("err-end", "La hora de fin debe ser posterior al inicio.");
+        ok = false;
+      }
+    }
+  }
+  return ok;
+}
+
+function buildSchedulePayload() {
+  const ph = selectedPh();
+  const date = qs("#sched-date").value;
+  const time = qs("#sched-time").value;
+  const startIso = phLocalToUtcIso(date, time, ph.timeZoneId);
+  const duration = qs("#sched-duration").value;
+  const endIso =
+    duration === "custom"
+      ? phLocalToUtcIso(date, qs("#sched-end-time").value, ph.timeZoneId)
+      : new Date(new Date(startIso).getTime() + Number(duration) * 60 * 1000).toISOString();
+  return {
+    propertyHorizontalId: ph.id,
+    title: qs("#sched-title").value.trim(),
+    modality: currentModality(),
+    assemblyKind: currentKind(),
+    scheduledAtUtc: startIso,
+    estimatedEndAtUtc: endIso,
+    requiredQuorumPercent: 50,
+    locationText: qs("#sched-location").value.trim() || null,
+    notes: qs("#sched-notes").value.trim() || null,
+    joinWindowMinutesBefore: Number(qs("#sched-lobby").value || 30),
+    publishAsScheduled: true,
+    clientRequestId: crypto.randomUUID?.() || `sched-${Date.now()}`
+  };
+}
+
+function showScheduleSuccess(created, ph, fallbackEndIso) {
+  qs("#success-title").textContent = created.title || created.Title;
+  const start = created.scheduledAtUtc || created.ScheduledAtUtc;
+  const end = created.estimatedEndAtUtc || created.EstimatedEndAtUtc || fallbackEndIso;
+  qs("#success-meta").textContent = [
+    formatHumanRange(start, end, ph?.timeZoneId || created.timeZoneId),
+    modalityLabel(created.modality || created.Modality),
+    ph?.name || created.propertyHorizontalName
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const id = created.id || created.Id || created.assemblyId;
+  qs("#success-view").href = `/lobby.html?assemblyId=${id}`;
+  qs("#success-agenda").href = `/assembly.html?assemblyId=${id}`;
+  qs("#success-convocation").href = `/convocation.html?assemblyId=${id}`;
+  openDialog("schedule-success-dialog");
 }
 
 function wireChrome() {
@@ -419,46 +761,94 @@ function wireChrome() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       closeDrawer();
-      closeDialog("schedule-dialog");
-      closeDialog("reschedule-dialog");
-      closeDialog("cancel-dialog");
+      if (!qs("#schedule-dialog")?.hidden) requestCloseSchedule();
+      else {
+        closeDialog("reschedule-dialog");
+        closeDialog("cancel-dialog");
+        closeDialog("schedule-success-dialog");
+        closeDialog("discard-dialog");
+      }
     }
   });
   document.querySelectorAll("[data-close]").forEach((b) =>
-    b.addEventListener("click", () => closeDialog(b.getAttribute("data-close")))
+    b.addEventListener("click", () => {
+      const id = b.getAttribute("data-close");
+      if (id === "schedule-dialog") requestCloseSchedule();
+      else closeDialog(id);
+    })
   );
-  qs("#btn-schedule")?.addEventListener("click", () => {
-    if (state.phId) qs("#schedule-form").elements.propertyHorizontalId.value = state.phId;
-    openDialog("schedule-dialog");
-  });
+  qs("#btn-schedule")?.addEventListener("click", () => openScheduleDialog());
   qs("#btn-logout")?.addEventListener("click", () => logout());
+
+  qs("#sched-ph")?.addEventListener("change", () => {
+    state.scheduleDirty = true;
+    syncTzHint();
+  });
+  qs("#sched-title")?.addEventListener("input", () => {
+    state.titleTouched = true;
+    state.scheduleDirty = true;
+  });
+  qs("#sched-date")?.addEventListener("change", () => {
+    state.scheduleDirty = true;
+    syncTitleSuggestion();
+  });
+  qs("#schedule-form")?.addEventListener("change", (e) => {
+    state.scheduleDirty = true;
+    if (e.target.name === "modality") syncModalityUi();
+    if (e.target.name === "assemblyKind") syncTitleSuggestion();
+    if (e.target.id === "sched-duration") syncDurationUi();
+    if (e.target.id === "sched-lobby") syncLobbySummary();
+  });
+  qs("#btn-keep-editing")?.addEventListener("click", () => closeDialog("discard-dialog"));
+  qs("#btn-discard-changes")?.addEventListener("click", () => {
+    closeDialog("discard-dialog");
+    state.scheduleDirty = false;
+    closeDialog("schedule-dialog");
+  });
 
   qs("#schedule-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const f = e.target;
-    setLoading(true, "Agendando Asamblea…");
+    if (state.scheduleSubmitting) return;
+    if (!validateScheduleForm()) return;
+    state.scheduleSubmitting = true;
+    const btn = qs("#btn-create-assembly");
+    if (btn) btn.disabled = true;
+    const editingId = state.editingAssemblyId;
+    setLoading(true, editingId ? "Guardando cambios…" : "Preparando tu asamblea…");
+    const ph = selectedPh();
     try {
-      const body = {
-        propertyHorizontalId: f.propertyHorizontalId.value.trim(),
-        title: f.title.value.trim(),
-        modality: f.modality.value,
-        assemblyKind: f.assemblyKind.value,
-        scheduledAtUtc: fromLocalInputValue(f.scheduledAtUtc.value),
-        estimatedEndAtUtc: f.estimatedEndAtUtc.value ? fromLocalInputValue(f.estimatedEndAtUtc.value) : null,
-        requiredQuorumPercent: 50,
-        locationText: f.locationText.value || null,
-        notes: f.notes.value || null,
-        joinWindowMinutesBefore: Number(f.joinWindowMinutesBefore.value || 30),
-        publishAsScheduled: true
-      };
-      await api("/api/assemblies", { method: "POST", body });
-      showToast("Asamblea agendada", "success");
-      closeDialog("schedule-dialog");
-      f.reset();
+      const body = buildSchedulePayload();
+      let result;
+      if (editingId) {
+        result = await api(`/api/assemblies/${editingId}`, {
+          method: "PUT",
+          body: {
+            title: body.title,
+            modality: body.modality,
+            assemblyKind: body.assemblyKind,
+            scheduledAtUtc: body.scheduledAtUtc,
+            estimatedEndAtUtc: body.estimatedEndAtUtc,
+            locationText: body.locationText,
+            notes: body.notes,
+            joinWindowMinutesBefore: body.joinWindowMinutesBefore
+          }
+        });
+        state.scheduleDirty = false;
+        closeDialog("schedule-dialog");
+        showToast("Cambios guardados", "success");
+        closeDrawer();
+      } else {
+        result = await api("/api/assemblies", { method: "POST", body });
+        state.scheduleDirty = false;
+        closeDialog("schedule-dialog");
+        showScheduleSuccess(result, ph, body.estimatedEndAtUtc);
+      }
       await loadEvents();
       await loadNextBanner();
     } catch (err) {
-      showToast(err.message || "No se pudo agendar", "error");
+      showToast(err.message || "No se pudo guardar la asamblea", "error");
+      state.scheduleSubmitting = false;
+      if (btn) btn.disabled = false;
     } finally {
       setLoading(false);
     }
@@ -467,7 +857,8 @@ function wireChrome() {
   qs("#btn-review-impact")?.addEventListener("click", async () => {
     const f = qs("#reschedule-form");
     const id = f.dataset.assemblyId;
-    const when = fromLocalInputValue(f.newScheduledAtUtc.value);
+    const tz = f.dataset.timeZoneId || "America/Panama";
+    const when = phLocalToUtcIso(f.dateLocal.value, f.timeLocal.value, tz);
     setLoading(true, "Validando disponibilidad…");
     try {
       const impact = await api(
@@ -481,7 +872,6 @@ function wireChrome() {
         <div>${impact.participantCount} participantes</div>
         <div>${impact.convocationsAffected} convocatorias afectadas</div>
         <div>${impact.pendingReminders} recordatorios pendientes</div>
-        <div>${impact.virtualRooms} sala virtual</div>
         ${(impact.notes || []).map((n) => `<div>• ${escapeHtml(n)}</div>`).join("")}
         ${(impact.conflicts || [])
           .map(
@@ -499,17 +889,23 @@ function wireChrome() {
   qs("#reschedule-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target;
+    const tz = f.dataset.timeZoneId || "America/Panama";
     setLoading(true, "Reprogramando…");
     try {
       await api(`/api/assemblies/${f.dataset.assemblyId}/reschedule`, {
         method: "POST",
         body: {
-          newScheduledAtUtc: fromLocalInputValue(f.newScheduledAtUtc.value),
+          newScheduledAtUtc: phLocalToUtcIso(f.dateLocal.value, f.timeLocal.value, tz),
           reason: f.reason.value.trim(),
           notifyParticipants: Boolean(f.notifyParticipants.checked)
         }
       });
-      showToast("Asamblea reprogramada", "success");
+      showToast(
+        f.notifyParticipants.checked
+          ? "Asamblea reprogramada. Puedes notificar desde Comunicaciones."
+          : "Asamblea reprogramada",
+        "success"
+      );
       closeDialog("reschedule-dialog");
       closeDrawer();
       await loadEvents();

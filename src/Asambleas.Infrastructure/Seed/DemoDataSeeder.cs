@@ -204,7 +204,7 @@ public sealed class DemoDataSeeder
             LegalName = "Propiedad Horizontal Demo Ocean Tower",
             Country = "Panamá",
             City = "Panamá",
-            TimeZoneId = "America/Bogota",
+            TimeZoneId = "America/Panama",
             AdminEmail = "admin@ocean.demo",
             Status = PhLifecycleStatus.Active,
             OnboardingStep = 8,
@@ -333,7 +333,7 @@ public sealed class DemoDataSeeder
             OrganizationId = DemoSeedConstants.OrgOtherId,
             Code = "OTHER-PH",
             Name = "PH OTHER ISOLATION",
-            TimeZoneId = "America/Bogota",
+            TimeZoneId = "America/Panama",
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         });
