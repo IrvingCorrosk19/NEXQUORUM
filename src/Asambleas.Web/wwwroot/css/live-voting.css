@@ -1,0 +1,82 @@
+/* Live Voting Workspace — in-meeting operator chrome */
+.live-vote-workspace {
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--brand-teal-700, #0f5c5c) 16%, transparent);
+}
+
+.live-vote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.live-vote-lock {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, #b45309 12%, #fff);
+  border: 1px solid color-mix(in srgb, #b45309 35%, transparent);
+  font-size: 0.9rem;
+}
+
+.live-vote-lock p {
+  margin: 0.35rem 0 0;
+}
+
+.live-vote-dialog {
+  border: 0;
+  border-radius: 0.75rem;
+  padding: 0;
+  max-width: min(420px, 94vw);
+  width: 100%;
+  box-shadow: 0 16px 40px rgba(10, 40, 40, 0.25);
+}
+
+.live-vote-dialog::backdrop {
+  background: rgba(8, 28, 30, 0.4);
+}
+
+.live-vote-form {
+  padding: 1rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.live-vote-form label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.live-vote-form input,
+.live-vote-form textarea,
+.live-vote-form select {
+  font: inherit;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 1px solid #c5d4d3;
+}
+
+.live-vote-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.live-pick-row {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  font-weight: 400;
+  padding: 0.45rem 0;
+}
+
+@media (max-width: 430px) {
+  .live-vote-actions .btn {
+    flex: 1 1 calc(50% - 0.4rem);
+  }
+}

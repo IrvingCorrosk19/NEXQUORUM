@@ -128,4 +128,75 @@ public sealed class AgendaService
 
         return response;
     }
+
+    public async Task<AgendaListResponse> CreateItemAsync(
+        Guid assemblyId,
+        CreateAgendaItemRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var assembly = await _db.Assemblies
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
+        {
+            throw new DomainException("Cannot add agenda items to a closed assembly.");
+        }
+
+        var title = (request.Title ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            throw new DomainException("Agenda title is required.");
+        }
+
+        var code = string.IsNullOrWhiteSpace(request.Code)
+            ? $"A{(request.Ordinal > 0 ? request.Ordinal : await NextOrdinalAsync(assemblyId, cancellationToken)):00}"
+            : request.Code.Trim();
+
+        if (code.Length > 64)
+        {
+            throw new DomainException("Agenda code exceeds maximum length.");
+        }
+
+        var ordinal = request.Ordinal > 0
+            ? request.Ordinal
+            : await NextOrdinalAsync(assemblyId, cancellationToken);
+
+        var clash = await _db.AgendaItems.AnyAsync(
+            i => i.AssemblyId == assemblyId && (i.Code == code || i.Ordinal == ordinal),
+            cancellationToken);
+        if (clash)
+        {
+            throw new DomainException("Agenda code or ordinal already exists.");
+        }
+
+        var item = new Domain.Entities.AgendaItem
+        {
+            TenantId = assembly.TenantId,
+            AssemblyId = assemblyId,
+            Ordinal = ordinal,
+            Code = code,
+            Title = title.Length > 512 ? title[..512] : title,
+            IsActive = false
+        };
+
+        _db.AgendaItems.Add(item);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await GetItemsAsync(assemblyId, cancellationToken);
+    }
+
+    private async Task<int> NextOrdinalAsync(Guid assemblyId, CancellationToken cancellationToken)
+    {
+        var max = await _db.AgendaItems
+            .Where(i => i.AssemblyId == assemblyId)
+            .Select(i => (int?)i.Ordinal)
+            .MaxAsync(cancellationToken);
+        return (max ?? 0) + 1;
+    }
 }

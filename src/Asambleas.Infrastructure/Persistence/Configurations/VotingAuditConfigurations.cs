@@ -16,6 +16,12 @@ internal sealed class VotingSessionConfiguration : IEntityTypeConfiguration<Voti
         builder.Property(x => x.EligibleCoefficient).HasPrecision(7, 4);
         builder.Property(x => x.AppliedDecisionRule).HasMaxLength(64);
         builder.Property(x => x.DecisionStatus).HasMaxLength(32);
+        builder.Property(x => x.RequiredThresholdPercent).HasPrecision(7, 4);
+        builder.Property(x => x.CalculationMethod).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.BallotKind).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.RuleSnapshotJson).HasColumnType("jsonb");
+        builder.Property(x => x.CancellationReason).HasMaxLength(2000);
+        builder.Property(x => x.VersionNumber).HasDefaultValue(1);
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.AssemblyId);
         builder.HasIndex(x => x.MotionId);

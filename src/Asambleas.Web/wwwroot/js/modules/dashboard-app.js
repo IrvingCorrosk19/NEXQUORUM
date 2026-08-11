@@ -16,13 +16,66 @@ import {
 } from "./room-state.js";
 import { isOperator } from "./roles.js";
 
-const assemblyId = assemblyIdFromUrl();
+let assemblyId = assemblyIdFromUrl();
 
 function showError(message) {
   const el = qs("#page-alert");
   if (!el) return;
   el.hidden = !message;
   el.textContent = message || "";
+}
+
+const ACTIVE_STATUSES = new Set(["CheckIn", "InProgress", "Paused"]);
+
+/** Prefer URL, then calendar next, then user's assemblies (live first, then soonest scheduled). */
+async function resolveAssemblyId() {
+  if (assemblyId) return assemblyId;
+
+  try {
+    const next = await api("/api/calendar/next");
+    const id = next?.next?.assemblyId || next?.assemblyId;
+    if (id) return String(id);
+  } catch {
+    /* fall through */
+  }
+
+  try {
+    const list = await api("/api/assemblies");
+    if (!Array.isArray(list) || !list.length) return null;
+    const active = list.find((a) => ACTIVE_STATUSES.has(String(a.status || "")));
+    if (active?.id) return String(active.id);
+    const open = list
+      .filter((a) => !["Completed", "Cancelled"].includes(String(a.status || "")))
+      .sort((a, b) => new Date(a.scheduledAtUtc || 0) - new Date(b.scheduledAtUtc || 0));
+    if (open[0]?.id) return String(open[0].id);
+    const sorted = [...list].sort(
+      (a, b) => new Date(b.scheduledAtUtc || 0) - new Date(a.scheduledAtUtc || 0)
+    );
+    return sorted[0]?.id ? String(sorted[0].id) : null;
+  } catch {
+    return null;
+  }
+}
+
+function syncUrlWithAssemblyId(id) {
+  if (!id || typeof history === "undefined" || !history.replaceState) return;
+  const url = new URL(location.href);
+  if (url.searchParams.get("assemblyId") === id) return;
+  url.searchParams.set("assemblyId", id);
+  history.replaceState({}, "", url.pathname + url.search + url.hash);
+}
+
+function renderNoAssemblyState() {
+  qs("#assembly-name").textContent = t("dashboard.noAssemblyTitle");
+  qs("#assembly-meta").innerHTML = `<span class="muted">${escapeHtml(t("dashboard.noAssemblyHint"))}</span>`;
+  qs("#primary-cta").innerHTML = `
+    <a class="btn btn-primary" href="/calendar.html">${escapeHtml(t("dashboard.openCalendar"))}</a>
+    <a class="btn btn-secondary" href="/ph.html">${escapeHtml(t("dashboard.managePh"))}</a>`;
+  qs("#secondary-links").innerHTML = `
+    <a class="btn btn-secondary" href="/calendar.html">Calendario</a>
+    <a class="btn btn-secondary" href="/ph.html">Administrar PH</a>`;
+  qs("#readiness-heading").textContent = t("dashboard.readiness");
+  qs("#readiness-panel").innerHTML = `<div class="empty-state">${escapeHtml(t("dashboard.noAssemblyHint"))}</div>`;
 }
 
 /** Presentation-only Spanish for known English API blocker strings. */
@@ -152,11 +205,6 @@ function renderPrimaryCta(status, operator) {
 async function init() {
   await initI18n();
 
-  if (!assemblyId) {
-    showError(t("dashboard.missingId"));
-    return;
-  }
-
   let user;
   try {
     user = await me();
@@ -170,30 +218,45 @@ async function init() {
   const navTenant = qs("#nav-tenant");
   if (navTenant) navTenant.textContent = tenantLabel;
 
-  const q = `assemblyId=${encodeURIComponent(assemblyId)}`;
-  const navMap = {
-    "#nav-comms": `/communications.html?${q}`,
-    "#nav-convocation": `/convocation.html?${q}`,
-    "#nav-checkin": `/checkin.html?${q}`,
-    "#nav-lobby": `/lobby.html?${q}`,
-    "#nav-assembly": `/assembly.html?${q}`,
-    "#nav-evidence": `/evidence.html?${q}`,
-    "#nav-minutes": `/minutes.html?${q}`
-  };
-  Object.entries(navMap).forEach(([sel, href]) => {
-    const el = qs(sel);
-    if (el) el.setAttribute("href", href);
-  });
-  const dashLink = document.querySelector('.app-nav a[href="/dashboard.html"]');
-  if (dashLink) dashLink.href = `/dashboard.html?${q}`;
-
   qs("#btn-logout")?.addEventListener("click", async () => {
     const { logout } = await import("./auth.js");
     await logout();
     location.href = "/";
   });
 
+  assemblyId = await resolveAssemblyId();
+  if (assemblyId) {
+    syncUrlWithAssemblyId(assemblyId);
+  }
+
+  const q = assemblyId ? `assemblyId=${encodeURIComponent(assemblyId)}` : "";
+  const navMap = {
+    "#nav-comms": q ? `/communications.html?${q}` : "/communications.html",
+    "#nav-convocation": q ? `/convocation.html?${q}` : "/convocation.html",
+    "#nav-checkin": q ? `/checkin.html?${q}` : "/calendar.html",
+    "#nav-lobby": q ? `/lobby.html?${q}` : "/calendar.html",
+    "#nav-assembly": q ? `/assembly.html?${q}` : "/calendar.html",
+    "#nav-evidence": q ? `/evidence.html?${q}` : "/calendar.html",
+    "#nav-minutes": q ? `/minutes.html?${q}` : "/calendar.html"
+  };
+  Object.entries(navMap).forEach(([sel, href]) => {
+    const el = qs(sel);
+    if (el) el.setAttribute("href", href);
+  });
+  const dashLink = document.querySelector('.app-nav a[href="/dashboard.html"]');
+  if (dashLink) dashLink.href = q ? `/dashboard.html?${q}` : "/dashboard.html";
+
   const operator = isOperator(user);
+
+  // PH + next-assembly panels work without a selected assembly.
+  await renderPhPanel(user, null);
+  await renderNextAssemblyCard();
+
+  if (!assemblyId) {
+    renderNoAssemblyState();
+    return;
+  }
+
   let assembly = null;
   let readiness = null;
 
@@ -255,58 +318,63 @@ async function init() {
     <a class="btn btn-secondary" href="/lobby.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkLobby"))}</a>
     <a class="btn btn-secondary" href="/minutes.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkMinutes"))}</a>
     <a class="btn btn-secondary" href="/evidence.html?assemblyId=${assemblyId}">${escapeHtml(t("dashboard.linkEvidence"))}</a>
+    <a class="btn btn-secondary" href="/voting-studio.html?assemblyId=${assemblyId}">Voting &amp; Forms Studio</a>
     <a class="btn btn-secondary" href="/expediente.html?assemblyId=${assemblyId}">Expediente</a>
+    <a class="btn btn-secondary" href="/assemblies-history.html">Asambleas anteriores</a>
     ${operator ? `<a class="btn btn-ghost" href="/projector.html?assemblyId=${assemblyId}" target="_blank" rel="noopener">${escapeHtml(t("dashboard.linkProjector"))}</a>` : ""}
   `;
 
+  await renderPhPanel(user, assembly);
+  await renderNextAssemblyCard();
+}
+
+async function renderPhPanel(user, assembly) {
   try {
-    if (user.permissions?.includes("ph:view")) {
-      const phs = await api("/api/ph");
-      const phId = user.propertyHorizontalId || assembly.propertyHorizontalId;
-      const ph = phs.find((p) => p.id === phId) || phs[0];
-      const panel = qs("#ph-admin-panel");
-      const card = qs("#ph-admin-card");
-      if (panel && card && ph) {
-        panel.hidden = false;
-        const next = ph.nextAssemblyAtUtc
-          ? formatDateTime(ph.nextAssemblyAtUtc)
-          : "—";
-        card.innerHTML = `
-          <h3 style="margin:0 0 .5rem;font-family:Source Serif 4,serif">${escapeHtml(ph.name)}</h3>
-          <div class="meta-row">
-            <span>${ph.unitCount} Unidades</span>
-            <span>${ph.ownerCount} Propietarios</span>
-            <span>${ph.activeUserCount || 0} Usuarios activos</span>
-            <span>${Number(ph.coefficientTotalPercent).toFixed(0)}% Coeficiente</span>
-          </div>
-          <p class="lede" style="margin:.75rem 0">Próxima Asamblea: ${escapeHtml(next)}${ph.nextAssemblyTitle ? ` · ${escapeHtml(ph.nextAssemblyTitle)}` : ""}</p>
-          <a class="btn btn-primary" href="/ph.html?phId=${ph.id}">Administrar PH</a>`;
-      }
+    if (!user.permissions?.includes("ph:view")) return;
+    const phs = await api("/api/ph");
+    const phId = user.propertyHorizontalId || assembly?.propertyHorizontalId;
+    const ph = phs.find((p) => p.id === phId) || phs[0];
+    const panel = qs("#ph-admin-panel");
+    const card = qs("#ph-admin-card");
+    if (panel && card && ph) {
+      panel.hidden = false;
+      const next = ph.nextAssemblyAtUtc ? formatDateTime(ph.nextAssemblyAtUtc) : "—";
+      card.innerHTML = `
+        <h3 style="margin:0 0 .5rem;font-family:Source Serif 4,serif">${escapeHtml(ph.name)}</h3>
+        <div class="meta-row">
+          <span>${ph.unitCount} Unidades</span>
+          <span>${ph.ownerCount} Propietarios</span>
+          <span>${ph.activeUserCount || 0} Usuarios activos</span>
+          <span>${Number(ph.coefficientTotalPercent).toFixed(0)}% Coeficiente</span>
+        </div>
+        <p class="lede" style="margin:.75rem 0">Próxima Asamblea: ${escapeHtml(next)}${ph.nextAssemblyTitle ? ` · ${escapeHtml(ph.nextAssemblyTitle)}` : ""}</p>
+        <a class="btn btn-primary" href="/ph.html?phId=${ph.id}">Administrar PH</a>`;
     }
   } catch {
     /* PH panel is optional when onboarding APIs unavailable */
   }
+}
 
+async function renderNextAssemblyCard() {
   try {
     const next = await api("/api/calendar/next");
     const card = qs("#next-assembly-card");
-    if (card) {
-      const n = next?.next;
-      if (!n) {
-        card.innerHTML = `<p class="muted">No tienes Asambleas programadas próximamente.</p><a class="btn btn-ghost" href="/calendar.html">Abrir calendario</a>`;
-      } else {
-        const live = n.calendarStatus === "LIVE";
-        card.innerHTML = `
-          <p class="muted" style="margin:0">${live ? "● EN VIVO" : escapeHtml(n.countdownLabel || "")}</p>
-          <strong>${escapeHtml(n.title)}</strong>
-          <div class="muted">${escapeHtml(n.propertyHorizontalName)} · ${escapeHtml(n.modality)} · ${escapeHtml(formatDateTime(n.scheduledAtUtc))}</div>
-          <div class="cta-row" style="margin-top:0.75rem">
-            ${n.canJoin ? `<a class="btn btn-primary" href="/lobby.html?assemblyId=${n.assemblyId}">${live ? "Entrar ahora" : "Entrar"}</a>` : ""}
-            <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${n.assemblyId}">Ver</a>
-            <a class="btn btn-ghost" href="/calendar.html">Calendario</a>
-          </div>`;
-      }
+    if (!card) return;
+    const n = next?.next;
+    if (!n) {
+      card.innerHTML = `<p class="muted">No tienes Asambleas programadas próximamente.</p><a class="btn btn-ghost" href="/calendar.html">Abrir calendario</a>`;
+      return;
     }
+    const live = n.calendarStatus === "LIVE";
+    card.innerHTML = `
+      <p class="muted" style="margin:0">${live ? "● EN VIVO" : escapeHtml(n.countdownLabel || "")}</p>
+      <strong>${escapeHtml(n.title)}</strong>
+      <div class="muted">${escapeHtml(n.propertyHorizontalName)} · ${escapeHtml(n.modality)} · ${escapeHtml(formatDateTime(n.scheduledAtUtc))}</div>
+      <div class="cta-row" style="margin-top:0.75rem">
+        ${n.canJoin ? `<a class="btn btn-primary" href="/lobby.html?assemblyId=${n.assemblyId}">${live ? "Entrar ahora" : "Entrar"}</a>` : ""}
+        <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${n.assemblyId}">Ver</a>
+        <a class="btn btn-ghost" href="/calendar.html">Calendario</a>
+      </div>`;
   } catch {
     const card = qs("#next-assembly-card");
     if (card) card.innerHTML = `<a class="btn btn-ghost" href="/calendar.html">Abrir calendario</a>`;

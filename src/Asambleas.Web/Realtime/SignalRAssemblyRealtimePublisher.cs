@@ -51,6 +51,12 @@ public sealed class SignalRAssemblyRealtimePublisher : IAssemblyRealtimePublishe
     public Task PublishVotingClosedAsync(Guid assemblyId, CloseVotingSessionResponse result, CancellationToken cancellationToken = default) =>
         SendAsync(assemblyId, RealtimeEventNames.VotingClosed, result, cancellationToken);
 
+    public Task PublishVotingCancelledAsync(Guid assemblyId, VotingSessionDto session, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.VotingCancelled, session, cancellationToken);
+
+    public Task PublishVotingVersionCreatedAsync(Guid assemblyId, MotionDto motion, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.VotingVersionCreated, motion, cancellationToken);
+
     public Task PublishRecordingUpdatedAsync(Guid assemblyId, AssemblyRecordingDto recording, CancellationToken cancellationToken = default) =>
         SendAsync(assemblyId, RealtimeEventNames.RecordingUpdated, recording, cancellationToken);
 

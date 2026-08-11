@@ -212,6 +212,42 @@ public sealed class PhOnboardingController : ControllerBase
         CancellationToken cancellationToken) =>
         _ph.UpdateOwnerAsync(propertyHorizontalId, ownerId, request, cancellationToken);
 
+    [HttpPost("{propertyHorizontalId:guid}/owners/{ownerId:guid}/deactivate")]
+    [Authorize(Policy = Permissions.OwnerManage)]
+    public Task<OwnerDetailDto> DeactivateOwner(
+        Guid propertyHorizontalId,
+        Guid ownerId,
+        [FromBody] DeactivateEntityRequest? request,
+        CancellationToken cancellationToken) =>
+        _ph.DeactivateOwnerAsync(propertyHorizontalId, ownerId, request, cancellationToken);
+
+    [HttpPost("{propertyHorizontalId:guid}/owners/{ownerId:guid}/reactivate")]
+    [Authorize(Policy = Permissions.OwnerManage)]
+    public Task<OwnerDetailDto> ReactivateOwner(
+        Guid propertyHorizontalId,
+        Guid ownerId,
+        CancellationToken cancellationToken) =>
+        _ph.ReactivateOwnerAsync(propertyHorizontalId, ownerId, cancellationToken);
+
+    [HttpGet("{propertyHorizontalId:guid}/owners/{ownerId:guid}/delete-evaluation")]
+    [Authorize(Policy = Permissions.OwnerManage)]
+    public Task<EntityDeleteEvaluationDto> EvaluateOwnerDelete(
+        Guid propertyHorizontalId,
+        Guid ownerId,
+        CancellationToken cancellationToken) =>
+        _ph.EvaluateOwnerDeleteAsync(propertyHorizontalId, ownerId, cancellationToken);
+
+    [HttpDelete("{propertyHorizontalId:guid}/owners/{ownerId:guid}")]
+    [Authorize(Policy = Permissions.OwnerManage)]
+    public async Task<IActionResult> DeleteOwner(
+        Guid propertyHorizontalId,
+        Guid ownerId,
+        CancellationToken cancellationToken)
+    {
+        await _ph.DeleteOwnerAsync(propertyHorizontalId, ownerId, cancellationToken);
+        return NoContent();
+    }
+
     [HttpPost("{propertyHorizontalId:guid}/ownerships")]
     [Authorize(Policy = Permissions.OwnerManage)]
     public Task<OwnerUnitLinkDto> CreateOwnership(
@@ -254,6 +290,34 @@ public sealed class PhOnboardingController : ControllerBase
     [Authorize(Policy = Permissions.PhManage)]
     public Task<PhDetailDto> Activate(Guid propertyHorizontalId, CancellationToken cancellationToken) =>
         _ph.ActivatePhAsync(propertyHorizontalId, cancellationToken);
+
+    [HttpPost("{propertyHorizontalId:guid}/deactivate")]
+    [Authorize(Policy = Permissions.PhManage)]
+    public Task<PhDetailDto> DeactivatePh(
+        Guid propertyHorizontalId,
+        [FromBody] DeactivateEntityRequest? request,
+        CancellationToken cancellationToken) =>
+        _ph.DeactivatePhAsync(propertyHorizontalId, request, cancellationToken);
+
+    [HttpPost("{propertyHorizontalId:guid}/reactivate")]
+    [Authorize(Policy = Permissions.PhManage)]
+    public Task<PhDetailDto> ReactivatePh(Guid propertyHorizontalId, CancellationToken cancellationToken) =>
+        _ph.ReactivatePhAsync(propertyHorizontalId, cancellationToken);
+
+    [HttpGet("{propertyHorizontalId:guid}/delete-evaluation")]
+    [Authorize(Policy = Permissions.PhManage)]
+    public Task<EntityDeleteEvaluationDto> EvaluatePhDelete(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken) =>
+        _ph.EvaluatePhDeleteAsync(propertyHorizontalId, cancellationToken);
+
+    [HttpDelete("{propertyHorizontalId:guid}")]
+    [Authorize(Policy = Permissions.PhManage)]
+    public async Task<IActionResult> DeletePh(Guid propertyHorizontalId, CancellationToken cancellationToken)
+    {
+        await _ph.DeletePhAsync(propertyHorizontalId, cancellationToken);
+        return NoContent();
+    }
 
     [HttpGet("memberships/mine")]
     [Authorize(Policy = Permissions.PhView)]

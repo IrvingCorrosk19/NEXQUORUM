@@ -253,3 +253,35 @@
     width: 0.55rem;
   }
 }
+
+.ph-card .cta-row {
+  margin-top: 0.85rem;
+  cursor: default;
+}
+
+.ph-more-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.65rem;
+  background: var(--surface-elevated);
+}
+
+.ph-more-menu button {
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--text-primary);
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.ph-more-menu button:hover,
+.ph-more-menu button:focus-visible {
+  background: var(--surface-secondary);
+  outline: none;
+}

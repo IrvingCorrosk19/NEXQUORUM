@@ -15,6 +15,7 @@ using Asambleas.Application.Quorum;
 using Asambleas.Application.Recording;
 using Asambleas.Application.Representation;
 using Asambleas.Application.Speaker;
+using Asambleas.Application.Surveys;
 using Asambleas.Application.Voting;
 using Asambleas.Domain.Voting;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<AuditService>();
         services.AddScoped<IAuditService>(sp => sp.GetRequiredService<AuditService>());
         services.AddScoped<IDecisionRule, SimpleMajorityDecisionRule>();
+        services.AddScoped<IDecisionRule, QualifiedMajorityDecisionRule>();
+        services.AddScoped<DecisionRuleResolver>();
 
         services.AddScoped<AssemblyService>();
         services.AddScoped<AssemblyAccessService>();
@@ -40,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<SpeakerService>();
         services.AddScoped<MotionService>();
         services.AddScoped<VotingService>();
+        services.AddScoped<SurveyFormService>();
         services.AddScoped<MeetingService>();
         services.AddScoped<AssemblyEvidenceService>();
         services.AddScoped<EvidencePackageExportService>();

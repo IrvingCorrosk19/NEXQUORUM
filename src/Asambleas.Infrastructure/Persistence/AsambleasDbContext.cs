@@ -91,6 +91,12 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
 
     public DbSet<RecordingNoticeAcceptance> RecordingNoticeAcceptances => Set<RecordingNoticeAcceptance>();
 
+    public DbSet<SurveyForm> SurveyForms => Set<SurveyForm>();
+
+    public DbSet<SurveyQuestion> SurveyQuestions => Set<SurveyQuestion>();
+
+    public DbSet<SurveyResponse> SurveyResponses => Set<SurveyResponse>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -154,6 +160,9 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
         builder.Entity<AssemblyRecording>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<PropertyRecordingPolicy>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<RecordingNoticeAcceptance>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<SurveyForm>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<SurveyQuestion>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<SurveyResponse>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
 
         // Allow unfiltered user lookup when tenant is not yet resolved (login / design-time).
         builder.Entity<ApplicationUser>().HasQueryFilter(e =>

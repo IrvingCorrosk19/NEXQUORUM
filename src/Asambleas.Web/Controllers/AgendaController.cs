@@ -23,6 +23,14 @@ public sealed class AgendaController : ControllerBase
     public Task<AgendaListResponse> List(Guid assemblyId, CancellationToken cancellationToken) =>
         _agenda.GetItemsAsync(assemblyId, cancellationToken);
 
+    [HttpPost]
+    [Authorize(Policy = Permissions.AgendaManage)]
+    public Task<AgendaListResponse> Create(
+        Guid assemblyId,
+        [FromBody] CreateAgendaItemRequest request,
+        CancellationToken cancellationToken) =>
+        _agenda.CreateItemAsync(assemblyId, request, cancellationToken);
+
     [HttpPost("active")]
     [Authorize(Policy = Permissions.AgendaManage)]
     public Task<AgendaListResponse> SetActive(

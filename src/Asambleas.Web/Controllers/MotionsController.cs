@@ -33,6 +33,52 @@ public sealed class MotionsController : ControllerBase
     public Task<MotionDto> Get(Guid assemblyId, Guid motionId, CancellationToken cancellationToken) =>
         _motions.GetByIdAsync(assemblyId, motionId, cancellationToken);
 
+    [HttpPost]
+    [Authorize(Policy = Permissions.MotionCreate)]
+    public Task<MotionDto> Create(
+        Guid assemblyId,
+        [FromBody] CreateMotionRequest request,
+        CancellationToken cancellationToken) =>
+        _motions.CreateAsync(assemblyId, request, cancellationToken);
+
+    [HttpPut("{motionId:guid}")]
+    [Authorize(Policy = Permissions.MotionCreate)]
+    public Task<MotionDto> Update(
+        Guid assemblyId,
+        Guid motionId,
+        [FromBody] UpdateMotionRequest request,
+        CancellationToken cancellationToken) =>
+        _motions.UpdateAsync(assemblyId, motionId, request, cancellationToken);
+
+    [HttpPost("{motionId:guid}/publish")]
+    [Authorize(Policy = Permissions.MotionCreate)]
+    public Task<MotionDto> Publish(Guid assemblyId, Guid motionId, CancellationToken cancellationToken) =>
+        _motions.PublishAsync(assemblyId, motionId, cancellationToken);
+
+    [HttpPost("{motionId:guid}/duplicate")]
+    [Authorize(Policy = Permissions.MotionCreate)]
+    public Task<MotionDto> Duplicate(Guid assemblyId, Guid motionId, CancellationToken cancellationToken) =>
+        _motions.DuplicateAsync(assemblyId, motionId, cancellationToken);
+
+    [HttpPost("{motionId:guid}/archive")]
+    [Authorize(Policy = Permissions.MotionCreate)]
+    public Task<MotionDto> Archive(Guid assemblyId, Guid motionId, CancellationToken cancellationToken) =>
+        _motions.ArchiveAsync(assemblyId, motionId, cancellationToken);
+
+    [HttpGet("{motionId:guid}/edit-policy")]
+    [Authorize(Policy = Permissions.MotionView)]
+    public Task<MotionEditPolicyDto> EditPolicy(Guid assemblyId, Guid motionId, CancellationToken cancellationToken) =>
+        _motions.GetEditPolicyAsync(assemblyId, motionId, cancellationToken);
+
+    [HttpPost("{motionId:guid}/versions")]
+    [Authorize(Policy = Permissions.MotionCreate)]
+    public Task<MotionDto> CreateVersion(
+        Guid assemblyId,
+        Guid motionId,
+        [FromBody] CreateMotionVersionRequest? request,
+        CancellationToken cancellationToken) =>
+        _motions.CreateVersionAsync(assemblyId, motionId, request, cancellationToken);
+
     [HttpPost("present")]
     [Authorize(Policy = Permissions.MotionCreate)]
     public Task<MotionDto> Present(

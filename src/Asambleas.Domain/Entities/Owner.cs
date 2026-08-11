@@ -24,4 +24,13 @@ public class Owner : Entity, ITenantScoped
     public OwnerLifecycleStatus Status { get; set; } = OwnerLifecycleStatus.Draft;
 
     public Guid? UserId { get; set; }
+
+    /// <summary>
+    /// PH where this owner was first registered (supports list before unit assignment).
+    /// Multi-PH participation still uses Ownership rows on units of each PH.
+    /// </summary>
+    public Guid? RegisteredPropertyHorizontalId { get; set; }
+
+    /// <summary>Optimistic concurrency token.</summary>
+    public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString("N");
 }

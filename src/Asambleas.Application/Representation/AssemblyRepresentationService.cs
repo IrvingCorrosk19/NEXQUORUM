@@ -234,12 +234,17 @@ public sealed class AssemblyRepresentationService : IAssemblyRepresentationServi
 
         var claims = new List<EligibleClaim>();
 
-        if (owner is not null)
+        // Inactive / draft owners must not become newly eligible; historical assemblies
+        // already freeze Representation + Vote coefficient snapshots separately.
+        if (owner is not null
+            && owner.Status is OwnerLifecycleStatus.Active or OwnerLifecycleStatus.Invited)
         {
             var ownerships = await (
                 from own in _db.Ownerships.AsNoTracking()
                 join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
                 where own.OwnerId == owner.Id
+                      && own.IsActive
+                      && u.IsActive
                       && u.PropertyHorizontalId == assembly.PropertyHorizontalId
                       && u.TenantId == assembly.TenantId
                 select new { u.Id, u.Code, u.CoefficientPercent }

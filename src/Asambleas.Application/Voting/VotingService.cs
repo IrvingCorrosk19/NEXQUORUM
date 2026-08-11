@@ -9,6 +9,7 @@ using Asambleas.Domain.Entities;
 using Asambleas.Domain.Enums;
 using Asambleas.Domain.Voting;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 public sealed class VotingService
 {
@@ -16,7 +17,7 @@ public sealed class VotingService
     private readonly ICurrentTenant _currentTenant;
     private readonly IAuditService _audit;
     private readonly IAssemblyRealtimePublisher _realtime;
-    private readonly IDecisionRule _decisionRule;
+    private readonly DecisionRuleResolver _decisionRules;
     private readonly IAssemblyRepresentationService _representation;
     private readonly QuorumService _quorum;
 
@@ -25,7 +26,7 @@ public sealed class VotingService
         ICurrentTenant currentTenant,
         IAuditService audit,
         IAssemblyRealtimePublisher realtime,
-        IDecisionRule decisionRule,
+        DecisionRuleResolver decisionRules,
         IAssemblyRepresentationService representation,
         QuorumService quorum)
     {
@@ -33,7 +34,7 @@ public sealed class VotingService
         _currentTenant = currentTenant;
         _audit = audit;
         _realtime = realtime;
-        _decisionRule = decisionRule;
+        _decisionRules = decisionRules;
         _representation = representation;
         _quorum = quorum;
     }
@@ -72,6 +73,13 @@ public sealed class VotingService
                 "Voting can only be opened for a presented motion.");
         }
 
+        if (motion.InstrumentKind == VotingDesignCodes.Instrument.Survey)
+        {
+            throw new DomainException(
+                VotingCodes.MotionInvalid,
+                "Survey instruments cannot open formal voting. Use the Forms Studio survey flow.");
+        }
+
         var openExists = await _db.VotingSessions.AnyAsync(
             s => s.AssemblyId == assemblyId && s.Status == VotingSessionStatus.Open,
             cancellationToken);
@@ -83,8 +91,11 @@ public sealed class VotingService
                 "Another voting session is already open for this assembly.");
         }
 
-        var policy = ResolvePolicy(request);
-        var eligibility = await BuildEligibilityAsync(assemblyId, cancellationToken);
+        var policy = ResolvePolicy(request, motion.DefaultResultVisibilityPolicy);
+        var calcMethod = string.IsNullOrWhiteSpace(motion.CalculationMethod)
+            ? VotingDesignCodes.Calculation.Coefficient
+            : motion.CalculationMethod;
+        var eligibility = await BuildEligibilityAsync(assemblyId, calcMethod, cancellationToken);
         if (eligibility.Count == 0)
         {
             throw new DomainException(
@@ -92,7 +103,30 @@ public sealed class VotingService
                 "Cannot open voting: no accredited eligible voters.");
         }
 
+        var ruleCode = string.IsNullOrWhiteSpace(motion.DecisionRuleCode)
+            ? SimpleMajorityDecisionRule.Code
+            : motion.DecisionRuleCode;
+        _ = _decisionRules.Resolve(ruleCode); // validate known rule
+
         var now = DateTimeOffset.UtcNow;
+        var snapshotJson = JsonSerializer.Serialize(new
+        {
+            motion.Code,
+            motion.Title,
+            Question = motion.QuestionText ?? motion.Title,
+            motion.Body,
+            motion.BallotKind,
+            CalculationMethod = calcMethod,
+            DecisionRuleCode = ruleCode,
+            motion.RequiredThresholdPercent,
+            ResultVisibilityPolicy = ResultVisibility.ToWire(policy),
+            motion.OptionsJson,
+            motion.IsSecret,
+            motion.Instructions,
+            EligibilityBasis = "AccreditedParticipants",
+            CoefficientBasis = calcMethod
+        });
+
         var session = new VotingSession
         {
             TenantId = assembly.TenantId,
@@ -108,8 +142,31 @@ public sealed class VotingService
                 eligibility.Sum(e => e.CoefficientPercent),
                 4,
                 MidpointRounding.AwayFromZero),
-            AppliedDecisionRule = _decisionRule.RuleCode
+            AppliedDecisionRule = ruleCode,
+            RequiredThresholdPercent = motion.RequiredThresholdPercent,
+            CalculationMethod = calcMethod,
+            BallotKind = motion.BallotKind,
+            RuleSnapshotJson = snapshotJson,
+            VersionNumber = motion.VersionNumber <= 0 ? 1 : motion.VersionNumber,
+            RootVotingSessionId = null, // set after save to self or previous root
+            PreviousVotingSessionId = null,
+            ConcurrencyStamp = Guid.NewGuid()
         };
+
+        var previousCancelled = await _db.VotingSessions
+            .AsNoTracking()
+            .Where(s => s.AssemblyId == assemblyId
+                        && s.Status == VotingSessionStatus.Cancelled
+                        && (s.MotionId == motion.PreviousMotionId || s.MotionId == motion.Id))
+            .OrderByDescending(s => s.CancelledAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (previousCancelled is not null)
+        {
+            session.PreviousVotingSessionId = previousCancelled.Id;
+            session.RootVotingSessionId = previousCancelled.RootVotingSessionId ?? previousCancelled.Id;
+            session.VersionNumber = Math.Max(motion.VersionNumber, previousCancelled.VersionNumber + 1);
+        }
 
         motion.Status = MotionStatus.Voting;
         motion.UpdatedAtUtc = now;
@@ -142,9 +199,15 @@ public sealed class VotingService
                 ex);
         }
 
+        if (session.RootVotingSessionId is null)
+        {
+            session.RootVotingSessionId = session.Id;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
         await _quorum.RecalculateAndSnapshotAsync(assemblyId, "VotingOpen", cancellationToken);
 
-        var dto = ToSessionDto(session);
+        var dto = await ToSessionDtoAsync(session, cancellationToken);
 
         await _audit.WriteAsync(
             AuditEventType.VotingOpened,
@@ -419,9 +482,280 @@ public sealed class VotingService
             },
             cancellationToken: cancellationToken);
 
+        var priorCount = await _db.Votes.CountAsync(
+            v => v.VotingSessionId == votingSessionId && v.Id != vote.Id,
+            cancellationToken);
+        if (priorCount == 0)
+        {
+            await _audit.WriteAsync(
+                AuditEventType.FirstBallotAccepted,
+                assemblyId,
+                metadata: new { votingSessionId, vote.Id },
+                cancellationToken: cancellationToken);
+            await _audit.WriteAsync(
+                AuditEventType.VotingLocked,
+                assemblyId,
+                metadata: new { votingSessionId, Reason = "First accepted ballot" },
+                cancellationToken: cancellationToken);
+        }
+
         await PublishParticipationPulseAsync(session, cancellationToken);
 
         return ToCastResponse(vote, idempotentReplay: false);
+    }
+
+    public async Task<VotingSessionDto> WithdrawOpenAsync(
+        Guid assemblyId,
+        Guid votingSessionId,
+        WithdrawOpenVotingRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+
+        var session = await LoadOpenSessionForMutationAsync(assemblyId, votingSessionId, cancellationToken);
+        EnsureConcurrency(session, request?.ExpectedConcurrencyStamp);
+
+        // Atomic: lock by re-counting inside same tracked unit of work.
+        var ballots = await _db.Votes.CountAsync(v => v.VotingSessionId == session.Id, cancellationToken);
+        if (ballots > 0)
+        {
+            throw new DomainException(
+                "VOTING_LOCKED",
+                "No se pudo retirar la apertura porque ya se registró el primer voto.");
+        }
+
+        var motion = await _db.Motions
+            .FirstOrDefaultAsync(m => m.Id == session.MotionId && m.AssemblyId == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Motion '{session.MotionId}' was not found.");
+
+        var now = DateTimeOffset.UtcNow;
+        session.Status = VotingSessionStatus.Cancelled;
+        session.CancellationReason = "Corrección antes de recibir votos";
+        session.CancelledAtUtc = now;
+        session.CancelledByUserId = userId;
+        session.ConcurrencyStamp = Guid.NewGuid();
+        session.UpdatedAtUtc = now;
+
+        motion.Status = MotionStatus.Presented;
+        motion.ConcurrencyStamp = Guid.NewGuid();
+        motion.UpdatedAtUtc = now;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Re-check race: if a vote snuck in, we still cancelled — but votes exist on cancelled session (evidence).
+        // For withdraw we required 0 at check; concurrent insert would violate only if SaveOrder differs.
+        // Extra safety: if votes appeared, convert message to locked for clients polling.
+        var after = await _db.Votes.CountAsync(v => v.VotingSessionId == session.Id, cancellationToken);
+        if (after > 0)
+        {
+            // Keep cancelled (votes preserved); motion stays Presented for versioning path via Cancel API next time.
+            motion.Status = MotionStatus.Cancelled;
+            await _db.SaveChangesAsync(cancellationToken);
+            throw new DomainException(
+                "VOTING_LOCKED",
+                "Un voto llegó durante la retirada. La sesión quedó anulada con evidencia; cree una nueva versión.");
+        }
+
+        var dto = await ToSessionDtoAsync(session, cancellationToken);
+        await _audit.WriteAsync(
+            AuditEventType.VotingWithdrawn,
+            assemblyId,
+            metadata: new { VotingSessionId = session.Id, MotionId = motion.Id },
+            cancellationToken: cancellationToken);
+        await _realtime.PublishVotingCancelledAsync(assemblyId, dto, cancellationToken);
+        await _realtime.PublishMotionAsync(
+            assemblyId,
+            new Contracts.Motions.MotionDto(
+                motion.Id,
+                motion.AssemblyId,
+                motion.AgendaItemId,
+                motion.Code,
+                motion.Title,
+                motion.Body,
+                motion.Status.ToString(),
+                motion.DesignStatus,
+                motion.InstrumentKind,
+                motion.BallotKind,
+                motion.CalculationMethod,
+                motion.DecisionRuleCode,
+                motion.RequiredThresholdPercent,
+                motion.DefaultResultVisibilityPolicy,
+                motion.OptionsJson,
+                motion.Instructions,
+                motion.QuestionText,
+                motion.IsSecret,
+                motion.TemplateKey,
+                motion.VersionNumber,
+                motion.RootMotionId,
+                motion.PreviousMotionId,
+                motion.ConcurrencyStamp,
+                "Full"),
+            cancellationToken);
+
+        return dto;
+    }
+
+    public async Task<VotingSessionDto> CancelSessionAsync(
+        Guid assemblyId,
+        Guid votingSessionId,
+        CancelVotingSessionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        ArgumentNullException.ThrowIfNull(request);
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+
+        var reason = (request.Reason ?? string.Empty).Trim();
+        if (reason.Length < 5)
+        {
+            throw new DomainException("El motivo de anulación es obligatorio (mínimo 5 caracteres).");
+        }
+
+        if (reason.Length > 2000)
+        {
+            throw new DomainException("El motivo de anulación excede el máximo permitido.");
+        }
+
+        var session = await LoadOpenSessionForMutationAsync(assemblyId, votingSessionId, cancellationToken);
+        EnsureConcurrency(session, request.ExpectedConcurrencyStamp);
+
+        var ballots = await _db.Votes.CountAsync(v => v.VotingSessionId == session.Id, cancellationToken);
+        var motion = await _db.Motions
+            .FirstOrDefaultAsync(m => m.Id == session.MotionId && m.AssemblyId == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Motion '{session.MotionId}' was not found.");
+
+        var now = DateTimeOffset.UtcNow;
+        session.Status = VotingSessionStatus.Cancelled;
+        session.CancellationReason = reason;
+        session.CancelledAtUtc = now;
+        session.CancelledByUserId = userId;
+        session.ConcurrencyStamp = Guid.NewGuid();
+        session.UpdatedAtUtc = now;
+        // Do NOT delete votes.
+
+        motion.Status = ballots > 0 ? MotionStatus.Cancelled : MotionStatus.Presented;
+        motion.ConcurrencyStamp = Guid.NewGuid();
+        motion.UpdatedAtUtc = now;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var dto = await ToSessionDtoAsync(session, cancellationToken);
+        await _audit.WriteAsync(
+            AuditEventType.VotingCancelled,
+            assemblyId,
+            metadata: new
+            {
+                VotingSessionId = session.Id,
+                MotionId = motion.Id,
+                Reason = reason,
+                AcceptedBallots = ballots,
+                VersionNumber = session.VersionNumber
+            },
+            cancellationToken: cancellationToken);
+
+        await _realtime.PublishVotingCancelledAsync(assemblyId, dto, cancellationToken);
+        await _realtime.PublishMotionAsync(
+            assemblyId,
+            new Contracts.Motions.MotionDto(
+                motion.Id,
+                motion.AssemblyId,
+                motion.AgendaItemId,
+                motion.Code,
+                motion.Title,
+                motion.Body,
+                motion.Status.ToString(),
+                motion.DesignStatus,
+                motion.InstrumentKind,
+                motion.BallotKind,
+                motion.CalculationMethod,
+                motion.DecisionRuleCode,
+                motion.RequiredThresholdPercent,
+                motion.DefaultResultVisibilityPolicy,
+                motion.OptionsJson,
+                motion.Instructions,
+                motion.QuestionText,
+                motion.IsSecret,
+                motion.TemplateKey,
+                motion.VersionNumber,
+                motion.RootMotionId,
+                motion.PreviousMotionId,
+                motion.ConcurrencyStamp,
+                ballots > 0 ? "Immutable" : "Full",
+                ballots,
+                ballots > 0 ? "Anulada. Cree una nueva versión." : null),
+            cancellationToken);
+
+        return dto;
+    }
+
+    public async Task<IReadOnlyList<VotingVersionHistoryItemDto>> GetVersionHistoryAsync(
+        Guid assemblyId,
+        Guid motionId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var assembly = await _db.Assemblies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        var motion = await _db.Motions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == motionId && m.AssemblyId == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Motion '{motionId}' was not found.");
+
+        var rootId = motion.RootMotionId ?? motion.Id;
+        var chain = await _db.Motions
+            .AsNoTracking()
+            .Where(m => m.AssemblyId == assemblyId && (m.Id == rootId || m.RootMotionId == rootId))
+            .Select(m => m.Id)
+            .ToListAsync(cancellationToken);
+
+        var sessions = await _db.VotingSessions
+            .AsNoTracking()
+            .Where(s => s.AssemblyId == assemblyId && chain.Contains(s.MotionId))
+            .OrderBy(s => s.VersionNumber)
+            .ThenBy(s => s.OpenedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var result = new List<VotingVersionHistoryItemDto>();
+        foreach (var s in sessions)
+        {
+            var count = await _db.Votes.CountAsync(v => v.VotingSessionId == s.Id, cancellationToken);
+            string? question = null;
+            if (!string.IsNullOrWhiteSpace(s.RuleSnapshotJson))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(s.RuleSnapshotJson);
+                    if (doc.RootElement.TryGetProperty("Question", out var q))
+                    {
+                        question = q.GetString();
+                    }
+                }
+                catch (JsonException)
+                {
+                    /* ignore */
+                }
+            }
+
+            result.Add(new VotingVersionHistoryItemDto(
+                s.Id,
+                s.MotionId,
+                s.VersionNumber,
+                s.Status.ToString(),
+                question,
+                s.OpenedAtUtc,
+                s.ClosedAtUtc,
+                s.CancelledAtUtc,
+                s.CancellationReason,
+                count,
+                s.DecisionStatus));
+        }
+
+        return result;
     }
 
     public async Task<CloseVotingSessionResponse> CloseSessionAsync(
@@ -484,8 +818,14 @@ public sealed class VotingService
         var againstVotes = votes.Count(v => v.Choice == VoteChoice.Against);
         var abstentionVotes = votes.Count(v => v.Choice == VoteChoice.Abstention);
 
-        var decision = _decisionRule.Decide(inFavor, against, abstention);
-        var ruleCode = session.AppliedDecisionRule ?? _decisionRule.RuleCode;
+        var decisionRule = _decisionRules.Resolve(session.AppliedDecisionRule);
+        var decision = decisionRule.Decide(new DecisionContext(
+            inFavor,
+            against,
+            abstention,
+            session.RequiredThresholdPercent,
+            session.EligibleCoefficient));
+        var ruleCode = session.AppliedDecisionRule ?? decisionRule.RuleCode;
 
         var now = DateTimeOffset.UtcNow;
         session.Status = VotingSessionStatus.Closed;
@@ -501,10 +841,13 @@ public sealed class VotingService
 
         await _quorum.RecalculateAndSnapshotAsync(assemblyId, "VotingClose", cancellationToken);
 
+        var thresholdPart = session.RequiredThresholdPercent is decimal th
+            ? $" Umbral: {th:0.####}%."
+            : string.Empty;
         var explanation =
-            $"Método: coeficiente de copropiedad. Regla: {ruleCode}. " +
+            $"Método: {session.CalculationMethod}. Regla: {ruleCode}.{thresholdPart} " +
             $"A favor {inFavor:0.####}% vs en contra {against:0.####}% " +
-            $"(abstención {abstention:0.####}% no decide). Decisión: {decision}.";
+            $"(abstención {abstention:0.####}%). Decisión: {decision}.";
 
         var participating = Math.Round(votes.Sum(v => v.CoefficientPercent), 4, MidpointRounding.AwayFromZero);
         var policy = ResultVisibility.Parse(session.ResultVisibilityPolicy, session.HidePartialResults);
@@ -526,7 +869,9 @@ public sealed class VotingService
             participating,
             session.EligibleCoefficient,
             TrendHidden: false,
-            ResultVisibility.ToWire(policy));
+            ResultVisibility.ToWire(policy),
+            session.RequiredThresholdPercent,
+            session.CalculationMethod);
 
         var response = new CloseVotingSessionResponse(
             session.Id,
@@ -549,6 +894,7 @@ public sealed class VotingService
                 MotionId = motion.Id,
                 Decision = decision.ToString(),
                 AppliedDecisionRule = ruleCode,
+                RequiredThresholdPercent = session.RequiredThresholdPercent,
                 InFavor = inFavor,
                 Against = against,
                 Abstention = abstention,
@@ -558,6 +904,21 @@ public sealed class VotingService
                 VotesCast = votes.Count,
                 session.EligibleVoters,
                 ParticipatingCoefficient = participating
+            },
+            cancellationToken: cancellationToken);
+
+        await _audit.WriteAsync(
+            AuditEventType.DecisionCreated,
+            assemblyId,
+            metadata: new
+            {
+                VotingSessionId = session.Id,
+                MotionId = motion.Id,
+                Decision = decision.ToString(),
+                AppliedDecisionRule = ruleCode,
+                RequiredThresholdPercent = session.RequiredThresholdPercent,
+                InFavor = inFavor,
+                Against = against
             },
             cancellationToken: cancellationToken);
 
@@ -596,7 +957,45 @@ public sealed class VotingService
                 s => s.AssemblyId == assemblyId && s.Status == VotingSessionStatus.Open,
                 cancellationToken);
 
-        return session is null ? null : ToSessionDto(session);
+        return session is null ? null : await ToSessionDtoAsync(session, cancellationToken);
+    }
+
+    private async Task<VotingSession> LoadOpenSessionForMutationAsync(
+        Guid assemblyId,
+        Guid votingSessionId,
+        CancellationToken cancellationToken)
+    {
+        var assembly = await _db.Assemblies
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        var session = await _db.VotingSessions
+            .FirstOrDefaultAsync(s => s.Id == votingSessionId && s.AssemblyId == assemblyId, cancellationToken)
+            ?? throw new DomainException(
+                VotingCodes.SessionNotFound,
+                $"Voting session '{votingSessionId}' was not found.");
+
+        TenantGuard.EnsureTenantMatch(_currentTenant, session.TenantId);
+
+        if (session.Status != VotingSessionStatus.Open)
+        {
+            throw new DomainException(
+                VotingCodes.VotingClosed,
+                "Only an open voting session can be withdrawn or cancelled.");
+        }
+
+        return session;
+    }
+
+    private static void EnsureConcurrency(VotingSession session, Guid? expected)
+    {
+        if (expected is Guid stamp && stamp != Guid.Empty && stamp != session.ConcurrencyStamp)
+        {
+            throw new DomainException(
+                "CONCURRENCY_CONFLICT",
+                "Esta votación fue modificada por otro usuario. Recargue los cambios.");
+        }
     }
 
     public async Task<bool> HasUserVotedAsync(
@@ -961,11 +1360,18 @@ public sealed class VotingService
             r is "President" or "Secretary" or "PHAdmin" or "Operator");
     }
 
-    private static ResultVisibilityPolicy ResolvePolicy(OpenVotingSessionRequest request)
+    private static ResultVisibilityPolicy ResolvePolicy(
+        OpenVotingSessionRequest request,
+        string? motionDefaultPolicy = null)
     {
         if (!string.IsNullOrWhiteSpace(request.ResultVisibilityPolicy))
         {
             return ResultVisibility.Parse(request.ResultVisibilityPolicy, request.HidePartialResults);
+        }
+
+        if (!string.IsNullOrWhiteSpace(motionDefaultPolicy))
+        {
+            return ResultVisibility.Parse(motionDefaultPolicy, request.HidePartialResults);
         }
 
         return request.HidePartialResults
@@ -975,6 +1381,7 @@ public sealed class VotingService
 
     private async Task<List<EligibilityRow>> BuildEligibilityAsync(
         Guid assemblyId,
+        string calculationMethod,
         CancellationToken cancellationToken)
     {
         var participants = await _db.AssemblyParticipants
@@ -985,19 +1392,26 @@ public sealed class VotingService
                         && p.AttendanceStatus != AttendanceStatus.Left)
             .ToListAsync(cancellationToken);
 
+        var perPerson = calculationMethod.Equals(
+            VotingDesignCodes.Calculation.PerPerson,
+            StringComparison.OrdinalIgnoreCase);
+
         var rows = new List<EligibilityRow>();
         foreach (var participant in participants)
         {
             var reps = await _representation.GetActiveForUserAsync(assemblyId, participant.UserId, cancellationToken);
             if (reps.Count > 0)
             {
+                var coeff = perPerson
+                    ? 1m
+                    : Math.Round(reps.Sum(r => r.CoefficientPercent), 4, MidpointRounding.AwayFromZero);
                 rows.Add(new EligibilityRow(
                     participant.UserId,
                     reps[0].UnitId,
-                    Math.Round(reps.Sum(r => r.CoefficientPercent), 4, MidpointRounding.AwayFromZero),
+                    coeff,
                     string.Join(", ", reps.Select(r => r.UnitCode))));
             }
-            else if (participant.EffectiveCoefficientPercent > 0 || participant.UnitId is not null)
+            else if (participant.EffectiveCoefficientPercent > 0 || participant.UnitId is not null || perPerson)
             {
                 string? code = null;
                 if (participant.UnitId is Guid uid)
@@ -1011,7 +1425,7 @@ public sealed class VotingService
                 rows.Add(new EligibilityRow(
                     participant.UserId,
                     participant.UnitId,
-                    participant.EffectiveCoefficientPercent,
+                    perPerson ? 1m : participant.EffectiveCoefficientPercent,
                     code));
             }
         }
@@ -1037,9 +1451,59 @@ public sealed class VotingService
             tally.ParticipatingCoefficient,
             tally.EligibleCoefficient,
             tally.TrendHidden,
-            tally.ResultVisibilityPolicy);
+            tally.ResultVisibilityPolicy,
+            tally.RequiredThresholdPercent,
+            tally.CalculationMethod);
 
-    private static VotingSessionDto ToSessionDto(VotingSession session) =>
+    private async Task<VotingSessionDto> ToSessionDtoAsync(VotingSession session, CancellationToken cancellationToken)
+    {
+        string? question = null;
+        if (!string.IsNullOrWhiteSpace(session.RuleSnapshotJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(session.RuleSnapshotJson);
+                if (doc.RootElement.TryGetProperty("Question", out var q))
+                {
+                    question = q.GetString();
+                }
+            }
+            catch (JsonException)
+            {
+                /* ignore malformed snapshot */
+            }
+        }
+
+        var ballots = await _db.Votes.CountAsync(v => v.VotingSessionId == session.Id, cancellationToken);
+
+        return new(
+            session.Id,
+            session.AssemblyId,
+            session.MotionId,
+            session.Status.ToString(),
+            session.OpenedAtUtc,
+            session.ClosedAtUtc,
+            session.HidePartialResults,
+            session.AppliedDecisionRule,
+            session.DecisionStatus,
+            session.ResultVisibilityPolicy,
+            session.OpenedByUserId,
+            session.EligibleVoters,
+            session.EligibleCoefficient,
+            session.RequiredThresholdPercent,
+            session.CalculationMethod,
+            session.BallotKind,
+            question,
+            session.VersionNumber,
+            session.RootVotingSessionId,
+            session.PreviousVotingSessionId,
+            session.CancellationReason,
+            session.CancelledAtUtc,
+            ballots,
+            session.ConcurrencyStamp);
+    }
+
+    private VotingSessionDto ToSessionDto(VotingSession session) =>
         new(
             session.Id,
             session.AssemblyId,
@@ -1053,7 +1517,18 @@ public sealed class VotingService
             session.ResultVisibilityPolicy,
             session.OpenedByUserId,
             session.EligibleVoters,
-            session.EligibleCoefficient);
+            session.EligibleCoefficient,
+            session.RequiredThresholdPercent,
+            session.CalculationMethod,
+            session.BallotKind,
+            null,
+            session.VersionNumber,
+            session.RootVotingSessionId,
+            session.PreviousVotingSessionId,
+            session.CancellationReason,
+            session.CancelledAtUtc,
+            0,
+            session.ConcurrencyStamp);
 
     private static CastVoteResponse ToCastResponse(Vote vote, bool idempotentReplay) =>
         new(vote.Id, vote.VotingSessionId, vote.EvidenceId, vote.CastAtUtc, idempotentReplay);

@@ -167,8 +167,22 @@ export function renderVotePanel(
                <p class="empty-state-why">${escapeHtml(t("assembly.noVotingWhy"))}</p>`
         }
         <dl class="vote-meta-grid">
-          <div><dt>${escapeHtml(t("voting.method"))}</dt><dd>${escapeHtml(t("voting.methodCoefficient"))}</dd></div>
-          <div><dt>${escapeHtml(t("voting.rule"))}</dt><dd>${escapeHtml(t("voting.ruleSimpleMajority"))}</dd></div>
+          <div><dt>${escapeHtml(t("voting.method"))}</dt><dd>${escapeHtml(
+            motion?.calculationMethod === "PerPerson"
+              ? t("voting.methodPerPerson") || "Por persona"
+              : motion?.calculationMethod === "PerUnit"
+                ? t("voting.methodPerUnit") || "Por unidad"
+                : t("voting.methodCoefficient")
+          )}</dd></div>
+          <div><dt>${escapeHtml(t("voting.rule"))}</dt><dd>${escapeHtml(
+            motion?.decisionRuleCode === "QualifiedMajority"
+              ? `${t("voting.ruleQualified") || "Mayoría calificada"}${
+                  motion?.requiredThresholdPercent != null
+                    ? ` (≥ ${Number(motion.requiredThresholdPercent).toFixed(2)}%)`
+                    : ""
+                }`
+              : t("voting.ruleSimpleMajority")
+          )}</dd></div>
         </dl>
         ${
           canOpen

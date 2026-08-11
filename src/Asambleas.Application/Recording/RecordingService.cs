@@ -437,11 +437,11 @@ public sealed class RecordingService
         var policyDto = await GetPolicyDtoAsync(assemblyId, cancellationToken);
         var recordings = await ListRecordingsAsync(assemblyId, cancellationToken);
 
-        var recordingStart = recordings
+        var primaryRecording = recordings
             .Where(r => r.StartedAtUtc is not null)
             .OrderBy(r => r.StartedAtUtc)
-            .Select(r => r.StartedAtUtc)
             .FirstOrDefault();
+        var recordingStart = primaryRecording?.StartedAtUtc;
 
         var auditEvents = await _db.AuditEvents
             .AsNoTracking()
@@ -454,16 +454,22 @@ public sealed class RecordingService
             .Select(e =>
             {
                 double? offset = null;
-                if (recordingStart is DateTimeOffset start)
+                Guid? recordingId = null;
+                if (recordingStart is DateTimeOffset start && primaryRecording is not null)
                 {
                     offset = Math.Round((e.OccurredAtUtc - start).TotalSeconds, 1);
+                    if (offset >= 0)
+                    {
+                        recordingId = primaryRecording.Id;
+                    }
                 }
 
                 return new SessionTimelineEventDto(
                     e.OccurredAtUtc,
                     e.EventType,
                     HumanizeAudit(e.EventType),
-                    offset);
+                    offset,
+                    recordingId);
             })
             .ToList();
 

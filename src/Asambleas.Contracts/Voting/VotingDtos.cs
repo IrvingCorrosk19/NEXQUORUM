@@ -1,5 +1,7 @@
 namespace Asambleas.Contracts.Voting;
 
+using Asambleas.Contracts.Motions;
+
 public sealed record VotingSessionDto(
     Guid Id,
     Guid AssemblyId,
@@ -13,7 +15,42 @@ public sealed record VotingSessionDto(
     string ResultVisibilityPolicy = "HiddenUntilClose",
     Guid? OpenedByUserId = null,
     int EligibleVoters = 0,
-    decimal EligibleCoefficient = 0m);
+    decimal EligibleCoefficient = 0m,
+    decimal? RequiredThresholdPercent = null,
+    string CalculationMethod = "Coefficient",
+    string BallotKind = "FavorAgainstAbstain",
+    string? QuestionText = null,
+    int VersionNumber = 1,
+    Guid? RootVotingSessionId = null,
+    Guid? PreviousVotingSessionId = null,
+    string? CancellationReason = null,
+    DateTimeOffset? CancelledAtUtc = null,
+    int AcceptedBallots = 0,
+    Guid ConcurrencyStamp = default);
+
+public sealed record CancelVotingSessionRequest(
+    string Reason,
+    Guid? ExpectedConcurrencyStamp = null);
+
+public sealed record WithdrawOpenVotingRequest(Guid? ExpectedConcurrencyStamp = null);
+
+public sealed record CreateVotingVersionResponse(
+    MotionDto Motion,
+    VotingSessionDto? CancelledSession);
+
+public sealed record VotingVersionHistoryItemDto(
+    Guid VotingSessionId,
+    Guid MotionId,
+    int VersionNumber,
+    string Status,
+    string? QuestionText,
+    DateTimeOffset? OpenedAtUtc,
+    DateTimeOffset? ClosedAtUtc,
+    DateTimeOffset? CancelledAtUtc,
+    string? CancellationReason,
+    int AcceptedBallots,
+    string? DecisionStatus);
+
 
 public sealed record OpenVotingSessionRequest(
     Guid MotionId,
@@ -46,7 +83,9 @@ public sealed record VoteTallyDto(
     decimal? ParticipatingCoefficient = null,
     decimal? EligibleCoefficient = null,
     bool TrendHidden = false,
-    string? ResultVisibilityPolicy = null);
+    string? ResultVisibilityPolicy = null,
+    decimal? RequiredThresholdPercent = null,
+    string? CalculationMethod = null);
 
 /// <summary>
 /// Room hydrate results payload (aligned with <see cref="VoteTallyDto"/>). Null when trend is unauthorized.
@@ -68,7 +107,9 @@ public sealed record VotingResultsDto(
     decimal? ParticipatingCoefficient = null,
     decimal? EligibleCoefficient = null,
     bool TrendHidden = false,
-    string? ResultVisibilityPolicy = null);
+    string? ResultVisibilityPolicy = null,
+    decimal? RequiredThresholdPercent = null,
+    string? CalculationMethod = null);
 
 public sealed record VoteReceiptDto(
     Guid VotingSessionId,

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASAMBLEAS — Asambleas anteriores</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=px1" />
+  <link rel="stylesheet" href="/css/base.css?v=px1" />
+  <link rel="stylesheet" href="/css/components.css?v=px1" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <div class="app-shell">
+    <aside class="app-nav" aria-label="Navegación">
+      <div>
+        <h1 class="brand">ASAMBLEAS</h1>
+        <p class="nav-tenant">Histórico</p>
+      </div>
+      <nav>
+        <a href="/dashboard.html">Panel</a>
+        <a href="/assemblies-history.html" aria-current="page">Anteriores</a>
+      </nav>
+    </aside>
+    <header class="app-top">
+      <span class="command-eyebrow">Expediente histórico</span>
+      <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
+    </header>
+    <main id="main" class="app-workspace page-main">
+      <div id="page-alert" class="alert" hidden role="alert"></div>
+      <section class="page-hero">
+        <h1>Asambleas anteriores</h1>
+        <p class="lede">Consulte el expediente digital de asambleas finalizadas.</p>
+        <label class="sr-only" for="search">Buscar</label>
+        <input id="search" type="search" placeholder="Buscar por título o estado…" style="max-width:28rem;width:100%;padding:0.6rem 0.8rem;border-radius:0.45rem;border:1px solid #c5d4d3;font:inherit" />
+      </section>
+      <div id="history-list" class="stack"></div>
+    </main>
+  </div>
+  <script type="module" src="/js/modules/assemblies-history-app.js?v=h1"></script>
+</body>
+</html>

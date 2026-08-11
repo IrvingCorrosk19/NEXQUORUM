@@ -34,6 +34,12 @@ public class PropertyHorizontal : Entity, ITenantScoped
 
     public PhLifecycleStatus Status { get; set; } = PhLifecycleStatus.Draft;
 
+    /// <summary>Restored on Reactivate after Deactivate.</summary>
+    public PhLifecycleStatus? StatusBeforeDeactivate { get; set; }
+
     /// <summary>Wizard step 1–8 (onboarding progress).</summary>
     public int OnboardingStep { get; set; } = 1;
+
+    /// <summary>Optimistic concurrency token.</summary>
+    public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString("N");
 }

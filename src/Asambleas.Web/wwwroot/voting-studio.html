@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASAMBLEAS — Voting &amp; Forms Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=px1" />
+  <link rel="stylesheet" href="/css/base.css?v=px1" />
+  <link rel="stylesheet" href="/css/components.css?v=px1" />
+  <link rel="stylesheet" href="/css/loading.css?v=px1" />
+  <link rel="stylesheet" href="/css/voting-studio.css?v=vs1" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <div class="app-shell studio-shell">
+    <aside class="app-nav" aria-label="Navegación">
+      <div>
+        <h1 class="brand">ASAMBLEAS</h1>
+        <p class="nav-tenant">Voting &amp; Forms Studio</p>
+      </div>
+      <nav>
+        <a id="nav-dashboard" href="/dashboard.html">Panel</a>
+        <a href="#" aria-current="page">Studio</a>
+        <a id="nav-assembly" href="#">Sala</a>
+        <a id="nav-expediente" href="#">Expediente</a>
+      </nav>
+    </aside>
+
+    <header class="app-top" role="banner">
+      <div class="cluster">
+        <span class="command-eyebrow">Diseño institucional</span>
+        <span id="conn-chip" class="badge badge-live">Listo</span>
+      </div>
+      <div class="cluster">
+        <span id="user-chip" class="badge badge-live"></span>
+        <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
+      </div>
+    </header>
+
+    <main id="main" class="app-workspace page-main studio-main">
+      <div id="page-alert" class="alert" hidden role="alert"></div>
+
+      <section class="page-hero studio-hero">
+        <p class="command-eyebrow">Corazón funcional</p>
+        <h1>Voting &amp; Forms Studio</h1>
+        <p class="lede" id="assembly-label">Cargando asamblea…</p>
+        <div class="cta-row">
+          <button type="button" class="btn btn-primary" id="btn-new-vote">+ Nueva votación</button>
+          <button type="button" class="btn btn-secondary" id="btn-new-survey">+ Nuevo formulario / encuesta</button>
+        </div>
+      </section>
+
+      <div class="studio-layout">
+        <section class="panel studio-list" aria-label="Instrumentos">
+          <div class="studio-tabs" role="tablist">
+            <button type="button" class="studio-tab is-active" data-tab="votes" role="tab" aria-selected="true">Votaciones</button>
+            <button type="button" class="studio-tab" data-tab="surveys" role="tab" aria-selected="false">Formularios</button>
+            <button type="button" class="studio-tab" data-tab="templates" role="tab" aria-selected="false">Plantillas</button>
+          </div>
+          <div id="list-votes" class="studio-list-body"></div>
+          <div id="list-surveys" class="studio-list-body" hidden></div>
+          <div id="list-templates" class="studio-list-body" hidden></div>
+        </section>
+
+        <section class="panel studio-editor" id="editor-panel" hidden aria-label="Editor">
+          <div class="studio-editor-head">
+            <h2 id="editor-title">Crear votación</h2>
+            <span id="editor-status" class="badge">Borrador</span>
+          </div>
+          <div class="studio-editor-grid">
+            <div class="studio-canvas" id="editor-canvas"></div>
+            <aside class="studio-config" id="editor-config" aria-label="Configuración"></aside>
+          </div>
+          <div class="studio-actions">
+            <button type="button" class="btn btn-ghost" id="btn-preview">Vista previa</button>
+            <button type="button" class="btn btn-secondary" id="btn-save-draft">Guardar borrador</button>
+            <button type="button" class="btn btn-primary" id="btn-publish">Publicar</button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="preview-dialog" class="studio-preview-dialog">
+    <form method="dialog" class="studio-preview">
+      <header>
+        <h2>Vista previa</h2>
+        <div class="preview-devices" role="group" aria-label="Dispositivo">
+          <button type="button" data-device="desktop" class="is-active">Desktop</button>
+          <button type="button" data-device="tablet">Tablet</button>
+          <button type="button" data-device="mobile">Móvil</button>
+        </div>
+      </header>
+      <div id="preview-frame" class="preview-frame is-desktop"></div>
+      <footer>
+        <button type="submit" class="btn btn-secondary" value="close">Cerrar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script type="module" src="/js/modules/voting-studio-app.js?v=vs1"></script>
+</body>
+</html>

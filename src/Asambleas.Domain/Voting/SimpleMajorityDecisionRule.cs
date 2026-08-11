@@ -1,5 +1,6 @@
 namespace Asambleas.Domain.Voting;
 
+using Asambleas.Domain.Common;
 using Asambleas.Domain.Enums;
 
 /// <summary>
@@ -13,20 +14,24 @@ public sealed class SimpleMajorityDecisionRule : IDecisionRule
 
     public string RuleCode => Code;
 
-    public MotionStatus Decide(
-        decimal inFavorCoefficient,
-        decimal againstCoefficient,
-        decimal abstentionCoefficient)
+    public MotionStatus Decide(DecisionContext context)
     {
-        _ = abstentionCoefficient;
+        ArgumentNullException.ThrowIfNull(context);
 
-        if (inFavorCoefficient < 0 || againstCoefficient < 0)
+        if (context.InFavorCoefficient < 0 || context.AgainstCoefficient < 0)
         {
-            throw new Common.DomainException(VotingCodes.InvalidChoice, "Vote coefficients must be non-negative.");
+            throw new DomainException(VotingCodes.InvalidChoice, "Vote coefficients must be non-negative.");
         }
 
-        return inFavorCoefficient > againstCoefficient
+        return context.InFavorCoefficient > context.AgainstCoefficient
             ? MotionStatus.Approved
             : MotionStatus.Rejected;
     }
+
+    /// <summary>Test/helper overload.</summary>
+    public MotionStatus Decide(
+        decimal inFavorCoefficient,
+        decimal againstCoefficient,
+        decimal abstentionCoefficient) =>
+        Decide(new DecisionContext(inFavorCoefficient, againstCoefficient, abstentionCoefficient));
 }

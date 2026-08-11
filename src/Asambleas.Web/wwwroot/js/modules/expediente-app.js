@@ -137,9 +137,38 @@ function renderTimeline(items) {
         e.offsetSecondsFromRecordingStart != null
           ? formatDuration(e.offsetSecondsFromRecordingStart)
           : "—";
-      return `<li><strong>${escapeHtml(offset)}</strong> · ${escapeHtml(e.label || e.eventType)}</li>`;
+      const canSeek =
+        e.recordingId &&
+        e.offsetSecondsFromRecordingStart != null &&
+        e.offsetSecondsFromRecordingStart >= 0;
+      const seekBtn = canSeek
+        ? `<button type="button" class="btn btn-ghost" data-seek-rec="${escapeHtml(e.recordingId)}" data-seek-sec="${e.offsetSecondsFromRecordingStart}">Ver en grabación</button>`
+        : "";
+      return `<li><strong>${escapeHtml(offset)}</strong> · ${escapeHtml(e.label || e.eventType)} ${seekBtn}</li>`;
     })
     .join("");
+
+  root.querySelectorAll("[data-seek-rec]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const recId = btn.getAttribute("data-seek-rec");
+      const sec = Number(btn.getAttribute("data-seek-sec") || 0);
+      await play(recId);
+      const video = qs("#player");
+      const seek = () => {
+        try {
+          video.currentTime = Math.max(0, sec);
+        } catch {
+          /* ignore */
+        }
+        video.removeEventListener("loadedmetadata", seek);
+      };
+      if (video.readyState >= 1) {
+        seek();
+      } else {
+        video.addEventListener("loadedmetadata", seek);
+      }
+    });
+  });
 }
 
 async function load() {

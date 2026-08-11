@@ -3,6 +3,7 @@ import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { renderQuorum } from "./quorum.js";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, renderVotePanel } from "./voting.js";
+import { createLiveVotingWorkspace } from "./live-voting-workspace.js";
 import {
   completeFloor,
   cancelOwnFloor,
@@ -97,6 +98,27 @@ let durationTimer = null;
 let mediaControlsWired = false;
 let recordingTimer = null;
 let controlBarIdleTimer = null;
+
+const liveWorkspace = createLiveVotingWorkspace({
+  getAssemblyId: () => assemblyId,
+  getUser: () => state.user,
+  getAgenda: () => state.agenda,
+  getMotions: () => null,
+  getSession: () => state.session,
+  getMotion: () => state.motion,
+  refreshRoom: async () => {
+    try {
+      const room = await api(`/api/assemblies/${assemblyId}/room-state`);
+      if (room?.motion) state.motion = room.motion;
+      if (room?.session) state.session = room.session;
+      if (room?.agenda) state.agenda = room.agenda;
+    } catch {
+      /* keep local */
+    }
+    refreshPanels();
+  },
+  onMotionChanged: () => refreshPanels()
+});
 let drawersWired = false;
 let connectionLostTimer = null;
 
@@ -577,6 +599,11 @@ function applyRoleChrome() {
   if (exp) {
     exp.href = `/expediente.html?assemblyId=${assemblyId}`;
     exp.hidden = !hasPermission(state.user, "expediente:view");
+  }
+  const studio = qs("#link-studio");
+  if (studio) {
+    studio.href = `/voting-studio.html?assemblyId=${assemblyId}`;
+    studio.hidden = !hasPermission(state.user, "motion:create");
   }
 }
 
@@ -1180,6 +1207,11 @@ function refreshPanels() {
     }
   });
 
+  if (operator && els.vote) {
+    liveWorkspace.mountOperatorChrome(els.vote);
+    liveWorkspace.syncLockBanner(els.vote);
+  }
+
   const current = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
   els.speakerName.textContent = current?.displayName || t("assembly.waitingRoom");
   if (current) {
@@ -1647,6 +1679,29 @@ async function init() {
         motionId: result.motionId
       };
       state.tally = result.tally;
+      refreshPanels();
+      liveWorkspace.handleRealtime("votingClosed");
+    },
+    votingCancelled: (session) => {
+      state.session = session;
+      state.myVote = null;
+      state.myVoteStatus = null;
+      state.tally = null;
+      showToast(
+        session?.cancellationReason
+          ? `Votación anulada: ${session.cancellationReason}`
+          : "Votación anulada. Espere la nueva versión.",
+        "info"
+      );
+      refreshPanels();
+      liveWorkspace.handleRealtime("votingCancelled");
+    },
+    votingVersionCreated: (motion) => {
+      showToast(
+        `Nueva versión disponible: ${motion?.code || ""} v${motion?.versionNumber || ""}`,
+        "success"
+      );
+      liveWorkspace.handleRealtime("votingVersionCreated");
       refreshPanels();
     },
     assemblyStatusChanged: (summary) => {

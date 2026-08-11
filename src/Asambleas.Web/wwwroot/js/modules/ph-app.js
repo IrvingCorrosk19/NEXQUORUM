@@ -26,8 +26,10 @@ const SYSTEM_FIELDS = [
 
 let user = null;
 let currentPhId = null;
+let currentPh = null;
 let importSession = null;
 let suggestedMappings = [];
+let editingOwnerId = null;
 
 const $ = (sel) => document.querySelector(sel);
 const alertEl = $("#page-alert");
@@ -109,6 +111,9 @@ function wireUi() {
     showAlert("PH activado.", "ok");
     await openPh(currentPhId);
   });
+  $("#btn-deactivate-ph").addEventListener("click", onDeactivatePh);
+  $("#btn-reactivate-ph").addEventListener("click", onReactivatePh);
+  $("#btn-delete-ph").addEventListener("click", onDeletePh);
 
   document.querySelectorAll(".tabs button").forEach((btn) => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
@@ -130,15 +135,16 @@ function wireUi() {
   });
   $("#unit-search").addEventListener("input", () => loadUnits());
 
-  $("#btn-new-owner").addEventListener("click", () => {
-    $("#owner-form-wrap").hidden = false;
-  });
-  $("#btn-empty-add-owner")?.addEventListener("click", () => {
-    $("#owner-form-wrap").hidden = false;
+  $("#btn-new-owner").addEventListener("click", () => startOwnerCreate());
+  $("#btn-empty-add-owner")?.addEventListener("click", () => startOwnerCreate());
+  $("#btn-cancel-owner")?.addEventListener("click", () => {
+    editingOwnerId = null;
+    $("#form-owner").reset();
+    $("#owner-form-wrap").hidden = true;
   });
   $("#btn-goto-import")?.addEventListener("click", () => switchTab("import"));
   $("#btn-empty-import")?.addEventListener("click", () => switchTab("import"));
-  $("#form-owner").addEventListener("submit", onCreateOwner);
+  $("#form-owner").addEventListener("submit", onSaveOwner);
   ["owner-search", "filter-tower", "filter-status", "filter-email", "filter-user", "filter-invited"].forEach((id) => {
     $(`#${id}`)?.addEventListener("change", () => loadOwners());
     $(`#${id}`)?.addEventListener("input", () => loadOwners());
@@ -199,23 +205,67 @@ async function loadList() {
   root.innerHTML = list
     .map(
       (p) => `
-      <article class="ph-card" tabindex="0" data-id="${p.id}" role="button" aria-label="${escapeHtml(p.name)}">
+      <article class="ph-card" data-id="${p.id}">
         <h3>${escapeHtml(p.name)}</h3>
         <div class="meta">
-          <span>${p.unitCount} unidades · ${p.ownerCount} propietarios · ${p.activeUserCount || 0} usuarios</span>
-          <span>Coeficientes: ${Number(p.coefficientTotalPercent).toFixed(4)}% ${p.coefficientsComplete ? "✓" : ""}</span>
-          <span>Estado: ${escapeHtml(p.status)}</span>
-          ${p.nextAssemblyTitle ? `<span>Próxima: ${escapeHtml(p.nextAssemblyTitle)}</span>` : ""}
+          <span>${p.unitCount} unidades · ${p.ownerCount} propietarios</span>
+          <span class="badge">${escapeHtml(p.status)}</span>
+        </div>
+        <div class="cta-row">
+          <button type="button" class="btn btn-primary" data-view="${p.id}">Ver</button>
+          <button type="button" class="btn btn-secondary" data-edit="${p.id}">Editar</button>
+          <button type="button" class="btn btn-secondary" data-more="${p.id}" aria-haspopup="true">•••</button>
+        </div>
+        <div class="ph-more-menu" id="more-${p.id}" hidden>
+          ${
+            p.status === "Inactive"
+              ? `<button type="button" data-reactivate="${p.id}">Reactivar</button>`
+              : `<button type="button" data-deactivate="${p.id}">Desactivar</button>`
+          }
+          <button type="button" data-delete="${p.id}">Eliminar…</button>
         </div>
       </article>`
     )
     .join("");
-  root.querySelectorAll(".ph-card").forEach((card) => {
-    card.addEventListener("click", () => openPh(card.dataset.id));
-    card.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") openPh(card.dataset.id);
+  root.querySelectorAll("[data-view], [data-edit]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPh(btn.dataset.view || btn.dataset.edit).then(() => {
+        if (btn.dataset.edit) switchTab("info");
+      });
     });
   });
+  root.querySelectorAll("[data-more]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const menu = $(`#more-${btn.dataset.more}`);
+      menu.hidden = !menu.hidden;
+    });
+  });
+  root.querySelectorAll("[data-deactivate]").forEach((btn) =>
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      currentPhId = btn.dataset.deactivate;
+      await onDeactivatePh();
+      await loadList();
+    })
+  );
+  root.querySelectorAll("[data-reactivate]").forEach((btn) =>
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      currentPhId = btn.dataset.reactivate;
+      await onReactivatePh();
+      await loadList();
+    })
+  );
+  root.querySelectorAll("[data-delete]").forEach((btn) =>
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      currentPhId = btn.dataset.delete;
+      await onDeletePh();
+      await loadList();
+    })
+  );
 }
 
 async function onCreatePh(ev) {
@@ -248,10 +298,11 @@ async function openPh(id) {
   clearAlert();
   currentPhId = id;
   const ph = await api(`/api/ph/${id}`);
+  currentPh = ph;
   $("#view-list").hidden = true;
   $("#view-detail").hidden = false;
   $("#ph-title").textContent = ph.name;
-  $("#ph-meta").innerHTML = `<span>${escapeHtml(ph.code)}</span><span>${escapeHtml(ph.status)}</span><span>Paso ${ph.onboardingStep}/8</span>`;
+  $("#ph-meta").innerHTML = `<span>${escapeHtml(ph.code)}</span><span class="badge">${escapeHtml(ph.status)}</span><span>Paso ${ph.onboardingStep}/8</span>`;
   renderSteps(ph.onboardingStep);
   const form = $("#form-ph");
   form.name.value = ph.name || "";
@@ -264,6 +315,12 @@ async function openPh(id) {
   form.timeZoneId.value = ph.timeZoneId || "";
   form.adminEmail.value = ph.adminEmail || "";
   form.phone.value = ph.phone || "";
+  if (form.concurrencyStamp) form.concurrencyStamp.value = ph.concurrencyStamp || "";
+  const inactive = ph.status === "Inactive";
+  $("#btn-deactivate-ph").hidden = inactive;
+  $("#btn-reactivate-ph").hidden = !inactive;
+  $("#btn-mark-ready").disabled = inactive;
+  $("#btn-activate-ph").disabled = inactive;
   $("#btn-template").href = `/api/ph/${id}/import/template`;
   switchTab("info");
   await Promise.all([loadUnits(), loadOwners(), loadCoefficients(), loadReadiness()]);
@@ -288,6 +345,71 @@ function switchTab(tab) {
   if (tab === "readiness") loadReadiness();
 }
 
+async function confirmAction(title, body, okLabel = "Confirmar") {
+  $("#dlg-confirm-title").textContent = title;
+  $("#dlg-confirm-body").textContent = body;
+  $("#dlg-confirm-ok").textContent = okLabel;
+  const dlg = $("#dlg-confirm-action");
+  dlg.showModal();
+  return new Promise((resolve) => {
+    dlg.addEventListener(
+      "close",
+      () => resolve(dlg.returnValue === "ok"),
+      { once: true }
+    );
+  });
+}
+
+async function onDeactivatePh() {
+  if (!currentPhId) return;
+  const ok = await confirmAction(
+    "DESACTIVAR PH",
+    "El PH dejará de estar disponible para operaciones nuevas. Su información histórica será preservada.",
+    "Desactivar"
+  );
+  if (!ok) return;
+  await api(`/api/ph/${currentPhId}/deactivate`, { method: "POST", body: {} });
+  showAlert("PH desactivado.", "ok");
+  if (!$("#view-detail").hidden) await openPh(currentPhId);
+}
+
+async function onReactivatePh() {
+  if (!currentPhId) return;
+  await api(`/api/ph/${currentPhId}/reactivate`, { method: "POST" });
+  showAlert("PH reactivado.", "ok");
+  if (!$("#view-detail").hidden) await openPh(currentPhId);
+}
+
+async function onDeletePh() {
+  if (!currentPhId) return;
+  const evaluation = await api(`/api/ph/${currentPhId}/delete-evaluation`);
+  if (!evaluation.canHardDelete) {
+    const ok = await confirmAction(
+      evaluation.summary || "NO SE PUEDE ELIMINAR ESTE PH",
+      `${(evaluation.blockingReasons || []).join(" ")} Puedes desactivarlo sin perder su historial.`,
+      "Desactivar"
+    );
+    if (ok) await onDeactivatePh();
+    return;
+  }
+  const ok = await confirmAction(
+    "Eliminar PH",
+    evaluation.summary || "Se eliminará este PH vacío de forma permanente.",
+    "Eliminar"
+  );
+  if (!ok) return;
+  try {
+    await api(`/api/ph/${currentPhId}`, { method: "DELETE" });
+    showAlert("PH eliminado.", "ok");
+    currentPhId = null;
+    $("#view-detail").hidden = true;
+    $("#view-list").hidden = false;
+    await loadList();
+  } catch (err) {
+    showAlert(err.message || String(err));
+  }
+}
+
 async function onSavePh(ev) {
   ev.preventDefault();
   const data = formData(ev.target);
@@ -303,7 +425,8 @@ async function onSavePh(ev) {
       timeZoneId: data.timeZoneId,
       adminEmail: data.adminEmail || null,
       phone: data.phone || null,
-      onboardingStep: 2
+      onboardingStep: 2,
+      concurrencyStamp: data.concurrencyStamp || null
     }
   });
   showAlert("Información guardada.", "ok");
@@ -424,9 +547,10 @@ async function loadOwners() {
       <td>${escapeHtml(o.displayName)}</td>
       <td>${escapeHtml((o.unitCodes || []).join(", ") || "—")}</td>
       <td>${Number(o.coefficientPercent).toFixed(4)}%</td>
-      <td>${escapeHtml(o.status)}</td>
+      <td><span class="badge">${escapeHtml(o.status)}</span></td>
       <td>
         <button type="button" class="btn btn-secondary" data-owner="${o.id}">Ver</button>
+        <button type="button" class="btn btn-secondary" data-edit-owner="${o.id}">Editar</button>
         <button type="button" class="btn btn-secondary" data-invite="${o.id}">Invitar</button>
       </td>
     </tr>`
@@ -434,6 +558,9 @@ async function loadOwners() {
     .join("");
   tbody.querySelectorAll("[data-owner]").forEach((btn) =>
     btn.addEventListener("click", () => showOwner(btn.dataset.owner))
+  );
+  tbody.querySelectorAll("[data-edit-owner]").forEach((btn) =>
+    btn.addEventListener("click", () => startOwnerEdit(btn.dataset.editOwner))
   );
   tbody.querySelectorAll("[data-invite]").forEach((btn) =>
     btn.addEventListener("click", () => inviteOwner(btn.dataset.invite))
@@ -487,22 +614,80 @@ async function bulkInvite() {
   await loadOwners();
 }
 
-async function onCreateOwner(ev) {
+function startOwnerCreate() {
+  editingOwnerId = null;
+  const form = $("#form-owner");
+  form.reset();
+  form.ownerId.value = "";
+  form.concurrencyStamp.value = "";
+  form.sharePercent.value = "100";
+  $("#btn-save-owner").textContent = "Guardar propietario";
+  $("#owner-form-wrap").hidden = false;
+  form.firstName.focus();
+}
+
+async function startOwnerEdit(ownerId) {
+  const o = await api(`/api/ph/${currentPhId}/owners/${ownerId}`);
+  editingOwnerId = ownerId;
+  const form = $("#form-owner");
+  form.ownerId.value = o.id;
+  form.concurrencyStamp.value = o.concurrencyStamp || "";
+  form.firstName.value = o.firstName || "";
+  form.lastName.value = o.lastName || "";
+  form.identificationType.value = o.identificationType || "";
+  form.identification.value = o.identification || "";
+  form.email.value = o.email || "";
+  form.phone.value = o.phone || "";
+  form.unitId.value = "";
+  $("#btn-save-owner").textContent = "Guardar cambios";
+  $("#owner-form-wrap").hidden = false;
+  await showOwner(ownerId);
+}
+
+async function onSaveOwner(ev) {
   ev.preventDefault();
   const data = formData(ev.target);
-  await api(`/api/ph/${currentPhId}/owners`, {
-    method: "POST",
-    body: {
-      firstName: data.firstName || null,
-      lastName: data.lastName || null,
-      identificationType: data.identificationType || null,
-      identification: data.identification || null,
-      email: data.email,
-      phone: data.phone || null,
-      unitId: data.unitId || null,
-      sharePercent: data.unitId ? 100 : null
+  if (editingOwnerId) {
+    await api(`/api/ph/${currentPhId}/owners/${editingOwnerId}`, {
+      method: "PUT",
+      body: {
+        firstName: data.firstName || null,
+        lastName: data.lastName || null,
+        identificationType: data.identificationType || null,
+        identification: data.identification || null,
+        email: data.email,
+        phone: data.phone || null,
+        concurrencyStamp: data.concurrencyStamp || null
+      }
+    });
+    if (data.unitId) {
+      await api(`/api/ph/${currentPhId}/ownerships`, {
+        method: "POST",
+        body: {
+          ownerId: editingOwnerId,
+          unitId: data.unitId,
+          sharePercent: Number(data.sharePercent || 100)
+        }
+      });
     }
-  });
+    showAlert("Propietario actualizado.", "ok");
+  } else {
+    await api(`/api/ph/${currentPhId}/owners`, {
+      method: "POST",
+      body: {
+        firstName: data.firstName || null,
+        lastName: data.lastName || null,
+        identificationType: data.identificationType || null,
+        identification: data.identification || null,
+        email: data.email,
+        phone: data.phone || null,
+        unitId: data.unitId || null,
+        sharePercent: data.unitId ? Number(data.sharePercent || 100) : null
+      }
+    });
+    showAlert("Propietario creado.", "ok");
+  }
+  editingOwnerId = null;
   ev.target.reset();
   $("#owner-form-wrap").hidden = true;
   await loadOwners();
@@ -512,16 +697,94 @@ async function showOwner(ownerId) {
   const o = await api(`/api/ph/${currentPhId}/owners/${ownerId}`);
   const el = $("#owner-detail");
   el.hidden = false;
+  const inactive = o.status === "Inactive";
   el.innerHTML = `
     <h3>${escapeHtml(o.displayName)}</h3>
-    <p>${escapeHtml(o.email)} · ${escapeHtml(o.phone || "sin teléfono")} · ${escapeHtml(o.status)}</p>
+    <p><span class="badge">${escapeHtml(o.status)}</span> · ${escapeHtml(o.email)} · ${escapeHtml(o.phone || "sin teléfono")}</p>
     <h4>Unidades</h4>
     <ul>${(o.units || [])
       .map(
         (u) =>
-          `<li>${escapeHtml(u.unitCode)} — coef ${Number(u.unitCoefficientPercent).toFixed(4)}% · share ${Number(u.sharePercent).toFixed(2)}% · ${u.isActive ? "activo" : "histórico"}</li>`
+          `<li>${escapeHtml(u.unitCode)} — coef ${Number(u.unitCoefficientPercent).toFixed(4)}% · share ${Number(u.sharePercent).toFixed(2)}% · ${u.isActive ? "activo" : "histórico"}
+          ${u.isActive ? `<button type="button" class="btn btn-secondary" data-end-own="${u.ownershipId}">Finalizar</button>` : ""}</li>`
       )
-      .join("")}</ul>`;
+      .join("") || "<li>Sin unidades</li>"}</ul>
+    <div class="cta-row">
+      <button type="button" class="btn btn-secondary" data-edit-owner="${o.id}">Editar</button>
+      ${
+        inactive
+          ? `<button type="button" class="btn btn-primary" data-reactivate-owner="${o.id}">Reactivar</button>`
+          : `<button type="button" class="btn btn-secondary" data-deactivate-owner="${o.id}">Desactivar</button>`
+      }
+      <button type="button" class="btn btn-secondary" data-delete-owner="${o.id}">Eliminar…</button>
+    </div>`;
+  el.querySelectorAll("[data-edit-owner]").forEach((btn) =>
+    btn.addEventListener("click", () => startOwnerEdit(btn.dataset.editOwner))
+  );
+  el.querySelectorAll("[data-deactivate-owner]").forEach((btn) =>
+    btn.addEventListener("click", () => deactivateOwner(btn.dataset.deactivateOwner))
+  );
+  el.querySelectorAll("[data-reactivate-owner]").forEach((btn) =>
+    btn.addEventListener("click", () => reactivateOwner(btn.dataset.reactivateOwner))
+  );
+  el.querySelectorAll("[data-delete-owner]").forEach((btn) =>
+    btn.addEventListener("click", () => deleteOwner(btn.dataset.deleteOwner))
+  );
+  el.querySelectorAll("[data-end-own]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      await api(`/api/ph/${currentPhId}/ownerships/${btn.dataset.endOwn}/end`, { method: "POST" });
+      showAlert("Relación finalizada (histórico preservado).", "ok");
+      await showOwner(ownerId);
+      await loadOwners();
+    })
+  );
+}
+
+async function deactivateOwner(ownerId) {
+  const ok = await confirmAction(
+    "DESACTIVAR PROPIETARIO",
+    "El propietario dejará de ser elegible para nuevas asambleas. El historial se preserva.",
+    "Desactivar"
+  );
+  if (!ok) return;
+  await api(`/api/ph/${currentPhId}/owners/${ownerId}/deactivate`, { method: "POST", body: {} });
+  showAlert("Propietario desactivado.", "ok");
+  await loadOwners();
+  await showOwner(ownerId);
+}
+
+async function reactivateOwner(ownerId) {
+  await api(`/api/ph/${currentPhId}/owners/${ownerId}/reactivate`, { method: "POST" });
+  showAlert("Propietario reactivado. Vuelve a asociar unidades si es necesario.", "ok");
+  await loadOwners();
+  await showOwner(ownerId);
+}
+
+async function deleteOwner(ownerId) {
+  const evaluation = await api(`/api/ph/${currentPhId}/owners/${ownerId}/delete-evaluation`);
+  if (!evaluation.canHardDelete) {
+    const ok = await confirmAction(
+      evaluation.summary || "NO SE PUEDE ELIMINAR ESTE PROPIETARIO",
+      `${(evaluation.blockingReasons || []).join(" ")} Puedes desactivarlo sin perder el historial.`,
+      "Desactivar"
+    );
+    if (ok) await deactivateOwner(ownerId);
+    return;
+  }
+  const ok = await confirmAction(
+    "Eliminar propietario",
+    evaluation.summary || "Se eliminará este propietario sin historial.",
+    "Eliminar"
+  );
+  if (!ok) return;
+  try {
+    await api(`/api/ph/${currentPhId}/owners/${ownerId}`, { method: "DELETE" });
+    showAlert("Propietario eliminado.", "ok");
+    $("#owner-detail").hidden = true;
+    await loadOwners();
+  } catch (err) {
+    showAlert(err.message || String(err));
+  }
 }
 
 async function inviteOwner(ownerId) {

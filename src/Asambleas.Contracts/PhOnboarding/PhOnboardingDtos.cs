@@ -30,7 +30,8 @@ public sealed record PhDetailDto(
     string? AdminEmail,
     string? Phone,
     string Status,
-    int OnboardingStep);
+    int OnboardingStep,
+    string ConcurrencyStamp);
 
 public sealed record CreatePhRequest(
     string Name,
@@ -55,7 +56,17 @@ public sealed record UpdatePhRequest(
     string TimeZoneId,
     string? AdminEmail,
     string? Phone,
-    int? OnboardingStep);
+    int? OnboardingStep,
+    string? ConcurrencyStamp);
+
+public sealed record DeactivateEntityRequest(string? Reason);
+
+public sealed record EntityDeleteEvaluationDto(
+    bool CanHardDelete,
+    string Summary,
+    string SuggestedAction,
+    IReadOnlyList<string> BlockingReasons,
+    IReadOnlyDictionary<string, int> Dependencies);
 
 public sealed record UnitDto(
     Guid Id,
@@ -124,6 +135,7 @@ public sealed record OwnerDetailDto(
     string? Phone,
     string Status,
     Guid? UserId,
+    string ConcurrencyStamp,
     IReadOnlyList<OwnerUnitLinkDto> Units);
 
 public sealed record OwnerUnitLinkDto(
@@ -156,7 +168,8 @@ public sealed record UpdateOwnerRequest(
     string? Identification,
     string Email,
     string? Phone,
-    string? Status);
+    string? Status,
+    string? ConcurrencyStamp);
 
 public sealed record CreateOwnershipRequest(
     Guid OwnerId,

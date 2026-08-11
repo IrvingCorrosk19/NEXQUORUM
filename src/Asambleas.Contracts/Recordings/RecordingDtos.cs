@@ -48,7 +48,8 @@ public sealed record SessionTimelineEventDto(
     DateTimeOffset OccurredAtUtc,
     string EventType,
     string Label,
-    double? OffsetSecondsFromRecordingStart);
+    double? OffsetSecondsFromRecordingStart,
+    Guid? RecordingId = null);
 
 public sealed record RecordingStorageStatsDto(
     int RecordingCount,

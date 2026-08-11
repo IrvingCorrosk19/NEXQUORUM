@@ -78,5 +78,11 @@ public interface IAsambleasDbContext
 
     DbSet<RecordingNoticeAcceptance> RecordingNoticeAcceptances { get; }
 
+    DbSet<SurveyForm> SurveyForms { get; }
+
+    DbSet<SurveyQuestion> SurveyQuestions { get; }
+
+    DbSet<SurveyResponse> SurveyResponses { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -8,6 +8,8 @@ const EVENT_NAMES = [
   "votingOpened",
   "voteTallyUpdated",
   "votingClosed",
+  "votingCancelled",
+  "votingVersionCreated",
   "recordingUpdated",
   "assemblyScheduleChanged"
 ];

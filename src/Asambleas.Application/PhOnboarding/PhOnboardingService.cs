@@ -183,7 +183,7 @@ public sealed class PhOnboardingService
 
         await _db.SaveChangesAsync(cancellationToken);
         await _audit.WriteAsync(
-            "PHCreated",
+            AuditEventType.PhCreated,
             correlationId: ph.Id,
             metadata: new { ph.Code, ph.Name },
             cancellationToken: cancellationToken);
@@ -199,6 +199,8 @@ public sealed class PhOnboardingService
         ArgumentNullException.ThrowIfNull(request);
         TenantGuard.EnsureAuthenticated(_currentTenant);
         var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: true, cancellationToken);
+        EnsurePhNotInactiveForMutation(ph);
+        EnsureConcurrency(ph.ConcurrencyStamp, request.ConcurrencyStamp, "PH_CONCURRENCY");
 
         if (string.IsNullOrWhiteSpace(request.Name))
         {
@@ -210,6 +212,7 @@ public sealed class PhOnboardingService
             throw new DomainException("PH_TIMEZONE_REQUIRED", "Time zone is required.");
         }
 
+        // Name/legal changes must never alter TenantId, OrganizationId, or Code (identity).
         ph.Name = request.Name.Trim();
         ph.LegalName = PhOnboardingSupport.Trim(request.LegalName);
         ph.Country = PhOnboardingSupport.Trim(request.Country);
@@ -219,6 +222,7 @@ public sealed class PhOnboardingService
         ph.TimeZoneId = request.TimeZoneId.Trim();
         ph.AdminEmail = PhOnboardingSupport.Trim(request.AdminEmail);
         ph.Phone = PhOnboardingSupport.Trim(request.Phone);
+        ph.ConcurrencyStamp = Guid.NewGuid().ToString("N");
 
         if (request.OnboardingStep is int step)
         {
@@ -227,11 +231,153 @@ public sealed class PhOnboardingService
 
         await _db.SaveChangesAsync(cancellationToken);
         await _audit.WriteAsync(
-            "PHUpdated",
+            AuditEventType.PhUpdated,
             correlationId: ph.Id,
             metadata: new { ph.Code, ph.Name, ph.OnboardingStep },
             cancellationToken: cancellationToken);
         return ToDetail(ph);
+    }
+
+    public async Task<PhDetailDto> DeactivatePhAsync(
+        Guid propertyHorizontalId,
+        DeactivateEntityRequest? request = null,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: true, cancellationToken);
+        if (ph.Status == PhLifecycleStatus.Inactive)
+        {
+            return ToDetail(ph);
+        }
+
+        ph.StatusBeforeDeactivate = ph.Status;
+        ph.Status = PhLifecycleStatus.Inactive;
+        ph.ConcurrencyStamp = Guid.NewGuid().ToString("N");
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            AuditEventType.PhDeactivated,
+            correlationId: ph.Id,
+            metadata: new { ph.Code, ph.Name, reason = request?.Reason },
+            cancellationToken: cancellationToken);
+        return ToDetail(ph);
+    }
+
+    public async Task<PhDetailDto> ReactivatePhAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: true, cancellationToken);
+        if (ph.Status != PhLifecycleStatus.Inactive)
+        {
+            return ToDetail(ph);
+        }
+
+        ph.Status = ph.StatusBeforeDeactivate ?? PhLifecycleStatus.Draft;
+        if (ph.Status == PhLifecycleStatus.Inactive)
+        {
+            ph.Status = PhLifecycleStatus.Draft;
+        }
+
+        ph.StatusBeforeDeactivate = null;
+        ph.ConcurrencyStamp = Guid.NewGuid().ToString("N");
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            AuditEventType.PhReactivated,
+            correlationId: ph.Id,
+            metadata: new { ph.Code, ph.Name, restored = ph.Status.ToString() },
+            cancellationToken: cancellationToken);
+        return ToDetail(ph);
+    }
+
+    public async Task<EntityDeleteEvaluationDto> EvaluatePhDeleteAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        var deps = await CollectPhDependenciesAsync(propertyHorizontalId, cancellationToken);
+        var blockers = new List<string>();
+        if (deps.GetValueOrDefault("assemblies") > 0)
+        {
+            blockers.Add($"{ph.Name} contiene información histórica de asambleas.");
+        }
+
+        if (deps.GetValueOrDefault("votes") > 0)
+        {
+            blockers.Add("Existen votos registrados vinculados a este PH.");
+        }
+
+        if (deps.GetValueOrDefault("recordings") > 0)
+        {
+            blockers.Add("Existen grabaciones vinculadas a este PH.");
+        }
+
+        if (deps.GetValueOrDefault("quorumSnapshots") > 0)
+        {
+            blockers.Add("Existen snapshots de quórum históricos.");
+        }
+
+        var canDelete = blockers.Count == 0;
+        return new EntityDeleteEvaluationDto(
+            canDelete,
+            canDelete
+                ? "Este PH no tiene historial de asambleas y puede eliminarse de forma segura."
+                : "NO SE PUEDE ELIMINAR ESTE PH",
+            canDelete ? "DELETE" : "DEACTIVATE",
+            blockers,
+            deps);
+    }
+
+    public async Task DeletePhAsync(Guid propertyHorizontalId, CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var evaluation = await EvaluatePhDeleteAsync(propertyHorizontalId, cancellationToken);
+        if (!evaluation.CanHardDelete)
+        {
+            throw new DomainException(
+                "PH_DELETE_BLOCKED",
+                evaluation.Summary + " " + string.Join(" ", evaluation.BlockingReasons)
+                + " Puedes desactivarlo sin perder su historial.");
+        }
+
+        var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: true, cancellationToken);
+        var unitIds = await _db.Units.Where(u => u.PropertyHorizontalId == propertyHorizontalId).Select(u => u.Id).ToListAsync(cancellationToken);
+        var ownerships = await _db.Ownerships.Where(o => unitIds.Contains(o.UnitId)).ToListAsync(cancellationToken);
+        _db.Ownerships.RemoveRange(ownerships);
+
+        var invitations = await _db.OwnerInvitations.Where(i => i.PropertyHorizontalId == propertyHorizontalId).ToListAsync(cancellationToken);
+        _db.OwnerInvitations.RemoveRange(invitations);
+
+        var memberships = await _db.UserPropertyMemberships.Where(m => m.PropertyHorizontalId == propertyHorizontalId).ToListAsync(cancellationToken);
+        _db.UserPropertyMemberships.RemoveRange(memberships);
+
+        var units = await _db.Units.Where(u => u.PropertyHorizontalId == propertyHorizontalId).ToListAsync(cancellationToken);
+        _db.Units.RemoveRange(units);
+
+        var orphanOwners = await _db.Owners
+            .Where(o => o.RegisteredPropertyHorizontalId == propertyHorizontalId)
+            .ToListAsync(cancellationToken);
+        foreach (var owner in orphanOwners)
+        {
+            var otherLinks = await _db.Ownerships.AnyAsync(o => o.OwnerId == owner.Id, cancellationToken);
+            if (!otherLinks && owner.UserId is null)
+            {
+                _db.Owners.Remove(owner);
+            }
+            else
+            {
+                owner.RegisteredPropertyHorizontalId = null;
+            }
+        }
+
+        _db.PropertyHorizontals.Remove(ph);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            AuditEventType.PhDeleted,
+            correlationId: propertyHorizontalId,
+            metadata: new { ph.Code, ph.Name },
+            cancellationToken: cancellationToken);
     }
 
     public async Task<IReadOnlyList<UnitDto>> ListUnitsAsync(
@@ -279,7 +425,8 @@ public sealed class PhOnboardingService
     {
         ArgumentNullException.ThrowIfNull(request);
         TenantGuard.EnsureAuthenticated(_currentTenant);
-        await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        EnsurePhNotInactiveForMutation(ph);
 
         ValidateUnitFields(request.Code, request.CoefficientPercent);
         var code = request.Code.Trim();
@@ -484,39 +631,77 @@ public sealed class PhOnboardingService
         await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
         query ??= new OwnerQuery();
 
-        var rows = await (
+        var ownershipRows = await (
             from o in _db.Owners.AsNoTracking()
             join own in _db.Ownerships.AsNoTracking() on o.Id equals own.OwnerId
             join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
-            where u.PropertyHorizontalId == propertyHorizontalId && own.IsActive
+            where u.PropertyHorizontalId == propertyHorizontalId
             select new { Owner = o, Ownership = own, Unit = u })
+            .ToListAsync(cancellationToken);
+
+        var registeredOwners = await _db.Owners.AsNoTracking()
+            .Where(o => o.RegisteredPropertyHorizontalId == propertyHorizontalId)
             .ToListAsync(cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(query.Tower))
         {
             var tower = query.Tower.Trim();
-            rows = rows.Where(r => string.Equals(r.Unit.Tower, tower, StringComparison.OrdinalIgnoreCase)).ToList();
+            ownershipRows = ownershipRows
+                .Where(r => string.Equals(r.Unit.Tower, tower, StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
 
         if (query.Floor is int floor)
         {
-            rows = rows.Where(r => r.Unit.Floor == floor).ToList();
+            ownershipRows = ownershipRows.Where(r => r.Unit.Floor == floor).ToList();
         }
 
-        var items = rows
-            .GroupBy(r => r.Owner)
-            .Select(g => new OwnerListItemDto(
-                g.Key.Id,
-                g.Key.DisplayName,
-                g.Key.Email,
-                g.Key.Identification,
-                g.Key.Status.ToString(),
-                g.Select(x => x.Unit.Code).Distinct().OrderBy(c => c, StringComparer.OrdinalIgnoreCase).ToList(),
-                CoefficientValidator.Normalize(g.Sum(x => x.Unit.CoefficientPercent * x.Ownership.SharePercent / 100m)),
-                g.Key.UserId is not null,
-                !string.IsNullOrWhiteSpace(g.Key.Email),
-                g.Key.UserId))
-            .ToList();
+        var byOwner = ownershipRows
+            .GroupBy(r => r.Owner.Id)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var owners = new Dictionary<Guid, Domain.Entities.Owner>();
+        foreach (var row in ownershipRows)
+        {
+            owners[row.Owner.Id] = row.Owner;
+        }
+
+        foreach (var owner in registeredOwners)
+        {
+            owners.TryAdd(owner.Id, owner);
+        }
+
+        var items = owners.Values.Select(owner =>
+        {
+            byOwner.TryGetValue(owner.Id, out var links);
+            links ??= [];
+            var activeLinks = links.Where(x => x.Ownership.IsActive).ToList();
+            var unitCodes = activeLinks
+                .Select(x => x.Unit.Code)
+                .Distinct()
+                .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (unitCodes.Count == 0 && links.Count > 0)
+            {
+                unitCodes = links.Select(x => x.Unit.Code).Distinct()
+                    .OrderBy(c => c, StringComparer.OrdinalIgnoreCase).ToList();
+            }
+
+            var coeff = CoefficientValidator.Normalize(
+                activeLinks.Sum(x => x.Unit.CoefficientPercent * x.Ownership.SharePercent / 100m));
+
+            return new OwnerListItemDto(
+                owner.Id,
+                owner.DisplayName,
+                owner.Email,
+                owner.Identification,
+                owner.Status.ToString(),
+                unitCodes,
+                coeff,
+                owner.UserId is not null,
+                !string.IsNullOrWhiteSpace(owner.Email),
+                owner.UserId);
+        }).ToList();
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -638,6 +823,7 @@ public sealed class PhOnboardingService
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
         await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        await EnsureOwnerInPhAsync(propertyHorizontalId, ownerId, cancellationToken);
 
         var owner = await LoadOwnerAsync(ownerId, cancellationToken);
         var links = await LoadOwnerUnitLinksAsync(propertyHorizontalId, ownerId, cancellationToken);
@@ -651,7 +837,8 @@ public sealed class PhOnboardingService
     {
         ArgumentNullException.ThrowIfNull(request);
         TenantGuard.EnsureAuthenticated(_currentTenant);
-        await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        EnsurePhNotInactiveForMutation(ph);
 
         if (!PhOnboardingSupport.IsValidEmail(request.Email))
         {
@@ -674,9 +861,16 @@ public sealed class PhOnboardingService
                 Identification = PhOnboardingSupport.Trim(request.Identification),
                 Email = email,
                 Phone = PhOnboardingSupport.Trim(request.Phone),
-                Status = OwnerLifecycleStatus.Draft
+                Status = OwnerLifecycleStatus.Draft,
+                RegisteredPropertyHorizontalId = propertyHorizontalId,
+                ConcurrencyStamp = Guid.NewGuid().ToString("N")
             };
             _db.Owners.Add(owner);
+        }
+        else
+        {
+            TenantGuard.EnsureTenantMatch(_currentTenant, owner.TenantId);
+            owner.RegisteredPropertyHorizontalId ??= propertyHorizontalId;
         }
 
         if (request.UnitId is Guid unitId)
@@ -688,27 +882,12 @@ public sealed class PhOnboardingService
                 throw new DomainException("SHARE_PERCENT_INVALID", "SharePercent must be greater than 0 and at most 100.");
             }
 
-            var duplicate = await _db.Ownerships.AnyAsync(
-                o => o.UnitId == unit.Id && o.OwnerId == owner.Id, cancellationToken);
-            if (duplicate)
-            {
-                throw new DomainException("OWNERSHIP_DUPLICATE", "This owner is already linked to the unit.");
-            }
-
-            _db.Ownerships.Add(new Ownership
-            {
-                TenantId = _currentTenant.TenantId,
-                UnitId = unit.Id,
-                OwnerId = owner.Id,
-                SharePercent = CoefficientValidator.Normalize(sharePercent),
-                EffectiveFromUtc = DateTimeOffset.UtcNow,
-                IsActive = true
-            });
+            await UpsertOwnershipAsync(unit, owner.Id, sharePercent, null, cancellationToken);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
         await _audit.WriteAsync(
-            "OwnerCreated",
+            AuditEventType.OwnerCreated,
             correlationId: owner.Id,
             metadata: new { propertyHorizontalId, owner.Email },
             cancellationToken: cancellationToken);
@@ -725,11 +904,14 @@ public sealed class PhOnboardingService
     {
         ArgumentNullException.ThrowIfNull(request);
         TenantGuard.EnsureAuthenticated(_currentTenant);
-        await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        EnsurePhNotInactiveForMutation(ph);
 
         var owner = await _db.Owners.FirstOrDefaultAsync(o => o.Id == ownerId, cancellationToken)
             ?? throw new DomainException("OWNER_NOT_FOUND", "Owner not found.");
         TenantGuard.EnsureTenantMatch(_currentTenant, owner.TenantId);
+        await EnsureOwnerInPhAsync(propertyHorizontalId, ownerId, cancellationToken);
+        EnsureConcurrency(owner.ConcurrencyStamp, request.ConcurrencyStamp, "OWNER_CONCURRENCY");
 
         if (!PhOnboardingSupport.IsValidEmail(request.Email))
         {
@@ -755,26 +937,184 @@ public sealed class PhOnboardingService
         owner.IdentificationType = PhOnboardingSupport.Trim(request.IdentificationType);
         owner.Identification = PhOnboardingSupport.Trim(request.Identification);
         owner.Phone = PhOnboardingSupport.Trim(request.Phone);
+        owner.ConcurrencyStamp = Guid.NewGuid().ToString("N");
 
-        if (!string.IsNullOrWhiteSpace(request.Status))
+        // Status changes go through dedicated deactivate/reactivate endpoints for audit clarity,
+        // but keep UpdateOwner Status for backwards compatibility (ignored for Inactive→Active).
+        if (!string.IsNullOrWhiteSpace(request.Status)
+            && Enum.TryParse<OwnerLifecycleStatus>(request.Status, ignoreCase: true, out var status)
+            && status is not (OwnerLifecycleStatus.Inactive or OwnerLifecycleStatus.Active))
         {
-            if (!Enum.TryParse<OwnerLifecycleStatus>(request.Status, ignoreCase: true, out var status))
-            {
-                throw new DomainException("OWNER_STATUS_INVALID", $"Unknown owner status '{request.Status}'.");
-            }
-
             owner.Status = status;
         }
 
         await _db.SaveChangesAsync(cancellationToken);
         await _audit.WriteAsync(
-            "OwnerUpdated",
+            AuditEventType.OwnerUpdated,
             correlationId: owner.Id,
             metadata: new { propertyHorizontalId, owner.Email, owner.Status },
             cancellationToken: cancellationToken);
 
         var links = await LoadOwnerUnitLinksAsync(propertyHorizontalId, owner.Id, cancellationToken);
         return ToOwnerDetail(owner, links);
+    }
+
+    public async Task<OwnerDetailDto> DeactivateOwnerAsync(
+        Guid propertyHorizontalId,
+        Guid ownerId,
+        DeactivateEntityRequest? request = null,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        await EnsureOwnerInPhAsync(propertyHorizontalId, ownerId, cancellationToken);
+
+        var owner = await _db.Owners.FirstOrDefaultAsync(o => o.Id == ownerId, cancellationToken)
+            ?? throw new DomainException("OWNER_NOT_FOUND", "Owner not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, owner.TenantId);
+
+        owner.Status = OwnerLifecycleStatus.Inactive;
+        owner.ConcurrencyStamp = Guid.NewGuid().ToString("N");
+
+        // End active ownerships in this PH only — preserves other PH memberships / User identity.
+        var activeInPh = await (
+            from own in _db.Ownerships
+            join u in _db.Units on own.UnitId equals u.Id
+            where own.OwnerId == ownerId && own.IsActive && u.PropertyHorizontalId == propertyHorizontalId
+            select own).ToListAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var ownership in activeInPh)
+        {
+            ownership.IsActive = false;
+            ownership.EffectiveToUtc = now;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            AuditEventType.OwnerDeactivated,
+            correlationId: owner.Id,
+            metadata: new { propertyHorizontalId, reason = request?.Reason, endedOwnerships = activeInPh.Count },
+            cancellationToken: cancellationToken);
+
+        var links = await LoadOwnerUnitLinksAsync(propertyHorizontalId, owner.Id, cancellationToken);
+        return ToOwnerDetail(owner, links);
+    }
+
+    public async Task<OwnerDetailDto> ReactivateOwnerAsync(
+        Guid propertyHorizontalId,
+        Guid ownerId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        EnsurePhNotInactiveForMutation(ph);
+        await EnsureOwnerInPhAsync(propertyHorizontalId, ownerId, cancellationToken);
+
+        var owner = await _db.Owners.FirstOrDefaultAsync(o => o.Id == ownerId, cancellationToken)
+            ?? throw new DomainException("OWNER_NOT_FOUND", "Owner not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, owner.TenantId);
+
+        // Do not duplicate Owner / User — only flip lifecycle status.
+        owner.Status = owner.UserId is null ? OwnerLifecycleStatus.Draft : OwnerLifecycleStatus.Active;
+        owner.ConcurrencyStamp = Guid.NewGuid().ToString("N");
+        owner.RegisteredPropertyHorizontalId ??= propertyHorizontalId;
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            AuditEventType.OwnerReactivated,
+            correlationId: owner.Id,
+            metadata: new { propertyHorizontalId, owner.Status },
+            cancellationToken: cancellationToken);
+
+        var links = await LoadOwnerUnitLinksAsync(propertyHorizontalId, owner.Id, cancellationToken);
+        return ToOwnerDetail(owner, links);
+    }
+
+    public async Task<EntityDeleteEvaluationDto> EvaluateOwnerDeleteAsync(
+        Guid propertyHorizontalId,
+        Guid ownerId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        await EnsureOwnerInPhAsync(propertyHorizontalId, ownerId, cancellationToken);
+        var owner = await LoadOwnerAsync(ownerId, cancellationToken);
+        var deps = await CollectOwnerDependenciesAsync(propertyHorizontalId, owner, cancellationToken);
+        var blockers = new List<string>();
+        if (deps.GetValueOrDefault("attendance") > 0
+            || deps.GetValueOrDefault("votes") > 0
+            || deps.GetValueOrDefault("participants") > 0
+            || deps.GetValueOrDefault("powers") > 0
+            || deps.GetValueOrDefault("representations") > 0)
+        {
+            blockers.Add("El propietario participó en asambleas históricas. Debe desactivarse, no eliminarse.");
+        }
+
+        var canDelete = blockers.Count == 0;
+        return new EntityDeleteEvaluationDto(
+            canDelete,
+            canDelete
+                ? "Este propietario no tiene historial de asamblea y puede eliminarse de forma segura."
+                : "NO SE PUEDE ELIMINAR ESTE PROPIETARIO",
+            canDelete ? "DELETE" : "DEACTIVATE",
+            blockers,
+            deps);
+    }
+
+    public async Task DeleteOwnerAsync(
+        Guid propertyHorizontalId,
+        Guid ownerId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var evaluation = await EvaluateOwnerDeleteAsync(propertyHorizontalId, ownerId, cancellationToken);
+        if (!evaluation.CanHardDelete)
+        {
+            throw new DomainException(
+                "OWNER_DELETE_BLOCKED",
+                evaluation.Summary + " " + string.Join(" ", evaluation.BlockingReasons)
+                + " Puedes desactivarlo sin perder el historial.");
+        }
+
+        var owner = await _db.Owners.FirstOrDefaultAsync(o => o.Id == ownerId, cancellationToken)
+            ?? throw new DomainException("OWNER_NOT_FOUND", "Owner not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, owner.TenantId);
+
+        var ownershipsInPh = await (
+            from own in _db.Ownerships
+            join u in _db.Units on own.UnitId equals u.Id
+            where own.OwnerId == ownerId && u.PropertyHorizontalId == propertyHorizontalId
+            select own).ToListAsync(cancellationToken);
+        _db.Ownerships.RemoveRange(ownershipsInPh);
+
+        var invitations = await _db.OwnerInvitations
+            .Where(i => i.OwnerId == ownerId && i.PropertyHorizontalId == propertyHorizontalId)
+            .ToListAsync(cancellationToken);
+        _db.OwnerInvitations.RemoveRange(invitations);
+
+        var remainingOwnerships = await _db.Ownerships.AnyAsync(o => o.OwnerId == ownerId, cancellationToken);
+        if (remainingOwnerships)
+        {
+            if (owner.RegisteredPropertyHorizontalId == propertyHorizontalId)
+            {
+                owner.RegisteredPropertyHorizontalId = null;
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            await _audit.WriteAsync(
+                AuditEventType.OwnershipChanged,
+                correlationId: ownerId,
+                metadata: new { propertyHorizontalId, action = "removed-from-ph" },
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        _db.Owners.Remove(owner);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            AuditEventType.OwnerDeleted,
+            correlationId: ownerId,
+            metadata: new { propertyHorizontalId, owner.Email },
+            cancellationToken: cancellationToken);
     }
 
     public async Task<OwnerUnitLinkDto> CreateOwnershipAsync(
@@ -784,7 +1124,8 @@ public sealed class PhOnboardingService
     {
         ArgumentNullException.ThrowIfNull(request);
         TenantGuard.EnsureAuthenticated(_currentTenant);
-        await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        EnsurePhNotInactiveForMutation(ph);
 
         var unit = await LoadUnitInPhAsync(propertyHorizontalId, request.UnitId, cancellationToken);
         var owner = await LoadOwnerAsync(request.OwnerId, cancellationToken);
@@ -794,27 +1135,12 @@ public sealed class PhOnboardingService
             throw new DomainException("SHARE_PERCENT_INVALID", "SharePercent must be greater than 0 and at most 100.");
         }
 
-        var duplicate = await _db.Ownerships.AnyAsync(
-            o => o.UnitId == request.UnitId && o.OwnerId == request.OwnerId, cancellationToken);
-        if (duplicate)
-        {
-            throw new DomainException("OWNERSHIP_DUPLICATE", "This owner is already linked to the unit.");
-        }
-
-        var ownership = new Ownership
-        {
-            TenantId = _currentTenant.TenantId,
-            UnitId = request.UnitId,
-            OwnerId = request.OwnerId,
-            SharePercent = CoefficientValidator.Normalize(request.SharePercent),
-            EffectiveFromUtc = request.EffectiveFromUtc ?? DateTimeOffset.UtcNow,
-            IsActive = true
-        };
-        _db.Ownerships.Add(ownership);
+        var ownership = await UpsertOwnershipAsync(
+            unit, request.OwnerId, request.SharePercent, request.EffectiveFromUtc, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         await _audit.WriteAsync(
-            "OwnershipCreated",
+            AuditEventType.OwnershipChanged,
             correlationId: ownership.Id,
             metadata: new { propertyHorizontalId, request.UnitId, request.OwnerId },
             cancellationToken: cancellationToken);
@@ -853,7 +1179,7 @@ public sealed class PhOnboardingService
         await _db.SaveChangesAsync(cancellationToken);
 
         await _audit.WriteAsync(
-            "OwnershipChanged",
+            AuditEventType.OwnershipChanged,
             correlationId: ownership.Id,
             metadata: new { propertyHorizontalId },
             cancellationToken: cancellationToken);
@@ -1191,14 +1517,182 @@ public sealed class PhOnboardingService
 
     private static PhDetailDto ToDetail(PropertyHorizontal ph) => new(
         ph.Id, ph.OrganizationId, ph.Code, ph.Name, ph.LegalName, ph.Country, ph.StateProvince, ph.City, ph.Address,
-        ph.TimeZoneId, ph.AdminEmail, ph.Phone, ph.Status.ToString(), ph.OnboardingStep);
+        ph.TimeZoneId, ph.AdminEmail, ph.Phone, ph.Status.ToString(), ph.OnboardingStep, ph.ConcurrencyStamp);
 
     private static UnitDto ToUnitDto(Unit u) =>
         new(u.Id, u.PropertyHorizontalId, u.Code, u.Tower, u.Floor, u.UnitType, u.CoefficientPercent, u.IsActive);
 
     private static OwnerDetailDto ToOwnerDetail(Owner owner, IReadOnlyList<OwnerUnitLinkDto> links) => new(
         owner.Id, owner.DisplayName, owner.FirstName, owner.LastName, owner.IdentificationType, owner.Identification,
-        owner.Email, owner.Phone, owner.Status.ToString(), owner.UserId, links);
+        owner.Email, owner.Phone, owner.Status.ToString(), owner.UserId, owner.ConcurrencyStamp, links);
+
+    private static void EnsurePhNotInactiveForMutation(PropertyHorizontal ph)
+    {
+        if (ph.Status == PhLifecycleStatus.Inactive)
+        {
+            throw new DomainException(
+                "PH_INACTIVE",
+                "Este PH está desactivado. Reactívalo antes de crear o modificar datos operativos.");
+        }
+    }
+
+    private static void EnsureConcurrency(string current, string? provided, string code)
+    {
+        if (!string.IsNullOrWhiteSpace(provided) && !string.Equals(current, provided, StringComparison.Ordinal))
+        {
+            throw new DomainException(code, "Otro usuario modificó este registro. Recarga e inténtalo de nuevo.");
+        }
+    }
+
+    private async Task EnsureOwnerInPhAsync(Guid propertyHorizontalId, Guid ownerId, CancellationToken cancellationToken)
+    {
+        var linked = await (
+            from own in _db.Ownerships.AsNoTracking()
+            join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
+            where own.OwnerId == ownerId && u.PropertyHorizontalId == propertyHorizontalId
+            select own.Id).AnyAsync(cancellationToken);
+        if (linked)
+        {
+            return;
+        }
+
+        var registered = await _db.Owners.AsNoTracking().AnyAsync(
+            o => o.Id == ownerId && o.RegisteredPropertyHorizontalId == propertyHorizontalId, cancellationToken);
+        if (!registered)
+        {
+            throw new DomainException("OWNER_NOT_IN_PH", "Owner does not belong to this property horizontal.");
+        }
+    }
+
+    private async Task<Ownership> UpsertOwnershipAsync(
+        Unit unit,
+        Guid ownerId,
+        decimal sharePercent,
+        DateTimeOffset? effectiveFromUtc,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _db.Ownerships.FirstOrDefaultAsync(
+            o => o.UnitId == unit.Id && o.OwnerId == ownerId, cancellationToken);
+        if (existing is not null)
+        {
+            if (existing.IsActive)
+            {
+                throw new DomainException("OWNERSHIP_DUPLICATE", "This owner is already linked to the unit.");
+            }
+
+            existing.IsActive = true;
+            existing.SharePercent = CoefficientValidator.Normalize(sharePercent);
+            existing.EffectiveFromUtc = effectiveFromUtc ?? DateTimeOffset.UtcNow;
+            existing.EffectiveToUtc = null;
+            return existing;
+        }
+
+        var ownership = new Ownership
+        {
+            TenantId = _currentTenant.TenantId,
+            UnitId = unit.Id,
+            OwnerId = ownerId,
+            SharePercent = CoefficientValidator.Normalize(sharePercent),
+            EffectiveFromUtc = effectiveFromUtc ?? DateTimeOffset.UtcNow,
+            IsActive = true
+        };
+        _db.Ownerships.Add(ownership);
+        return ownership;
+    }
+
+    private async Task<Dictionary<string, int>> CollectPhDependenciesAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken)
+    {
+        var assemblyIds = await _db.Assemblies.AsNoTracking()
+            .Where(a => a.PropertyHorizontalId == propertyHorizontalId)
+            .Select(a => a.Id)
+            .ToListAsync(cancellationToken);
+
+        var votes = 0;
+        var recordings = 0;
+        var quorum = 0;
+        if (assemblyIds.Count > 0)
+        {
+            var sessionIds = await _db.VotingSessions.AsNoTracking()
+                .Where(s => assemblyIds.Contains(s.AssemblyId))
+                .Select(s => s.Id)
+                .ToListAsync(cancellationToken);
+            votes = sessionIds.Count == 0
+                ? 0
+                : await _db.Votes.AsNoTracking().CountAsync(v => sessionIds.Contains(v.VotingSessionId), cancellationToken);
+            recordings = await _db.AssemblyRecordings.AsNoTracking()
+                .CountAsync(r => assemblyIds.Contains(r.AssemblyId), cancellationToken);
+            quorum = await _db.QuorumSnapshots.AsNoTracking()
+                .CountAsync(q => assemblyIds.Contains(q.AssemblyId), cancellationToken);
+        }
+
+        var units = await _db.Units.AsNoTracking().CountAsync(u => u.PropertyHorizontalId == propertyHorizontalId, cancellationToken);
+        return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["assemblies"] = assemblyIds.Count,
+            ["votes"] = votes,
+            ["recordings"] = recordings,
+            ["quorumSnapshots"] = quorum,
+            ["units"] = units
+        };
+    }
+
+    private async Task<Dictionary<string, int>> CollectOwnerDependenciesAsync(
+        Guid propertyHorizontalId,
+        Owner owner,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["attendance"] = 0,
+            ["votes"] = 0,
+            ["participants"] = 0,
+            ["powers"] = 0,
+            ["representations"] = 0,
+            ["ownerships"] = await (
+                from own in _db.Ownerships.AsNoTracking()
+                join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
+                where own.OwnerId == owner.Id && u.PropertyHorizontalId == propertyHorizontalId
+                select own.Id).CountAsync(cancellationToken)
+        };
+
+        if (owner.UserId is not Guid userId)
+        {
+            return result;
+        }
+
+        var assemblyIds = await _db.Assemblies.AsNoTracking()
+            .Where(a => a.PropertyHorizontalId == propertyHorizontalId)
+            .Select(a => a.Id)
+            .ToListAsync(cancellationToken);
+        if (assemblyIds.Count == 0)
+        {
+            return result;
+        }
+
+        result["participants"] = await _db.AssemblyParticipants.AsNoTracking()
+            .CountAsync(p => assemblyIds.Contains(p.AssemblyId) && p.UserId == userId, cancellationToken);
+        result["attendance"] = await _db.AttendanceRecords.AsNoTracking()
+            .CountAsync(a => assemblyIds.Contains(a.AssemblyId) && a.UserId == userId, cancellationToken);
+        result["powers"] = await _db.Powers.AsNoTracking()
+            .CountAsync(p => assemblyIds.Contains(p.AssemblyId)
+                             && (p.PrincipalOwnerId == owner.Id || p.RepresentativeUserId == userId), cancellationToken);
+        result["representations"] = await _db.AssemblyRepresentations.AsNoTracking()
+            .CountAsync(r => assemblyIds.Contains(r.AssemblyId) && r.RepresentativeUserId == userId, cancellationToken);
+
+        var sessionIds = await _db.VotingSessions.AsNoTracking()
+            .Where(s => assemblyIds.Contains(s.AssemblyId))
+            .Select(s => s.Id)
+            .ToListAsync(cancellationToken);
+        if (sessionIds.Count > 0)
+        {
+            result["votes"] = await _db.Votes.AsNoTracking()
+                .CountAsync(v => sessionIds.Contains(v.VotingSessionId) && v.UserId == userId, cancellationToken);
+        }
+
+        return result;
+    }
 }
 
 /// <summary>Small text/validation helpers shared across the PH onboarding services.</summary>

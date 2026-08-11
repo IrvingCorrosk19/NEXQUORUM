@@ -30,5 +30,9 @@ public interface IAssemblyRealtimePublisher
 
     Task PublishVotingClosedAsync(Guid assemblyId, CloseVotingSessionResponse result, CancellationToken cancellationToken = default);
 
+    Task PublishVotingCancelledAsync(Guid assemblyId, VotingSessionDto session, CancellationToken cancellationToken = default);
+
+    Task PublishVotingVersionCreatedAsync(Guid assemblyId, MotionDto motion, CancellationToken cancellationToken = default);
+
     Task PublishRecordingUpdatedAsync(Guid assemblyId, AssemblyRecordingDto recording, CancellationToken cancellationToken = default);
 }

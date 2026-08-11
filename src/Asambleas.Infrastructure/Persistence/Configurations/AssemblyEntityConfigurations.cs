@@ -91,10 +91,25 @@ internal sealed class MotionConfiguration : IEntityTypeConfiguration<Motion>
         builder.Property(x => x.Title).HasMaxLength(512).IsRequired();
         builder.Property(x => x.Body).HasMaxLength(8000).IsRequired();
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.DesignStatus).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.InstrumentKind).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.BallotKind).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.CalculationMethod).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.DecisionRuleCode).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.RequiredThresholdPercent).HasPrecision(7, 4);
+        builder.Property(x => x.DefaultResultVisibilityPolicy).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.OptionsJson).HasColumnType("jsonb");
+        builder.Property(x => x.Instructions).HasMaxLength(4000);
+        builder.Property(x => x.QuestionText).HasMaxLength(2000);
+        builder.Property(x => x.TemplateKey).HasMaxLength(64);
+        builder.Property(x => x.VersionNumber).HasDefaultValue(1);
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.AssemblyId);
+        builder.HasIndex(x => x.DesignStatus);
+        builder.HasIndex(x => x.RootMotionId);
         builder.HasIndex(x => new { x.AssemblyId, x.Code }).IsUnique();
         builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<AgendaItem>().WithMany().HasForeignKey(x => x.AgendaItemId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Motion>().WithMany().HasForeignKey(x => x.PreviousMotionId).OnDelete(DeleteBehavior.Restrict);
     }
 }

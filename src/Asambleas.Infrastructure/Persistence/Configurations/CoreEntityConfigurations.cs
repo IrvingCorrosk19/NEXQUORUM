@@ -36,6 +36,8 @@ internal sealed class PropertyHorizontalConfiguration : IEntityTypeConfiguration
     {
         builder.ToTable("property_horizontals");
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.ConcurrencyStamp).HasMaxLength(64).IsConcurrencyToken();
+        builder.Property(x => x.StatusBeforeDeactivate).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.Code).HasMaxLength(64).IsRequired();
         builder.Property(x => x.Name).HasMaxLength(256).IsRequired();
         builder.Property(x => x.LegalName).HasMaxLength(512);
@@ -86,8 +88,10 @@ internal sealed class OwnerConfiguration : IEntityTypeConfiguration<Owner>
         builder.Property(x => x.Email).HasMaxLength(256).IsRequired();
         builder.Property(x => x.Phone).HasMaxLength(64);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.ConcurrencyStamp).HasMaxLength(64).IsConcurrencyToken();
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => x.RegisteredPropertyHorizontalId);
         builder.HasIndex(x => new { x.TenantId, x.Email }).IsUnique();
         builder.HasIndex(x => new { x.TenantId, x.IdentificationType, x.Identification });
     }

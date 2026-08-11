@@ -142,6 +142,12 @@ public sealed class CalendarSchedulingService
             ?? throw new DomainException("Property horizontal was not found.");
 
         TenantGuard.EnsureTenantMatch(_currentTenant, ph.TenantId);
+        if (ph.Status == PhLifecycleStatus.Inactive)
+        {
+            throw new DomainException(
+                "PH_INACTIVE",
+                "No se pueden programar asambleas en un PH desactivado. Reactívalo primero.");
+        }
 
         var end = request.EstimatedEndAtUtc ?? request.ScheduledAtUtc.AddHours(2);
         if (end <= request.ScheduledAtUtc)

@@ -43,6 +43,32 @@ public sealed class VotingController : ControllerBase
         CancellationToken cancellationToken) =>
         _voting.CloseSessionAsync(assemblyId, votingSessionId, cancellationToken);
 
+    [HttpPost("{votingSessionId:guid}/withdraw")]
+    [Authorize(Policy = Permissions.VoteOpen)]
+    public Task<VotingSessionDto> Withdraw(
+        Guid assemblyId,
+        Guid votingSessionId,
+        [FromBody] WithdrawOpenVotingRequest? request,
+        CancellationToken cancellationToken) =>
+        _voting.WithdrawOpenAsync(assemblyId, votingSessionId, request, cancellationToken);
+
+    [HttpPost("{votingSessionId:guid}/cancel")]
+    [Authorize(Policy = Permissions.VoteClose)]
+    public Task<VotingSessionDto> Cancel(
+        Guid assemblyId,
+        Guid votingSessionId,
+        [FromBody] CancelVotingSessionRequest request,
+        CancellationToken cancellationToken) =>
+        _voting.CancelSessionAsync(assemblyId, votingSessionId, request, cancellationToken);
+
+    [HttpGet("history/{motionId:guid}")]
+    [Authorize(Policy = Permissions.VoteView)]
+    public Task<IReadOnlyList<VotingVersionHistoryItemDto>> History(
+        Guid assemblyId,
+        Guid motionId,
+        CancellationToken cancellationToken) =>
+        _voting.GetVersionHistoryAsync(assemblyId, motionId, cancellationToken);
+
     [HttpGet("{votingSessionId:guid}/results")]
     [Authorize(Policy = Permissions.VoteResults)]
     public Task<VoteTallyDto> Results(
