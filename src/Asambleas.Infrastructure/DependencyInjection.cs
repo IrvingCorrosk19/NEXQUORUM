@@ -71,10 +71,11 @@ public static class DependencyInjection
         services.AddScoped<IMeetingRecordingProvider, LiveKitMeetingRecordingProvider>();
         services.AddScoped<DemoDataSeeder>();
 
+        var keysPath = Environment.GetEnvironmentVariable("ASAMBLEAS_DP_KEYS_PATH")
+                       ?? "/root/.aspnet/DataProtection-Keys";
+        Directory.CreateDirectory(keysPath);
         services.AddDataProtection()
-            .PersistKeysToFileSystem(new DirectoryInfo(
-                Environment.GetEnvironmentVariable("ASAMBLEAS_DP_KEYS_PATH")
-                ?? "/data/dp-keys"));
+            .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
         services.AddScoped<ISecretProtector, DataProtectionSecretProtector>();
         services.AddSingleton<ICommunicationEnvironment, HostCommunicationEnvironment>();
         services.AddScoped<MockEmailProvider>();

@@ -54,12 +54,12 @@ services:
       ASAMBLEAS_RECORDING_SYNTHETIC: ${ASAMBLEAS_RECORDING_SYNTHETIC:-true}
       Recording__AllowSyntheticFallback: ${ASAMBLEAS_RECORDING_SYNTHETIC:-true}
       Recording__StorageRoot: /data/recordings
-      ASAMBLEAS_DP_KEYS_PATH: /data/dp-keys
+      ASAMBLEAS_DP_KEYS_PATH: /root/.aspnet/DataProtection-Keys
     ports:
       - "127.0.0.1:${ASAMBLEAS_HOST_PORT:-5090}:8080"
     volumes:
       - asambleas_recordings:/data/recordings
-      - asambleas_dp_keys:/data/dp-keys
+      - asambleas_dp_keys:/root/.aspnet/DataProtection-Keys
     networks:
       - asambleas_net
     healthcheck:
