@@ -84,4 +84,13 @@ public static class AuditEventType
     public const string OwnershipCreated = "OWNERSHIP_CREATED";
     public const string OwnershipEnded = "OWNERSHIP_ENDED";
     public const string OwnershipTransferred = "OWNERSHIP_TRANSFERRED";
+
+    public const string OwnerInvitationCreated = "OWNER_INVITATION_CREATED";
+    public const string OwnerInvitationSent = "OWNER_INVITATION_SENT";
+    public const string OwnerInvitationResent = "OWNER_INVITATION_RESENT";
+    public const string OwnerInvitationAccepted = "OWNER_INVITATION_ACCEPTED";
+    public const string OwnerInvitationRevoked = "OWNER_INVITATION_REVOKED";
+    public const string OwnerUserLinked = "OWNER_USER_LINKED";
+    public const string OwnerAccessSuspended = "OWNER_ACCESS_SUSPENDED";
+    public const string OwnerAccessRestored = "OWNER_ACCESS_RESTORED";
 }

@@ -122,7 +122,9 @@ public sealed record OwnerListItemDto(
     decimal CoefficientPercent,
     bool HasUser,
     bool HasEmail,
-    Guid? UserId);
+    Guid? UserId,
+    string PlatformAccessStatus,
+    DateTimeOffset? InvitationExpiresAtUtc);
 
 public sealed record OwnerDetailDto(
     Guid Id,
@@ -136,7 +138,10 @@ public sealed record OwnerDetailDto(
     string Status,
     Guid? UserId,
     string ConcurrencyStamp,
-    IReadOnlyList<OwnerUnitLinkDto> Units);
+    IReadOnlyList<OwnerUnitLinkDto> Units,
+    string PlatformAccessStatus,
+    DateTimeOffset? InvitationExpiresAtUtc,
+    bool PhAccessActive);
 
 public sealed record OwnerUnitLinkDto(
     Guid OwnershipId,
@@ -297,12 +302,25 @@ public sealed record InviteOwnerResultDto(
     string Email,
     DateTimeOffset ExpiresAtUtc,
     string ActivationPath,
-    bool ExistingUserLinked);
+    bool ExistingUserLinked,
+    bool RequiresLoginToAccept = false);
 
 public sealed record ActivateInvitationRequest(
     string Token,
     string Password,
     string? DisplayName);
+
+public sealed record AcceptInvitationRequest(string Token);
+
+public sealed record InvitationPreviewDto(
+    string Email,
+    string OwnerDisplayName,
+    string PropertyHorizontalName,
+    DateTimeOffset ExpiresAtUtc,
+    bool RequiresLoginToAccept,
+    bool IsExpired = false,
+    string? ErrorCode = null,
+    string? ErrorMessage = null);
 
 public sealed record PhMembershipDto(
     Guid PropertyHorizontalId,
@@ -320,7 +338,8 @@ public sealed record OwnerQuery(
     string? Status = null,
     bool? HasEmail = null,
     bool? Invited = null,
-    bool? HasUser = null);
+    bool? HasUser = null,
+    string? AccessStatus = null);
 
 public sealed record BulkInviteRequest(IReadOnlyList<Guid> OwnerIds);
 
@@ -329,6 +348,29 @@ public sealed record BulkInviteResultDto(
     int LinkedExisting,
     int Failed,
     IReadOnlyList<string> Errors);
+
+public sealed record BulkInvitePreviewDto(
+    int Selected,
+    int WithEmail,
+    int WithoutEmail,
+    int AlreadyActive,
+    int Pending,
+    int ToInvite);
+
+public sealed record MyOwnerProfileDto(
+    string DisplayName,
+    string Email,
+    string? Phone,
+    IReadOnlyList<MyOwnerUnitDto> Units,
+    IReadOnlyList<PhMembershipDto> Properties);
+
+public sealed record MyOwnerUnitDto(
+    string UnitCode,
+    string? Tower,
+    decimal SharePercent,
+    decimal UnitCoefficientPercent,
+    string PropertyHorizontalName,
+    bool IsActive);
 
 public sealed record BulkValidateOwnersResultDto(
     int OwnerCount,

@@ -23,6 +23,13 @@ public sealed class OwnerPortalIdentityService : IOwnerPortalIdentityService
         return user?.Id;
     }
 
+    public async Task<string?> GetEmailByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        return user?.Email;
+    }
+
     public async Task<Guid> EnsureOwnerUserAsync(
         Guid tenantId,
         Guid? organizationId,

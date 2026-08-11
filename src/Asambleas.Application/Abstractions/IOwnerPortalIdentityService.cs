@@ -7,6 +7,8 @@ public interface IOwnerPortalIdentityService
 {
     Task<Guid?> FindUserIdByEmailAsync(string email, CancellationToken cancellationToken = default);
 
+    Task<string?> GetEmailByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+
     Task<Guid> EnsureOwnerUserAsync(
         Guid tenantId,
         Guid? organizationId,

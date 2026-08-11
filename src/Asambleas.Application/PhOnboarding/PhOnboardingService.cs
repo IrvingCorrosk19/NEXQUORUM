@@ -671,6 +671,22 @@ public sealed class PhOnboardingService
             owners.TryAdd(owner.Id, owner);
         }
 
+        var ownerIds = owners.Keys.ToList();
+        var now = DateTimeOffset.UtcNow;
+        var invitations = await _db.OwnerInvitations.AsNoTracking()
+            .Where(i => i.PropertyHorizontalId == propertyHorizontalId && ownerIds.Contains(i.OwnerId))
+            .Select(i => new { i.OwnerId, i.ExpiresAtUtc, i.ConsumedAtUtc })
+            .ToListAsync(cancellationToken);
+        var invitationsByOwner = invitations.GroupBy(i => i.OwnerId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var userIds = owners.Values.Where(o => o.UserId is not null).Select(o => o.UserId!.Value).Distinct().ToList();
+        var memberships = userIds.Count == 0
+            ? []
+            : await _db.UserPropertyMemberships.AsNoTracking()
+                .Where(m => m.PropertyHorizontalId == propertyHorizontalId && userIds.Contains(m.UserId))
+                .ToListAsync(cancellationToken);
+        var membershipByUser = memberships.ToDictionary(m => m.UserId);
+
         var items = owners.Values.Select(owner =>
         {
             byOwner.TryGetValue(owner.Id, out var links);
@@ -690,6 +706,15 @@ public sealed class PhOnboardingService
             var coeff = CoefficientValidator.Normalize(
                 activeLinks.Sum(x => x.Unit.CoefficientPercent * x.Ownership.SharePercent / 100m));
 
+            invitationsByOwner.TryGetValue(owner.Id, out var invRows);
+            UserPropertyMembership? membership = null;
+            if (owner.UserId is Guid uid)
+            {
+                membershipByUser.TryGetValue(uid, out membership);
+            }
+
+            var (access, expires) = ResolvePlatformAccess(owner, membership, invRows?.Select(i => (i.ExpiresAtUtc, i.ConsumedAtUtc)).ToList(), now);
+
             return new OwnerListItemDto(
                 owner.Id,
                 owner.DisplayName,
@@ -700,7 +725,9 @@ public sealed class PhOnboardingService
                 coeff,
                 owner.UserId is not null,
                 !string.IsNullOrWhiteSpace(owner.Email),
-                owner.UserId);
+                owner.UserId,
+                access,
+                expires);
         }).ToList();
 
         if (!string.IsNullOrWhiteSpace(query.Search))
@@ -738,6 +765,12 @@ public sealed class PhOnboardingService
                       || string.Equals(o.Status, nameof(OwnerLifecycleStatus.Active), StringComparison.OrdinalIgnoreCase)
                     : string.Equals(o.Status, nameof(OwnerLifecycleStatus.Draft), StringComparison.OrdinalIgnoreCase))
                 .ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.AccessStatus))
+        {
+            var access = query.AccessStatus.Trim();
+            items = items.Where(o => string.Equals(o.PlatformAccessStatus, access, StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
         return items.OrderBy(o => o.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
@@ -827,7 +860,26 @@ public sealed class PhOnboardingService
 
         var owner = await LoadOwnerAsync(ownerId, cancellationToken);
         var links = await LoadOwnerUnitLinksAsync(propertyHorizontalId, ownerId, cancellationToken);
-        return ToOwnerDetail(owner, links);
+        var now = DateTimeOffset.UtcNow;
+        var invRows = await _db.OwnerInvitations.AsNoTracking()
+            .Where(i => i.PropertyHorizontalId == propertyHorizontalId && i.OwnerId == ownerId)
+            .Select(i => new { i.ExpiresAtUtc, i.ConsumedAtUtc })
+            .ToListAsync(cancellationToken);
+        UserPropertyMembership? membership = null;
+        if (owner.UserId is Guid uid)
+        {
+            membership = await _db.UserPropertyMemberships.AsNoTracking()
+                .FirstOrDefaultAsync(
+                    m => m.UserId == uid && m.PropertyHorizontalId == propertyHorizontalId,
+                    cancellationToken);
+        }
+
+        var (access, expires) = ResolvePlatformAccess(
+            owner,
+            membership,
+            invRows.Select(i => (i.ExpiresAtUtc, i.ConsumedAtUtc)).ToList(),
+            now);
+        return ToOwnerDetail(owner, links, access, expires, membership?.IsActive == true);
     }
 
     public async Task<OwnerDetailDto> CreateOwnerAsync(
@@ -1689,9 +1741,67 @@ public sealed class PhOnboardingService
     private static UnitDto ToUnitDto(Unit u) =>
         new(u.Id, u.PropertyHorizontalId, u.Code, u.Tower, u.Floor, u.UnitType, u.CoefficientPercent, u.IsActive);
 
-    private static OwnerDetailDto ToOwnerDetail(Owner owner, IReadOnlyList<OwnerUnitLinkDto> links) => new(
-        owner.Id, owner.DisplayName, owner.FirstName, owner.LastName, owner.IdentificationType, owner.Identification,
-        owner.Email, owner.Phone, owner.Status.ToString(), owner.UserId, owner.ConcurrencyStamp, links);
+    private static OwnerDetailDto ToOwnerDetail(
+        Owner owner,
+        IReadOnlyList<OwnerUnitLinkDto> links,
+        string platformAccessStatus = "NotInvited",
+        DateTimeOffset? invitationExpiresAtUtc = null,
+        bool phAccessActive = false) => new(
+        owner.Id,
+        owner.DisplayName,
+        owner.FirstName,
+        owner.LastName,
+        owner.IdentificationType,
+        owner.Identification,
+        owner.Email,
+        owner.Phone,
+        owner.Status.ToString(),
+        owner.UserId,
+        owner.ConcurrencyStamp,
+        links,
+        platformAccessStatus,
+        invitationExpiresAtUtc,
+        phAccessActive);
+
+    private static (string Status, DateTimeOffset? ExpiresAtUtc) ResolvePlatformAccess(
+        Owner owner,
+        UserPropertyMembership? membership,
+        IReadOnlyList<(DateTimeOffset ExpiresAtUtc, DateTimeOffset? ConsumedAtUtc)>? invitations,
+        DateTimeOffset now)
+    {
+        if (membership is not null && !membership.IsActive)
+        {
+            return ("AccessSuspended", null);
+        }
+
+        if (owner.UserId is not null && membership is { IsActive: true })
+        {
+            return ("Active", null);
+        }
+
+        if (invitations is { Count: > 0 })
+        {
+            var pending = invitations
+                .Where(i => i.ConsumedAtUtc is null && i.ExpiresAtUtc > now)
+                .OrderByDescending(i => i.ExpiresAtUtc)
+                .FirstOrDefault();
+            if (pending.ExpiresAtUtc > now)
+            {
+                return ("InvitationPending", pending.ExpiresAtUtc);
+            }
+
+            var expired = invitations
+                .Where(i => i.ConsumedAtUtc is null)
+                .OrderByDescending(i => i.ExpiresAtUtc)
+                .FirstOrDefault();
+            if (expired.ExpiresAtUtc != default)
+            {
+                return ("InvitationExpired", expired.ExpiresAtUtc);
+            }
+        }
+
+        return ("NotInvited", null);
+    }
 
     private static void EnsurePhNotInactiveForMutation(PropertyHorizontal ph)
     {
@@ -1744,7 +1854,14 @@ public sealed class PhOnboardingService
         {
             if (existing.IsActive)
             {
-                throw new DomainException("OWNERSHIP_DUPLICATE", "This owner is already linked to the unit.");
+                // Idempotent associate: same owner+unit already active (common on re-save / re-add).
+                var normalized = CoefficientValidator.Normalize(sharePercent);
+                if (existing.SharePercent != normalized)
+                {
+                    existing.SharePercent = normalized;
+                }
+
+                return existing;
             }
 
             existing.IsActive = true;

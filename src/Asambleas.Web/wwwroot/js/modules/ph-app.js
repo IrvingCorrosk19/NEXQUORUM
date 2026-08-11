@@ -787,50 +787,59 @@ async function startOwnerEdit(ownerId) {
 async function onSaveOwner(ev) {
   ev.preventDefault();
   const data = formData(ev.target);
-  if (editingOwnerId) {
-    await api(`/api/ph/${currentPhId}/owners/${editingOwnerId}`, {
-      method: "PUT",
-      body: {
-        firstName: data.firstName || null,
-        lastName: data.lastName || null,
-        identificationType: data.identificationType || null,
-        identification: data.identification || null,
-        email: data.email,
-        phone: data.phone || null,
-        concurrencyStamp: data.concurrencyStamp || null
-      }
-    });
-    if (data.unitId) {
-      await api(`/api/ph/${currentPhId}/ownerships`, {
-        method: "POST",
+  try {
+    if (editingOwnerId) {
+      await api(`/api/ph/${currentPhId}/owners/${editingOwnerId}`, {
+        method: "PUT",
         body: {
-          ownerId: editingOwnerId,
-          unitId: data.unitId,
-          sharePercent: Number(data.sharePercent || 100)
+          firstName: data.firstName || null,
+          lastName: data.lastName || null,
+          identificationType: data.identificationType || null,
+          identification: data.identification || null,
+          email: data.email,
+          phone: data.phone || null,
+          concurrencyStamp: data.concurrencyStamp || null
         }
       });
-    }
-    showAlert("Propietario actualizado.", "ok");
-  } else {
-    await api(`/api/ph/${currentPhId}/owners`, {
-      method: "POST",
-      body: {
-        firstName: data.firstName || null,
-        lastName: data.lastName || null,
-        identificationType: data.identificationType || null,
-        identification: data.identification || null,
-        email: data.email,
-        phone: data.phone || null,
-        unitId: data.unitId || null,
-        sharePercent: data.unitId ? Number(data.sharePercent || 100) : null
+      if (data.unitId) {
+        await api(`/api/ph/${currentPhId}/ownerships`, {
+          method: "POST",
+          body: {
+            ownerId: editingOwnerId,
+            unitId: data.unitId,
+            sharePercent: Number(data.sharePercent || 100)
+          }
+        });
       }
-    });
-    showAlert("Propietario creado.", "ok");
+      showAlert("Propietario actualizado.", "ok");
+    } else {
+      await api(`/api/ph/${currentPhId}/owners`, {
+        method: "POST",
+        body: {
+          firstName: data.firstName || null,
+          lastName: data.lastName || null,
+          identificationType: data.identificationType || null,
+          identification: data.identification || null,
+          email: data.email,
+          phone: data.phone || null,
+          unitId: data.unitId || null,
+          sharePercent: data.unitId ? Number(data.sharePercent || 100) : null
+        }
+      });
+      showAlert("Propietario creado.", "ok");
+    }
+    editingOwnerId = null;
+    ev.target.reset();
+    $("#owner-form-wrap").hidden = true;
+    await loadOwners();
+  } catch (err) {
+    const msg = err?.message || String(err);
+    if (/already linked|OWNERSHIP_DUPLICATE|ya (está|esta) vinculad/i.test(msg)) {
+      showAlert("Este propietario ya está vinculado a esa unidad. Elige otra unidad o deja el campo vacío.", "error");
+      return;
+    }
+    showAlert(msg);
   }
-  editingOwnerId = null;
-  ev.target.reset();
-  $("#owner-form-wrap").hidden = true;
-  await loadOwners();
 }
 
 async function showOwner(ownerId) {

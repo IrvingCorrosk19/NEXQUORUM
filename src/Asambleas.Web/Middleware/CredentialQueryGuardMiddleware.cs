@@ -6,9 +6,15 @@ namespace Asambleas.Web.Middleware;
 /// </summary>
 public sealed class CredentialQueryGuardMiddleware
 {
-    private static readonly string[] SensitiveKeys =
+    /// <summary>Never allow passwords/secrets in query. Invitation tokens are allowed only on activation UX.</summary>
+    private static readonly string[] AlwaysSensitiveKeys =
     [
-        "password", "passwd", "pwd", "secret", "token", "apikey", "api_key"
+        "password", "passwd", "pwd", "secret", "apikey", "api_key"
+    ];
+
+    private static readonly string[] TokenLikeKeys =
+    [
+        "token", "accesstoken", "access_token", "id_token"
     ];
 
     private readonly RequestDelegate _next;
@@ -17,7 +23,7 @@ public sealed class CredentialQueryGuardMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (context.Request.Query.Count > 0 && ContainsSensitiveQuery(context.Request.Query))
+        if (context.Request.Query.Count > 0 && ContainsSensitiveQuery(context.Request.Path, context.Request.Query))
         {
             var path = context.Request.Path.HasValue ? context.Request.Path.Value! : "/";
             context.Response.StatusCode = StatusCodes.Status303SeeOther;
@@ -28,8 +34,10 @@ public sealed class CredentialQueryGuardMiddleware
         await _next(context);
     }
 
-    private static bool ContainsSensitiveQuery(IQueryCollection query)
+    private static bool ContainsSensitiveQuery(PathString path, IQueryCollection query)
     {
+        var allowInviteToken = IsOwnerActivationPath(path);
+
         foreach (var key in query.Keys)
         {
             if (string.IsNullOrEmpty(key))
@@ -38,19 +46,30 @@ public sealed class CredentialQueryGuardMiddleware
             }
 
             var normalized = key.Trim().ToLowerInvariant();
-            if (SensitiveKeys.Any(s => normalized == s || normalized.Contains(s, StringComparison.Ordinal)))
+            if (AlwaysSensitiveKeys.Any(s => normalized == s || normalized.Contains(s, StringComparison.Ordinal)))
             {
                 return true;
             }
 
-            if (normalized is "email" or "username" or "user")
+            if (TokenLikeKeys.Any(s => normalized == s || normalized.Contains(s, StringComparison.Ordinal)))
             {
-                // Email alone is not a password, but email+password combo is handled by password key.
-                // Still strip auth-shaped GET logins that include email when password also present —
-                // password key already triggers. Allow assemblyId etc.
+                // Owner portal activation uses a single-use opaque token in the query on /activate.html only.
+                if (allowInviteToken && normalized == "token")
+                {
+                    continue;
+                }
+
+                return true;
             }
         }
 
         return false;
+    }
+
+    private static bool IsOwnerActivationPath(PathString path)
+    {
+        var value = path.Value ?? string.Empty;
+        return value.Equals("/activate.html", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/activate", StringComparison.OrdinalIgnoreCase);
     }
 }
