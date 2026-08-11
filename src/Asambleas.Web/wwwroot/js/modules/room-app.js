@@ -48,8 +48,9 @@ import {
 } from "./ui.js";
 import { hydrateRoomState, resumeAssembly } from "./room-state.js";
 import { isOperator, resolveViewerRole } from "./roles.js";
+import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 
-const assemblyId = assemblyIdFromUrl();
+let assemblyId = assemblyIdFromUrl();
 
 const els = {
   room: qs(".room"),
@@ -1579,7 +1580,11 @@ async function init() {
   localizeChrome();
 
   if (!assemblyId) {
-    showError(t("dashboard.missingId"));
+    assemblyId = await ensureAssemblyIdOrRedirect();
+    if (!assemblyId) {
+      showError(t("dashboard.missingId"));
+      return;
+    }
     return;
   }
 

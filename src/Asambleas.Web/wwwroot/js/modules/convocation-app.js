@@ -1,8 +1,9 @@
 import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { assemblyIdFromUrl, confirmDialog, escapeHtml, qs, showToast } from "./ui.js";
+import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 
-const assemblyId = assemblyIdFromUrl();
+let assemblyId = assemblyIdFromUrl();
 let selectedId = null;
 
 function showError(message) {
@@ -84,7 +85,11 @@ async function openDetail(id) {
 
 async function init() {
   if (!assemblyId) {
-    showError("Falta assemblyId.");
+    assemblyId = await ensureAssemblyIdOrRedirect();
+    if (!assemblyId) {
+      showError("Falta assemblyId.");
+      return;
+    }
     return;
   }
 

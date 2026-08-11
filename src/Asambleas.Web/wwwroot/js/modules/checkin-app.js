@@ -6,8 +6,9 @@ import { getParticipants, hydrateRoomState } from "./room-state.js";
 import { isOperator } from "./roles.js";
 import { renderQuorum } from "./quorum.js";
 import { createAssemblyConnection } from "./signalr-client.js";
+import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 
-const assemblyId = assemblyIdFromUrl();
+let assemblyId = assemblyIdFromUrl();
 let participants = [];
 let user = null;
 let pendingPreview = null;
@@ -449,7 +450,11 @@ async function init() {
   qs("label[for='participant-filter']").textContent = t("checkin.searchLabel");
 
   if (!assemblyId) {
-    showError(t("dashboard.missingId"));
+    assemblyId = await ensureAssemblyIdOrRedirect();
+    if (!assemblyId) {
+      showError(t("dashboard.missingId"));
+      return;
+    }
     return;
   }
 

@@ -2,6 +2,7 @@ import { me } from "./auth.js";
 import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { hydrateRoomState } from "./room-state.js";
+import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import {
   enumerateMediaDevices,
   fetchJoinToken,
@@ -14,7 +15,7 @@ import {
   stopDevicePreview
 } from "./meeting.js";
 
-const assemblyId = assemblyIdFromUrl();
+let assemblyId = assemblyIdFromUrl();
 const device = { camera: true, mic: true };
 let joinReady = false;
 let meetingAvailable = false;

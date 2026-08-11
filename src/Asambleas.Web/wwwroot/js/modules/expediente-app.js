@@ -2,8 +2,9 @@ import { api } from "./api.js";
 import { me } from "./auth.js";
 import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
+import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 
-const assemblyId = assemblyIdFromUrl();
+let assemblyId = assemblyIdFromUrl();
 
 function showError(message) {
   const el = qs("#page-alert");
@@ -203,7 +204,11 @@ async function init() {
   await initI18n();
   qs("#page-title").textContent = "Expediente digital";
   if (!assemblyId) {
-    showError("Falta assemblyId");
+    assemblyId = await ensureAssemblyIdOrRedirect();
+    if (!assemblyId) {
+      showError("Falta assemblyId");
+      return;
+    }
     return;
   }
   try {

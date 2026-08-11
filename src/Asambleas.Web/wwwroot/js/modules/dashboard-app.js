@@ -193,7 +193,10 @@ async function init() {
 
   assemblyId = await resolveAssemblyId();
   if (assemblyId) {
-    ensureAssemblyIdInUrl(assemblyId);
+    // Hard-navigate so the address bar always includes ?assemblyId=…
+    if (ensureAssemblyIdInUrl(assemblyId, { hard: true })) {
+      return;
+    }
   }
 
   const q = assemblyId ? `assemblyId=${encodeURIComponent(assemblyId)}` : "";

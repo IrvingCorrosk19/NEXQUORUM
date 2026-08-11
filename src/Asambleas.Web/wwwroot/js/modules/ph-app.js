@@ -63,6 +63,15 @@ async function init() {
     location.href = "/";
   });
 
+  try {
+    const { resolveDefaultAssemblyId, dashboardHref } = await import("./assembly-context.js");
+    const aid = await resolveDefaultAssemblyId();
+    const panel = document.querySelector("#nav-dashboard, .app-nav a[href='/dashboard.html'], .app-nav a[href^='/dashboard.html']");
+    if (panel) panel.setAttribute("href", dashboardHref(aid));
+  } catch {
+    /* ignore */
+  }
+
   if (!hasPermission(user, "ph:view")) {
     showAlert("No tienes permiso para administrar propiedades horizontales.");
     return;

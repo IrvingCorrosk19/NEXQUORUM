@@ -55,6 +55,10 @@ async function init() {
       const db = b.scheduledAtUtc ? new Date(b.scheduledAtUtc).getTime() : 0;
       return db - da;
     });
+    const { dashboardHref } = await import("./assembly-context.js");
+    const pick = all.find((a) => !["Completed", "Cancelled"].includes(a.status)) || all[0];
+    const panel = document.querySelector("#nav-dashboard, .app-nav a[href='/dashboard.html'], .app-nav a[href^='/dashboard.html']");
+    if (panel) panel.setAttribute("href", dashboardHref(pick?.id));
     render();
     qs("#search").addEventListener("input", (e) => render(e.target.value));
   } catch (err) {

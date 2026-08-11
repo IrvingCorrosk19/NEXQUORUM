@@ -30,14 +30,35 @@ export async function resolveDefaultAssemblyId() {
   }
 }
 
-/** Ensure address bar always carries assemblyId (hard navigation if missing). */
-export function ensureAssemblyIdInUrl(id) {
-  if (!id || typeof location === "undefined") return;
+/** Put assemblyId in the address bar. Uses hard replace when it was missing. */
+export function ensureAssemblyIdInUrl(id, { hard = true } = {}) {
+  if (!id || typeof location === "undefined") return false;
   const url = new URL(location.href);
-  if (url.searchParams.get("assemblyId") === id) return;
+  if (url.searchParams.get("assemblyId") === id) return false;
   url.searchParams.set("assemblyId", id);
   const next = url.pathname + url.search + url.hash;
+  if (hard) {
+    location.replace(next);
+    return true;
+  }
   if (typeof history !== "undefined" && history.replaceState) {
     history.replaceState({}, "", next);
   }
+  return false;
+}
+
+/** If URL lacks assemblyId, resolve one and redirect to the same page with it. */
+export async function ensureAssemblyIdOrRedirect() {
+  const current = new URLSearchParams(location.search).get("assemblyId");
+  if (current) return current;
+  const id = await resolveDefaultAssemblyId();
+  if (!id) return null;
+  ensureAssemblyIdInUrl(id, { hard: true });
+  return id;
+}
+
+export function dashboardHref(assemblyId) {
+  return assemblyId
+    ? `/dashboard.html?assemblyId=${encodeURIComponent(assemblyId)}`
+    : "/dashboard.html";
 }
