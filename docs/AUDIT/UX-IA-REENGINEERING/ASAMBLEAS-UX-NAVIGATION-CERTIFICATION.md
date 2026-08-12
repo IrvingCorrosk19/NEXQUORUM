@@ -2,7 +2,9 @@
 
 **Date:** 2026-08-12  
 **Scope:** Global navigation, assembly workspace, space utilization, voting center  
-**Environment tested:** localhost:5188 (static wwwroot + running dev server)
+**Environment tested:** localhost:5188 + https://asambleas.164.68.99.83.nip.io  
+**Commit:** `379b121`  
+**VPS deploy:** 2026-08-12 — HEALTH_READY_OK, backup `pre_perf_20260812_075054.sql.gz`
 
 ## Implementation summary
 
