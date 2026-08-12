@@ -43,16 +43,20 @@ let phFormBinder = null;
 const $ = (sel) => document.querySelector(sel);
 const alertEl = $("#page-alert");
 
-function canAdministerCurrentPh() {
+function canAdministerPh(phId = currentPhId) {
   if (hasPermission(user, "ph:manage") || hasPermission(user, "owner:manage")) {
     return true;
   }
-  if (!currentPhId) return false;
+  if (!phId) return false;
   const m = myMemberships.find(
-    (x) => String(x.propertyHorizontalId).toLowerCase() === String(currentPhId).toLowerCase()
+    (x) => String(x.propertyHorizontalId).toLowerCase() === String(phId).toLowerCase()
   );
   const hint = (m?.roleHint || "").toLowerCase();
   return hint === "phadmin" || hint === "tenantadmin" || hint === "platformadmin";
+}
+
+function canAdministerCurrentPh() {
+  return canAdministerPh(currentPhId);
 }
 
 function showAlert(message, kind = "error") {
@@ -348,7 +352,11 @@ async function loadList() {
               ? `<button type="button" data-reactivate="${p.id}">Reactivar</button>`
               : `<button type="button" data-archive="${p.id}">Archivar</button>`
           }
-          <button type="button" data-delete="${p.id}">Eliminar…</button>
+          ${
+            canAdministerPh(p.id)
+              ? `<button type="button" data-delete="${p.id}">Eliminar…</button>`
+              : ""
+          }
         </div>
       </article>`
     )
@@ -900,7 +908,22 @@ async function onReactivatePh() {
 
 async function onDeletePh() {
   if (!currentPhId) return;
-  const evaluation = await api(`/api/ph/${currentPhId}/delete-evaluation`);
+  if (!canAdministerCurrentPh()) {
+    showAlert("No tienes permiso para eliminar este PH. Se requiere Administrador PH.");
+    return;
+  }
+  let evaluation;
+  try {
+    evaluation = await api(`/api/ph/${currentPhId}/delete-evaluation`);
+  } catch (err) {
+    const msg = err?.message || String(err);
+    if (/403|Forbidden|permiso/i.test(msg)) {
+      showAlert("No tienes permiso para eliminar este PH. Inicia sesión como Administrador PH o como el administrador de esta propiedad.");
+    } else {
+      showAlert(msg);
+    }
+    return;
+  }
   if (!evaluation.canHardDelete) {
     const ok = await confirmAction(
       "No se puede eliminar",
@@ -912,7 +935,7 @@ async function onDeletePh() {
   }
   const ok = await confirmAction(
     "Eliminar permanentemente",
-    evaluation.summary || "Se eliminará este PH vacío de forma permanente. Esta acción no se puede deshacer.",
+    evaluation.summary || "Se eliminará este PH de forma permanente. Esta acción no se puede deshacer.",
     "Eliminar permanentemente"
   );
   if (!ok) return;

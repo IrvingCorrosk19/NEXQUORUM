@@ -17,6 +17,7 @@ public static class AuthorizationExtensions
         Permissions.UnitView,
         Permissions.OwnerView,
         Permissions.PhView,
+        Permissions.PhManage,
         Permissions.PhImport,
         Permissions.CommunicationsView,
         Permissions.CommunicationsConfigure,

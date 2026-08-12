@@ -8,9 +8,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
-/// Allows Owner/Unit/Invite admin APIs when the user has the permission claim globally,
-/// OR an active membership on the route PH with RoleHint PHAdmin (creator of that PH).
-/// Does not elevate create-PH / tenant-wide powers — only scoped mutation permissions.
+/// Allows Owner/Unit/Invite/PH lifecycle APIs when the user has the permission claim globally,
+/// OR an active membership on the route PH with RoleHint PHAdmin (creator/admin of that PH).
+/// Create-PH (POST without propertyHorizontalId) still requires a global ph:manage claim.
 /// </summary>
 public sealed class PhScopedAdminHandler : AuthorizationHandler<PhScopedAdminRequirement>
 {
