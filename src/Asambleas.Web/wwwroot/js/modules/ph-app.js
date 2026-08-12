@@ -561,17 +561,25 @@ async function refreshPhDeleteAvailability() {
   if (!delBtn || !currentPhId) return;
   try {
     const evaluation = await api(`/api/ph/${currentPhId}/delete-evaluation`);
-    delBtn.hidden = !evaluation.canHardDelete;
+    delBtn.hidden = false;
+    delBtn.disabled = !evaluation.canHardDelete;
+    delBtn.title = evaluation.canHardDelete
+      ? evaluation.summary || "Eliminar permanentemente"
+      : (evaluation.blockingReasons || []).join(" ") || evaluation.summary || "No se puede eliminar";
     const copy = $("#ph-danger-copy");
-    if (copy && !evaluation.canHardDelete) {
-      copy.textContent =
-        "Esta propiedad tiene historial. Usa Archivar para sacarla de operación sin destruir evidencias ni actas.";
-    } else if (copy) {
-      copy.textContent =
-        "Este PH no tiene historial de asambleas. Puedes archivarlo o eliminarlo permanentemente.";
+    if (copy) {
+      if (evaluation.canHardDelete) {
+        copy.textContent =
+          evaluation.summary ||
+          "Puedes eliminar este PH de forma permanente. Esta acción no se puede deshacer.";
+      } else {
+        copy.textContent =
+          `${evaluation.summary || "No se puede eliminar."} ${(evaluation.blockingReasons || []).join(" ")} Usa Archivar para sacarlo de operación sin destruir evidencias.`.trim();
+      }
     }
   } catch {
-    delBtn.hidden = true;
+    delBtn.hidden = false;
+    delBtn.disabled = true;
   }
 }
 

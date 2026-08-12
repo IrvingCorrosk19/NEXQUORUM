@@ -308,11 +308,8 @@ public sealed class PhOnboardingService
         var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
         var deps = await CollectPhDependenciesAsync(propertyHorizontalId, cancellationToken);
         var blockers = new List<string>();
-        if (deps.GetValueOrDefault("assemblies") > 0)
-        {
-            blockers.Add($"{ph.Name} contiene información histórica de asambleas.");
-        }
 
+        // Legal / evidentiary history only — Draft/Scheduled assemblies without votes may be purged.
         if (deps.GetValueOrDefault("votes") > 0)
         {
             blockers.Add("Existen votos registrados vinculados a este PH.");
@@ -328,12 +325,22 @@ public sealed class PhOnboardingService
             blockers.Add("Existen snapshots de quórum históricos.");
         }
 
+        if (deps.GetValueOrDefault("completedAssemblies") > 0)
+        {
+            blockers.Add($"{ph.Name} tiene asambleas finalizadas o en curso. Usa Archivar para conservar el expediente.");
+        }
+
         var canDelete = blockers.Count == 0;
+        var assemblyCount = deps.GetValueOrDefault("assemblies");
+        var summary = canDelete
+            ? assemblyCount > 0
+                ? $"Este PH puede eliminarse. Se borrarán también {assemblyCount} asamblea(s) sin historial de votos/grabaciones."
+                : "Este PH puede eliminarse de forma permanente."
+            : "NO SE PUEDE ELIMINAR ESTE PH";
+
         return new EntityDeleteEvaluationDto(
             canDelete,
-            canDelete
-                ? "Este PH no tiene historial de asambleas y puede eliminarse de forma segura."
-                : "NO SE PUEDE ELIMINAR ESTE PH",
+            summary,
             canDelete ? "DELETE" : "DEACTIVATE",
             blockers,
             deps);
@@ -348,10 +355,14 @@ public sealed class PhOnboardingService
             throw new DomainException(
                 "PH_DELETE_BLOCKED",
                 evaluation.Summary + " " + string.Join(" ", evaluation.BlockingReasons)
-                + " Puedes desactivarlo sin perder su historial.");
+                + " Puedes archivarlo sin perder su historial.");
         }
 
         var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: true, cancellationToken);
+
+        await PurgeAssembliesForPhAsync(propertyHorizontalId, cancellationToken);
+        await PurgePhScopedCommunicationsAsync(propertyHorizontalId, cancellationToken);
+
         var unitIds = await _db.Units.Where(u => u.PropertyHorizontalId == propertyHorizontalId).Select(u => u.Id).ToListAsync(cancellationToken);
         var ownerships = await _db.Ownerships.Where(o => unitIds.Contains(o.UnitId)).ToListAsync(cancellationToken);
         _db.Ownerships.RemoveRange(ownerships);
@@ -2033,10 +2044,16 @@ public sealed class PhOnboardingService
         Guid propertyHorizontalId,
         CancellationToken cancellationToken)
     {
-        var assemblyIds = await _db.Assemblies.AsNoTracking()
+        var assemblies = await _db.Assemblies.AsNoTracking()
             .Where(a => a.PropertyHorizontalId == propertyHorizontalId)
-            .Select(a => a.Id)
+            .Select(a => new { a.Id, a.Status })
             .ToListAsync(cancellationToken);
+        var assemblyIds = assemblies.Select(a => a.Id).ToList();
+        var completedAssemblies = assemblies.Count(a =>
+            a.Status is AssemblyStatus.Completed
+                or AssemblyStatus.InProgress
+                or AssemblyStatus.Paused
+                or AssemblyStatus.CheckIn);
 
         var votes = 0;
         var recordings = 0;
@@ -2060,11 +2077,109 @@ public sealed class PhOnboardingService
         return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
             ["assemblies"] = assemblyIds.Count,
+            ["completedAssemblies"] = completedAssemblies,
             ["votes"] = votes,
             ["recordings"] = recordings,
             ["quorumSnapshots"] = quorum,
             ["units"] = units
         };
+    }
+
+    /// <summary>
+    /// Removes Draft/Scheduled/Cancelled assemblies and related rows that block PH deletion (Restrict FKs).
+    /// Caller must ensure no legal history (votes/recordings/quorum/completed).
+    /// </summary>
+    private async Task PurgeAssembliesForPhAsync(Guid propertyHorizontalId, CancellationToken cancellationToken)
+    {
+        var assemblyIds = await _db.Assemblies
+            .Where(a => a.PropertyHorizontalId == propertyHorizontalId)
+            .Select(a => a.Id)
+            .ToListAsync(cancellationToken);
+        if (assemblyIds.Count == 0)
+        {
+            return;
+        }
+
+        var sessionIds = await _db.VotingSessions
+            .Where(s => assemblyIds.Contains(s.AssemblyId))
+            .Select(s => s.Id)
+            .ToListAsync(cancellationToken);
+
+        if (sessionIds.Count > 0)
+        {
+            await _db.Votes.Where(v => sessionIds.Contains(v.VotingSessionId)).ExecuteDeleteAsync(cancellationToken);
+            await _db.VotingEligibilitySnapshots.Where(s => sessionIds.Contains(s.VotingSessionId)).ExecuteDeleteAsync(cancellationToken);
+            await _db.VotingSessions.Where(s => sessionIds.Contains(s.Id)).ExecuteDeleteAsync(cancellationToken);
+        }
+
+        await _db.Motions
+            .Where(m => assemblyIds.Contains(m.AssemblyId) && m.PreviousMotionId != null)
+            .ExecuteUpdateAsync(s => s.SetProperty(m => m.PreviousMotionId, (Guid?)null), cancellationToken);
+        await _db.Motions.Where(m => assemblyIds.Contains(m.AssemblyId)).ExecuteDeleteAsync(cancellationToken);
+
+        var convocationIds = await _db.Convocations
+            .Where(c => assemblyIds.Contains(c.AssemblyId))
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+        if (convocationIds.Count > 0)
+        {
+            var batchIds = await _db.CommunicationBatches
+                .Where(b => convocationIds.Contains(b.ConvocationId))
+                .Select(b => b.Id)
+                .ToListAsync(cancellationToken);
+            if (batchIds.Count > 0)
+            {
+                var deliveryIds = await _db.CommunicationDeliveries
+                    .Where(d => batchIds.Contains(d.BatchId))
+                    .Select(d => d.Id)
+                    .ToListAsync(cancellationToken);
+                if (deliveryIds.Count > 0)
+                {
+                    await _db.CommunicationDeliveryEvents
+                        .Where(e => deliveryIds.Contains(e.DeliveryId))
+                        .ExecuteDeleteAsync(cancellationToken);
+                    await _db.CommunicationDeliveries
+                        .Where(d => deliveryIds.Contains(d.Id))
+                        .ExecuteDeleteAsync(cancellationToken);
+                }
+
+                await _db.CommunicationBatches.Where(b => batchIds.Contains(b.Id)).ExecuteDeleteAsync(cancellationToken);
+            }
+
+            await _db.AssemblyAccessLinks
+                .Where(l => convocationIds.Contains(l.ConvocationId))
+                .ExecuteDeleteAsync(cancellationToken);
+            await _db.ConvocationRecipients
+                .Where(r => convocationIds.Contains(r.ConvocationId))
+                .ExecuteDeleteAsync(cancellationToken);
+            await _db.Convocations.Where(c => convocationIds.Contains(c.Id)).ExecuteDeleteAsync(cancellationToken);
+        }
+
+        await _db.AssemblyAccessLinks.Where(l => assemblyIds.Contains(l.AssemblyId)).ExecuteDeleteAsync(cancellationToken);
+        await _db.AuditEvents
+            .Where(a => a.AssemblyId != null && assemblyIds.Contains(a.AssemblyId.Value))
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.AssemblyId, (Guid?)null), cancellationToken);
+
+        await _db.Assemblies.Where(a => assemblyIds.Contains(a.Id)).ExecuteDeleteAsync(cancellationToken);
+    }
+
+    private async Task PurgePhScopedCommunicationsAsync(Guid propertyHorizontalId, CancellationToken cancellationToken)
+    {
+        await _db.PortalNotifications
+            .Where(n => n.PropertyHorizontalId == propertyHorizontalId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await _db.ReminderRules
+            .Where(r => r.PropertyHorizontalId == propertyHorizontalId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await _db.MessageTemplates
+            .Where(t => t.PropertyHorizontalId == propertyHorizontalId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await _db.ChannelConfigurations
+            .Where(c => c.PropertyHorizontalId == propertyHorizontalId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await _db.CommunicationProfiles
+            .Where(p => p.PropertyHorizontalId == propertyHorizontalId)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 
     private async Task<Dictionary<string, int>> CollectOwnerDependenciesAsync(
