@@ -40,7 +40,10 @@ public sealed class MeetingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
-        if (assembly.Status is AssemblyStatus.Draft or AssemblyStatus.Cancelled or AssemblyStatus.Completed)
+        if (assembly.Status is AssemblyStatus.Draft
+            or AssemblyStatus.Scheduled
+            or AssemblyStatus.Cancelled
+            or AssemblyStatus.Completed)
         {
             throw new DomainException($"Meeting join is not available while assembly is '{assembly.Status}'.");
         }

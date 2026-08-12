@@ -65,6 +65,12 @@ public sealed class SurveyFormService
         ArgumentNullException.ThrowIfNull(request);
 
         var assembly = await EnsureAssemblyAsync(assemblyId, cancellationToken);
+        if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
+        {
+            throw new DomainException(
+                "ASSEMBLY_SEALED",
+                $"Survey mutations are not allowed while assembly is '{assembly.Status}'.");
+        }
         var title = Require(request.Title, "Title", 512);
 
         if (request.AgendaItemId is Guid agendaId)
@@ -145,6 +151,7 @@ public sealed class SurveyFormService
         Guid formId,
         CancellationToken cancellationToken = default)
     {
+        await EnsureAssemblyMutableAsync(assemblyId, cancellationToken);
         var form = await LoadFormTrackedAsync(assemblyId, formId, cancellationToken);
         EnsureDraft(form);
 
@@ -212,6 +219,7 @@ public sealed class SurveyFormService
         ArgumentNullException.ThrowIfNull(request);
         var userId = TenantGuard.RequireUserId(_currentTenant);
 
+        await EnsureAssemblyMutableAsync(assemblyId, cancellationToken);
         var form = await LoadFormTrackedAsync(assemblyId, formId, cancellationToken);
         if (form.Status != "Published")
         {
@@ -560,6 +568,17 @@ public sealed class SurveyFormService
             ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
         return assembly;
+    }
+
+    private async Task EnsureAssemblyMutableAsync(Guid assemblyId, CancellationToken cancellationToken)
+    {
+        var assembly = await EnsureAssemblyAsync(assemblyId, cancellationToken);
+        if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
+        {
+            throw new DomainException(
+                "ASSEMBLY_SEALED",
+                $"Survey mutations are not allowed while assembly is '{assembly.Status}'.");
+        }
     }
 
     private async Task EnsureAgendaAsync(Guid assemblyId, Guid agendaItemId, CancellationToken cancellationToken)

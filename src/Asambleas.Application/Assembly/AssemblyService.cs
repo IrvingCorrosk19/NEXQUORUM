@@ -102,6 +102,35 @@ public sealed class AssemblyService
     public Task<AssemblySummaryDto> CompleteAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
         TransitionAsync(assemblyId, AssemblyStatus.Completed, AuditEventType.AssemblyCompleted, cancellationToken);
 
+    /// <summary>Draft → Scheduled (explicit publish / programar).</summary>
+    public async Task<AssemblySummaryDto> PublishScheduledAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+
+        var assembly = await _db.Assemblies
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+        AssemblyLifecycle.EnsureCanTransition(assembly.Status, AssemblyStatus.Scheduled);
+
+        var from = assembly.Status;
+        assembly.Status = AssemblyStatus.Scheduled;
+        assembly.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var summary = Mapping.ToSummary(assembly);
+        await _audit.WriteAsync(
+            AuditEventType.AssemblyScheduled,
+            assembly.Id,
+            metadata: new { from = from.ToString(), to = AssemblyStatus.Scheduled.ToString(), action = "Publish" },
+            cancellationToken: cancellationToken);
+        await _realtime.PublishAssemblyStatusAsync(assembly.Id, summary, cancellationToken);
+        return summary;
+    }
+
     private async Task<AssemblySummaryDto> TransitionAsync(
         Guid assemblyId,
         AssemblyStatus target,
@@ -130,17 +159,15 @@ public sealed class AssemblyService
                     Domain.Voting.VotingCodes.OpenVotingExists,
                     "Cannot complete the assembly while a voting session is open.");
             }
+
+            // Freeze quorum WHILE still operational (AssemblyEnd), then seal status.
+            await _quorum.RecalculateAndSnapshotAsync(assemblyId, Quorum.QuorumService.AssemblyEndReason, cancellationToken);
         }
 
         assembly.Status = target;
         assembly.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
-
-        if (target == AssemblyStatus.Completed)
-        {
-            await _quorum.RecalculateAndSnapshotAsync(assemblyId, "AssemblyEnd", cancellationToken);
-        }
 
         var summary = Mapping.ToSummary(assembly);
 

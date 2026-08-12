@@ -357,6 +357,17 @@ public sealed class ConvocationService
             ?? throw new DomainException("CONVOCATION_NOT_FOUND", "Convocation not found.");
         TenantGuard.EnsureTenantMatch(_currentTenant, c.TenantId);
 
+        var assemblyStatus = await _db.Assemblies.AsNoTracking()
+            .Where(a => a.Id == c.AssemblyId)
+            .Select(a => (AssemblyStatus?)a.Status)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (assemblyStatus is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
+        {
+            throw new DomainException(
+                "ASSEMBLY_SEALED",
+                "No se puede reenviar la convocatoria de una asamblea finalizada o cancelada.");
+        }
+
         if (c.Status is not (ConvocationStatus.Sent or ConvocationStatus.Partial or ConvocationStatus.Failed or ConvocationStatus.Ready or ConvocationStatus.Approved or ConvocationStatus.Draft))
         {
             if (c.Status == ConvocationStatus.Sending)

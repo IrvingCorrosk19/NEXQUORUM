@@ -232,6 +232,8 @@ export function primaryCtaForStatus(status) {
       return "continue";
     case "Completed":
       return "results";
+    case "Cancelled":
+      return "results";
     default:
       return "continue";
   }

@@ -134,6 +134,13 @@ public sealed class RecordingService
         var assembly = await LoadAssemblyAsync(assemblyId, tracking: false, cancellationToken);
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
+        if (assembly.Status is not (AssemblyStatus.CheckIn or AssemblyStatus.InProgress or AssemblyStatus.Paused))
+        {
+            throw new DomainException(
+                "ASSEMBLY_NOT_LIVE",
+                $"Recording can only start while assembly is CheckIn, InProgress, or Paused (current: {assembly.Status}).");
+        }
+
         var policy = await GetOrCreatePolicyAsync(assemblyId, cancellationToken);
         if (!policy.RecordingEnabled || policy.Mode == AssemblyRecordingMode.Disabled)
         {

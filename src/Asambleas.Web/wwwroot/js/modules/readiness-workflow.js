@@ -177,20 +177,30 @@ export function renderReadinessCompact(panel, readiness, ctx) {
 /**
  * Horizontal quick links for assembly overview.
  */
-export function renderQuickLinks(host, user, assemblyId) {
+export function renderQuickLinks(host, user, assemblyId, assembly = null) {
   const canComms = hasPermission(user, "communications:view");
   const canVote = hasPermission(user, "motion:create") || hasPermission(user, "vote:open");
   const q = `assemblyId=${encodeURIComponent(assemblyId)}`;
+  const status = String(assembly?.status || "");
+  const terminal = status === "Completed" || status === "Cancelled";
 
-  const links = [
-    canComms ? { href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
-    { href: `/checkin.html?${q}`, label: "Acreditación" },
-    canVote ? { href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
-    { href: `/lobby.html?${q}`, label: "Sala" },
-    { href: `/minutes.html?${q}`, label: "Acta" }
-  ].filter(Boolean);
+  const links = terminal
+    ? [
+        { href: `/minutes.html?${q}`, label: "Acta" },
+        canVote ? { href: `/voting-studio.html?${q}`, label: "Resultados" } : null,
+        { href: `/checkin.html?${q}`, label: "Participantes" },
+        { href: `/expediente.html?${q}`, label: "Expediente" }
+      ]
+    : [
+        canComms ? { href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
+        { href: `/checkin.html?${q}`, label: "Acreditación" },
+        canVote ? { href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
+        { href: `/lobby.html?${q}`, label: "Sala" },
+        { href: `/minutes.html?${q}`, label: "Acta" }
+      ];
 
   host.innerHTML = `<nav class="ia-quick-links" aria-label="Accesos rápidos">${links
+    .filter(Boolean)
     .map((l) => `<a href="${l.href}">${escapeHtml(l.label)}</a>`)
     .join("")}</nav>`;
 }

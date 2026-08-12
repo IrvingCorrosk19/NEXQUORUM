@@ -125,9 +125,9 @@ export function buildAssemblyTabsHtml(ctx) {
           { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta" },
           canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias" } : null,
           canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente" } : null,
-          canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones", more: true } : null,
+          canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Resultados", more: true } : null,
           { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda", more: true },
-          { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala", more: true }
+          { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Participantes", more: true }
         ]
       : [
           { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },

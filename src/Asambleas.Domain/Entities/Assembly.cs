@@ -46,6 +46,17 @@ public class Assembly : Entity, ITenantScoped, IPropertyHorizontalScoped
 
     public Guid? ActiveAgendaItemId { get; set; }
 
+    /// <summary>SHA-256 hex of sealed minutes payload; set on Complete.</summary>
+    public string? SealedMinutesHash { get; set; }
+
+    /// <summary>Document id of sealed acta (e.g. ACTA-...).</summary>
+    public string? SealedMinutesDocumentId { get; set; }
+
+    /// <summary>JSON of <c>AssemblyMinutesDocumentDto</c> frozen at Complete.</summary>
+    public string? SealedMinutesJson { get; set; }
+
+    public DateTimeOffset? SealedAtUtc { get; set; }
+
     /// <summary>
     /// Maps to PostgreSQL <c>xmin</c> via EF <c>IsRowVersion()</c> for optimistic concurrency.
     /// </summary>

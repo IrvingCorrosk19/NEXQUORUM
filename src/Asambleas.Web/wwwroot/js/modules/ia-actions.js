@@ -73,17 +73,17 @@ export function resolvePrimaryAction(assembly, { assemblyId } = {}) {
     case "Completed":
       return {
         key: "results",
-        label: "Ver acta",
-        description: "Revisa el acta y los resultados de la asamblea.",
-        href: `/minutes.html?assemblyId=${encodeURIComponent(id)}`,
+        label: "Ver expediente",
+        description: "Consulta el acta, resultados y evidencias en modo histórico.",
+        href: `/dashboard.html?assemblyId=${encodeURIComponent(id)}&mode=historical`,
         needsPost: null
       };
     case "Cancelled":
       return {
         key: "results",
-        label: "Ver expediente",
+        label: "Ver detalles",
         description: "Consulta el expediente de la asamblea cancelada.",
-        href: `/expediente.html?assemblyId=${encodeURIComponent(id)}`,
+        href: `/dashboard.html?assemblyId=${encodeURIComponent(id)}&mode=historical`,
         needsPost: null
       };
     default:

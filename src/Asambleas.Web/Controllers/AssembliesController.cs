@@ -1,6 +1,7 @@
 namespace Asambleas.Web.Controllers;
 
 using Asambleas.Application.Assembly;
+using Asambleas.Application.Evidence;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.Assemblies;
 using Asambleas.Contracts.Evidence;
@@ -14,11 +15,16 @@ public sealed class AssembliesController : ControllerBase
 {
     private readonly AssemblyService _assemblies;
     private readonly AssemblyRoomService _room;
+    private readonly AssemblyEvidenceService _evidence;
 
-    public AssembliesController(AssemblyService assemblies, AssemblyRoomService room)
+    public AssembliesController(
+        AssemblyService assemblies,
+        AssemblyRoomService room,
+        AssemblyEvidenceService evidence)
     {
         _assemblies = assemblies;
         _room = room;
+        _evidence = evidence;
     }
 
     [HttpGet]
@@ -86,8 +92,17 @@ public sealed class AssembliesController : ControllerBase
     public Task<AssemblySummaryDto> Resume(Guid assemblyId, CancellationToken cancellationToken) =>
         _assemblies.ResumeAsync(assemblyId, cancellationToken);
 
+    [HttpPost("{assemblyId:guid}/publish")]
+    [Authorize(Policy = Permissions.AssemblySchedule)]
+    public Task<AssemblySummaryDto> Publish(Guid assemblyId, CancellationToken cancellationToken) =>
+        _assemblies.PublishScheduledAsync(assemblyId, cancellationToken);
+
     [HttpPost("{assemblyId:guid}/complete")]
     [Authorize(Policy = Permissions.AssemblyClose)]
-    public Task<AssemblySummaryDto> Complete(Guid assemblyId, CancellationToken cancellationToken) =>
-        _assemblies.CompleteAsync(assemblyId, cancellationToken);
+    public async Task<AssemblySummaryDto> Complete(Guid assemblyId, CancellationToken cancellationToken)
+    {
+        var summary = await _assemblies.CompleteAsync(assemblyId, cancellationToken);
+        await _evidence.SealMinutesAsync(assemblyId, cancellationToken);
+        return summary;
+    }
 }

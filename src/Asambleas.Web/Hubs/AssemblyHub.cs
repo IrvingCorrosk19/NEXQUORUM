@@ -46,9 +46,10 @@ public sealed class AssemblyHub : Hub
             .ToArray()
             ?? [];
 
+        Domain.Enums.AssemblyStatus status;
         try
         {
-            await _access.EnsureCanJoinAssemblyAsync(
+            status = await _access.EnsureCanObserveAssemblyAsync(
                 assemblyId,
                 userId,
                 tenantId,
@@ -62,6 +63,16 @@ public sealed class AssemblyHub : Hub
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(assemblyId));
         Context.Items[AssemblyItemKey] = assemblyId;
+
+        // Terminal assemblies: observe-only — never MarkConnected / quorum mutation.
+        if (!AssemblyAccessService.AllowsPresenceMutation(status))
+        {
+            _logger.LogInformation(
+                "SignalR observe-only join for sealed assembly {AssemblyId} status {Status}",
+                assemblyId,
+                status);
+            return;
+        }
 
         try
         {
@@ -78,17 +89,35 @@ public sealed class AssemblyHub : Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(assemblyId));
         Context.Items.Remove(AssemblyItemKey);
 
-        if (TryGetUserId(out var userId))
+        if (!TryGetUserId(out var userId))
         {
-            EnsureTenantContextFromClaims();
-            try
+            return;
+        }
+
+        EnsureTenantContextFromClaims();
+        try
+        {
+            var status = await _access.EnsureCanObserveAssemblyAsync(
+                assemblyId,
+                userId,
+                _currentTenant.TenantId,
+                Context.User?
+                    .FindAll(AsambleasClaimTypes.Permission)
+                    .Select(c => c.Value)
+                    .ToArray()
+                ?? [],
+                Context.ConnectionAborted);
+
+            if (!AssemblyAccessService.AllowsPresenceMutation(status))
             {
-                await _attendance.MarkDisconnectedAsync(assemblyId, userId, Context.ConnectionAborted);
+                return;
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "MarkDisconnected failed for assembly {AssemblyId} user {UserId}", assemblyId, userId);
-            }
+
+            await _attendance.MarkDisconnectedAsync(assemblyId, userId, Context.ConnectionAborted);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "MarkDisconnected failed for assembly {AssemblyId} user {UserId}", assemblyId, userId);
         }
     }
 
@@ -101,7 +130,23 @@ public sealed class AssemblyHub : Hub
             EnsureTenantContextFromClaims();
             try
             {
-                await _attendance.MarkDisconnectedAsync(assemblyId, userId, CancellationToken.None);
+                var permissions = Context.User?
+                    .FindAll(AsambleasClaimTypes.Permission)
+                    .Select(c => c.Value)
+                    .ToArray()
+                    ?? [];
+
+                var status = await _access.EnsureCanObserveAssemblyAsync(
+                    assemblyId,
+                    userId,
+                    _currentTenant.TenantId,
+                    permissions,
+                    CancellationToken.None);
+
+                if (AssemblyAccessService.AllowsPresenceMutation(status))
+                {
+                    await _attendance.MarkDisconnectedAsync(assemblyId, userId, CancellationToken.None);
+                }
             }
             catch (Exception ex)
             {

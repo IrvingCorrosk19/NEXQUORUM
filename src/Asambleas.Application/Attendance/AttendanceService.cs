@@ -9,6 +9,7 @@ using Asambleas.Domain.Attendance;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
 using Asambleas.Domain.Enums;
+using Asambleas.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 public sealed class AttendanceService
@@ -362,6 +363,13 @@ public sealed class AttendanceService
             ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        if (AssemblyLifecycle.IsTerminal(assembly.Status))
+        {
+            throw new DomainException(
+                "ASSEMBLY_SEALED",
+                $"Presence cannot be updated while assembly is '{assembly.Status}'.");
+        }
 
         var participant = await _db.AssemblyParticipants
             .FirstOrDefaultAsync(p => p.AssemblyId == assemblyId && p.UserId == userId, cancellationToken)

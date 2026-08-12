@@ -775,7 +775,18 @@ function renderAssembliesList() {
         : bucket === "upcoming"
           ? `<a class="btn btn-ghost btn-sm" href="/convocation.html?assemblyId=${id}">Convocatoria</a>`
           : "";
-    const moreMenu = `
+    const moreMenu =
+      bucket === "done" || bucket === "cancelled"
+        ? `
+      <details class="ia-row-menu">
+        <summary class="btn btn-ghost btn-sm" aria-label="Más acciones">•••</summary>
+        <div class="ia-row-menu__panel" role="menu">
+          <a role="menuitem" href="/dashboard.html?assemblyId=${id}&mode=historical">Ver resumen</a>
+          <a role="menuitem" href="/minutes.html?assemblyId=${id}">Acta</a>
+          <a role="menuitem" href="/expediente.html?assemblyId=${id}">Expediente</a>
+        </div>
+      </details>`
+        : `
       <details class="ia-row-menu">
         <summary class="btn btn-ghost btn-sm" aria-label="Más acciones">•••</summary>
         <div class="ia-row-menu__panel" role="menu">

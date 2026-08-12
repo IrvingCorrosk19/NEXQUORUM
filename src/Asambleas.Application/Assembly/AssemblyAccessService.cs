@@ -4,6 +4,8 @@ using Asambleas.Application.Abstractions;
 using Asambleas.Application.Common;
 using Asambleas.Application.Security;
 using Asambleas.Domain.Common;
+using Asambleas.Domain.Enums;
+using Asambleas.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -45,7 +47,7 @@ public sealed class AssemblyAccessService
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(a => a.Id == assemblyId)
-            .Select(a => new { a.Id, a.TenantId })
+            .Select(a => new { a.Id, a.TenantId, a.Status })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (assembly is null)
@@ -72,6 +74,30 @@ public sealed class AssemblyAccessService
             throw new DomainException("Forbidden: user is not a participant of this assembly.");
         }
     }
+
+    /// <summary>
+    /// Returns assembly status after ensuring the caller may observe the hub group.
+    /// Terminal assemblies may join SignalR for read-only broadcast; callers must not mutate presence.
+    /// </summary>
+    public async Task<AssemblyStatus> EnsureCanObserveAssemblyAsync(
+        Guid assemblyId,
+        Guid userId,
+        Guid tenantId,
+        IReadOnlyCollection<string> permissions,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureCanJoinAssemblyAsync(assemblyId, userId, tenantId, permissions, cancellationToken);
+
+        return await _db.Assemblies
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(a => a.Id == assemblyId && a.TenantId == tenantId)
+            .Select(a => a.Status)
+            .FirstAsync(cancellationToken);
+    }
+
+    public static bool AllowsPresenceMutation(AssemblyStatus status) =>
+        AssemblyLifecycle.AllowsOperationalMutation(status);
 
     public async Task EnsureParticipantOfCurrentTenantAsync(
         Guid assemblyId,

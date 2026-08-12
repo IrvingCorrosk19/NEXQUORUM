@@ -164,6 +164,7 @@ public sealed class SpeakerService
         var entity = await RequireRequestAsync(assemblyId, speakerRequestId, cancellationToken);
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
         TenantGuard.EnsureTenantMatch(_currentTenant, entity.TenantId);
+        EnsureOperational(assembly);
 
         if (entity.Status != SpeakerRequestStatus.Requested)
         {
@@ -211,6 +212,7 @@ public sealed class SpeakerService
         var entity = await RequireRequestAsync(assemblyId, speakerRequestId, cancellationToken);
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
         TenantGuard.EnsureTenantMatch(_currentTenant, entity.TenantId);
+        EnsureOperational(assembly);
 
         if (entity.Status != SpeakerRequestStatus.Granted)
         {
@@ -239,6 +241,7 @@ public sealed class SpeakerService
         var entity = await RequireRequestAsync(assemblyId, speakerRequestId, cancellationToken);
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
         TenantGuard.EnsureTenantMatch(_currentTenant, entity.TenantId);
+        EnsureOperational(assembly);
 
         if (entity.Status is not (SpeakerRequestStatus.Requested or SpeakerRequestStatus.Granted))
         {
@@ -272,6 +275,7 @@ public sealed class SpeakerService
         var entity = await RequireRequestAsync(assemblyId, speakerRequestId, cancellationToken);
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
         TenantGuard.EnsureTenantMatch(_currentTenant, entity.TenantId);
+        EnsureOperational(assembly);
 
         if (entity.Status != SpeakerRequestStatus.Requested)
         {
@@ -337,6 +341,15 @@ public sealed class SpeakerService
         await _db.Assemblies.FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
         ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
 
+    private static void EnsureOperational(AssemblyEntity assembly)
+    {
+        if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
+        {
+            throw new DomainException(
+                "ASSEMBLY_SEALED",
+                $"Speaker operations are not allowed while assembly is '{assembly.Status}'.");
+        }
+    }
     private async Task<SpeakerRequest> RequireRequestAsync(
         Guid assemblyId,
         Guid speakerRequestId,

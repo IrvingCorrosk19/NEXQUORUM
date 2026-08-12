@@ -1,6 +1,7 @@
 import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection } from "./signalr-client.js";
+import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { renderQuorum } from "./quorum.js";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, renderVotePanel } from "./voting.js";
 import { createLiveVotingWorkspace } from "./live-voting-workspace.js";
@@ -786,8 +787,12 @@ function setVisible(el, visible) {
 function syncLiveMode() {
   if (!els.room) return;
   const status = state.assembly?.status;
+  if (isTerminalStatus(status)) {
+    location.replace(historicalOverviewUrl(assemblyId, status));
+    return;
+  }
   const mode =
-    status === "InProgress" ? "live" : status === "Paused" ? "paused" : status === "Completed" ? "closed" : "prep";
+    status === "InProgress" ? "live" : status === "Paused" ? "paused" : "prep";
   els.room.setAttribute("data-mode", mode);
   document.body.dataset.assemblyMode = mode;
 
@@ -1423,6 +1428,12 @@ async function bootstrapMeeting() {
   }
 
   try {
+    if (isTerminalStatus(state.assembly?.status)) {
+      renderAvBlocked(els.video, "Asamblea finalizada — modo consulta.");
+      updateMediaConnectionBanner();
+      return;
+    }
+
     const info = await fetchRoomInfo(assemblyId);
     if (!info.isAvailable) {
       renderAvBlocked(els.video, info.unavailableReason || t("lobby.avBlocked"));

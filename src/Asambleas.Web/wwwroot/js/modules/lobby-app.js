@@ -15,6 +15,7 @@ import {
   startDevicePreview,
   stopDevicePreview
 } from "./meeting.js";
+import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 
 let assemblyId = assemblyIdFromUrl();
 const device = { camera: true, mic: true };
@@ -262,6 +263,11 @@ async function init() {
   }
 
   const assembly = room.assembly;
+  if (isTerminalStatus(assembly?.status)) {
+    location.replace(historicalOverviewUrl(assemblyId, assembly.status));
+    return;
+  }
+
   qs("#lobby-meta").innerHTML = `
     <span><strong>PH:</strong> ${escapeHtml(assembly?.propertyHorizontalName || "—")}</span>
     <span><strong>${escapeHtml(assembly?.title || "—")}</strong></span>

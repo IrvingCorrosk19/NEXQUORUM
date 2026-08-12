@@ -17,6 +17,7 @@ using Asambleas.Contracts.Audit;
 using Asambleas.Contracts.Evidence;
 using Asambleas.Contracts.Motions;
 using Asambleas.Contracts.Voting;
+using Asambleas.Domain.Common;
 using Asambleas.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +26,7 @@ public sealed class AssemblyEvidenceService
     private static readonly JsonSerializerOptions HashJson = new(JsonSerializerDefaults.Web);
 
     private readonly IAsambleasDbContext _db;
+    private readonly ICurrentTenant _currentTenant;
     private readonly AssemblyService _assemblies;
     private readonly AttendanceService _attendance;
     private readonly QuorumService _quorum;
@@ -36,6 +38,7 @@ public sealed class AssemblyEvidenceService
 
     public AssemblyEvidenceService(
         IAsambleasDbContext db,
+        ICurrentTenant currentTenant,
         AssemblyService assemblies,
         AttendanceService attendance,
         QuorumService quorum,
@@ -46,6 +49,7 @@ public sealed class AssemblyEvidenceService
         Audit.AuditService audit)
     {
         _db = db;
+        _currentTenant = currentTenant;
         _assemblies = assemblies;
         _attendance = attendance;
         _quorum = quorum;
@@ -107,6 +111,80 @@ public sealed class AssemblyEvidenceService
         Guid assemblyId,
         CancellationToken cancellationToken = default)
     {
+        var sealedRow = await _db.Assemblies
+            .AsNoTracking()
+            .Where(a => a.Id == assemblyId)
+            .Select(a => new { a.SealedMinutesJson, a.SealedMinutesHash, a.Status })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (sealedRow?.SealedMinutesJson is { Length: > 0 } json
+            && sealedRow.Status is AssemblyStatus.Completed)
+        {
+            var sealedDoc = JsonSerializer.Deserialize<AssemblyMinutesDocumentDto>(json, HashJson);
+            if (sealedDoc is not null)
+            {
+                return sealedDoc with { IsSealed = true, ContentHash = sealedRow.SealedMinutesHash ?? sealedDoc.ContentHash };
+            }
+        }
+
+        return await BuildMinutesDocumentAsync(assemblyId, cancellationToken);
+    }
+
+    /// <summary>Persist immutable minutes after Complete. Idempotent if already sealed.</summary>
+    public async Task<AssemblyMinutesDocumentDto> SealMinutesAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+
+        var assembly = await _db.Assemblies
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        if (assembly.Status != AssemblyStatus.Completed)
+        {
+            throw new DomainException("ASSEMBLY_NOT_COMPLETED", "Only completed assemblies can seal minutes.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(assembly.SealedMinutesJson)
+            && !string.IsNullOrWhiteSpace(assembly.SealedMinutesHash))
+        {
+            var existing = JsonSerializer.Deserialize<AssemblyMinutesDocumentDto>(assembly.SealedMinutesJson, HashJson);
+            if (existing is not null)
+            {
+                return existing with { IsSealed = true };
+            }
+        }
+
+        var doc = await BuildMinutesDocumentAsync(assemblyId, cancellationToken);
+        var sealedDoc = doc with { IsSealed = true };
+        assembly.SealedMinutesJson = JsonSerializer.Serialize(sealedDoc, HashJson);
+        assembly.SealedMinutesHash = sealedDoc.ContentHash;
+        assembly.SealedMinutesDocumentId = sealedDoc.DocumentId;
+        assembly.SealedAtUtc = DateTimeOffset.UtcNow;
+        assembly.UpdatedAtUtc = assembly.SealedAtUtc.Value;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.WriteAsync(
+            AuditEventType.AssemblyCompleted,
+            assemblyId,
+            metadata: new
+            {
+                Sealed = true,
+                sealedDoc.DocumentId,
+                sealedDoc.ContentHash
+            },
+            cancellationToken: cancellationToken);
+
+        return sealedDoc;
+    }
+
+    private async Task<AssemblyMinutesDocumentDto> BuildMinutesDocumentAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken)
+    {
         var package = await GetEvidencePackageAsync(assemblyId, cancellationToken);
         var closedVoting = package.Voting
             .Where(v => v.ClosedSession?.Status == nameof(VotingSessionStatus.Closed))
@@ -156,7 +234,8 @@ public sealed class AssemblyEvidenceService
             package.Interventions,
             closedVoting,
             package.Decisions,
-            "Este documento resume hechos verificados por el sistema. No constituye por sí solo validación jurídica externa.");
+            "Este documento resume hechos verificados por el sistema. No constituye por sí solo validación jurídica externa.",
+            IsSealed: false);
     }
 
     /// <summary>Backward-compatible projection used by older clients.</summary>

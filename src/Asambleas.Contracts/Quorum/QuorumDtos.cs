@@ -33,4 +33,5 @@ public sealed record QuorumSnapshotDto(
     decimal PresentCoefficient,
     decimal RequiredCoefficient,
     string Status,
-    string? Reason = null);
+    string? Reason = null,
+    int EligibleUnits = 0);

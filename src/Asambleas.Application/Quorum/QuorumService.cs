@@ -7,10 +7,13 @@ using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
 using Asambleas.Domain.Enums;
 using Asambleas.Domain.Quorum;
+using Asambleas.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 public sealed class QuorumService
 {
+    public const string AssemblyEndReason = "AssemblyEnd";
+
     private readonly IAsambleasDbContext _db;
     private readonly ICurrentTenant _currentTenant;
     private readonly IAuditService _audit;
@@ -41,6 +44,45 @@ public sealed class QuorumService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
+        if (assembly.Status == AssemblyStatus.Completed)
+        {
+            var end = await _db.QuorumSnapshots
+                .AsNoTracking()
+                .Where(s => s.AssemblyId == assemblyId && s.Reason == AssemblyEndReason)
+                .OrderByDescending(s => s.TimestampUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (end is not null)
+            {
+                return ToHistoricalDto(assembly, end);
+            }
+
+            // Legacy Completed without AssemblyEnd: last snapshot before any post-close drift preference.
+            var legacy = await _db.QuorumSnapshots
+                .AsNoTracking()
+                .Where(s => s.AssemblyId == assemblyId)
+                .OrderByDescending(s => s.TimestampUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (legacy is not null)
+            {
+                return ToHistoricalDto(assembly, legacy);
+            }
+
+            return null;
+        }
+
+        if (assembly.Status == AssemblyStatus.Cancelled)
+        {
+            var last = await _db.QuorumSnapshots
+                .AsNoTracking()
+                .Where(s => s.AssemblyId == assemblyId)
+                .OrderByDescending(s => s.TimestampUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return last is null ? null : ToHistoricalDto(assembly, last);
+        }
+
         var latest = await _db.QuorumSnapshots
             .AsNoTracking()
             .Where(s => s.AssemblyId == assemblyId)
@@ -49,11 +91,13 @@ public sealed class QuorumService
 
         if (latest is not null)
         {
-            var eligibleUnits = await _db.Units
-                .AsNoTracking()
-                .CountAsync(
-                    u => u.TenantId == assembly.TenantId && u.PropertyHorizontalId == assembly.PropertyHorizontalId,
-                    cancellationToken);
+            var eligibleUnits = latest.EligibleUnits > 0
+                ? latest.EligibleUnits
+                : await _db.Units
+                    .AsNoTracking()
+                    .CountAsync(
+                        u => u.TenantId == assembly.TenantId && u.PropertyHorizontalId == assembly.PropertyHorizontalId,
+                        cancellationToken);
 
             var missing = latest.Status == QuorumStatus.Reached
                 ? 0m
@@ -99,7 +143,8 @@ public sealed class QuorumService
                 s.PresentCoefficient,
                 s.RequiredCoefficient,
                 s.Status.ToString(),
-                s.Reason))
+                s.Reason,
+                s.EligibleUnits))
             .ToListAsync(cancellationToken);
     }
 
@@ -121,6 +166,13 @@ public sealed class QuorumService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
+        if (AssemblyLifecycle.IsTerminal(assembly.Status))
+        {
+            throw new DomainException(
+                "ASSEMBLY_SEALED",
+                $"Quorum cannot be recalculated while assembly is '{assembly.Status}'.");
+        }
+
         var previous = await _db.QuorumSnapshots
             .AsNoTracking()
             .Where(s => s.AssemblyId == assemblyId)
@@ -130,7 +182,7 @@ public sealed class QuorumService
         var calculation = await CalculateInternalAsync(assembly, cancellationToken);
 
         var snapshotReason = reason;
-        if (previous is not null)
+        if (previous is not null && string.IsNullOrWhiteSpace(snapshotReason))
         {
             var wasReached = previous.Status == QuorumStatus.Reached;
             if (!wasReached && calculation.QuorumReached)
@@ -150,6 +202,7 @@ public sealed class QuorumService
             AssemblyId = assemblyId,
             TimestampUtc = now,
             PresentUnits = calculation.PresentUnits,
+            EligibleUnits = calculation.EligibleUnits,
             PresentCoefficient = calculation.CurrentCoefficient,
             RequiredCoefficient = calculation.RequiredCoefficient,
             Status = calculation.QuorumReached ? QuorumStatus.Reached : QuorumStatus.NotReached,
@@ -178,6 +231,7 @@ public sealed class QuorumService
                 state.RequiredCoefficient,
                 state.QuorumReached,
                 state.PresentUnits,
+                state.EligibleUnits,
                 state.MissingCoefficient,
                 Reason = snapshotReason
             },
@@ -195,6 +249,24 @@ public sealed class QuorumService
         await _realtime.PublishQuorumAsync(assemblyId, state, cancellationToken);
 
         return state;
+    }
+
+    private static QuorumDto ToHistoricalDto(Domain.Entities.Assembly assembly, QuorumSnapshot snapshot)
+    {
+        var missing = snapshot.Status == QuorumStatus.Reached
+            ? 0m
+            : Math.Max(0m, Math.Round(snapshot.RequiredCoefficient - snapshot.PresentCoefficient, 4, MidpointRounding.AwayFromZero));
+
+        return new QuorumDto(
+            assembly.Id,
+            snapshot.PresentCoefficient,
+            snapshot.RequiredCoefficient,
+            assembly.RequiredQuorumPercent,
+            snapshot.Status == QuorumStatus.Reached,
+            snapshot.PresentUnits,
+            snapshot.EligibleUnits,
+            snapshot.TimestampUtc,
+            missing);
     }
 
     private async Task<QuorumDto> CalculateReadOnlyAsync(

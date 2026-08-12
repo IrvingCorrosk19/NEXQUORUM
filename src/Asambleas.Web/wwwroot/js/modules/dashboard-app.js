@@ -20,6 +20,7 @@ import {
   renderQuickLinks
 } from "./readiness-workflow.js";
 import { writeIaContext } from "./ia-context.js";
+import { historicalOverviewUrl, isTerminalStatus, renderHistoricalBanner } from "./assembly-lifecycle.js";
 
 let assemblyId = assemblyIdFromUrl();
 
@@ -69,11 +70,23 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
   const title = assembly.name || assembly.title || t("dashboard.title");
   const ctx = { assemblyId, phId };
 
+  const bannerHost = qs("#historical-banner") || qs("#page-alert");
+  if (bannerHost && isTerminalStatus(assembly.status)) {
+    bannerHost.hidden = false;
+    bannerHost.innerHTML = renderHistoricalBanner(assembly.status, {
+      cancelReason: assembly.cancelReason ? escapeHtml(assembly.cancelReason) : ""
+    });
+    document.body.dataset.assemblyMode = "historical";
+  } else if (bannerHost) {
+    bannerHost.hidden = true;
+    bannerHost.innerHTML = "";
+  }
+
   renderReadinessCompact(qs("#readiness-panel"), readiness, ctx);
   renderNextAction(qs("#primary-cta"), readiness, assembly, { assemblyId, operator }, (action) =>
     runPrimaryAction(action, operator)
   );
-  renderQuickLinks(qs("#secondary-links"), user, assemblyId);
+  renderQuickLinks(qs("#secondary-links"), user, assemblyId, assembly);
 
   qs("#assembly-name").textContent = title;
   const badge = qs("#assembly-status-badge");

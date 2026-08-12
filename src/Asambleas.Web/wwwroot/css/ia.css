@@ -31,6 +31,30 @@
   text-decoration: underline;
 }
 
+.ia-historical-banner {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-subtle, #d0d5dd);
+  border-radius: 4px;
+  background: var(--surface-muted, #f4f6f8);
+  color: var(--text-primary, #1a1a1a);
+}
+
+.ia-historical-banner strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.ia-historical-banner p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.ia-historical-banner--cancelled {
+  border-color: var(--danger-border, #c45c5c);
+}
+
 .ia-breadcrumbs [aria-current="page"] span {
   color: var(--text-primary, #f3f5f7);
   font-weight: 600;

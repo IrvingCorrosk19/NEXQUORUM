@@ -42,9 +42,14 @@ public sealed class AssemblyLifecycleTests
     }
 
     [Fact]
-    public void Same_status_is_not_a_transition()
+    public void Terminal_helpers()
     {
-        AssemblyLifecycle.CanTransition(AssemblyStatus.Scheduled, AssemblyStatus.Scheduled)
-            .Should().BeFalse();
+        AssemblyLifecycle.IsTerminal(AssemblyStatus.Completed).Should().BeTrue();
+        AssemblyLifecycle.IsTerminal(AssemblyStatus.Cancelled).Should().BeTrue();
+        AssemblyLifecycle.IsTerminal(AssemblyStatus.InProgress).Should().BeFalse();
+        AssemblyLifecycle.AllowsOperationalMutation(AssemblyStatus.Completed).Should().BeFalse();
+        AssemblyLifecycle.AllowsMeetingJoinToken(AssemblyStatus.Scheduled).Should().BeFalse();
+        AssemblyLifecycle.AllowsMeetingJoinToken(AssemblyStatus.CheckIn).Should().BeTrue();
+        AssemblyLifecycle.AllowsMeetingJoinToken(AssemblyStatus.InProgress).Should().BeTrue();
     }
 }

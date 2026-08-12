@@ -186,6 +186,11 @@ public sealed class MotionService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
+        if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
+        {
+            throw new DomainException("Cannot update motions on a closed assembly.");
+        }
+
         var motion = await _db.Motions
             .FirstOrDefaultAsync(m => m.Id == motionId && m.AssemblyId == assemblyId, cancellationToken)
             ?? throw new DomainException($"Motion '{motionId}' was not found.");

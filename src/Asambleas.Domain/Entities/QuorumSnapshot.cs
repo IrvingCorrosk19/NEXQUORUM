@@ -13,12 +13,15 @@ public class QuorumSnapshot : Entity, ITenantScoped
 
     public int PresentUnits { get; set; }
 
+    /// <summary>Eligible unit count frozen at snapshot time (historical integrity).</summary>
+    public int EligibleUnits { get; set; }
+
     public decimal PresentCoefficient { get; set; }
 
     public decimal RequiredCoefficient { get; set; }
 
     public QuorumStatus Status { get; set; } = QuorumStatus.NotReached;
 
-    /// <summary>Operational reason (e.g. CheckIn, ThresholdReached, VotingOpen).</summary>
+    /// <summary>Operational reason (e.g. CheckIn, ThresholdReached, VotingOpen, AssemblyEnd).</summary>
     public string? Reason { get; set; }
 }

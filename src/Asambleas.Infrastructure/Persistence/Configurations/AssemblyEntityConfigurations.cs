@@ -19,6 +19,9 @@ internal sealed class AssemblyConfiguration : IEntityTypeConfiguration<AssemblyE
         builder.Property(x => x.CancelReason).HasMaxLength(2000);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.RequiredQuorumPercent).HasPrecision(7, 4);
+        builder.Property(x => x.SealedMinutesHash).HasMaxLength(128);
+        builder.Property(x => x.SealedMinutesDocumentId).HasMaxLength(128);
+        builder.Property(x => x.SealedMinutesJson);
         builder.HasIndex(x => x.ScheduledAtUtc);
         builder.Property(x => x.RowVersion).IsRowVersion();
         builder.HasIndex(x => x.TenantId);

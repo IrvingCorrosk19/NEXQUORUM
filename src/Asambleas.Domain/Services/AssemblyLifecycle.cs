@@ -45,4 +45,15 @@ public static class AssemblyLifecycle
         EnsureCanTransition(from, to);
         return to;
     }
+
+    /// <summary>Terminal states: history / cancellation — no operational mutations.</summary>
+    public static bool IsTerminal(AssemblyStatus status) =>
+        status is AssemblyStatus.Completed or AssemblyStatus.Cancelled;
+
+    /// <summary>Presence, quorum recalculation, live AV, speakers ops, etc.</summary>
+    public static bool AllowsOperationalMutation(AssemblyStatus status) => !IsTerminal(status);
+
+    /// <summary>LiveKit publish/join tokens — not Draft/Scheduled lobby-only/terminal.</summary>
+    public static bool AllowsMeetingJoinToken(AssemblyStatus status) =>
+        status is AssemblyStatus.CheckIn or AssemblyStatus.InProgress or AssemblyStatus.Paused;
 }
