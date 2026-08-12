@@ -224,7 +224,7 @@ async function init() {
     return;
   }
 
-  await bootIaPage({ current: "asm-expediente" });
+  await bootIaPage({ current: "asm-expediente", pageLabel: "Expediente" });
 
   qs("#btn-ack-notice")?.addEventListener("click", async () => {
     await api(`/api/assemblies/${assemblyId}/recording/notice/ack`, {

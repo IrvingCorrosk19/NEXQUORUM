@@ -7,12 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=ia1" />
-  <link rel="stylesheet" href="/css/base.css?v=ia1" />
-  <link rel="stylesheet" href="/css/components.css?v=ia1" />
-  <link rel="stylesheet" href="/css/loading.css?v=ia1" />
-  <link rel="stylesheet" href="/css/ia.css?v=ia1" />
-  <link rel="stylesheet" href="/css/ia.css?v=rd1" />
+  <link rel="stylesheet" href="/css/tokens.css?v=ia3" />
+  <link rel="stylesheet" href="/css/base.css?v=ia3" />
+  <link rel="stylesheet" href="/css/components.css?v=ia3" />
+  <link rel="stylesheet" href="/css/loading.css?v=ia3" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia3" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
@@ -39,22 +38,27 @@
       </div>
     </header>
 
-    <main id="main" class="app-workspace page-main">
+    <main id="main" class="app-workspace page-main page-main--wide">
       <div id="page-alert" class="alert" hidden role="alert"></div>
       <div id="ia-breadcrumbs"></div>
 
-      <section class="page-hero">
-        <p class="command-eyebrow">Asamblea</p>
-        <div class="cluster" style="gap:0.75rem;align-items:center;flex-wrap:wrap">
-          <h1 id="assembly-name" style="margin:0"><span class="skeleton" style="display:inline-block;width:16rem;height:1.6rem"></span></h1>
-          <span id="assembly-status-badge" class="ia-badge-status" hidden></span>
+      <section class="page-hero page-hero--compact">
+        <div class="cluster" style="gap:0.75rem;align-items:center;flex-wrap:wrap;justify-content:space-between">
+          <div>
+            <div class="cluster" style="gap:0.75rem;align-items:center;flex-wrap:wrap">
+              <h1 id="assembly-name" style="margin:0"><span class="skeleton" style="display:inline-block;width:16rem;height:1.6rem"></span></h1>
+              <span id="assembly-status-badge" class="ia-badge-status" hidden></span>
+            </div>
+            <div class="meta-row" id="assembly-meta"></div>
+          </div>
         </div>
-        <div class="meta-row" id="assembly-meta"></div>
       </section>
 
-      <div class="stack">
-        <section class="panel" aria-labelledby="readiness-heading">
-          <h2 id="readiness-heading" class="section-title">Preparación de la asamblea</h2>
+      <div class="ia-stat-strip" id="assembly-stat-strip" aria-label="Indicadores de la asamblea"></div>
+
+      <div class="ia-overview-grid">
+        <section class="panel" id="readiness" aria-labelledby="readiness-heading">
+          <h2 id="readiness-heading" class="section-title">Preparación</h2>
           <div id="readiness-panel"><div class="skeleton" style="height:8rem"></div></div>
         </section>
 
@@ -63,13 +67,13 @@
           <div id="primary-cta"></div>
         </section>
 
-        <section class="panel" aria-label="Espacio de trabajo">
-          <h2 class="section-title">Espacio de trabajo</h2>
+        <section class="panel ia-overview-grid__full" aria-label="Accesos rápidos">
+          <h2 class="section-title">Accesos rápidos</h2>
           <div id="secondary-links"></div>
         </section>
       </div>
     </main>
   </div>
-  <script type="module" src="/js/modules/dashboard-app.js?v=rd1"></script>
+  <script type="module" src="/js/modules/dashboard-app.js?v=ia3"></script>
 </body>
 </html>

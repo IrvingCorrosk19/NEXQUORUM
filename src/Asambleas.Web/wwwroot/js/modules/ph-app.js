@@ -173,19 +173,6 @@ function wireUi() {
       openPh(currentPhId).then(() => switchTab("units"));
     }
   });
-  $("#btn-back-list").addEventListener("click", async () => {
-    if (phFormBinder?.isDirty?.()) {
-      const leave = await phFormBinder.confirmLeave();
-      if (!leave) return;
-    }
-    currentPhId = null;
-    currentPh = null;
-    $("#view-detail").hidden = true;
-    $("#view-list").hidden = false;
-    history.replaceState({}, "", "/ph.html");
-    mountPhListShell();
-    loadList();
-  });
   $("#form-ph").addEventListener("submit", onSavePh);
   $("#btn-mark-ready").addEventListener("click", async () => {
     try {
@@ -721,49 +708,129 @@ async function loadAssemblies() {
 function renderAssembliesList() {
   const host = $("#ph-assemblies-list");
   if (!host) return;
+
   const rows =
     asmFilter === "all"
       ? phAssemblies
       : phAssemblies.filter((e) => assemblyListBucket(e.status) === asmFilter);
 
   if (!rows.length) {
-    host.innerHTML = `<div class="empty-state">No hay asambleas en este filtro. <a href="/calendar.html?phId=${encodeURIComponent(currentPhId)}">Crear en calendario</a></div>`;
+    host.innerHTML = `
+      <div class="ia-empty-state">
+        <p>No hay asambleas en este filtro.</p>
+        <a class="btn btn-primary" href="/calendar.html?phId=${encodeURIComponent(currentPhId)}">+ Nueva asamblea</a>
+      </div>`;
     return;
   }
 
   const sorted = [...rows].sort(
     (a, b) => new Date(a.scheduledAtUtc).getTime() - new Date(b.scheduledAtUtc).getTime()
   );
+  const now = Date.now();
+
+  const fmtRow = (e, { compact = false } = {}) => {
+    const d = new Date(e.scheduledAtUtc);
+    const when = Number.isNaN(d.getTime())
+      ? "—"
+      : d.toLocaleString("es-PA", {
+          day: "numeric",
+          month: "short",
+          hour: "numeric",
+          minute: "2-digit"
+        });
+    const id = encodeURIComponent(e.assemblyId);
+    const bucket = assemblyListBucket(e.status);
+    const primaryLabel =
+      bucket === "done"
+        ? "Ver resultados"
+        : bucket === "live"
+          ? "Entrar a sala"
+          : "Ver asamblea";
+    const primaryHref =
+      bucket === "live"
+        ? `/lobby.html?assemblyId=${id}`
+        : bucket === "done"
+          ? `/minutes.html?assemblyId=${id}`
+          : `/dashboard.html?assemblyId=${id}`;
+    const secondary =
+      bucket === "done"
+        ? `<a class="btn btn-ghost btn-sm" href="/minutes.html?assemblyId=${id}">Acta</a>`
+        : bucket === "upcoming"
+          ? `<a class="btn btn-ghost btn-sm" href="/convocation.html?assemblyId=${id}">Convocatoria</a>`
+          : "";
+
+    return `
+      <div class="ia-asm-row">
+        <div>
+          <strong>${escapeHtml(e.title)}</strong>
+          <p class="ia-asm-row__meta">${escapeHtml(when)} · ${escapeHtml(e.modality || "—")}${compact ? "" : ` · Convocados ${e.participantCount ?? 0}`}</p>
+        </div>
+        <div><span class="ia-badge-status${bucket === "live" ? " is-live" : bucket === "upcoming" ? " is-ready" : ""}">${escapeHtml(statusLabelEs(e.status))}</span></div>
+        <div class="ia-asm-row__actions">
+          <a class="btn btn-${compact ? "secondary" : "primary"} btn-sm" href="${primaryHref}">${primaryLabel}</a>
+          ${secondary}
+        </div>
+      </div>`;
+  };
+
+  if (asmFilter === "upcoming" || asmFilter === "all") {
+    const upcoming = sorted.filter(
+      (e) =>
+        (assemblyListBucket(e.status) === "upcoming" || assemblyListBucket(e.status) === "live") &&
+        new Date(e.scheduledAtUtc).getTime() >= now - 86_400_000
+    );
+    const past = sorted.filter((e) => assemblyListBucket(e.status) === "done");
+    const hero = upcoming[0];
+    const restUpcoming = upcoming.slice(1);
+
+    let html = "";
+    if (hero) {
+      const d = new Date(hero.scheduledAtUtc);
+      const whenLong = Number.isNaN(d.getTime()) ? "—" : formatDateTime(hero.scheduledAtUtc);
+      const id = encodeURIComponent(hero.assemblyId);
+      html += `
+        <div class="ia-asm-summary__section">
+          <p class="ia-asm-summary__section-title">Próxima asamblea</p>
+          <div class="ia-asm-summary__hero">
+            <div class="ia-asm-summary__hero-head">
+              <div>
+                <strong style="font-size:1.05rem">${escapeHtml(hero.title)}</strong>
+                <p class="ia-asm-row__meta">${escapeHtml(whenLong)} · ${escapeHtml(hero.modality || "—")}</p>
+              </div>
+              <span class="ia-badge-status is-ready">${escapeHtml(statusLabelEs(hero.status))}</span>
+            </div>
+            <div class="ia-asm-row__actions" style="justify-content:flex-start">
+              <a class="btn btn-primary" href="/dashboard.html?assemblyId=${id}">Continuar preparación</a>
+              <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${id}">Ver asamblea</a>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    if (restUpcoming.length) {
+      html += `<div class="ia-asm-summary__section"><p class="ia-asm-summary__section-title">Próximas</p>${restUpcoming.map((e) => fmtRow(e, { compact: true })).join("")}</div>`;
+    }
+
+    if (past.length && asmFilter === "all") {
+      html += `<div class="ia-asm-summary__section"><p class="ia-asm-summary__section-title">Anteriores</p>${past
+        .slice()
+        .reverse()
+        .map((e) => fmtRow(e, { compact: true }))
+        .join("")}</div>`;
+    }
+
+    if (!html) {
+      html = sorted.map((e) => fmtRow(e)).join("");
+    }
+
+    host.innerHTML = html;
+    return;
+  }
 
   host.innerHTML = sorted
-    .map((e) => {
-      const d = new Date(e.scheduledAtUtc);
-      const day = Number.isNaN(d.getTime()) ? "—" : String(d.getDate()).padStart(2, "0");
-      const mon = Number.isNaN(d.getTime())
-        ? ""
-        : d.toLocaleString("es-PA", { month: "short" }).replace(".", "").toUpperCase();
-      const time = Number.isNaN(d.getTime())
-        ? ""
-        : d.toLocaleString("es-PA", { hour: "numeric", minute: "2-digit" });
-      const id = encodeURIComponent(e.assemblyId);
-      return `
-      <article class="ia-asm-card" style="grid-template-columns:auto 1fr;align-items:start">
-        <div class="ia-asm-card__date"><strong>${escapeHtml(day)}</strong><span>${escapeHtml(mon)}</span></div>
-        <div>
-          <div class="cluster" style="justify-content:space-between;gap:0.75rem;flex-wrap:wrap;align-items:flex-start">
-            <div>
-              <strong>${escapeHtml(e.title)}</strong>
-              <p class="ia-asm-card__meta">${escapeHtml(e.modality || "—")} · ${escapeHtml(time)} · Convocados: ${e.participantCount ?? 0} · Confirmados: ${e.confirmedCount ?? 0}</p>
-            </div>
-            <span class="ia-badge-status">${escapeHtml(statusLabelEs(e.status))}</span>
-          </div>
-          <div class="cta-row" style="margin-top:0.75rem">
-            <a class="btn btn-primary" href="/convocation.html?assemblyId=${id}">Convocatoria</a>
-            <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${id}">Ver asamblea</a>
-          </div>
-        </div>
-      </article>`;
-    })
+    .slice()
+    .reverse()
+    .map((e) => fmtRow(e, { compact: asmFilter === "done" }))
     .join("");
 }
 

@@ -5,7 +5,8 @@
 import { api } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
 import { isOwnerPortalUser } from "./roles.js";
-import { mountIaShell } from "./ia-nav.js";
+import { mountIaShell, buildAssemblyBreadcrumbs, phHref } from "./ia-nav.js";
+import { readIaContext, syncIaContextFromUrl, writeIaContext } from "./ia-context.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -15,6 +16,7 @@ const $ = (sel) => document.querySelector(sel);
  *   level?: "global"|"ph"|"assembly",
  *   requirePermission?: string|null,
  *   ownerRedirect?: string,
+ *   pageLabel?: string|null,
  *   breadcrumbs?: {label:string, href?:string}[],
  *   resolveContext?: (user: object) => Promise<{
  *     phId?: string|null,
@@ -31,6 +33,7 @@ export async function bootIaPage(opts) {
     level = "global",
     requirePermission = null,
     ownerRedirect = "/owner.html?denied=admin",
+    pageLabel = null,
     breadcrumbs = [],
     resolveContext = null
   } = opts;
@@ -63,11 +66,14 @@ export async function bootIaPage(opts) {
     location.href = "/";
   });
 
+  syncIaContextFromUrl();
+  const stored = readIaContext();
+
   const params = new URLSearchParams(location.search);
-  let phId = params.get("phId") || user.propertyHorizontalId || null;
-  let assemblyId = params.get("assemblyId") || null;
-  let phName = null;
-  let assemblyTitle = null;
+  let phId = params.get("phId") || stored.phId || user.propertyHorizontalId || null;
+  let assemblyId = params.get("assemblyId") || stored.assemblyId || null;
+  let phName = stored.phName || null;
+  let assemblyTitle = stored.assemblyTitle || null;
   let crumbs = breadcrumbs;
 
   if (resolveContext) {
@@ -83,6 +89,7 @@ export async function bootIaPage(opts) {
         const a = await api(`/api/assemblies/${assemblyId}`);
         assemblyTitle = a.title || a.name || "Asamblea";
         phId = a.propertyHorizontalId || phId;
+        if (a.propertyHorizontalName) phName = a.propertyHorizontalName;
       } catch {
         /* ignore */
       }
@@ -97,11 +104,17 @@ export async function bootIaPage(opts) {
       }
     }
     if (!crumbs.length) {
-      crumbs = [{ label: "Propiedades", href: "/ph.html" }];
-      if (phName && phId) crumbs.push({ label: phName, href: `/ph.html?phId=${encodeURIComponent(phId)}#resumen` });
-      if (assemblyTitle) crumbs.push({ label: assemblyTitle });
+      if (assemblyId) {
+        crumbs = buildAssemblyBreadcrumbs({ phId, phName, assemblyId, assemblyTitle, pageLabel });
+      } else {
+        crumbs = [{ label: "Propiedades", href: "/ph.html" }];
+        if (phName && phId) crumbs.push({ label: phName, href: phHref(phId, "resumen") });
+        if (pageLabel) crumbs.push({ label: pageLabel });
+      }
     }
   }
+
+  writeIaContext({ phId, phName, assemblyId, assemblyTitle });
 
   const resolvedLevel = assemblyId ? "assembly" : phId ? "ph" : level;
 
@@ -123,7 +136,7 @@ export async function bootIaPage(opts) {
 
 /** Standard CSS link tags to inject if missing (for pages we only patch lightly). */
 export const IA_CSS = [
-  "/css/ia.css?v=ia2",
+  "/css/ia.css?v=ia3",
   "/css/ux-remediation.css?v=ux1",
   "/css/ux-ia-reeng.css?v=ia2"
 ];

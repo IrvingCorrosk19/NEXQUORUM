@@ -138,6 +138,64 @@ export function renderNextAction(host, readiness, assembly, ctx, onRun) {
 }
 
 /**
+ * Compact readiness checklist for assembly overview (grid rows, not nested cards).
+ */
+export function renderReadinessCompact(panel, readiness, ctx) {
+  if (!readiness) {
+    panel.innerHTML = `<div class="ia-empty-state"><p>La preparación no está disponible.</p></div>`;
+    return;
+  }
+
+  const checks = readiness.checks || [];
+  const completed = readiness.completedChecks ?? checks.filter((c) => c.status === "Ready").length;
+  const total = readiness.totalChecks ?? checks.length;
+
+  const rowsHtml = checks
+    .map((check) => {
+      const meta = statusMeta(check);
+      const canNavigate = Boolean(check.canAct && check.destinationKey && check.status !== "Ready");
+      const href = canNavigate ? resolveDestination(check.destinationKey, ctx) : null;
+      const action =
+        canNavigate && check.actionLabel
+          ? `<a class="btn btn-ghost btn-sm" href="${href}">${escapeHtml(check.actionLabel)}</a>`
+          : "";
+
+      return `
+        <div class="ia-readiness-row">
+          <span aria-hidden="true">${meta.icon}</span>
+          <span>${escapeHtml(check.title)}</span>
+          ${action}
+        </div>`;
+    })
+    .join("");
+
+  panel.innerHTML = `
+    <p class="readiness-progress" role="status">Preparación ${completed}/${total}</p>
+    <div class="ia-readiness-grid">${rowsHtml}</div>`;
+}
+
+/**
+ * Horizontal quick links for assembly overview.
+ */
+export function renderQuickLinks(host, user, assemblyId) {
+  const canComms = hasPermission(user, "communications:view");
+  const canVote = hasPermission(user, "motion:create") || hasPermission(user, "vote:open");
+  const q = `assemblyId=${encodeURIComponent(assemblyId)}`;
+
+  const links = [
+    canComms ? { href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
+    { href: `/checkin.html?${q}`, label: "Acreditación" },
+    canVote ? { href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
+    { href: `/lobby.html?${q}`, label: "Sala" },
+    { href: `/minutes.html?${q}`, label: "Acta" }
+  ].filter(Boolean);
+
+  host.innerHTML = `<nav class="ia-quick-links" aria-label="Accesos rápidos">${links
+    .map((l) => `<a href="${l.href}">${escapeHtml(l.label)}</a>`)
+    .join("")}</nav>`;
+}
+
+/**
  * @param {HTMLElement} host
  * @param {object} user
  * @param {string} assemblyId

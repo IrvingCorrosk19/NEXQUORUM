@@ -472,7 +472,7 @@ async function init() {
     return;
   }
 
-  await bootIaPage({ current: "asm-checkin" });
+  await bootIaPage({ current: "asm-checkin", pageLabel: "Acreditación" });
 
   try {
     assembly = await api(`/api/assemblies/${assemblyId}`);

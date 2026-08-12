@@ -244,7 +244,7 @@ async function init() {
     return;
   }
 
-  await bootIaPage({ current: "asm-room" });
+  await bootIaPage({ current: "asm-room", pageLabel: "Sala" });
 
   let room;
   try {

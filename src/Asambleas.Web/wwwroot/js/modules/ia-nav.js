@@ -58,7 +58,6 @@ export function buildIaNavHtml(ctx) {
   const phId = ctx.phId;
   const assemblyId = ctx.assemblyId;
   const qPh = phId ? `phId=${encodeURIComponent(phId)}` : "";
-  const qAsm = assemblyId ? `assemblyId=${encodeURIComponent(assemblyId)}` : "";
   const current = ctx.current || "";
 
   const global = [
@@ -85,49 +84,78 @@ export function buildIaNavHtml(ctx) {
     phBlock = section(ctx.phName || "Propiedad", items);
   }
 
-  let asmBlock = "";
-  if (assemblyId) {
-    const a = qAsm;
-    const canComms = hasPermission(ctx.user, "communications:view");
-    const items = [
-      link(`/dashboard.html?${a}`, "Resumen", { current: current === "asm-overview", id: "nav-dashboard" }),
-      link(`/agenda.html?${a}`, "Agenda", { current: current === "asm-agenda" }),
-      link(`/calendar.html?${a}`, "Calendario", { current: current === "asm-agenda-cal" }),
-      canComms
-        ? link(`/convocation.html?${a}`, "Convocatoria", {
-            current: current === "asm-convocation",
-            id: "nav-convocation"
-          })
-        : "",
-      link(`/checkin.html?${a}`, "Participantes / Acreditación", {
-        current: current === "asm-checkin",
-        id: "nav-checkin"
-      }),
-      hasPermission(ctx.user, "motion:create") || hasPermission(ctx.user, "vote:open")
-        ? link(`/voting-studio.html?${a}`, "Votaciones", { current: current === "asm-voting" })
-        : "",
-      link(`/lobby.html?${a}`, "Sala", { current: current === "asm-room", id: "nav-lobby" }),
-      link(`/minutes.html?${a}`, "Acta", { current: current === "asm-minutes", id: "nav-minutes" }),
-      hasPermission(ctx.user, "audit:view")
-        ? link(`/evidence.html?${a}`, "Evidencias", {
-            current: current === "asm-evidence",
-            id: "nav-evidence"
-          })
-        : "",
-      hasPermission(ctx.user, "expediente:view")
-        ? link(`/expediente.html?${a}`, "Expediente", { current: current === "asm-expediente" })
-        : ""
-    ]
-      .filter(Boolean)
-      .join("");
-    asmBlock = section(ctx.assemblyTitle || "Asamblea", items);
-  }
-
   return `
     ${section("Inicio", global)}
     ${phBlock}
-    ${asmBlock}
   `;
+}
+
+/** Horizontal assembly sub-navigation (replaces a second sidebar). */
+export function buildAssemblyTabsHtml(ctx) {
+  const assemblyId = ctx.assemblyId;
+  if (!assemblyId) return "";
+
+  const current = ctx.current || "";
+  const q = `assemblyId=${encodeURIComponent(assemblyId)}`;
+  const canComms = hasPermission(ctx.user, "communications:view");
+  const canVote = hasPermission(ctx.user, "motion:create") || hasPermission(ctx.user, "vote:open");
+  const canAudit = hasPermission(ctx.user, "audit:view");
+  const canExp = hasPermission(ctx.user, "expediente:view");
+
+  const tabs = [
+    { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
+    { id: "asm-readiness", href: `/dashboard.html?${q}#readiness`, label: "Preparación" },
+    canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
+    { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Acreditación" },
+    { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda" },
+    canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
+    { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala" },
+    { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta" },
+    canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias" } : null,
+    canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente", more: true } : null
+  ].filter(Boolean);
+
+  const primary = tabs.filter((t) => !t.more);
+  const more = tabs.filter((t) => t.more);
+
+  const tabLink = (t) => {
+    const active = current === t.id ? ' aria-current="page"' : "";
+    return `<a href="${t.href}" class="ia-asm-tab${current === t.id ? " is-active" : ""}"${active}>${escapeHtml(t.label)}</a>`;
+  };
+
+  const moreHtml =
+    more.length > 0
+      ? `<details class="ia-asm-tabs__more">
+          <summary>Más</summary>
+          <div class="ia-asm-tabs__menu">${more.map(tabLink).join("")}</div>
+        </details>`
+      : "";
+
+  return `
+    <nav class="ia-asm-tabs" aria-label="Módulos de la asamblea">
+      ${primary.map(tabLink).join("")}
+      ${moreHtml}
+    </nav>`;
+}
+
+/**
+ * Standard breadcrumb trail for assembly-scoped pages.
+ * @param {{ phId?: string|null, phName?: string|null, assemblyId?: string|null, assemblyTitle?: string|null, pageLabel?: string|null }} ctx
+ */
+export function buildAssemblyBreadcrumbs(ctx) {
+  const crumbs = [{ label: "Propiedades", href: "/ph.html" }];
+  if (ctx.phName && ctx.phId) {
+    crumbs.push({ label: ctx.phName, href: phHref(ctx.phId, "resumen") });
+    crumbs.push({ label: "Asambleas", href: phHref(ctx.phId, "assemblies") });
+  }
+  if (ctx.assemblyTitle && ctx.assemblyId) {
+    crumbs.push({
+      label: ctx.assemblyTitle,
+      href: assemblyHref(ctx.assemblyId, "dashboard")
+    });
+  }
+  if (ctx.pageLabel) crumbs.push({ label: ctx.pageLabel });
+  return crumbs;
 }
 
 function buildOwnerNav(ctx) {
@@ -188,6 +216,20 @@ export function mountIaShell(ctx, { breadcrumbs = [] } = {}) {
   const crumbHost = qs("#ia-breadcrumbs");
   if (crumbHost) {
     crumbHost.innerHTML = buildBreadcrumbsHtml(breadcrumbs);
+  }
+
+  if (ctx.assemblyId) {
+    let tabsHost = qs("#ia-assembly-tabs");
+    if (!tabsHost && crumbHost) {
+      tabsHost = document.createElement("div");
+      tabsHost.id = "ia-assembly-tabs";
+      crumbHost.insertAdjacentElement("afterend", tabsHost);
+    }
+    if (tabsHost) {
+      tabsHost.innerHTML = buildAssemblyTabsHtml(ctx);
+    }
+  } else {
+    qs("#ia-assembly-tabs")?.replaceChildren();
   }
 
   const topCtx = qs("#ia-context-label");

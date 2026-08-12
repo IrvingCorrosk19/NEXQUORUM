@@ -7,12 +7,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=px1" />
-  <link rel="stylesheet" href="/css/base.css?v=px1" />
-  <link rel="stylesheet" href="/css/components.css?v=px1" />
-  <link rel="stylesheet" href="/css/loading.css?v=px1" />
-  <link rel="stylesheet" href="/css/voting-studio.css?v=vs1" />
-  <link rel="stylesheet" href="/css/ia.css?v=ia2" />
+  <link rel="stylesheet" href="/css/tokens.css?v=ia3" />
+  <link rel="stylesheet" href="/css/base.css?v=ia3" />
+  <link rel="stylesheet" href="/css/components.css?v=ia3" />
+  <link rel="stylesheet" href="/css/loading.css?v=ia3" />
+  <link rel="stylesheet" href="/css/voting-studio.css?v=vs2" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia3" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
@@ -36,29 +36,56 @@
       </div>
     </header>
 
-    <main id="main" class="app-workspace page-main studio-main">
+    <main id="main" class="app-workspace page-main page-main--wide studio-main">
       <div id="page-alert" class="alert" hidden role="alert"></div>
       <div id="ia-breadcrumbs"></div>
 
-      <section class="page-hero studio-hero">
-        <p class="command-eyebrow">Asamblea</p>
-        <h1>Votaciones</h1>
-        <p class="lede" id="assembly-label">Cargando asamblea…</p>
-        <div class="cta-row">
-          <button type="button" class="btn btn-primary" id="btn-new-vote">+ Nueva votación</button>
-          <button type="button" class="btn btn-secondary" id="btn-new-survey">+ Nuevo formulario / encuesta</button>
+      <section class="page-hero page-hero--compact">
+        <div class="ia-toolbar">
+          <div>
+            <h1 style="margin:0">Votaciones</h1>
+            <p class="lede" id="assembly-label"><span class="skeleton" style="display:inline-block;width:14rem;height:1rem"></span></p>
+          </div>
+          <div class="cluster">
+            <button type="button" class="btn btn-primary" id="btn-create">+ Crear</button>
+            <details class="ia-asm-tabs__more">
+              <summary class="btn btn-secondary" style="list-style:none;cursor:pointer">Más ▾</summary>
+              <div class="ia-asm-tabs__menu">
+                <button type="button" class="ia-asm-tab" id="btn-open-templates" style="width:100%;border:0;background:transparent;text-align:left">Plantillas</button>
+              </div>
+            </details>
+          </div>
         </div>
       </section>
 
-      <div class="studio-layout">
-        <section class="panel studio-list" aria-label="Instrumentos">
+      <div class="ia-voting-layout" id="voting-layout">
+        <section class="panel ia-panel--flat" aria-label="Listado de votaciones">
           <div class="studio-tabs" role="tablist">
             <button type="button" class="studio-tab is-active" data-tab="votes" role="tab" aria-selected="true">Votaciones</button>
-            <button type="button" class="studio-tab" data-tab="surveys" role="tab" aria-selected="false">Formularios</button>
-            <button type="button" class="studio-tab" data-tab="templates" role="tab" aria-selected="false">Plantillas</button>
+            <button type="button" class="studio-tab" data-tab="surveys" role="tab" aria-selected="false">Encuestas</button>
           </div>
-          <div id="list-votes" class="studio-list-body"></div>
-          <div id="list-surveys" class="studio-list-body" hidden></div>
+
+          <div id="votes-panel">
+            <div class="ia-toolbar" style="margin-top:0.75rem">
+              <div class="ia-toolbar__filters" id="vote-filters" role="toolbar" aria-label="Filtrar votaciones">
+                <button type="button" data-filter="all" aria-pressed="true">Todas</button>
+                <button type="button" data-filter="draft" aria-pressed="false">Borradores</button>
+                <button type="button" data-filter="ready" aria-pressed="false">Preparadas</button>
+                <button type="button" data-filter="live" aria-pressed="false">En vivo</button>
+                <button type="button" data-filter="closed" aria-pressed="false">Cerradas</button>
+              </div>
+              <label class="cluster" style="gap:0.35rem;font-size:0.875rem">
+                <span class="muted">Buscar</span>
+                <input type="search" id="vote-search" placeholder="Título…" style="min-width:10rem" />
+              </label>
+            </div>
+            <div id="list-votes" class="studio-list-body"></div>
+          </div>
+
+          <div id="surveys-panel" hidden>
+            <div id="list-surveys" class="studio-list-body"></div>
+          </div>
+
           <div id="list-templates" class="studio-list-body" hidden></div>
         </section>
 
@@ -81,6 +108,24 @@
     </main>
   </div>
 
+  <dialog id="create-dialog">
+    <form method="dialog" class="ux-form-sections" style="min-width:min(24rem,90vw)">
+      <h2 style="margin-top:0">¿Qué deseas crear?</h2>
+      <label style="display:grid;gap:0.35rem;margin:0.75rem 0">
+        <span><input type="radio" name="create-kind" value="vote" checked /> <strong>Votación</strong></span>
+        <span class="muted" style="margin-left:1.35rem">Para tomar una decisión formal de la Asamblea.</span>
+      </label>
+      <label style="display:grid;gap:0.35rem;margin:0.75rem 0">
+        <span><input type="radio" name="create-kind" value="survey" /> <strong>Encuesta</strong></span>
+        <span class="muted" style="margin-left:1.35rem">Para recopilar opiniones o información.</span>
+      </label>
+      <div class="cta-row" style="justify-content:flex-end;margin-top:1rem">
+        <button type="submit" class="btn btn-secondary" value="cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary" value="ok">Continuar</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="preview-dialog" class="studio-preview-dialog">
     <form method="dialog" class="studio-preview">
       <header>
@@ -98,6 +143,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="/js/modules/voting-studio-app.js?v=vs1"></script>
+  <script type="module" src="/js/modules/voting-studio-app.js?v=ia3"></script>
 </body>
 </html>

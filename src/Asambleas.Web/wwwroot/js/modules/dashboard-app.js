@@ -12,13 +12,14 @@ import {
 import { getDashboard, getReadiness } from "./room-state.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
 import { api } from "./api.js";
-import { mountIaShell, phHref } from "./ia-nav.js";
+import { mountIaShell, buildAssemblyBreadcrumbs } from "./ia-nav.js";
 import { resolvePrimaryAction, statusLabelEs } from "./ia-actions.js";
 import {
-  renderReadinessPanel,
+  renderReadinessCompact,
   renderNextAction,
-  renderWorkspaceGroups
+  renderQuickLinks
 } from "./readiness-workflow.js";
+import { writeIaContext } from "./ia-context.js";
 
 let assemblyId = assemblyIdFromUrl();
 
@@ -62,17 +63,17 @@ async function loadReadinessData() {
   return null;
 }
 
-function paintDashboard(user, assembly, readiness, operator) {
+function paintDashboard(user, assembly, readiness, operator, counts = null) {
   const phId = assembly.propertyHorizontalId;
   const phName = assembly.propertyHorizontalName || "PH";
   const title = assembly.name || assembly.title || t("dashboard.title");
   const ctx = { assemblyId, phId };
 
-  renderReadinessPanel(qs("#readiness-panel"), readiness, ctx);
+  renderReadinessCompact(qs("#readiness-panel"), readiness, ctx);
   renderNextAction(qs("#primary-cta"), readiness, assembly, { assemblyId, operator }, (action) =>
     runPrimaryAction(action, operator)
   );
-  renderWorkspaceGroups(qs("#secondary-links"), user, assemblyId);
+  renderQuickLinks(qs("#secondary-links"), user, assemblyId);
 
   qs("#assembly-name").textContent = title;
   const badge = qs("#assembly-status-badge");
@@ -82,9 +83,19 @@ function paintDashboard(user, assembly, readiness, operator) {
   badge.classList.toggle("is-ready", assembly.status === "Scheduled");
 
   qs("#assembly-meta").innerHTML = `
-    <span><strong>PH:</strong> ${escapeHtml(phName)}</span>
-    <span><strong>Fecha:</strong> ${escapeHtml(formatDateTime(assembly.scheduledAtUtc))}</span>
-    <span><strong>Modalidad:</strong> ${escapeHtml(assembly.modality || "—")}</span>`;
+    <span>${escapeHtml(formatDateTime(assembly.scheduledAtUtc))}</span>
+    <span>${escapeHtml(assembly.modality || "—")}</span>`;
+
+  const c = counts || assembly.counts || {};
+  const prepDone = readiness?.completedChecks ?? 0;
+  const prepTotal = readiness?.totalChecks ?? 0;
+  qs("#assembly-stat-strip").innerHTML = `
+    <div class="ia-stat"><div class="ia-stat__value">${prepTotal ? `${prepDone}/${prepTotal}` : "—"}</div><div class="ia-stat__label">Preparación</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${c.participants ?? c.Participants ?? "—"}</div><div class="ia-stat__label">Participantes</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">—</div><div class="ia-stat__label">Quórum</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${c.motions ?? c.Motions ?? "—"}</div><div class="ia-stat__label">Votaciones</div></div>`;
+
+  writeIaContext({ phId, phName, assemblyId, assemblyTitle: title });
 
   mountIaShell(
     {
@@ -94,15 +105,10 @@ function paintDashboard(user, assembly, readiness, operator) {
       phName,
       assemblyId,
       assemblyTitle: title,
-      current: "asm-overview"
+      current: location.hash === "#readiness" ? "asm-readiness" : "asm-overview"
     },
     {
-      breadcrumbs: [
-        { label: "Propiedades", href: "/ph.html" },
-        { label: phName, href: phId ? phHref(phId, "resumen") : "/ph.html" },
-        { label: "Asambleas", href: phId ? phHref(phId, "assemblies") : "/calendar.html" },
-        { label: title }
-      ]
+      breadcrumbs: buildAssemblyBreadcrumbs({ phId, phName, assemblyId, assemblyTitle: title })
     }
   );
 }
@@ -169,7 +175,7 @@ async function init() {
     readiness = await loadReadinessData();
   }
 
-  paintDashboard(user, assembly, readiness, operator);
+  paintDashboard(user, assembly, readiness, operator, dash.ok ? dash.data?.counts : null);
 
   const params = new URLSearchParams(location.search);
   if (params.get("refresh") === "1") {

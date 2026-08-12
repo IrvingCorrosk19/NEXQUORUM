@@ -161,7 +161,7 @@ async function init() {
     return;
   }
 
-  await bootIaPage({ current: "asm-minutes" });
+  await bootIaPage({ current: "asm-minutes", pageLabel: "Acta" });
 
   const result = await getMinutes(assemblyId);
   if (!result.ok) {

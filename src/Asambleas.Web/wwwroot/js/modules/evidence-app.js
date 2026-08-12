@@ -93,7 +93,7 @@ async function init() {
     return;
   }
 
-  await bootIaPage({ current: "asm-evidence" });
+  await bootIaPage({ current: "asm-evidence", pageLabel: "Evidencias" });
 
   const result = await getEvidence(assemblyId);
   if (!result.ok) {

@@ -1,9 +1,13 @@
 import { api } from "./api.js";
-import { me, logout, hasPermission } from "./auth.js";
+import { hasPermission } from "./auth.js";
+import { statusLabelEs } from "./ia-actions.js";
 import { escapeHtml, showToast, qs } from "./ui.js";
 import { showGlobalLoader, hideGlobalLoader } from "./loading.js";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";
+import { bootIaPage } from "./ia-page.js";
+import { readIaContext } from "./ia-context.js";
+import { phHref } from "./ia-nav.js";
 
 const showLoader = (msg) => showGlobalLoader(msg, { immediate: true });
 const hideLoader = () => hideGlobalLoader();
@@ -18,6 +22,38 @@ function showError(message) {
 
 const params = new URLSearchParams(location.search);
 let assemblyId = params.get("assemblyId");
+let voteFilter = "all";
+let voteSearch = "";
+
+const DESIGN_LABELS = {
+  Draft: "Borrador",
+  Ready: "Preparada",
+  Published: "Publicada"
+};
+
+const STATUS_LABELS = {
+  Draft: "Borrador",
+  Pending: "Pendiente",
+  Open: "En vivo",
+  Closed: "Cerrada",
+  Published: "Publicada"
+};
+
+function motionBucket(m) {
+  const design = String(m.designStatus || "Draft");
+  const status = String(m.status || "");
+  if (status === "Open" || status === "InProgress") return "live";
+  if (status === "Closed" || status === "Completed") return "closed";
+  if (design === "Ready" || design === "Published") return "ready";
+  return "draft";
+}
+
+function motionStatusLabel(m) {
+  const status = String(m.status || "");
+  if (status === "Open" || status === "InProgress") return "En vivo";
+  if (status === "Closed" || status === "Completed") return "Cerrada";
+  return DESIGN_LABELS[m.designStatus] || DESIGN_LABELS.Draft;
+}
 
 const TEMPLATES = [
   {
@@ -168,74 +204,157 @@ function renderTabs() {
         b.setAttribute("aria-selected", b === btn ? "true" : "false");
       });
       const tab = btn.dataset.tab;
-      qs("#list-votes").hidden = tab !== "votes";
-      qs("#list-surveys").hidden = tab !== "surveys";
+      qs("#votes-panel").hidden = tab !== "votes";
+      qs("#surveys-panel").hidden = tab !== "surveys";
       qs("#list-templates").hidden = tab !== "templates";
     });
   });
 }
 
+function filteredMotions() {
+  let rows = state.motions;
+  if (voteFilter !== "all") rows = rows.filter((m) => motionBucket(m) === voteFilter);
+  if (voteSearch.trim()) {
+    const q = voteSearch.trim().toLowerCase();
+    rows = rows.filter((m) => (m.title || "").toLowerCase().includes(q));
+  }
+  return rows;
+}
+
 function renderLists() {
   const votes = qs("#list-votes");
+  const rows = filteredMotions();
+
   if (!state.motions.length) {
-    votes.innerHTML = `<p class="muted">No hay votaciones. Cree una o use una plantilla.</p>`;
+    votes.innerHTML = `
+      <div class="ia-empty-state">
+        <p>Todavía no has preparado votaciones.</p>
+        <p>Crea las decisiones que serán sometidas a los propietarios durante la Asamblea.</p>
+        <button type="button" class="btn btn-primary" id="btn-empty-create">Crear primera votación</button>
+        <p style="margin-top:1rem;font-size:0.875rem">También puedes <button type="button" class="btn btn-ghost" id="btn-empty-templates">usar una plantilla</button></p>
+      </div>`;
+    qs("#btn-empty-create")?.addEventListener("click", () => openCreateDialog());
+    qs("#btn-empty-templates")?.addEventListener("click", () => showTemplatesTab());
+  } else if (!rows.length) {
+    votes.innerHTML = `<div class="ia-empty-state"><p>No hay votaciones en este filtro.</p></div>`;
   } else {
-    votes.innerHTML = state.motions
-      .map(
-        (m) => `
-      <article class="studio-card">
-        <h3>${escapeHtml(m.title)}</h3>
-        <div class="meta">
-          <span>${escapeHtml(m.code)}</span>
-          <span>${escapeHtml(m.designStatus || "Draft")}</span>
-          <span>${escapeHtml(m.status)}</span>
-          <span>${escapeHtml(m.calculationMethod || "Coefficient")}</span>
-          ${m.requiredThresholdPercent != null ? `<span>≥ ${escapeHtml(String(m.requiredThresholdPercent))}%</span>` : ""}
-        </div>
-        <div class="actions">
-          <button type="button" class="btn btn-secondary" data-edit-vote="${m.id}">Editar</button>
-          <button type="button" class="btn btn-ghost" data-dup-vote="${m.id}">Duplicar</button>
-          <button type="button" class="btn btn-primary" data-publish-vote="${m.id}">Publicar</button>
-        </div>
-      </article>`
-      )
-      .join("");
+    votes.innerHTML = `
+      <table class="ia-data-table" aria-label="Votaciones">
+        <thead>
+          <tr>
+            <th>Título</th>
+            <th>Estado</th>
+            <th>Participación</th>
+            <th class="col-actions">Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map((m) => {
+              const action =
+                motionBucket(m) === "closed"
+                  ? `<button type="button" class="btn btn-secondary btn-sm" data-results-vote="${m.id}">Resultados</button>`
+                  : motionBucket(m) === "live"
+                    ? `<a class="btn btn-primary btn-sm" href="/lobby.html?assemblyId=${encodeURIComponent(assemblyId)}">Abrir</a>`
+                    : `<button type="button" class="btn btn-secondary btn-sm" data-edit-vote="${m.id}">Editar</button>`;
+              return `
+            <tr>
+              <td data-label="Título"><strong>${escapeHtml(m.title)}</strong></td>
+              <td data-label="Estado"><span class="ia-badge-status">${escapeHtml(motionStatusLabel(m))}</span></td>
+              <td data-label="Participación" class="muted">—</td>
+              <td data-label="Acción" class="col-actions">${action}</td>
+            </tr>`;
+            })
+            .join("")}
+        </tbody>
+      </table>`;
   }
 
   const surveys = qs("#list-surveys");
   if (!state.surveys.length) {
-    surveys.innerHTML = `<p class="muted">No hay formularios. Las encuestas no generan decisión formal.</p>`;
+    surveys.innerHTML = `
+      <div class="ia-empty-state">
+        <p>No hay encuestas preparadas.</p>
+        <button type="button" class="btn btn-primary" id="btn-empty-survey">Crear encuesta</button>
+      </div>`;
+    qs("#btn-empty-survey")?.addEventListener("click", async () => {
+      try {
+        await ensureAgendaItem();
+        openSurveyEditor(null, TEMPLATES.find((t) => t.isSurvey));
+      } catch (err) {
+        showError(err.message);
+      }
+    });
   } else {
-    surveys.innerHTML = state.surveys
-      .map(
-        (s) => `
-      <article class="studio-card">
-        <h3>${escapeHtml(s.title)}</h3>
-        <div class="meta">
-          <span>${escapeHtml(s.status)}</span>
-          <span>${(s.questions || []).length} preguntas</span>
-          <span>${s.responseCount || 0} respuestas</span>
-        </div>
-        <div class="actions">
-          <button type="button" class="btn btn-secondary" data-edit-survey="${s.id}">Editar</button>
-          <button type="button" class="btn btn-primary" data-publish-survey="${s.id}">Publicar</button>
-          <button type="button" class="btn btn-ghost" data-results-survey="${s.id}">Resultados</button>
-        </div>
-      </article>`
-      )
-      .join("");
+    surveys.innerHTML = `
+      <table class="ia-data-table" aria-label="Encuestas">
+        <thead><tr><th>Título</th><th>Estado</th><th>Respuestas</th><th class="col-actions">Acción</th></tr></thead>
+        <tbody>
+          ${state.surveys
+            .map(
+              (s) => `
+            <tr>
+              <td data-label="Título"><strong>${escapeHtml(s.title)}</strong></td>
+              <td data-label="Estado">${escapeHtml(STATUS_LABELS[s.status] || s.status || "—")}</td>
+              <td data-label="Respuestas">${s.responseCount || 0}</td>
+              <td data-label="Acción" class="col-actions">
+                <button type="button" class="btn btn-secondary btn-sm" data-edit-survey="${s.id}">Editar</button>
+              </td>
+            </tr>`
+            )
+            .join("")}
+        </tbody>
+      </table>`;
   }
 
   qs("#list-templates").innerHTML = `<div class="template-grid">${TEMPLATES.map(
     (t) => `
     <article class="studio-card">
       <h3>${escapeHtml(t.title)}</h3>
-      <p class="muted">${t.isSurvey ? "Formulario / encuesta" : "Votación formal"}</p>
+      <p class="muted">${t.isSurvey ? "Encuesta" : "Votación formal"}</p>
       <button type="button" class="btn btn-primary" data-template="${escapeHtml(t.key)}">Usar plantilla</button>
     </article>`
   ).join("")}</div>`;
 
   bindListActions();
+  qs("#voting-layout")?.classList.toggle("has-editor", !qs("#editor-panel")?.hidden);
+}
+
+function showTemplatesTab() {
+  document.querySelectorAll(".studio-tab").forEach((b) => {
+    const isTpl = b.dataset.tab === "templates";
+    b.classList.toggle("is-active", isTpl);
+    b.setAttribute("aria-selected", isTpl ? "true" : "false");
+  });
+  qs("#votes-panel").hidden = true;
+  qs("#surveys-panel").hidden = true;
+  qs("#list-templates").hidden = false;
+  if (!qs('.studio-tab[data-tab="templates"]')) {
+    qs("#list-templates").hidden = false;
+  }
+}
+
+async function openCreateDialog() {
+  const dlg = qs("#create-dialog");
+  dlg.showModal();
+  const kind = await new Promise((resolve) => {
+    dlg.addEventListener(
+      "close",
+      () => resolve(dlg.returnValue === "ok" ? dlg.querySelector('[name="create-kind"]:checked')?.value : null),
+      { once: true }
+    );
+  });
+  if (!kind) return;
+  try {
+    await ensureAgendaItem();
+    if (kind === "survey") {
+      openSurveyEditor(null, TEMPLATES.find((t) => t.isSurvey));
+    } else {
+      openVoteEditor(null, TEMPLATES[0]);
+    }
+  } catch (err) {
+    showError(err.message);
+  }
 }
 
 function bindListActions() {
@@ -350,7 +469,8 @@ function openVoteEditor(motion, template) {
 
   qs("#editor-panel").hidden = false;
   qs("#editor-title").textContent = motion ? "Editar votación" : "Crear votación";
-  qs("#editor-status").textContent = state.draft.designStatus || "Borrador";
+  qs("#editor-status").textContent = DESIGN_LABELS[state.draft.designStatus] || "Borrador";
+  qs("#voting-layout")?.classList.add("has-editor");
   renderVoteEditor();
 }
 
@@ -373,8 +493,9 @@ function openSurveyEditor(survey, template) {
     : defaultSurveyDraft(template);
 
   qs("#editor-panel").hidden = false;
-  qs("#editor-title").textContent = survey ? "Editar formulario" : "Crear formulario / encuesta";
-  qs("#editor-status").textContent = survey?.status || "Borrador";
+  qs("#editor-title").textContent = survey ? "Editar encuesta" : "Crear encuesta";
+  qs("#editor-status").textContent = STATUS_LABELS[survey?.status] || "Borrador";
+  qs("#voting-layout")?.classList.add("has-editor");
   renderSurveyEditor();
 }
 
@@ -722,39 +843,25 @@ async function refresh() {
   state.agenda = agenda.items || [];
   state.motions = Array.isArray(motions) ? motions : [];
   state.surveys = Array.isArray(surveys) ? surveys : [];
-  qs("#assembly-label").textContent = `${assembly?.title || "Asamblea"} · ${assembly?.status || ""}`;
+  qs("#assembly-label").textContent = `${assembly?.title || "Asamblea"}${assembly?.status ? ` · ${statusLabelEs(assembly.status)}` : ""}`;
   renderLists();
 }
 
 async function init() {
   renderTabs();
-  try {
-    state.user = await me();
-  } catch {
-    location.href = "/";
-    return;
-  }
-  qs("#user-chip").textContent = state.user.displayName || state.user.email || "Usuario";
-  qs("#btn-logout").onclick = () => logout();
-  await bootIaPage({ current: "asm-voting" });
+
+  const ctx = await bootIaPage({ current: "asm-voting", pageLabel: "Votaciones" });
+  if (!ctx) return;
+
+  state.user = ctx.user;
+  assemblyId = assemblyId || ctx.assemblyId || readIaContext().assemblyId;
 
   if (!assemblyId) {
-    try {
-      const list = await api("/api/assemblies");
-      const items = Array.isArray(list) ? list : list?.items || [];
-      const pick =
-        items.find((a) => ["InProgress", "CheckIn", "Scheduled", "Paused"].includes(a.status)) || items[0];
-      if (pick) {
-        assemblyId = pick.id;
-        history.replaceState({}, "", `?assemblyId=${assemblyId}`);
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-
-  if (!assemblyId) {
-    showError("Falta assemblyId. Abra Votaciones desde el panel de una asamblea.");
+    const phId = ctx.phId || readIaContext().phId;
+    showError("Seleccione una asamblea desde el listado del PH.");
+    qs("#assembly-label").innerHTML = phId
+      ? `<a href="${phHref(phId, "assemblies")}">Ir a asambleas del PH</a>`
+      : `<a href="/ph.html">Ir a propiedades</a>`;
     return;
   }
 
@@ -762,26 +869,23 @@ async function init() {
     showError("No tiene permiso para diseñar votaciones.");
   }
 
-  qs("#nav-dashboard")?.setAttribute("href", `/dashboard.html?assemblyId=${assemblyId}`);
-  qs("#nav-assembly")?.setAttribute("href", `/assembly.html?assemblyId=${assemblyId}`);
-  qs("#nav-expediente")?.setAttribute("href", `/expediente.html?assemblyId=${assemblyId}`);
+  qs("#btn-create")?.addEventListener("click", () => openCreateDialog());
+  qs("#btn-open-templates")?.addEventListener("click", () => showTemplatesTab());
 
-  qs("#btn-new-vote").onclick = async () => {
-    try {
-      await ensureAgendaItem();
-      openVoteEditor(null, TEMPLATES[0]);
-    } catch (err) {
-      showError(err.message);
-    }
-  };
-  qs("#btn-new-survey").onclick = async () => {
-    try {
-      await ensureAgendaItem();
-      openSurveyEditor(null, TEMPLATES.find((t) => t.isSurvey));
-    } catch (err) {
-      showError(err.message);
-    }
-  };
+  document.querySelectorAll("#vote-filters button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      voteFilter = btn.dataset.filter || "all";
+      document.querySelectorAll("#vote-filters button").forEach((b) =>
+        b.setAttribute("aria-pressed", b === btn ? "true" : "false")
+      );
+      renderLists();
+    });
+  });
+  qs("#vote-search")?.addEventListener("input", (e) => {
+    voteSearch = e.target.value || "";
+    renderLists();
+  });
+
   qs("#btn-save-draft").onclick = () => saveDraft();
   qs("#btn-publish").onclick = () => publishCurrent();
   qs("#btn-preview").onclick = () => showPreview();
@@ -796,10 +900,11 @@ async function init() {
     });
   });
 
-  showLoader("Preparando studio…");
+  showLoader("Cargando votaciones…");
   try {
     await refresh();
   } catch (err) {
+    qs("#assembly-label").textContent = "No pudimos cargar esta asamblea.";
     showError(err.message);
   } finally {
     hideLoader();

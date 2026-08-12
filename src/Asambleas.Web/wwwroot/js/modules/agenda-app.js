@@ -93,7 +93,7 @@ async function init() {
     location.href = "/";
   });
 
-  await bootIaPage({ current: "asm-agenda" });
+  await bootIaPage({ current: "asm-agenda", pageLabel: "Agenda" });
 
   let assembly;
   try {

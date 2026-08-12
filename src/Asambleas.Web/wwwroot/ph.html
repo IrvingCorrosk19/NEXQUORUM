@@ -82,7 +82,6 @@
           <h1 id="ph-title">—</h1>
           <div class="meta-row" id="ph-meta"></div>
           <div class="cta-row" id="ph-hero-actions">
-            <button type="button" id="btn-back-list" class="btn btn-secondary">← Propiedades</button>
             <button type="button" id="btn-mark-ready" class="btn btn-secondary" hidden>Marcar listo para asamblea</button>
             <button type="button" id="btn-activate-ph" class="btn btn-primary" hidden>Activar PH</button>
             <button type="button" id="btn-reactivate-ph" class="btn btn-secondary" hidden>Reactivar</button>
@@ -113,8 +112,11 @@
         </section>
 
         <section class="panel wizard-panel" data-panel="assemblies" hidden>
-          <div class="cluster" style="justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.75rem">
-            <h2 class="section-title" style="margin:0">Asambleas</h2>
+          <div class="cluster" style="justify-content:space-between;align-items:flex-start;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.75rem">
+            <div>
+              <h2 class="section-title" style="margin:0">Asambleas</h2>
+              <p class="muted" style="margin:0.35rem 0 0">Administra las reuniones, convocatorias y resultados del PH.</p>
+            </div>
             <a id="btn-new-assembly" class="btn btn-primary" href="/calendar.html">+ Nueva asamblea</a>
           </div>
           <div class="ia-asm-filters" id="asm-filters" role="toolbar" aria-label="Filtrar asambleas">

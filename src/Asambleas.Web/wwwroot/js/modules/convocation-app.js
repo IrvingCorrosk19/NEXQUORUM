@@ -292,7 +292,7 @@ async function init() {
 
   qs("#user-chip").textContent = user.displayName;
   qs("#nav-tenant") && (qs("#nav-tenant").textContent = user.tenantCode || user.tenantName || "Gobernanza");
-  await bootIaPage({ current: "asm-convocation" });
+  await bootIaPage({ current: "asm-convocation", pageLabel: "Convocatoria" });
   const q = `assemblyId=${encodeURIComponent(assemblyId)}`;
   qs("#nav-dashboard")?.setAttribute("href", `/dashboard.html?${q}`);
   qs("#nav-comms")?.setAttribute("href", `/communications.html?${q}`);
