@@ -74,6 +74,7 @@ export async function bootIaPage(opts) {
   let assemblyId = params.get("assemblyId") || stored.assemblyId || null;
   let phName = stored.phName || null;
   let assemblyTitle = stored.assemblyTitle || null;
+  let assemblyStatus = stored.assemblyStatus || null;
   let crumbs = breadcrumbs;
 
   if (resolveContext) {
@@ -82,6 +83,7 @@ export async function bootIaPage(opts) {
     phName = extra.phName ?? phName;
     assemblyId = extra.assemblyId ?? assemblyId;
     assemblyTitle = extra.assemblyTitle ?? assemblyTitle;
+    assemblyStatus = extra.assemblyStatus ?? assemblyStatus;
     if (extra.breadcrumbs?.length) crumbs = extra.breadcrumbs;
   } else {
     if (assemblyId) {
@@ -89,6 +91,7 @@ export async function bootIaPage(opts) {
         const a = await api(`/api/assemblies/${assemblyId}`);
         assemblyTitle = a.title || a.name || "Asamblea";
         phId = a.propertyHorizontalId || phId;
+        assemblyStatus = a.status || assemblyStatus;
         if (a.propertyHorizontalName) phName = a.propertyHorizontalName;
       } catch {
         /* ignore */
@@ -114,7 +117,7 @@ export async function bootIaPage(opts) {
     }
   }
 
-  writeIaContext({ phId, phName, assemblyId, assemblyTitle });
+  writeIaContext({ phId, phName, assemblyId, assemblyTitle, assemblyStatus });
 
   const resolvedLevel = assemblyId ? "assembly" : phId ? "ph" : level;
 
@@ -126,12 +129,13 @@ export async function bootIaPage(opts) {
       phName,
       assemblyId,
       assemblyTitle,
+      assemblyStatus,
       current
     },
     { breadcrumbs: crumbs }
   );
 
-  return { user, phId, phName, assemblyId, assemblyTitle };
+  return { user, phId, phName, assemblyId, assemblyTitle, assemblyStatus };
 }
 
 /** Standard CSS link tags to inject if missing (for pages we only patch lightly). */

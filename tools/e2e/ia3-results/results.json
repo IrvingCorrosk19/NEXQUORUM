@@ -1,0 +1,104 @@
+{
+  "steps": [
+    {
+      "n": "LOGIN_API",
+      "ok": true,
+      "d": "{\"status\":200,\"body\":\"{\\\"userId\\\":\\\"77777777-7777-7777-7777-777777777109\\\",\\\"displayName\\\":\\\"Administrador PH\\\",\\\"email\\\":\\\"phadmin@ocean.demo\\\",\\\"tenantId\\\":\\\"11111111-1111-1111-1"
+    },
+    {
+      "n": "LOGIN_SESSION",
+      "ok": true,
+      "d": "https://asambleas.164.68.99.83.nip.io/ph.html"
+    },
+    {
+      "n": "RESOLVE_PH_IRVING",
+      "ok": true,
+      "d": "2f012b4b-08d4-4548-a784-53e2bdf8d531"
+    },
+    {
+      "n": "ASSEMBLIES_ENTRY",
+      "ok": true,
+      "d": "https://asambleas.164.68.99.83.nip.io/ph.html?phId=2f012b4b-08d4-4548-a784-53e2bdf8d531#assemblies"
+    },
+    {
+      "n": "BREADCRUMB_PH",
+      "ok": true,
+      "d": "Propiedades PH Irving Asambleas"
+    },
+    {
+      "n": "NO_BACK_BUTTON",
+      "ok": true,
+      "d": ""
+    },
+    {
+      "n": "ASSEMBLY_OVERVIEW",
+      "ok": true,
+      "d": "https://asambleas.164.68.99.83.nip.io/dashboard.html?assemblyId=c0aafee8-e8cb-4f75-a074-e5b25d4973b1"
+    },
+    {
+      "n": "ASSEMBLY_TABS",
+      "ok": true,
+      "d": ""
+    },
+    {
+      "n": "OVERVIEW_STATS",
+      "ok": true,
+      "d": ""
+    },
+    {
+      "n": "VOTING_SAME_ASSEMBLY",
+      "ok": true,
+      "d": "exp=c0aafee8-e8cb-4f75-a074-e5b25d4973b1 got=c0aafee8-e8cb-4f75-a074-e5b25d4973b1"
+    },
+    {
+      "n": "VOTING_BREADCRUMB",
+      "ok": true,
+      "d": "Propiedades PH Irving Asambleas Asamblea Extraordinaria — Agosto 2026 Votaciones"
+    },
+    {
+      "n": "VOTING_PRIMARY_CREATE",
+      "ok": true,
+      "d": ""
+    },
+    {
+      "n": "NO_ETERNAL_LOADING",
+      "ok": true,
+      "d": ""
+    },
+    {
+      "n": "BREADCRUMB_ASSEMBLIES_RETURN",
+      "ok": true,
+      "d": "https://asambleas.164.68.99.83.nip.io/ph.html?phId=2f012b4b-08d4-4548-a784-53e2bdf8d531#assemblies"
+    },
+    {
+      "n": "DEEP_LINK_CONTEXT",
+      "ok": true,
+      "d": "Propiedades PH Irving Asambleas Asamblea Extraordinaria — Agosto 2026 Votaciones"
+    },
+    {
+      "n": "RESPONSIVE_1920",
+      "ok": true,
+      "d": "ok"
+    },
+    {
+      "n": "RESPONSIVE_1440",
+      "ok": true,
+      "d": "ok"
+    },
+    {
+      "n": "RESPONSIVE_1366",
+      "ok": true,
+      "d": "ok"
+    },
+    {
+      "n": "RESPONSIVE_mobile",
+      "ok": true,
+      "d": "ok"
+    }
+  ],
+  "pass": true,
+  "http500": 0,
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 ()"
+  ]
+}

@@ -245,6 +245,7 @@ async function init() {
   }
 
   await bootIaPage({ current: "asm-room", pageLabel: "Sala" });
+  document.body.classList.add("is-fullscreen-ops");
 
   let room;
   try {

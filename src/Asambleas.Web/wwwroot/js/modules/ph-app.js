@@ -95,8 +95,8 @@ async function init() {
 
   const urlPh = new URLSearchParams(location.search).get("phId");
   if (urlPh) {
-    await openPh(urlPh);
-    applyHashTab();
+    const desiredHash = (location.hash || "").replace("#", "");
+    await openPh(urlPh, desiredHash || null);
   } else {
     mountPhListShell();
   }
@@ -420,7 +420,7 @@ async function onCreatePh(ev) {
   $("#dlg-ph-created").showModal();
 }
 
-async function openPh(id) {
+async function openPh(id, preferredTab = null) {
   clearAlert();
   currentPhId = id;
   const ph = await api(`/api/ph/${id}`);
@@ -527,8 +527,9 @@ async function openPh(id) {
   const inactive = ph.status === "Inactive";
   $("#btn-archive-ph").hidden = inactive;
   $("#btn-template").href = `/api/ph/${id}/import/template`;
-  const initialTab = isOnboardingMode(ph) ? "info" : "resumen";
-  switchTab(initialTab);
+  const initialTab = preferredTab || (isOnboardingMode(ph) ? "info" : "resumen");
+  const allowed = new Set(["resumen", "info", "assemblies", "units", "owners", "coefficients", "import", "readiness"]);
+  switchTab(allowed.has(initialTab) ? initialTab : isOnboardingMode(ph) ? "info" : "resumen");
   await Promise.all([loadUnits(), loadOwners(), loadCoefficients(), loadReadiness(), loadAssemblies()]);
   await renderAttentionAndPrep(ph);
   setupPhFormBinder();
@@ -758,6 +759,16 @@ function renderAssembliesList() {
         : bucket === "upcoming"
           ? `<a class="btn btn-ghost btn-sm" href="/convocation.html?assemblyId=${id}">Convocatoria</a>`
           : "";
+    const moreMenu = `
+      <details class="ia-row-menu">
+        <summary class="btn btn-ghost btn-sm" aria-label="Más acciones">•••</summary>
+        <div class="ia-row-menu__panel" role="menu">
+          <a role="menuitem" href="/dashboard.html?assemblyId=${id}">Ver resumen</a>
+          <a role="menuitem" href="/calendar.html?assemblyId=${id}">Reprogramar</a>
+          <a role="menuitem" href="/convocation.html?assemblyId=${id}">Convocatoria</a>
+          <a role="menuitem" href="/minutes.html?assemblyId=${id}">Acta</a>
+        </div>
+      </details>`;
 
     return `
       <div class="ia-asm-row">
@@ -769,6 +780,7 @@ function renderAssembliesList() {
         <div class="ia-asm-row__actions">
           <a class="btn btn-${compact ? "secondary" : "primary"} btn-sm" href="${primaryHref}">${primaryLabel}</a>
           ${secondary}
+          ${moreMenu}
         </div>
       </div>`;
   };
@@ -802,6 +814,14 @@ function renderAssembliesList() {
             <div class="ia-asm-row__actions" style="justify-content:flex-start">
               <a class="btn btn-primary" href="/dashboard.html?assemblyId=${id}">Continuar preparación</a>
               <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${id}">Ver asamblea</a>
+              <details class="ia-row-menu">
+                <summary class="btn btn-ghost btn-sm" aria-label="Más acciones">•••</summary>
+                <div class="ia-row-menu__panel" role="menu">
+                  <a role="menuitem" href="/calendar.html?assemblyId=${id}">Reprogramar</a>
+                  <a role="menuitem" href="/convocation.html?assemblyId=${id}">Convocatoria</a>
+                  <a role="menuitem" href="/voting-studio.html?assemblyId=${id}">Votaciones</a>
+                </div>
+              </details>
             </div>
           </div>
         </div>`;

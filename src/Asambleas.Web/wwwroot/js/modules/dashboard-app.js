@@ -95,7 +95,7 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
     <div class="ia-stat"><div class="ia-stat__value">—</div><div class="ia-stat__label">Quórum</div></div>
     <div class="ia-stat"><div class="ia-stat__value">${c.motions ?? c.Motions ?? "—"}</div><div class="ia-stat__label">Votaciones</div></div>`;
 
-  writeIaContext({ phId, phName, assemblyId, assemblyTitle: title });
+  writeIaContext({ phId, phName, assemblyId, assemblyTitle: title, assemblyStatus: assembly.status || "" });
 
   mountIaShell(
     {
@@ -105,6 +105,7 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
       phName,
       assemblyId,
       assemblyTitle: title,
+      assemblyStatus: assembly.status || "",
       current: location.hash === "#readiness" ? "asm-readiness" : "asm-overview"
     },
     {

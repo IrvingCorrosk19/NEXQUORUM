@@ -96,27 +96,55 @@ export function buildAssemblyTabsHtml(ctx) {
   if (!assemblyId) return "";
 
   const current = ctx.current || "";
+  const status = String(ctx.assemblyStatus || "");
   const q = `assemblyId=${encodeURIComponent(assemblyId)}`;
   const canComms = hasPermission(ctx.user, "communications:view");
   const canVote = hasPermission(ctx.user, "motion:create") || hasPermission(ctx.user, "vote:open");
   const canAudit = hasPermission(ctx.user, "audit:view");
   const canExp = hasPermission(ctx.user, "expediente:view");
+  const isLive = ["InProgress", "Paused", "CheckIn"].includes(status);
+  const isDone = ["Completed", "Cancelled"].includes(status);
 
-  const tabs = [
-    { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
-    { id: "asm-readiness", href: `/dashboard.html?${q}#readiness`, label: "Preparación" },
-    canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
-    { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Acreditación" },
-    { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda" },
-    canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
-    { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala" },
-    { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta" },
-    canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias" } : null,
-    canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente", more: true } : null
-  ].filter(Boolean);
+  // Lifecycle-aware priority: live → room first; finished → results; else → prep.
+  const tabs = isLive
+    ? [
+        { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
+        { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala" },
+        { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Participantes" },
+        { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda" },
+        canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
+        canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias" } : null,
+        { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta", more: true },
+        canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria", more: true } : null,
+        { id: "asm-readiness", href: `/dashboard.html?${q}#readiness`, label: "Preparación", more: true },
+        canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente", more: true } : null
+      ]
+    : isDone
+      ? [
+          { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
+          { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta" },
+          canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias" } : null,
+          canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente" } : null,
+          canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones", more: true } : null,
+          { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda", more: true },
+          { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala", more: true }
+        ]
+      : [
+          { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
+          { id: "asm-readiness", href: `/dashboard.html?${q}#readiness`, label: "Preparación" },
+          canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
+          { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Acreditación" },
+          { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda" },
+          canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
+          { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala" },
+          { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta" },
+          canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias", more: true } : null,
+          canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente", more: true } : null
+        ];
 
-  const primary = tabs.filter((t) => !t.more);
-  const more = tabs.filter((t) => t.more);
+  const filtered = tabs.filter(Boolean);
+  const primary = filtered.filter((t) => !t.more);
+  const more = filtered.filter((t) => t.more);
 
   const tabLink = (t) => {
     const active = current === t.id ? ' aria-current="page"' : "";
