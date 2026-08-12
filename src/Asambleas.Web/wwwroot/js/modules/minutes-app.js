@@ -2,6 +2,7 @@ import { me } from "./auth.js";
 import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { getMinutes } from "./room-state.js";
+import { bootIaPage } from "./ia-page.js";
 
 const assemblyId = assemblyIdFromUrl();
 
@@ -127,7 +128,7 @@ function renderMinutes(data) {
 
     <section id="sec-closure" class="minutes-section">
       <h3>Cierre</h3>
-      <p>Check-in: ${escapeHtml(formatDateTime(data.checkInStartedAtUtc) || "—")}</p>
+      <p>Acreditación: ${escapeHtml(formatDateTime(data.checkInStartedAtUtc) || "—")}</p>
       <p>Inicio: ${escapeHtml(formatDateTime(data.assemblyStartedAtUtc) || "—")}</p>
       <p>Cierre: ${escapeHtml(formatDateTime(data.completedAtUtc) || "—")}</p>
       <p class="muted">${escapeHtml(data.disclaimer || "")}</p>
@@ -139,10 +140,14 @@ function renderMinutes(data) {
 async function init() {
   await initI18n();
   qs("#page-title").textContent = t("minutes.title");
-  qs("#link-dashboard").href = `/dashboard.html?assemblyId=${assemblyId}`;
-  qs("#link-dashboard").textContent = t("back");
+  const linkDash = qs("#link-dashboard");
+  if (linkDash) {
+    linkDash.href = `/dashboard.html?assemblyId=${assemblyId}`;
+    linkDash.textContent = t("back");
+  }
   qs("#btn-print")?.addEventListener("click", () => window.print());
-  qs("#link-evidence").href = `/evidence.html?assemblyId=${assemblyId}`;
+  const linkEv = qs("#link-evidence");
+  if (linkEv) linkEv.href = `/evidence.html?assemblyId=${assemblyId}`;
 
   if (!assemblyId) {
     showError(t("dashboard.missingId"));
@@ -155,6 +160,8 @@ async function init() {
     location.href = "/";
     return;
   }
+
+  await bootIaPage({ current: "asm-minutes" });
 
   const result = await getMinutes(assemblyId);
   if (!result.ok) {

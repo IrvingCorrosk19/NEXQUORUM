@@ -1,0 +1,223 @@
+/* ASAMBLEAS — UX remediation primitives (forms, sticky bars, danger zone, drawer) */
+
+.ux-form-sections {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 42rem;
+}
+
+.ux-form-section {
+  padding: 1rem 1.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ux-form-section h3 {
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+  font-family: var(--font-body, inherit);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ux-form-section .form-grid {
+  margin: 0;
+}
+
+.ux-sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(45, 212, 191, 0.25);
+  border-radius: 0.75rem 0.75rem 0 0;
+  background: rgba(12, 18, 24, 0.92);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.ux-sticky-actions[data-dirty="false"] {
+  border-color: rgba(255, 255, 255, 0.08);
+  opacity: 0.92;
+}
+
+.ux-sticky-actions__hint {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.ux-sticky-actions__hint[data-dirty="true"] {
+  color: #fde68a;
+  font-weight: 600;
+}
+
+.ux-sticky-actions__hint[data-dirty="true"]::before {
+  content: "● ";
+}
+
+.ux-danger-zone {
+  margin-top: 2rem;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 0.75rem;
+  background: rgba(239, 68, 68, 0.06);
+  max-width: 42rem;
+}
+
+.ux-danger-zone h3 {
+  margin: 0 0 0.35rem;
+  color: #fecaca;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ux-danger-zone p {
+  margin: 0 0 0.85rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.btn-danger {
+  background: #b91c1c;
+  color: #fff;
+  border: 1px solid #dc2626;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+}
+
+.ux-row-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.ux-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.ux-menu__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  min-width: 11rem;
+  padding: 0.35rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #121820;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  z-index: 30;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.ux-menu__panel[hidden] {
+  display: none !important;
+}
+
+.ux-menu__panel button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #e5e7eb;
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.ux-menu__panel button:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ux-menu__panel button.is-danger {
+  color: #fecaca;
+}
+
+.ux-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  justify-content: end;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.ux-drawer[hidden] {
+  display: none !important;
+}
+
+.ux-drawer__panel {
+  width: min(28rem, 100vw);
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: #0f141b;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.45);
+}
+
+.ux-drawer__head,
+.ux-drawer__foot {
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ux-drawer__foot {
+  border-bottom: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.ux-drawer__body {
+  overflow: auto;
+  padding: 1rem 1.15rem;
+}
+
+.ux-empty {
+  padding: 2rem 1.25rem;
+  text-align: center;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 0.75rem;
+}
+
+.ux-empty h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+}
+
+.ux-empty p {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+  .ux-sticky-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ux-sticky-actions .cta-row {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .ux-sticky-actions .btn {
+    flex: 1;
+  }
+}

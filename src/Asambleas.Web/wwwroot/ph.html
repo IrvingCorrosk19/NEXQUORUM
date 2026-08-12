@@ -7,11 +7,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=ph5" />
-  <link rel="stylesheet" href="/css/base.css?v=ph5" />
-  <link rel="stylesheet" href="/css/components.css?v=ph5" />
-  <link rel="stylesheet" href="/css/loading.css?v=ph5" />
-  <link rel="stylesheet" href="/css/ph.css?v=ph5" />
+  <link rel="stylesheet" href="/css/tokens.css?v=ia1" />
+  <link rel="stylesheet" href="/css/base.css?v=ia1" />
+  <link rel="stylesheet" href="/css/components.css?v=ia1" />
+  <link rel="stylesheet" href="/css/loading.css?v=ia1" />
+  <link rel="stylesheet" href="/css/ph.css?v=ia1" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia1" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -21,23 +24,20 @@
         <h1 class="brand">ASAMBLEAS</h1>
         <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
       </div>
-      <nav>
-        <a id="nav-dashboard" href="/dashboard.html">Panel</a>
-        <a href="/ph.html" aria-current="page">Propiedades</a>
-        <a href="/calendar.html">Calendario</a>
-        <a id="nav-comms" href="/communications.html">Comunicaciones</a>
-      </nav>
+      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
     </aside>
 
     <header class="app-top" role="banner">
+      <div class="ia-top-context">
+        <span class="ia-top-context__brand">ASAMBLEAS</span>
+        <span class="ia-top-context__path" id="ia-context-label">Propiedades</span>
+      </div>
       <div class="cluster">
-        <span class="command-eyebrow">Onboarding Center</span>
+        <span id="ia-role-chip" class="badge badge-live"></span>
         <div class="ph-switcher" id="ph-switcher" hidden>
           <label for="ph-switch-select">PH activo</label>
           <select id="ph-switch-select" aria-label="Cambiar propiedad horizontal"></select>
         </div>
-      </div>
-      <div class="cluster">
         <span id="user-chip" class="badge badge-live"></span>
         <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
       </div>
@@ -45,14 +45,16 @@
 
     <main id="main" class="app-workspace page-main">
       <div id="page-alert" class="alert" hidden role="alert"></div>
+      <div id="ia-breadcrumbs"></div>
 
         <section id="view-list">
         <section class="page-hero">
-          <p class="command-eyebrow">Administración</p>
-          <h1>Onboarding Center</h1>
-          <p class="lede">Crea un PH, configura unidades y propietarios, valida coeficientes e invita al portal — sin scripts SQL.</p>
+          <p class="command-eyebrow">Propiedades horizontales</p>
+          <h1>Propiedades</h1>
+          <p class="lede">Selecciona un PH para administrar propietarios, unidades y asambleas. La operación en vivo ocurre dentro de cada asamblea.</p>
           <div class="cta-row">
             <button type="button" id="btn-create-ph" class="btn btn-primary">+ Crear PH</button>
+            <a class="btn btn-secondary" href="/calendar.html">Calendario</a>
           </div>
         </section>
         <div id="ph-empty" class="panel empty-hero" hidden>
@@ -74,50 +76,107 @@
         </div>
       </dialog>
 
-      <section id="view-detail" hidden>
-        <section class="page-hero">
-          <p class="command-eyebrow">PH seleccionado</p>
+      <section id="view-detail" hidden data-ph-mode="ops">
+        <section class="page-hero" id="ph-hero">
+          <p class="command-eyebrow">Propiedad horizontal</p>
           <h1 id="ph-title">—</h1>
           <div class="meta-row" id="ph-meta"></div>
-          <div class="cta-row">
-            <button type="button" id="btn-back-list" class="btn btn-secondary">Mis PH</button>
-            <button type="button" id="btn-mark-ready" class="btn btn-primary">Listo para asamblea</button>
-            <button type="button" id="btn-activate-ph" class="btn btn-secondary">Activar PH</button>
-            <button type="button" id="btn-deactivate-ph" class="btn btn-secondary">Desactivar</button>
+          <div class="cta-row" id="ph-hero-actions">
+            <button type="button" id="btn-back-list" class="btn btn-secondary">← Propiedades</button>
+            <button type="button" id="btn-mark-ready" class="btn btn-secondary" hidden>Marcar listo para asamblea</button>
+            <button type="button" id="btn-activate-ph" class="btn btn-primary" hidden>Activar PH</button>
             <button type="button" id="btn-reactivate-ph" class="btn btn-secondary" hidden>Reactivar</button>
-            <button type="button" id="btn-delete-ph" class="btn btn-secondary">Eliminar…</button>
+            <button type="button" id="btn-continue-onboarding" class="btn btn-primary" hidden>Continuar configuración</button>
           </div>
         </section>
 
-        <div class="wizard-steps" id="wizard-steps" aria-label="Progreso de onboarding"></div>
+        <div class="wizard-steps" id="wizard-steps" aria-label="Progreso de configuración inicial" hidden></div>
+        <p id="onboarding-progress" class="muted ph-onboarding-progress" hidden>Paso 1 de 7</p>
 
-        <div class="tabs" role="tablist" aria-label="Módulos del PH">
-          <button type="button" class="is-active" data-tab="info">Información</button>
+        <div class="tabs ph-module-tabs" id="ph-module-tabs" role="tablist" aria-label="Módulos del PH" hidden>
+          <button type="button" class="is-active" data-tab="resumen">Resumen</button>
+          <button type="button" data-tab="assemblies">Asambleas</button>
           <button type="button" data-tab="units">Unidades</button>
           <button type="button" data-tab="owners">Propietarios</button>
+          <button type="button" data-tab="info">Configuración</button>
           <button type="button" data-tab="coefficients">Coeficientes</button>
           <button type="button" data-tab="import">Importar</button>
-          <button type="button" data-tab="readiness">Readiness</button>
+          <button type="button" data-tab="readiness">Preparación</button>
         </div>
 
+        <section class="panel wizard-panel" data-panel="resumen" id="panel-resumen">
+          <h2 class="section-title" style="margin-top:0">Resumen del PH</h2>
+          <div class="ia-stat-strip" id="ph-stat-strip" aria-label="Resumen del PH"></div>
+          <div id="ph-next-assembly" class="panel ph-focus-card" hidden></div>
+          <div id="ph-attention" class="panel ph-focus-card" hidden></div>
+          <div id="ph-prep-summary" class="panel ph-focus-card" hidden></div>
+        </section>
+
+        <section class="panel wizard-panel" data-panel="assemblies" hidden>
+          <div class="cluster" style="justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.75rem">
+            <h2 class="section-title" style="margin:0">Asambleas</h2>
+            <a id="btn-new-assembly" class="btn btn-primary" href="/calendar.html">+ Nueva asamblea</a>
+          </div>
+          <div class="ia-asm-filters" id="asm-filters" role="toolbar" aria-label="Filtrar asambleas">
+            <button type="button" data-filter="upcoming" aria-pressed="true">Próximas</button>
+            <button type="button" data-filter="live" aria-pressed="false">En curso</button>
+            <button type="button" data-filter="done" aria-pressed="false">Finalizadas</button>
+            <button type="button" data-filter="cancelled" aria-pressed="false">Canceladas</button>
+            <button type="button" data-filter="all" aria-pressed="false">Todas</button>
+          </div>
+          <div id="ph-assemblies-list" class="ia-asm-list" aria-live="polite"></div>
+        </section>
+
         <section class="panel wizard-panel" data-panel="info">
-          <h2 class="section-title">Información del PH</h2>
-          <form id="form-ph" class="form-grid">
+          <h2 class="section-title">Configuración del PH</h2>
+          <form id="form-ph" class="ux-form-sections">
             <input type="hidden" name="concurrencyStamp" id="ph-concurrency" />
-            <label>Nombre <input name="name" required /></label>
-            <label>Nombre legal <input name="legalName" /></label>
-            <label>Código <input name="code" required readonly /></label>
-            <label>País <input name="country" /></label>
-            <label>Provincia/Estado <input name="stateProvince" /></label>
-            <label>Ciudad <input name="city" /></label>
-            <label>Dirección <input name="address" /></label>
-            <label>Zona horaria <input name="timeZoneId" required /></label>
-            <label>Email administrativo <input name="adminEmail" type="email" /></label>
-            <label>Teléfono <input name="phone" /></label>
-            <div class="cta-row" style="grid-column:1/-1">
-              <button type="submit" class="btn btn-primary">Guardar</button>
+            <div class="ux-form-section">
+              <h3>Información general</h3>
+              <div class="form-grid">
+                <label>Nombre <input name="name" required autocomplete="organization" /></label>
+                <label>Nombre legal <input name="legalName" /></label>
+                <label>Código <input name="code" required readonly aria-describedby="ph-code-hint" /></label>
+                <p id="ph-code-hint" class="muted" style="grid-column:1/-1;margin:0">El código se asigna al crear el PH y no se modifica.</p>
+              </div>
+            </div>
+            <div class="ux-form-section">
+              <h3>Dirección</h3>
+              <div class="form-grid">
+                <label>País <input name="country" /></label>
+                <label>Provincia / Estado <input name="stateProvince" /></label>
+                <label>Ciudad <input name="city" /></label>
+                <label style="grid-column:1/-1">Dirección <input name="address" /></label>
+              </div>
+            </div>
+            <div class="ux-form-section">
+              <h3>Administración</h3>
+              <div class="form-grid">
+                <label>Zona horaria <input name="timeZoneId" required placeholder="America/Panama" /></label>
+                <label>Email administrativo <input name="adminEmail" type="email" autocomplete="email" /></label>
+                <label>Teléfono <input name="phone" autocomplete="tel" /></label>
+              </div>
+            </div>
+            <div id="ph-sticky-actions" class="ux-sticky-actions" data-dirty="false">
+              <span id="ph-dirty-hint" class="ux-sticky-actions__hint" data-dirty="false">Sin cambios pendientes</span>
+              <div class="cta-row">
+                <button type="button" id="btn-ph-discard" class="btn btn-secondary" disabled>Cancelar</button>
+                <button type="submit" id="btn-ph-save" class="btn btn-primary" disabled>Guardar cambios</button>
+              </div>
             </div>
           </form>
+
+          <aside class="ux-danger-zone" aria-labelledby="ph-danger-title">
+            <h3 id="ph-danger-title">Zona de riesgo</h3>
+            <p id="ph-danger-copy">
+              Archivar deja la propiedad fuera de operación normal y conserva el historial legal.
+              La eliminación permanente solo está disponible si el PH no tiene historial de asambleas.
+            </p>
+            <div class="cta-row">
+              <button type="button" id="btn-archive-ph" class="btn btn-secondary">Archivar propiedad</button>
+              <button type="button" id="btn-delete-ph" class="btn btn-danger" hidden>Eliminar permanentemente…</button>
+            </div>
+          </aside>
         </section>
 
         <section class="panel wizard-panel" data-panel="units" hidden>
@@ -178,49 +237,71 @@
         </section>
 
         <section class="panel wizard-panel" data-panel="owners" hidden>
-          <h2 class="section-title">Propietarios</h2>
-          <div class="cta-row filters-row">
-            <input id="owner-search" placeholder="Buscar nombre, ID, unidad o email..." aria-label="Buscar propietario" />
-            <select id="filter-tower" aria-label="Torre"><option value="">Torre</option></select>
-            <select id="filter-status" aria-label="Estado">
-              <option value="">Estado</option>
-              <option value="Draft">Borrador</option>
-              <option value="Invited">Invitado</option>
-              <option value="Active">Activo</option>
-              <option value="Inactive">Inactivo</option>
-            </select>
-            <select id="filter-email" aria-label="Email">
-              <option value="">Email</option>
-              <option value="true">Con email</option>
-              <option value="false">Sin email</option>
-            </select>
-            <select id="filter-user" aria-label="Usuario">
-              <option value="">Usuario</option>
-              <option value="true">Con usuario</option>
-              <option value="false">Sin usuario</option>
-            </select>
-            <select id="filter-invited" aria-label="Invitación">
-              <option value="">Invitación</option>
-              <option value="true">Invitado/activo</option>
-              <option value="false">No invitado</option>
-            </select>
+          <div class="cluster" style="justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem">
+            <div>
+              <h2 class="section-title" style="margin:0">Propietarios</h2>
+              <p class="muted" style="margin:0.35rem 0 0">Gestiona propietarios, unidades asociadas y acceso a la plataforma.</p>
+            </div>
+            <button type="button" id="btn-new-owner" class="btn btn-primary">+ Nuevo propietario</button>
           </div>
-          <div class="cta-row">
-            <button type="button" id="btn-new-owner" class="btn btn-primary">+ Propietario</button>
-            <button type="button" id="btn-goto-import" class="btn btn-secondary">Importar Excel</button>
-            <button type="button" id="btn-export-owners" class="btn btn-secondary">Exportar</button>
-            <button type="button" id="btn-validate-owners" class="btn btn-secondary">Validar</button>
-            <button type="button" id="btn-bulk-invite" class="btn btn-secondary">Enviar invitaciones</button>
+          <div class="cta-row owners-toolbar">
+            <input id="owner-search" placeholder="Buscar propietario…" aria-label="Buscar propietario" />
+            <button type="button" id="btn-owner-filters" class="btn btn-secondary" aria-expanded="false" aria-controls="owner-filters-popover">Filtros</button>
+            <button type="button" id="btn-goto-import" class="btn btn-ghost">Importar</button>
+            <button type="button" id="btn-export-owners" class="btn btn-ghost">Exportar</button>
+            <button type="button" id="btn-bulk-invite" class="btn btn-secondary">Invitar seleccionados</button>
+            <button type="button" id="btn-validate-owners" class="btn btn-ghost" hidden>Validar</button>
           </div>
-          <div id="owners-empty" class="panel" hidden>
-            <h3>Aún no hay propietarios</h3>
-            <p>Agrega el primer propietario para comenzar a preparar tus Asambleas.</p>
-            <div class="cta-row">
-              <button type="button" class="btn btn-primary" id="btn-empty-add-owner">+ Agregar propietario</button>
-              <button type="button" class="btn btn-secondary" id="btn-empty-import">Importar Excel</button>
+          <div id="owner-filter-chips" class="filter-chips" hidden></div>
+          <div id="owner-filters-popover" class="filter-popover" hidden>
+            <div class="form-grid">
+              <label>Torre <select id="filter-tower"><option value="">Todas</option></select></label>
+              <label>Estado
+                <select id="filter-status">
+                  <option value="">Todos</option>
+                  <option value="Draft">Borrador</option>
+                  <option value="Invited">Invitado</option>
+                  <option value="Active">Activo</option>
+                  <option value="Inactive">Inactivo</option>
+                </select>
+              </label>
+              <label>Correo
+                <select id="filter-email">
+                  <option value="">Todos</option>
+                  <option value="true">Con correo</option>
+                  <option value="false">Sin correo</option>
+                </select>
+              </label>
+              <label>Acceso
+                <select id="filter-user">
+                  <option value="">Todos</option>
+                  <option value="true">Con cuenta</option>
+                  <option value="false">Sin cuenta</option>
+                </select>
+              </label>
+              <label>Invitación
+                <select id="filter-invited">
+                  <option value="">Todas</option>
+                  <option value="true">Invitado / activo</option>
+                  <option value="false">No invitado</option>
+                </select>
+              </label>
+            </div>
+            <div class="cta-row" style="margin-top:0.75rem">
+              <button type="button" id="btn-filters-clear" class="btn btn-secondary">Limpiar</button>
+              <button type="button" id="btn-filters-apply" class="btn btn-primary">Aplicar</button>
             </div>
           </div>
-          <div id="owner-form-wrap" hidden>
+          <div id="owners-empty" class="panel empty-hero" hidden>
+            <h3>No hay propietarios</h3>
+            <p>Agrega el primer propietario para comenzar a preparar la estructura del PH.</p>
+            <div class="cta-row">
+              <button type="button" class="btn btn-primary" id="btn-empty-add-owner">+ Agregar propietario</button>
+              <button type="button" class="btn btn-secondary" id="btn-empty-import">Importar</button>
+            </div>
+          </div>
+          <div id="owner-form-wrap" class="panel" hidden>
+            <h3 id="owner-form-title" style="margin-top:0">Nuevo propietario</h3>
             <form id="form-owner" class="form-grid" style="margin:1rem 0">
               <input type="hidden" name="ownerId" value="" />
               <input type="hidden" name="concurrencyStamp" value="" />
@@ -230,19 +311,33 @@
               <label>Identificación <input name="identification" /></label>
               <label>Email <input name="email" type="email" required /></label>
               <label>Teléfono <input name="phone" /></label>
-              <label>Unidad (código)
+              <label>Unidad
                 <select name="unitId" id="owner-unit-select"><option value="">— asociar después —</option></select>
               </label>
               <label>Participación % <input name="sharePercent" type="number" min="0.0001" max="100" step="0.0001" value="100" /></label>
-              <div class="cta-row" style="grid-column:1/-1">
-                <button type="submit" class="btn btn-primary" id="btn-save-owner">Guardar propietario</button>
+              <div class="cta-row ux-sticky-actions" style="grid-column:1/-1" data-dirty="true">
                 <button type="button" class="btn btn-secondary" id="btn-cancel-owner">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btn-save-owner">Guardar cambios</button>
               </div>
             </form>
           </div>
-          <div class="table-wrap"><table class="data-table" id="owners-table"><thead><tr><th><input type="checkbox" id="owners-check-all" aria-label="Seleccionar todos" /></th><th>Nombre</th><th>Unidades</th><th>Coef.</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
-          <div id="owner-detail" class="panel" hidden style="margin-top:1rem"></div>
+          <div class="table-wrap"><table class="data-table" id="owners-table"><thead><tr><th><input type="checkbox" id="owners-check-all" aria-label="Seleccionar todos" /></th><th>Propietario</th><th>Unidad</th><th>Coeficiente</th><th>Acceso</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
         </section>
+
+        <aside id="owner-drawer" class="ux-drawer" hidden aria-hidden="true">
+          <div class="ux-drawer__backdrop" data-close-owner-drawer></div>
+          <div class="ux-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="owner-drawer-title">
+            <header class="ux-drawer__header">
+              <div>
+                <h2 id="owner-drawer-title">—</h2>
+                <p id="owner-drawer-sub" class="muted" style="margin:0.25rem 0 0"></p>
+              </div>
+              <button type="button" class="btn btn-ghost" data-close-owner-drawer aria-label="Cerrar">✕</button>
+            </header>
+            <div id="owner-drawer-body" class="ux-drawer__body"></div>
+            <footer class="ux-drawer__footer" id="owner-drawer-footer"></footer>
+          </div>
+        </aside>
 
         <section class="panel wizard-panel" data-panel="coefficients" hidden>
           <h2 class="section-title">Coeficientes</h2>
@@ -266,7 +361,7 @@
         </section>
 
         <section class="panel wizard-panel" data-panel="readiness" hidden>
-          <h2 class="section-title">PH Readiness</h2>
+          <h2 class="section-title">Preparación del PH</h2>
           <div id="readiness-panel" class="readiness-list"></div>
         </section>
       </section>
@@ -304,6 +399,6 @@
       </dialog>
     </main>
   </div>
-  <script type="module" src="/js/modules/ph-app.js?v=ph5"></script>
+  <script type="module" src="/js/modules/ph-app.js?v=ia2"></script>
 </body>
 </html>

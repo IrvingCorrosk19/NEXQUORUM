@@ -12,6 +12,9 @@
   <link rel="stylesheet" href="/css/components.css?v=cal6" />
   <link rel="stylesheet" href="/css/loading.css?v=cal6" />
   <link rel="stylesheet" href="/css/calendar.css?v=cal6" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -21,25 +24,13 @@
         <h1 class="brand">ASAMBLEAS</h1>
         <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
       </div>
-      <nav>
-        <a id="nav-dashboard" href="/dashboard.html">Panel</a>
-        <a href="/calendar.html" aria-current="page">Calendario</a>
-        <a id="nav-comms" href="#">Comunicaciones</a>
-        <a id="nav-convocation" href="#">Convocatoria</a>
-        <a id="nav-checkin" href="#">Acreditación</a>
-        <a id="nav-lobby" href="#">Lobby</a>
-        <a id="nav-assembly" href="#">Sala</a>
-        <a id="nav-evidence" href="#">Evidencias</a>
-        <a id="nav-minutes" href="#">Actas</a>
-      </nav>
+      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
     </aside>
 
     <header class="app-top" role="banner">
+      <div class="ia-top-context"><span class="ia-top-context__brand">ASAMBLEAS</span><span class="ia-top-context__path" id="ia-context-label">Calendario</span></div>
       <div class="cluster">
-        <span class="command-eyebrow">Scheduling Center</span>
-        <span id="conn-chip" class="badge badge-live">Calendario</span>
-      </div>
-      <div class="cluster">
+        <span id="ia-role-chip" class="badge badge-live"></span>
         <span id="user-chip" class="badge badge-live"></span>
         <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
       </div>
@@ -47,13 +38,14 @@
 
     <main id="main" class="app-workspace page-main calendar-page">
       <div id="page-alert" class="alert" hidden role="alert"></div>
+      <div id="ia-breadcrumbs"></div>
       <div id="calendar-loading" class="calendar-loading" hidden role="status">Cargando calendario…</div>
 
       <section id="next-assembly-banner" class="next-assembly-banner" aria-live="polite"></section>
 
       <section class="page-hero calendar-hero">
         <div>
-          <p class="command-eyebrow">Ciclo de vida</p>
+          <p class="command-eyebrow">Calendario</p>
           <h1 class="brand-inline">Calendario de Asambleas</h1>
         </div>
         <div class="cluster calendar-toolbar">
@@ -312,6 +304,6 @@
     </div>
   </div>
 
-  <script type="module" src="/js/modules/calendar-app.js?v=cal6"></script>
+  <script type="module" src="/js/modules/calendar-app.js?v=cal8"></script>
 </body>
 </html>

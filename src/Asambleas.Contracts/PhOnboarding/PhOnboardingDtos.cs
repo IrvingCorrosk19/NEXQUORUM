@@ -299,11 +299,14 @@ public sealed record ImportCommitResultDto(
 
 public sealed record InviteOwnerResultDto(
     Guid InvitationId,
-    string Email,
+    string EmailMasked,
     DateTimeOffset ExpiresAtUtc,
-    string ActivationPath,
     bool ExistingUserLinked,
-    bool RequiresLoginToAccept = false);
+    bool RequiresLoginToAccept,
+    bool EmailSent,
+    string Provider,
+    bool UsedSandbox,
+    string? Detail);
 
 public sealed record ActivateInvitationRequest(
     string Token,
@@ -344,9 +347,12 @@ public sealed record OwnerQuery(
 public sealed record BulkInviteRequest(IReadOnlyList<Guid> OwnerIds);
 
 public sealed record BulkInviteResultDto(
+    int Processed,
     int Sent,
-    int LinkedExisting,
+    int AlreadyActive,
+    int WithoutEmail,
     int Failed,
+    int RequiresLogin,
     IReadOnlyList<string> Errors);
 
 public sealed record BulkInvitePreviewDto(

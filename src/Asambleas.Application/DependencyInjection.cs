@@ -34,6 +34,7 @@ public static class DependencyInjection
 
         services.AddScoped<AssemblyService>();
         services.AddScoped<AssemblyAccessService>();
+        services.AddScoped<AssemblyReadinessService>();
         services.AddScoped<AssemblyRoomService>();
         services.AddScoped<AssemblyRepresentationService>();
         services.AddScoped<IAssemblyRepresentationService>(sp => sp.GetRequiredService<AssemblyRepresentationService>());
@@ -51,6 +52,7 @@ public static class DependencyInjection
         services.AddScoped<CalendarSchedulingService>();
         services.AddScoped<CommunicationConfigurationService>();
         services.AddScoped<DeliveryDispatchService>();
+        services.AddScoped<AssemblyAccessLinkService>();
         services.AddScoped<ConvocationService>();
         services.AddScoped<PhOnboardingService>();
         services.AddScoped<PhImportService>();

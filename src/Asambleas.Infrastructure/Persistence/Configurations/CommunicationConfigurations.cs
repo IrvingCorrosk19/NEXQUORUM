@@ -143,7 +143,26 @@ internal sealed class CommunicationDeliveryEventConfiguration : IEntityTypeConfi
         builder.Property(x => x.ProviderPayloadJson).HasColumnType("jsonb");
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.DeliveryId);
+        builder.HasIndex(x => new { x.DeliveryId, x.OccurredAtUtc })
+            .HasDatabaseName("IX_communication_delivery_events_DeliveryId_OccurredAtUtc");
         builder.HasOne<CommunicationDelivery>().WithMany().HasForeignKey(x => x.DeliveryId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class AssemblyAccessLinkConfiguration : IEntityTypeConfiguration<AssemblyAccessLink>
+{
+    public void Configure(EntityTypeBuilder<AssemblyAccessLink> builder)
+    {
+        builder.ToTable("assembly_access_links");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.TokenHash).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.Purpose).HasMaxLength(64).IsRequired();
+        builder.HasIndex(x => x.TokenHash).IsUnique();
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.AssemblyId);
+        builder.HasIndex(x => x.ConvocationId);
+        builder.HasIndex(x => x.RecipientId);
+        builder.HasIndex(x => new { x.ConvocationId, x.RecipientId });
     }
 }
 

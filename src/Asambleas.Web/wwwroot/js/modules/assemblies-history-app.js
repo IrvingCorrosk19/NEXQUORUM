@@ -1,6 +1,7 @@
 import { api } from "./api.js";
 import { me, logout } from "./auth.js";
 import { escapeHtml, formatDateTime, qs, showToast } from "./ui.js";
+import { bootIaPage } from "./ia-page.js";
 
 function showError(message) {
   const el = qs("#page-alert");
@@ -32,7 +33,7 @@ function render(filter = "") {
         <div class="cta-row" style="margin-top:0.75rem">
           <a class="btn btn-primary" href="/expediente.html?assemblyId=${a.id}">Ver expediente</a>
           ${finished ? "" : `<a class="btn btn-secondary" href="/dashboard.html?assemblyId=${a.id}">Abrir panel</a>`}
-          <a class="btn btn-ghost" href="/voting-studio.html?assemblyId=${a.id}">Studio</a>
+          <a class="btn btn-ghost" href="/voting-studio.html?assemblyId=${a.id}">Votaciones</a>
         </div>
       </article>`;
     })
@@ -48,6 +49,15 @@ async function init() {
     return;
   }
 
+  await bootIaPage({
+    current: "history",
+    level: "global",
+    breadcrumbs: [
+      { label: "Propiedades", href: "/ph.html" },
+      { label: "Asambleas anteriores" }
+    ]
+  });
+
   try {
     const list = await api("/api/assemblies");
     all = (Array.isArray(list) ? list : list?.items || []).slice().sort((a, b) => {
@@ -55,10 +65,6 @@ async function init() {
       const db = b.scheduledAtUtc ? new Date(b.scheduledAtUtc).getTime() : 0;
       return db - da;
     });
-    const { dashboardHref } = await import("./assembly-context.js");
-    const pick = all.find((a) => !["Completed", "Cancelled"].includes(a.status)) || all[0];
-    const panel = document.querySelector("#nav-dashboard, .app-nav a[href='/dashboard.html'], .app-nav a[href^='/dashboard.html']");
-    if (panel) panel.setAttribute("href", dashboardHref(pick?.id));
     render();
     qs("#search").addEventListener("input", (e) => render(e.target.value));
   } catch (err) {

@@ -90,15 +90,33 @@
     .recent-list { display: grid; gap: 0.35rem; font-size: 0.95rem; }
     .sr-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   </style>
+  <link rel="stylesheet" href="/css/loading.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
-  <div class="page-shell">
-    <header class="page-header">
-      <h1 class="brand">ASAMBLEAS</h1>
-      <a id="link-dashboard" class="btn btn-secondary" href="#">Volver</a>
-    </header>
-    <main id="main" class="page-main">
+    <div class="app-shell">
+    <aside class="app-nav" aria-label="Navegación">
+      <div>
+        <h1 class="brand">ASAMBLEAS</h1>
+        <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
+      </div>
+      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
+    </aside>
+    <header class="app-top" role="banner">
+      <div class="ia-top-context">
+        <span class="ia-top-context__brand">ASAMBLEAS</span>
+        <span class="ia-top-context__path" id="ia-context-label">Acreditación</span>
+      </div>
+      <div class="cluster">
+        <span id="ia-role-chip" class="badge badge-live"></span>
+        <span id="user-chip" class="badge badge-live"></span>
+        <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
+      </div>
+    </header><main id="main" class="page-main">
+      <div id="ia-breadcrumbs"></div>
       <div id="page-alert" class="alert" hidden role="alert"></div>
       <p id="sr-announcer" class="sr-live" aria-live="polite"></p>
       <section class="page-hero">
@@ -156,6 +174,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/js/modules/checkin-app.js?v=ck2"></script>
+  <script type="module" src="/js/modules/checkin-app.js?v=ia3"></script>
 </body>
 </html>

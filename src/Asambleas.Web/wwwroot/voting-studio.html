@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ASAMBLEAS — Voting &amp; Forms Studio</title>
+  <title>ASAMBLEAS — Votaciones</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
@@ -12,6 +12,9 @@
   <link rel="stylesheet" href="/css/components.css?v=px1" />
   <link rel="stylesheet" href="/css/loading.css?v=px1" />
   <link rel="stylesheet" href="/css/voting-studio.css?v=vs1" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -19,22 +22,15 @@
     <aside class="app-nav" aria-label="Navegación">
       <div>
         <h1 class="brand">ASAMBLEAS</h1>
-        <p class="nav-tenant">Voting &amp; Forms Studio</p>
+        <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
       </div>
-      <nav>
-        <a id="nav-dashboard" href="/dashboard.html">Panel</a>
-        <a href="#" aria-current="page">Studio</a>
-        <a id="nav-assembly" href="#">Sala</a>
-        <a id="nav-expediente" href="#">Expediente</a>
-      </nav>
+      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
     </aside>
 
     <header class="app-top" role="banner">
+      <div class="ia-top-context"><span class="ia-top-context__brand">ASAMBLEAS</span><span class="ia-top-context__path" id="ia-context-label">Votaciones</span></div>
       <div class="cluster">
-        <span class="command-eyebrow">Diseño institucional</span>
-        <span id="conn-chip" class="badge badge-live">Listo</span>
-      </div>
-      <div class="cluster">
+        <span id="ia-role-chip" class="badge badge-live"></span>
         <span id="user-chip" class="badge badge-live"></span>
         <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
       </div>
@@ -42,10 +38,11 @@
 
     <main id="main" class="app-workspace page-main studio-main">
       <div id="page-alert" class="alert" hidden role="alert"></div>
+      <div id="ia-breadcrumbs"></div>
 
       <section class="page-hero studio-hero">
-        <p class="command-eyebrow">Corazón funcional</p>
-        <h1>Voting &amp; Forms Studio</h1>
+        <p class="command-eyebrow">Asamblea</p>
+        <h1>Votaciones</h1>
         <p class="lede" id="assembly-label">Cargando asamblea…</p>
         <div class="cta-row">
           <button type="button" class="btn btn-primary" id="btn-new-vote">+ Nueva votación</button>

@@ -3,6 +3,8 @@ import { hasPermission } from "./auth.js";
 const OPERATOR_ROLES = new Set([
   "AssemblyPresident",
   "AssemblySecretary",
+  "AssemblyOperator",
+  "PHAdmin",
   "Moderator",
   "TenantAdmin",
   "PlatformAdmin"
@@ -36,4 +38,19 @@ export function resolveViewerRole(user, roomState = null) {
 
 export function isOperator(user, roomState = null) {
   return resolveViewerRole(user, roomState) === "Operator";
+}
+
+/**
+ * Pure owner participant (portal:self / vote:cast) without PH or assembly administration.
+ * These users must never see the administrative shell (Panel, Comunicaciones, Nueva asamblea, …).
+ */
+export function isOwnerPortalUser(user) {
+  if (!user) return false;
+  if (isOperator(user) || hasPermission(user, "ph:manage") || hasPermission(user, "assembly:manage")) {
+    return false;
+  }
+  if (hasPermission(user, "assembly:schedule") || hasPermission(user, "assembly:reschedule")) {
+    return false;
+  }
+  return hasPermission(user, "portal:self") || hasPermission(user, "vote:cast");
 }

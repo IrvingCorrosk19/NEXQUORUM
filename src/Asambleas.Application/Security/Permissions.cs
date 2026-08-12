@@ -58,6 +58,12 @@ public static class Permissions
     public const string OwnerInvite = "owner:invite";
     public const string PhImport = "ph:import";
 
+    /// <summary>Owner portal self-service (memberships, own profile). Not PH administration.</summary>
+    public const string PortalSelf = "portal:self";
+
+    /// <summary>Policy: ph:view OR portal:self (membership-scoped PH list/detail).</summary>
+    public const string PhCatalogOrPortal = "ph:catalog-or-portal";
+
     public static IReadOnlyList<string> All { get; } =
     [
         AssemblyView,
@@ -104,6 +110,7 @@ public static class Permissions
         OwnerView,
         OwnerManage,
         OwnerInvite,
-        PhImport
+        PhImport,
+        PortalSelf
     ];
 }

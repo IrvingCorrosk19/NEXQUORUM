@@ -162,7 +162,86 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TenantId");
 
+                    b.HasIndex("PropertyHorizontalId", "ScheduledAtUtc")
+                        .HasDatabaseName("IX_assemblies_PropertyHorizontalId_ScheduledAtUtc");
+
+                    b.HasIndex("PropertyHorizontalId", "Status", "ScheduledAtUtc")
+                        .HasDatabaseName("IX_assemblies_PropertyHorizontalId_Status_ScheduledAtUtc");
+
                     b.ToTable("assemblies", (string)null);
+                });
+
+            modelBuilder.Entity("Asambleas.Domain.Entities.AssemblyAccessLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssemblyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConvocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeliveryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LastUsedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PropertyHorizontalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("RecipientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssemblyId");
+
+                    b.HasIndex("ConvocationId");
+
+                    b.HasIndex("RecipientId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("ConvocationId", "RecipientId");
+
+                    b.ToTable("assembly_access_links", (string)null);
                 });
 
             modelBuilder.Entity("Asambleas.Domain.Entities.AssemblyParticipant", b =>
@@ -453,6 +532,9 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                     b.HasIndex("AssemblyId", "UnitId")
                         .IsUnique()
                         .HasFilter("\"IsActive\" = TRUE");
+
+                    b.HasIndex("AssemblyId", "RepresentativeUserId", "IsActive")
+                        .HasDatabaseName("IX_assembly_representations_AssemblyId_RepresentativeUserId_IsActive");
 
                     b.ToTable("assembly_representations", (string)null);
                 });
@@ -888,6 +970,9 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                     b.HasIndex("DeliveryId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("DeliveryId", "OccurredAtUtc")
+                        .HasDatabaseName("IX_communication_delivery_events_DeliveryId_OccurredAtUtc");
 
                     b.ToTable("communication_delivery_events", (string)null);
                 });
@@ -1808,6 +1893,9 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("AssemblyId", "TimestampUtc")
+                        .HasDatabaseName("IX_quorum_snapshots_AssemblyId_TimestampUtc");
 
                     b.ToTable("quorum_snapshots", (string)null);
                 });

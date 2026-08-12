@@ -223,7 +223,7 @@ export function createLiveVotingWorkspace({
       (m) => m.status === "Draft" || m.status === "Presented" || m.designStatus === "Ready"
     );
     if (!list.length) {
-      showToast("No hay votaciones preparadas. Cree una rápida o use el Studio.", "info");
+      showToast("No hay votaciones preparadas. Cree una rápida o use Votaciones.", "info");
       return;
     }
     const ui = openDialog(`

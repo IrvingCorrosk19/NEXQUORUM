@@ -34,11 +34,21 @@ public sealed class PhOnboardingService
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
 
-        var phs = await _db.PropertyHorizontals
-            .AsNoTracking()
-            .Where(p => p.TenantId == _currentTenant.TenantId)
-            .OrderBy(p => p.Name)
-            .ToListAsync(cancellationToken);
+        // Only PH managers see the full tenant catalog. Everyone else is membership-scoped.
+        IQueryable<PropertyHorizontal> query = _db.PropertyHorizontals.AsNoTracking()
+            .Where(p => p.TenantId == _currentTenant.TenantId);
+
+        if (!_currentTenant.Permissions.Contains(Permissions.PhManage))
+        {
+            var userId = TenantGuard.RequireUserId(_currentTenant);
+            var memberPhIds = await _db.UserPropertyMemberships.AsNoTracking()
+                .Where(m => m.UserId == userId && m.IsActive)
+                .Select(m => m.PropertyHorizontalId)
+                .ToListAsync(cancellationToken);
+            query = query.Where(p => memberPhIds.Contains(p.Id));
+        }
+
+        var phs = await query.OrderBy(p => p.Name).ToListAsync(cancellationToken);
 
         if (phs.Count == 0)
         {
@@ -889,6 +899,7 @@ public sealed class PhOnboardingService
     {
         ArgumentNullException.ThrowIfNull(request);
         TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAdministrationAsync(propertyHorizontalId, cancellationToken);
         var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
         EnsurePhNotInactiveForMutation(ph);
 
@@ -957,6 +968,7 @@ public sealed class PhOnboardingService
     {
         ArgumentNullException.ThrowIfNull(request);
         TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAdministrationAsync(propertyHorizontalId, cancellationToken);
         var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
         EnsurePhNotInactiveForMutation(ph);
 
@@ -1019,7 +1031,7 @@ public sealed class PhOnboardingService
         CancellationToken cancellationToken = default)
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
-        await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        await EnsurePhAdministrationAsync(propertyHorizontalId, cancellationToken);
         await EnsureOwnerInPhAsync(propertyHorizontalId, ownerId, cancellationToken);
 
         var owner = await _db.Owners.FirstOrDefaultAsync(o => o.Id == ownerId, cancellationToken)
@@ -1059,6 +1071,7 @@ public sealed class PhOnboardingService
         CancellationToken cancellationToken = default)
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAdministrationAsync(propertyHorizontalId, cancellationToken);
         var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
         EnsurePhNotInactiveForMutation(ph);
         await EnsureOwnerInPhAsync(propertyHorizontalId, ownerId, cancellationToken);
@@ -1119,6 +1132,7 @@ public sealed class PhOnboardingService
         CancellationToken cancellationToken = default)
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAdministrationAsync(propertyHorizontalId, cancellationToken);
         var evaluation = await EvaluateOwnerDeleteAsync(propertyHorizontalId, ownerId, cancellationToken);
         if (!evaluation.CanHardDelete)
         {
@@ -1473,6 +1487,45 @@ public sealed class PhOnboardingService
         return await ListMembershipsMarkingCurrentAsync(userId, currentPhId, cancellationToken);
     }
 
+    public async Task<MyOwnerProfileDto> GetMyOwnerProfileAsync(CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+
+        var owners = await _db.Owners.AsNoTracking()
+            .Where(o => o.UserId == userId && o.TenantId == _currentTenant.TenantId)
+            .ToListAsync(cancellationToken);
+
+        var displayName = owners.FirstOrDefault()?.DisplayName
+                          ?? _currentTenant.DisplayName
+                          ?? "Propietario";
+        var email = owners.FirstOrDefault()?.Email ?? string.Empty;
+        var phone = owners.FirstOrDefault()?.Phone;
+
+        var ownerIds = owners.Select(o => o.Id).ToList();
+        var units = await (
+            from own in _db.Ownerships.AsNoTracking()
+            join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
+            join p in _db.PropertyHorizontals.AsNoTracking() on u.PropertyHorizontalId equals p.Id
+            where ownerIds.Contains(own.OwnerId) && own.IsActive
+            orderby p.Name, u.Code
+            select new MyOwnerUnitDto(
+                u.Code,
+                u.Tower,
+                own.SharePercent,
+                u.CoefficientPercent,
+                p.Name,
+                own.IsActive))
+            .ToListAsync(cancellationToken);
+
+        var memberships = await ListMembershipsMarkingCurrentAsync(
+            userId,
+            _currentTenant.PropertyHorizontalId ?? Guid.Empty,
+            cancellationToken);
+
+        return new MyOwnerProfileDto(displayName, email, phone, units, memberships);
+    }
+
     /// <summary>
     /// Validates that the current user has an active membership on the target PH and returns the
     /// full membership list with that PH flagged as current. The actual session/claim mutation that
@@ -1538,12 +1591,58 @@ public sealed class PhOnboardingService
         return firstOrg.Id;
     }
 
+    private async Task EnsurePhAdministrationAsync(Guid propertyHorizontalId, CancellationToken cancellationToken)
+    {
+        await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+
+        if (_currentTenant.Permissions.Contains(Permissions.PhManage)
+            || _currentTenant.Permissions.Contains(Permissions.OwnerManage)
+            || _currentTenant.Permissions.Contains(Permissions.UnitManage))
+        {
+            return;
+        }
+
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+        var isLocalPhAdmin = await _db.UserPropertyMemberships.AsNoTracking().AnyAsync(
+            m => m.UserId == userId
+                 && m.PropertyHorizontalId == propertyHorizontalId
+                 && m.IsActive
+                 && (m.RoleHint == Roles.PHAdmin
+                     || m.RoleHint == Roles.TenantAdmin
+                     || m.RoleHint == Roles.PlatformAdmin),
+            cancellationToken);
+
+        if (!isLocalPhAdmin)
+        {
+            throw new DomainException(
+                "FORBIDDEN",
+                "Forbidden: se requiere Administrador PH para administrar propietarios/unidades de esta propiedad.");
+        }
+    }
+
     private async Task<PropertyHorizontal> EnsurePhAccessAsync(Guid propertyHorizontalId, bool track, CancellationToken cancellationToken)
     {
         var query = track ? _db.PropertyHorizontals.AsQueryable() : _db.PropertyHorizontals.AsNoTracking();
         var ph = await query.FirstOrDefaultAsync(p => p.Id == propertyHorizontalId, cancellationToken)
             ?? throw new DomainException("PH_NOT_FOUND", "Property horizontal not found.");
         TenantGuard.EnsureTenantMatch(_currentTenant, ph.TenantId);
+
+        // Tenant-wide PH admins may access any PH in tenant.
+        if (_currentTenant.Permissions.Contains(Permissions.PhManage))
+        {
+            return ph;
+        }
+
+        // Everyone else (including ph:view operators and portal:self owners) needs membership.
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+        var hasMembership = await _db.UserPropertyMemberships.AsNoTracking().AnyAsync(
+            m => m.UserId == userId && m.PropertyHorizontalId == propertyHorizontalId && m.IsActive,
+            cancellationToken);
+        if (!hasMembership)
+        {
+            throw new DomainException("PH_ACCESS_DENIED", "No tienes acceso a esta propiedad horizontal.");
+        }
+
         return ph;
     }
 

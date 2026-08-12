@@ -1,5 +1,6 @@
 import { api } from "/js/modules/api.js";
-import { login, me } from "/js/modules/auth.js";
+import { login, me, hasPermission } from "/js/modules/auth.js";
+import { isOperator, isOwnerPortalUser } from "/js/modules/roles.js?v=rbac2";
 import { resolveDefaultAssemblyId } from "/js/modules/assembly-context.js";
 import {
   scrubCredentialQueryFromLocation,
@@ -33,21 +34,38 @@ async function resolvePostLoginAssemblyId() {
   return resolveDefaultAssemblyId();
 }
 
-function goDashboard(assemblyId) {
-  if (assemblyId) {
-    location.assign(`/dashboard.html?assemblyId=${encodeURIComponent(assemblyId)}`);
+function safeReturnUrl() {
+  const raw = new URLSearchParams(location.search).get("returnUrl");
+  if (!raw) return null;
+  // Open-redirect guard: same-origin relative path only.
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("://")) return null;
+  if (raw.toLowerCase().includes("javascript:")) return null;
+  return raw;
+}
+
+function goHome(user) {
+  const ret = safeReturnUrl();
+  if (ret) {
+    location.assign(ret);
     return;
   }
-  // Dashboard will resolve the next/active assembly and rewrite the URL.
-  location.assign("/dashboard.html");
+  if (isOwnerPortalUser(user)) {
+    location.assign("/owner.html");
+    return;
+  }
+  // Operators land on PH home — not a mixed assembly command panel.
+  if (hasPermission(user, "ph:view") || isOperator(user)) {
+    location.assign("/ph.html");
+    return;
+  }
+  location.assign("/calendar.html");
 }
 
 try {
-  await me();
+  const session = await me();
   const users = await api("/api/demo/users").catch(() => null);
   defaultAssemblyId = users?.[0]?.assemblyId || null;
-  const assemblyId = (await resolvePostLoginAssemblyId()) || defaultAssemblyId;
-  goDashboard(assemblyId);
+  goHome(session);
 } catch {
   // not authenticated
 }
@@ -83,17 +101,15 @@ document.querySelector("#login-form").addEventListener("submit", async (event) =
 
   const email = emailInput.value.trim();
   const password = passwordInput.value;
-  // Clear password field early so it cannot linger in DOM after navigation failures.
   passwordInput.value = "";
 
   setButtonLoading(submitBtn, true, "Iniciando sesión");
   showGlobalLoader("Verificando acceso…", { hint: "Autenticación segura" });
 
   try {
-    await login(email, password);
-    showGlobalLoader("Preparando tu asamblea…");
-    const assemblyId = await resolvePostLoginAssemblyId();
-    goDashboard(assemblyId);
+    const session = await login(email, password);
+    showGlobalLoader("Preparando tu acceso…");
+    goHome(session || (await me()));
   } catch {
     hideGlobalLoader();
     setButtonLoading(submitBtn, false);

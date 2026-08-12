@@ -1396,10 +1396,31 @@ public sealed class VotingService
             VotingDesignCodes.Calculation.PerPerson,
             StringComparison.OrdinalIgnoreCase);
 
+        var userIds = participants.Select(p => p.UserId).ToList();
+        var repsByUser = await _representation.GetActiveForUsersAsync(assemblyId, userIds, cancellationToken);
+
+        var unitIds = participants
+            .Where(p => p.UnitId is Guid uid)
+            .Select(p => p.UnitId!.Value)
+            .ToHashSet();
+        foreach (var reps in repsByUser.Values)
+        {
+            foreach (var rep in reps)
+            {
+                unitIds.Add(rep.UnitId);
+            }
+        }
+
+        var unitCodes = unitIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await _db.Units.AsNoTracking()
+                .Where(u => unitIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.Code, cancellationToken);
+
         var rows = new List<EligibilityRow>();
         foreach (var participant in participants)
         {
-            var reps = await _representation.GetActiveForUserAsync(assemblyId, participant.UserId, cancellationToken);
+            var reps = repsByUser.GetValueOrDefault(participant.UserId, []);
             if (reps.Count > 0)
             {
                 var coeff = perPerson
@@ -1416,10 +1437,7 @@ public sealed class VotingService
                 string? code = null;
                 if (participant.UnitId is Guid uid)
                 {
-                    code = await _db.Units.AsNoTracking()
-                        .Where(u => u.Id == uid)
-                        .Select(u => u.Code)
-                        .FirstOrDefaultAsync(cancellationToken);
+                    unitCodes.TryGetValue(uid, out code);
                 }
 
                 rows.Add(new EligibilityRow(

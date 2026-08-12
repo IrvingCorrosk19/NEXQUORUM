@@ -1,6 +1,8 @@
 import { api } from "./api.js";
 import { logout, me, hasPermission } from "./auth.js";
+import { isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, qs, showToast } from "./ui.js";
+import { bootIaPage } from "./ia-page.js";
 import {
   fillTimeSelect,
   phLocalToUtcIso,
@@ -269,7 +271,7 @@ function renderAgenda() {
 }
 
 function emptyState() {
-  const canSchedule = hasPermission(state.user, "assembly:schedule") || hasPermission(state.user, "assembly:manage");
+  const canSchedule = canScheduleAssemblies(state.user);
   return `<div class="calendar-empty">
     <p>No tienes Asambleas programadas próximamente.</p>
     ${canSchedule ? `<button type="button" class="btn btn-primary" id="empty-schedule">Nueva asamblea</button>` : ""}
@@ -318,9 +320,15 @@ async function openEvent(id) {
       const live = ev.calendarStatus === "LIVE";
       actions.push(`<a class="btn btn-primary" href="/lobby.html?assemblyId=${ev.assemblyId}">${live ? "Entrar ahora" : "Entrar"}</a>`);
     }
-    if (ev.canEdit) actions.push(`<button type="button" class="btn btn-ghost" id="act-edit">Editar</button>`);
-    if (ev.canReschedule) actions.push(`<button type="button" class="btn btn-ghost" id="act-reschedule">Reagendar</button>`);
-    if (ev.canCancel) actions.push(`<button type="button" class="btn btn-danger" id="act-cancel">Cancelar asamblea</button>`);
+    if (ev.canEdit && canScheduleAssemblies(state.user)) {
+      actions.push(`<button type="button" class="btn btn-ghost" id="act-edit">Editar</button>`);
+    }
+    if (ev.canReschedule && canScheduleAssemblies(state.user)) {
+      actions.push(`<button type="button" class="btn btn-ghost" id="act-reschedule">Reagendar</button>`);
+    }
+    if (ev.canCancel && hasPermission(state.user, "assembly:cancel") && !isOwnerPortalUser(state.user)) {
+      actions.push(`<button type="button" class="btn btn-danger" id="act-cancel">Cancelar asamblea</button>`);
+    }
     actions.push(`<a class="btn btn-ghost" href="/api/assemblies/${ev.assemblyId}/calendar.ics" download>Descargar .ics</a>`);
     actions.push(`<button type="button" class="btn btn-ghost" id="act-links">Añadir al calendario</button>`);
     qs("#drawer-actions").innerHTML = actions.join("");
@@ -957,6 +965,32 @@ function wireNav(assemblyId) {
   }
 }
 
+function applyOwnerPortalShell() {
+  const nav = document.querySelector(".app-nav nav");
+  if (nav) {
+    nav.innerHTML = `
+      <a href="/owner.html">Inicio</a>
+      <a href="/owner.html#assemblies">Mis asambleas</a>
+      <a href="/calendar.html" aria-current="page">Calendario</a>
+      <a href="/owner.html#units">Mis unidades</a>
+      <a href="/owner.html#account">Mi cuenta</a>`;
+  }
+  const brandSub = qs("#nav-tenant");
+  if (brandSub) brandSub.textContent = "Portal propietario";
+  const eyebrow = document.querySelector(".calendar-hero .command-eyebrow");
+  if (eyebrow) eyebrow.textContent = "Mis asambleas";
+  const topEyebrow = document.querySelector(".app-top .command-eyebrow");
+  if (topEyebrow) topEyebrow.textContent = "Portal propietario";
+  document.querySelectorAll("#btn-schedule, #empty-schedule").forEach((el) => el.remove());
+  const toolbar = document.querySelector(".calendar-toolbar");
+  if (toolbar) toolbar.replaceChildren();
+}
+
+function canScheduleAssemblies(user) {
+  if (isOwnerPortalUser(user)) return false;
+  return hasPermission(user, "assembly:schedule") || hasPermission(user, "assembly:manage");
+}
+
 async function init() {
   try {
     state.user = await me();
@@ -965,10 +999,23 @@ async function init() {
     return;
   }
   qs("#user-chip").textContent = state.user.displayName || state.user.email;
-  qs("#nav-tenant").textContent = state.user.tenantName || "Gobernanza";
+  const brandSub = qs("#nav-tenant");
+  if (brandSub) brandSub.textContent = state.user.tenantName || "Gobernanza";
   state.phId = state.user.propertyHorizontalId || null;
-  const canSchedule = hasPermission(state.user, "assembly:schedule") || hasPermission(state.user, "assembly:manage");
-  if (canSchedule) qs("#btn-schedule").hidden = false;
+  await bootIaPage({ current: "calendar" });
+
+  const ownerPortal = isOwnerPortalUser(state.user);
+  if (ownerPortal) {
+    applyOwnerPortalShell();
+  }
+
+  const canSchedule = canScheduleAssemblies(state.user);
+  const scheduleBtn = qs("#btn-schedule");
+  if (scheduleBtn) {
+    if (canSchedule) scheduleBtn.hidden = false;
+    else scheduleBtn.remove();
+  }
+
   document.querySelectorAll(".view-toggle [data-view]").forEach((b) => {
     b.setAttribute("aria-pressed", String(b.dataset.view === state.view));
   });
@@ -984,7 +1031,9 @@ async function init() {
   const first = Array.isArray(assemblies) ? assemblies[0] : null;
   if (first?.propertyHorizontalId) state.phId = first.propertyHorizontalId;
   if (!navAssemblyId) navAssemblyId = first?.id || null;
-  wireNav(navAssemblyId);
+  if (!ownerPortal) {
+    wireNav(navAssemblyId);
+  }
   await loadNextBanner();
   await loadEvents();
 }

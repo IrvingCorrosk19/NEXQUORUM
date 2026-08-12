@@ -2,8 +2,10 @@ namespace Asambleas.Application.Assembly;
 
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Common;
+using Asambleas.Application.Security;
 using Asambleas.Contracts.Assemblies;
 using Asambleas.Domain.Common;
+using Asambleas.Domain.Entities;
 using Asambleas.Domain.Enums;
 using Asambleas.Domain.Services;
 using Microsoft.EntityFrameworkCore;
@@ -62,6 +64,7 @@ public sealed class AssemblyService
             ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+        await EnsureAssemblyReadableAsync(assembly, cancellationToken);
 
         var phName = await _db.PropertyHorizontals
             .AsNoTracking()
@@ -150,5 +153,34 @@ public sealed class AssemblyService
         await _realtime.PublishAssemblyStatusAsync(assembly.Id, summary, cancellationToken);
 
         return summary;
+    }
+
+    private async Task EnsureAssemblyReadableAsync(Domain.Entities.Assembly assembly, CancellationToken cancellationToken)
+    {
+        if (_currentTenant.Permissions.Contains(Permissions.AssemblyManage)
+            || _currentTenant.Permissions.Contains(Permissions.PhManage)
+            || _currentTenant.Permissions.Contains(Permissions.AuditView))
+        {
+            return;
+        }
+
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+        var isParticipant = await _db.AssemblyParticipants.AsNoTracking().AnyAsync(
+            p => p.AssemblyId == assembly.Id && p.UserId == userId,
+            cancellationToken);
+        if (isParticipant)
+        {
+            return;
+        }
+
+        var hasPhMembership = await _db.UserPropertyMemberships.AsNoTracking().AnyAsync(
+            m => m.UserId == userId && m.PropertyHorizontalId == assembly.PropertyHorizontalId && m.IsActive,
+            cancellationToken);
+        if (hasPhMembership && _currentTenant.Permissions.Contains(Permissions.PhView))
+        {
+            return;
+        }
+
+        throw new DomainException("ASSEMBLY_ACCESS_DENIED", "No tienes acceso a esta asamblea.");
     }
 }

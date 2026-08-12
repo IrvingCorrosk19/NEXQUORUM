@@ -55,6 +55,9 @@ services:
       Recording__AllowSyntheticFallback: ${ASAMBLEAS_RECORDING_SYNTHETIC:-true}
       Recording__StorageRoot: /data/recordings
       ASAMBLEAS_DP_KEYS_PATH: /root/.aspnet/DataProtection-Keys
+      # Trusted public HTTPS origin for activation links (never trust Host header).
+      ASAMBLEAS_PUBLIC_BASE_URL: ${ASAMBLEAS_PUBLIC_BASE_URL:-https://asambleas.164.68.99.83.nip.io}
+      App__PublicBaseUrl: ${ASAMBLEAS_PUBLIC_BASE_URL:-https://asambleas.164.68.99.83.nip.io}
     ports:
       - "127.0.0.1:${ASAMBLEAS_HOST_PORT:-5090}:8080"
     volumes:

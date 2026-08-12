@@ -39,7 +39,7 @@ public sealed class ExceptionHandlingMiddleware
         {
             _logger.LogWarning(domainException, "Domain exception. CorrelationId={CorrelationId}", correlationId);
 
-            var status = MapDomainStatus(domainException.Message);
+            var status = MapDomainStatus(domainException);
             var problem = new ProblemDetails
             {
                 Status = status,
@@ -84,8 +84,15 @@ public sealed class ExceptionHandlingMiddleware
         await context.Response.WriteAsJsonAsync(unhandled);
     }
 
-    private static int MapDomainStatus(string message)
+    private static int MapDomainStatus(DomainException domainException)
     {
+        if (string.Equals(domainException.Code, "FORBIDDEN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(domainException.Code, "PH_ACCESS_DENIED", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCodes.Status403Forbidden;
+        }
+
+        var message = domainException.Message ?? string.Empty;
         // Authorization / tenancy denials only — business rule violations stay 400.
         if (message.Contains("Cross-tenant", StringComparison.OrdinalIgnoreCase)
             || message.Contains("Forbidden", StringComparison.OrdinalIgnoreCase)

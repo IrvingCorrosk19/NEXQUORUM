@@ -5,6 +5,7 @@ using System.Text;
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Abstractions.Communications;
 using Asambleas.Application.Common;
+using Asambleas.Application.Communications;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.PhOnboarding;
 using Asambleas.Domain.Common;
@@ -14,8 +15,8 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// Secure owner portal invitations: single-use, short-lived tokens hashed at rest.
+/// Emails go through Communication Center PH SMTP resolution (same as Email/test).
 /// Never puts passwords in URLs or invitation payloads.
-/// USER ≠ OWNER — linking requires invitation + activation or authenticated accept.
 /// </summary>
 public sealed class OwnerInvitationService
 {
@@ -24,7 +25,7 @@ public sealed class OwnerInvitationService
     private readonly IAsambleasDbContext _db;
     private readonly ICurrentTenant _currentTenant;
     private readonly IOwnerPortalIdentityService _identity;
-    private readonly IEmailProvider _email;
+    private readonly CommunicationConfigurationService _communications;
     private readonly IPortalNotificationProvider _portal;
     private readonly IAuditService _audit;
 
@@ -32,14 +33,14 @@ public sealed class OwnerInvitationService
         IAsambleasDbContext db,
         ICurrentTenant currentTenant,
         IOwnerPortalIdentityService identity,
-        IEmailProvider email,
+        CommunicationConfigurationService communications,
         IPortalNotificationProvider portal,
         IAuditService audit)
     {
         _db = db;
         _currentTenant = currentTenant;
         _identity = identity;
-        _email = email;
+        _communications = communications;
         _portal = portal;
         _audit = audit;
     }
@@ -69,7 +70,6 @@ public sealed class OwnerInvitationService
 
         var email = owner.Email.Trim().ToLowerInvariant();
 
-        // Already has active PH membership + linked user → nothing to invite.
         if (owner.UserId is Guid linkedUserId)
         {
             var activeMembership = await _db.UserPropertyMemberships.AsNoTracking().AnyAsync(
@@ -83,6 +83,17 @@ public sealed class OwnerInvitationService
                     "OWNER_ALREADY_ACTIVE",
                     "Este propietario ya tiene acceso activo a la plataforma en este PH.");
             }
+        }
+
+        // Resolve provider BEFORE creating invitation so we fail fast if SMTP is misconfigured.
+        var (emailProvider, usedSandbox, providerName) =
+            await _communications.ResolvePhEmailProviderAsync(propertyHorizontalId, cancellationToken);
+
+        if (!usedSandbox && string.Equals(providerName, "Mock", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new DomainException(
+                "COMMUNICATION_EMAIL_NOT_CONFIGURED",
+                $"El correo electrónico todavía no está configurado para {ph.Name}. Abre Comunicaciones de este PH, configura Email/SMTP y desactiva Sandbox antes de invitar.");
         }
 
         await InvalidateOutstandingInvitationsAsync(propertyHorizontalId, owner.Id, cancellationToken);
@@ -106,6 +117,7 @@ public sealed class OwnerInvitationService
         };
         _db.OwnerInvitations.Add(invitation);
 
+        var previousStatus = owner.Status;
         if (owner.Status is OwnerLifecycleStatus.Draft or OwnerLifecycleStatus.Inactive)
         {
             owner.Status = OwnerLifecycleStatus.Invited;
@@ -115,7 +127,36 @@ public sealed class OwnerInvitationService
 
         var activationPath = $"/activate.html?token={Uri.EscapeDataString(rawToken)}";
         var activationUrl = BuildAbsoluteUrl(activationPath);
-        await SendInvitationEmailAsync(ph.Name, owner.DisplayName, email, activationUrl, requiresLogin, expires, cancellationToken);
+
+        ProviderSendResult sendResult;
+        try
+        {
+            sendResult = await SendInvitationEmailAsync(
+                emailProvider,
+                ph.Name,
+                owner.DisplayName,
+                email,
+                activationUrl,
+                requiresLogin,
+                expires,
+                cancellationToken);
+        }
+        catch (Exception ex) when (ex is not DomainException)
+        {
+            await FailInvitationAsync(invitation, owner, previousStatus, cancellationToken);
+            throw new DomainException(
+                "INVITATION_EMAIL_FAILED",
+                "No pudimos enviar la invitación. Revisa la configuración SMTP e inténtalo de nuevo.",
+                ex);
+        }
+
+        if (!sendResult.Succeeded)
+        {
+            await FailInvitationAsync(invitation, owner, previousStatus, cancellationToken);
+            throw new DomainException(
+                "INVITATION_EMAIL_FAILED",
+                MapSendFailure(sendResult.Detail));
+        }
 
         if (requiresLogin && existingUserId is Guid notifyUserId)
         {
@@ -139,19 +180,26 @@ public sealed class OwnerInvitationService
             {
                 propertyHorizontalId,
                 ownerId = owner.Id,
-                email,
+                emailMasked = MaskEmail(email),
                 requiresLogin,
+                provider = providerName,
+                usedSandbox,
+                providerMessageId = sendResult.ProviderMessageId,
                 actorId
             },
             cancellationToken: cancellationToken);
 
+        // Never return raw activation token/path to the admin UI.
         return new InviteOwnerResultDto(
             invitation.Id,
-            email,
+            MaskEmail(email),
             expires,
-            activationPath,
             ExistingUserLinked: false,
-            RequiresLoginToAccept: requiresLogin);
+            RequiresLoginToAccept: requiresLogin,
+            EmailSent: true,
+            Provider: providerName,
+            UsedSandbox: usedSandbox,
+            Detail: sendResult.Detail);
     }
 
     public async Task RevokeOutstandingAsync(
@@ -304,6 +352,23 @@ public sealed class OwnerInvitationService
         }
     }
 
+    private async Task FailInvitationAsync(
+        OwnerInvitation invitation,
+        Owner owner,
+        OwnerLifecycleStatus previousStatus,
+        CancellationToken cancellationToken)
+    {
+        // Do not leave a false "InvitationPending/Sent" trail when SMTP rejected the message.
+        _db.OwnerInvitations.Remove(invitation);
+        owner.Status = previousStatus;
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            "OWNER_INVITATION_FAILED",
+            correlationId: invitation.Id,
+            metadata: new { invitation.OwnerId, invitation.PropertyHorizontalId, emailMasked = MaskEmail(invitation.Email) },
+            cancellationToken: cancellationToken);
+    }
+
     private async Task CompleteLinkAsync(
         OwnerInvitation invitation,
         Owner owner,
@@ -329,15 +394,21 @@ public sealed class OwnerInvitationService
             cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        await _audit.WriteAsync(
+        await _audit.WriteSystemAsync(
+            invitation.TenantId,
             AuditEventType.OwnerInvitationAccepted,
+            propertyHorizontalId: invitation.PropertyHorizontalId,
             correlationId: invitation.Id,
+            userId: userId,
             metadata: new { invitation.PropertyHorizontalId, ownerId = owner.Id, userId },
             cancellationToken: cancellationToken);
 
-        await _audit.WriteAsync(
+        await _audit.WriteSystemAsync(
+            invitation.TenantId,
             AuditEventType.OwnerUserLinked,
+            propertyHorizontalId: invitation.PropertyHorizontalId,
             correlationId: owner.Id,
+            userId: userId,
             metadata: new { invitation.PropertyHorizontalId, userId },
             cancellationToken: cancellationToken);
     }
@@ -410,7 +481,8 @@ public sealed class OwnerInvitationService
         return pending.Count;
     }
 
-    private async Task SendInvitationEmailAsync(
+    private static async Task<ProviderSendResult> SendInvitationEmailAsync(
+        IEmailProvider emailProvider,
         string phName,
         string ownerName,
         string email,
@@ -419,51 +491,125 @@ public sealed class OwnerInvitationService
         DateTimeOffset expires,
         CancellationToken cancellationToken)
     {
-        var subject = $"Invitación al portal — {phName}";
+        var subject = $"Invitación a ASAMBLEAS — {phName}";
+        var safeName = System.Net.WebUtility.HtmlEncode(ownerName);
+        var safePh = System.Net.WebUtility.HtmlEncode(phName);
+        var safeUrl = System.Net.WebUtility.HtmlEncode(activationUrl);
+        var expiresLabel = expires.ToString("dd MMM yyyy HH:mm") + " UTC";
+
         string text;
         string html;
         if (requiresLogin)
         {
             text =
-                $"Hola {ownerName},\n\n{phName} te invitó a ASAMBLEAS.\n" +
-                $"Ya tienes una cuenta. Inicia sesión y abre este enlace para aceptar (vence {expires:u}):\n{activationUrl}\n\n" +
-                "Nunca enviamos contraseñas por correo.";
-            html =
-                $"<p>Hola {System.Net.WebUtility.HtmlEncode(ownerName)},</p>" +
-                $"<p><strong>{System.Net.WebUtility.HtmlEncode(phName)}</strong> te invitó a ASAMBLEAS.</p>" +
-                "<p>Ya tienes una cuenta. Inicia sesión y acepta la invitación:</p>" +
-                $"<p><a href=\"{System.Net.WebUtility.HtmlEncode(activationUrl)}\">Aceptar acceso</a></p>" +
-                $"<p>Vence el {expires:dd MMM yyyy HH:mm} UTC.</p>" +
-                "<p>Nunca enviamos contraseñas por correo.</p>";
+                $"Hola {ownerName},\n\n{phName} te ha invitado a ASAMBLEAS.\n" +
+                $"Ya tienes una cuenta. Inicia sesión y abre este enlace para aceptar:\n{activationUrl}\n\n" +
+                $"Vence: {expiresLabel}\n\nNunca enviamos contraseñas por correo.";
+            html = BuildInviteHtml(
+                safeName,
+                safePh,
+                safeUrl,
+                expiresLabel,
+                ctaLabel: "Aceptar acceso",
+                intro: "Ya tienes una cuenta en ASAMBLEAS. Inicia sesión y acepta esta invitación para vincular el acceso.");
         }
         else
         {
             text =
-                $"Hola {ownerName},\n\nHas sido invitado a ASAMBLEAS para {phName}.\n" +
-                $"Activa tu acceso aquí (enlace de un solo uso, vence {expires:u}):\n{activationUrl}\n\n" +
-                "Nunca compartimos tu contraseña por correo. Tú la defines al activar.";
-            html =
-                $"<p>Hola {System.Net.WebUtility.HtmlEncode(ownerName)},</p>" +
-                $"<p>Has sido invitado a ASAMBLEAS para <strong>{System.Net.WebUtility.HtmlEncode(phName)}</strong>.</p>" +
-                $"<p><a href=\"{System.Net.WebUtility.HtmlEncode(activationUrl)}\">Activar mi cuenta</a> (un solo uso).</p>" +
-                $"<p>Esta invitación vence el {expires:dd MMM yyyy HH:mm} UTC.</p>" +
-                "<p>Nunca compartimos tu contraseña por correo. Tú la defines al activar.</p>";
+                $"Hola {ownerName},\n\n{phName} te ha invitado a acceder a ASAMBLEAS.\n" +
+                $"Activa tu cuenta aquí (un solo uso):\n{activationUrl}\n\n" +
+                $"Vence: {expiresLabel}\n\nNunca compartimos tu contraseña por correo. Tú la defines al activar.";
+            html = BuildInviteHtml(
+                safeName,
+                safePh,
+                safeUrl,
+                expiresLabel,
+                ctaLabel: "Activar mi cuenta",
+                intro: "Desde tu cuenta podrás consultar tus asambleas y participar según las reglas de la propiedad.");
         }
 
-        await _email.SendAsync(
+        return await emailProvider.SendAsync(
             new EmailMessage(email, ownerName, subject, html, text, null, null, null, null),
             cancellationToken);
     }
 
+    private static string BuildInviteHtml(
+        string safeOwnerName,
+        string safePhName,
+        string safeActivationUrl,
+        string expiresLabel,
+        string ctaLabel,
+        string intro) =>
+        $"""
+        <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#1a1a1a;line-height:1.5">
+          <p style="letter-spacing:.08em;text-transform:uppercase;font-size:12px;color:#666">ASAMBLEAS</p>
+          <h1 style="font-size:22px;margin:0 0 12px">Has sido invitado</h1>
+          <p>Hola {safeOwnerName},</p>
+          <p><strong>{safePhName}</strong> te ha invitado a acceder a la plataforma ASAMBLEAS.</p>
+          <p>{System.Net.WebUtility.HtmlEncode(intro)}</p>
+          <p style="margin:28px 0">
+            <a href="{safeActivationUrl}"
+               style="display:inline-block;background:#0f3d2e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:600">
+              {System.Net.WebUtility.HtmlEncode(ctaLabel)}
+            </a>
+          </p>
+          <p style="font-size:13px;color:#555">Esta invitación vence: {System.Net.WebUtility.HtmlEncode(expiresLabel)}</p>
+          <p style="font-size:12px;color:#777">Si no esperabas esta invitación, puedes ignorar este mensaje.</p>
+        </div>
+        """;
+
     private static string BuildAbsoluteUrl(string path)
     {
-        var baseUrl = Environment.GetEnvironmentVariable("ASAMBLEAS_PUBLIC_BASE_URL");
+        var baseUrl = FirstNonEmpty(
+            Environment.GetEnvironmentVariable("ASAMBLEAS_PUBLIC_BASE_URL"),
+            Environment.GetEnvironmentVariable("App__PublicBaseUrl"));
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
-            return path;
+            // Fail closed for production invitations: relative links break in email clients.
+            throw new DomainException(
+                "PUBLIC_BASE_URL_MISSING",
+                "Falta ASAMBLEAS_PUBLIC_BASE_URL. Configura la URL pública HTTPS de ASAMBLEAS.");
         }
 
         return $"{baseUrl.TrimEnd('/')}{path}";
+    }
+
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+    private static string MaskEmail(string email)
+    {
+        var at = email.IndexOf('@');
+        if (at <= 1)
+        {
+            return "***";
+        }
+
+        var local = email[..at];
+        var domain = email[(at + 1)..];
+        var visible = Math.Min(3, local.Length);
+        return $"{local[..visible]}******@{domain}";
+    }
+
+    private static string MapSendFailure(string? detail)
+    {
+        var d = detail ?? string.Empty;
+        if (d.Contains("AUTHENTICATION_FAILED", StringComparison.OrdinalIgnoreCase))
+        {
+            return "No pudimos autenticar la cuenta de correo. Verifica la contraseña de aplicación.";
+        }
+
+        if (d.Contains("CONNECTION_TIMEOUT", StringComparison.OrdinalIgnoreCase))
+        {
+            return "No pudimos conectar con el servidor SMTP.";
+        }
+
+        if (d.Contains("TLS_FAILED", StringComparison.OrdinalIgnoreCase))
+        {
+            return "No fue posible establecer una conexión segura con SMTP.";
+        }
+
+        return "No pudimos enviar la invitación. Revisa Comunicaciones → Email/SMTP e inténtalo de nuevo.";
     }
 
     private async Task EnsureMembershipAsync(

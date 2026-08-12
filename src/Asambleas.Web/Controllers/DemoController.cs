@@ -36,8 +36,9 @@ public static class DemoUsersCatalog
 {
     public static IReadOnlyList<DemoUserInfo> Users { get; } =
     [
-        new("president", "president@ocean.demo", "Presidente Asamblea", Roles.AssemblyPresident, "107", 8.00m),
-        new("secretary", "secretary@ocean.demo", "Secretario Asamblea", Roles.AssemblySecretary, "108", 8.00m),
+        new("president", "president@ocean.demo", "Presidente Asamblea", Roles.AssemblyPresident, "—", 0m),
+        new("secretary", "secretary@ocean.demo", "Secretario Asamblea", Roles.AssemblySecretary, "—", 0m),
+        new("phadmin", "phadmin@ocean.demo", "Administrador PH", Roles.PHAdmin, "—", 0m),
         new("owner101", "owner101@ocean.demo", "Propietario 101", Roles.Owner, "101", 14.00m),
         new("owner102", "owner102@ocean.demo", "Propietario 102", Roles.Owner, "102", 14.00m),
         new("owner103", "owner103@ocean.demo", "Propietario 103", Roles.Owner, "103", 14.00m),

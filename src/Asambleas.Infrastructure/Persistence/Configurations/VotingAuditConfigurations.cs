@@ -89,6 +89,8 @@ internal sealed class QuorumSnapshotConfiguration : IEntityTypeConfiguration<Quo
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.AssemblyId);
         builder.HasIndex(x => x.Status);
+        builder.HasIndex(x => new { x.AssemblyId, x.TimestampUtc })
+            .HasDatabaseName("IX_quorum_snapshots_AssemblyId_TimestampUtc");
         builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
     }
 }

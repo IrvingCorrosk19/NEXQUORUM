@@ -127,14 +127,8 @@ public sealed class AuthController : ControllerBase
             }
         }
 
-        var permissions = User.FindAll(AsambleasClaimTypes.Permission)
-            .Select(c => c.Value)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        if (permissions.Count == 0)
-        {
-            permissions = RolePermissionMap.GetPermissions(roles).ToList();
-        }
+        // Always derive from RolePermissionMap — never trust stale cookie/DB permission claims.
+        var permissions = RolePermissionMap.GetPermissions(roles).ToList();
 
         return Ok(new CurrentUserDto(
             user.Id,

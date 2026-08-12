@@ -65,31 +65,30 @@ public sealed class CalendarSchedulingService
 
         var rangeStart = PadStart(fromUtc);
         var rangeEnd = PadEnd(toUtc);
-        var windowed = await ScopedAssembliesQuery(userId, canManage)
-            .Where(a => a.ScheduledAtUtc >= rangeStart && a.ScheduledAtUtc <= rangeEnd)
-            .ToListAsync(cancellationToken);
-
-        windowed = windowed
-            .Where(a => a.ScheduledAtUtc < toUtc && a.ResolveEstimatedEndAtUtc() > fromUtc)
-            .ToList();
+        var query = ScopedAssembliesQuery(userId, canManage)
+            .Where(a => a.ScheduledAtUtc >= rangeStart && a.ScheduledAtUtc <= rangeEnd);
 
         if (propertyHorizontalId is Guid ph)
         {
-            windowed = windowed.Where(a => a.PropertyHorizontalId == ph).ToList();
+            query = query.Where(a => a.PropertyHorizontalId == ph);
         }
 
         if (!string.IsNullOrWhiteSpace(status) &&
             Enum.TryParse<AssemblyStatus>(status, true, out var st))
         {
-            windowed = windowed.Where(a => a.Status == st).ToList();
+            query = query.Where(a => a.Status == st);
         }
 
         if (!string.IsNullOrWhiteSpace(modality))
         {
-            windowed = windowed
-                .Where(a => a.Modality.Equals(modality, StringComparison.OrdinalIgnoreCase))
-                .ToList();
+            query = query.Where(a => a.Modality == modality);
         }
+
+        var windowed = await query.ToListAsync(cancellationToken);
+
+        windowed = windowed
+            .Where(a => a.ScheduledAtUtc < toUtc && a.ResolveEstimatedEndAtUtc() > fromUtc)
+            .ToList();
 
         var events = await MapEventsAsync(windowed, cancellationToken);
         return new CalendarListResponse(events.OrderBy(e => e.ScheduledAtUtc).ToList(), fromUtc, toUtc);

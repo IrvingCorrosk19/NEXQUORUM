@@ -1,5 +1,10 @@
 import { api, ensureAntiforgery } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
+import { mountIaShell, phHref } from "./ia-nav.js";
+import { assemblyListBucket, statusLabelEs } from "./ia-actions.js";
+import { formatDateTime } from "./ui.js";
+import { bindStickyForm } from "./ux-forms.js";
+import { confirmDialog } from "./ui.js";
 
 const STEP_LABELS = [
   "Información",
@@ -30,9 +35,25 @@ let currentPh = null;
 let importSession = null;
 let suggestedMappings = [];
 let editingOwnerId = null;
+let myMemberships = [];
+let phAssemblies = [];
+let asmFilter = "upcoming";
+let phFormBinder = null;
 
 const $ = (sel) => document.querySelector(sel);
 const alertEl = $("#page-alert");
+
+function canAdministerCurrentPh() {
+  if (hasPermission(user, "ph:manage") || hasPermission(user, "owner:manage")) {
+    return true;
+  }
+  if (!currentPhId) return false;
+  const m = myMemberships.find(
+    (x) => String(x.propertyHorizontalId).toLowerCase() === String(currentPhId).toLowerCase()
+  );
+  const hint = (m?.roleHint || "").toLowerCase();
+  return hint === "phadmin" || hint === "tenantadmin" || hint === "platformadmin";
+}
 
 function showAlert(message, kind = "error") {
   alertEl.hidden = false;
@@ -56,26 +77,17 @@ async function init() {
     return;
   }
 
+  if (!hasPermission(user, "ph:view")) {
+    location.href = "/owner.html?denied=ph-admin";
+    return;
+  }
+
   $("#user-chip").textContent = user.displayName || user.email;
   $("#nav-tenant").textContent = user.tenantCode || "Gobernanza";
   $("#btn-logout").addEventListener("click", async () => {
     await logout();
     location.href = "/";
   });
-
-  try {
-    const { resolveDefaultAssemblyId, dashboardHref } = await import("./assembly-context.js");
-    const aid = await resolveDefaultAssemblyId();
-    const panel = document.querySelector("#nav-dashboard, .app-nav a[href='/dashboard.html'], .app-nav a[href^='/dashboard.html']");
-    if (panel) panel.setAttribute("href", dashboardHref(aid));
-  } catch {
-    /* ignore */
-  }
-
-  if (!hasPermission(user, "ph:view")) {
-    showAlert("No tienes permiso para administrar propiedades horizontales.");
-    return;
-  }
 
   wireUi();
   await refreshSwitcher();
@@ -84,7 +96,70 @@ async function init() {
   const urlPh = new URLSearchParams(location.search).get("phId");
   if (urlPh) {
     await openPh(urlPh);
+    applyHashTab();
+  } else {
+    mountPhListShell();
   }
+}
+
+function mountPhListShell() {
+  mountIaShell(
+    { level: "global", user, current: "ph-list" },
+    { breadcrumbs: [{ label: "Propiedades" }] }
+  );
+}
+
+function applyHashTab() {
+  const hash = (location.hash || "").replace("#", "");
+  const map = {
+    resumen: "resumen",
+    info: "info",
+    assemblies: "assemblies",
+    units: "units",
+    owners: "owners",
+    coefficients: "coefficients",
+    import: "import",
+    readiness: "readiness"
+  };
+  if (map[hash]) switchTab(map[hash]);
+  else if (currentPh && !isOnboardingMode(currentPh)) switchTab("resumen");
+}
+
+/** Wizard only for empty Draft PHs. Operational chrome otherwise. */
+function isOnboardingMode(ph) {
+  if (!ph) return false;
+  if (ph.status === "Active" || ph.status === "ReadyForAssembly" || ph.status === "Inactive") {
+    return false;
+  }
+  const units = Number(ph.unitCount ?? 0);
+  const owners = Number(ph.ownerCount ?? 0);
+  return ph.status === "Draft" && units === 0 && owners === 0;
+}
+
+function applyPhMode(ph) {
+  const detail = $("#view-detail");
+  if (!detail || !ph) return;
+  const onboarding = isOnboardingMode(ph);
+  detail.dataset.phMode = onboarding ? "onboarding" : "ops";
+
+  const wizard = $("#wizard-steps");
+  const progress = $("#onboarding-progress");
+  if (wizard) wizard.hidden = !onboarding;
+  if (progress) {
+    progress.hidden = !onboarding;
+    const step = Math.min(Math.max(Number(ph.onboardingStep) || 1, 1), 7);
+    progress.textContent = `Paso ${step} de 7`;
+  }
+
+  const inactive = ph.status === "Inactive";
+  const showActivate = !inactive && ph.status !== "Active";
+  const showReady = !inactive && ph.status === "Draft";
+  $("#btn-activate-ph").hidden = !showActivate;
+  $("#btn-mark-ready").hidden = !showReady;
+  $("#btn-continue-onboarding").hidden = !(onboarding || (ph.status === "Draft" && !inactive));
+  $("#btn-reactivate-ph").hidden = !inactive;
+  $("#btn-activate-ph").disabled = inactive;
+  $("#btn-mark-ready").disabled = inactive;
 }
 
 function wireUi() {
@@ -98,10 +173,17 @@ function wireUi() {
       openPh(currentPhId).then(() => switchTab("units"));
     }
   });
-  $("#btn-back-list").addEventListener("click", () => {
+  $("#btn-back-list").addEventListener("click", async () => {
+    if (phFormBinder?.isDirty?.()) {
+      const leave = await phFormBinder.confirmLeave();
+      if (!leave) return;
+    }
     currentPhId = null;
+    currentPh = null;
     $("#view-detail").hidden = true;
     $("#view-list").hidden = false;
+    history.replaceState({}, "", "/ph.html");
+    mountPhListShell();
     loadList();
   });
   $("#form-ph").addEventListener("submit", onSavePh);
@@ -120,12 +202,33 @@ function wireUi() {
     showAlert("PH activado.", "ok");
     await openPh(currentPhId);
   });
-  $("#btn-deactivate-ph").addEventListener("click", onDeactivatePh);
+  $("#btn-continue-onboarding")?.addEventListener("click", () => {
+    if (isOnboardingMode(currentPh)) {
+      switchTab("info");
+      return;
+    }
+    switchTab("info");
+  });
+  $("#btn-archive-ph")?.addEventListener("click", onArchivePh);
   $("#btn-reactivate-ph").addEventListener("click", onReactivatePh);
-  $("#btn-delete-ph").addEventListener("click", onDeletePh);
+  $("#btn-delete-ph")?.addEventListener("click", onDeletePh);
 
-  document.querySelectorAll(".tabs button").forEach((btn) => {
+  document.querySelectorAll(".tabs button, .ph-module-tabs button").forEach((btn) => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
+  document.querySelectorAll("#asm-filters button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      asmFilter = btn.dataset.filter || "upcoming";
+      document.querySelectorAll("#asm-filters button").forEach((b) => {
+        b.setAttribute("aria-pressed", String(b === btn));
+      });
+      renderAssembliesList();
+    });
+  });
+
+  window.addEventListener("hashchange", () => {
+    if (currentPhId) applyHashTab();
   });
 
   $("#btn-new-unit").addEventListener("click", () => {
@@ -159,9 +262,29 @@ function wireUi() {
   $("#btn-goto-import")?.addEventListener("click", () => switchTab("import"));
   $("#btn-empty-import")?.addEventListener("click", () => switchTab("import"));
   $("#form-owner").addEventListener("submit", onSaveOwner);
-  ["owner-search", "filter-tower", "filter-status", "filter-email", "filter-user", "filter-invited"].forEach((id) => {
-    $(`#${id}`)?.addEventListener("change", () => loadOwners());
-    $(`#${id}`)?.addEventListener("input", () => loadOwners());
+  $("#owner-search")?.addEventListener("input", () => loadOwners());
+  $("#btn-owner-filters")?.addEventListener("click", () => {
+    const pop = $("#owner-filters-popover");
+    if (!pop) return;
+    pop.hidden = !pop.hidden;
+    $("#btn-owner-filters").setAttribute("aria-expanded", String(!pop.hidden));
+  });
+  $("#btn-filters-apply")?.addEventListener("click", () => {
+    $("#owner-filters-popover").hidden = true;
+    $("#btn-owner-filters")?.setAttribute("aria-expanded", "false");
+    renderOwnerFilterChips();
+    loadOwners();
+  });
+  $("#btn-filters-clear")?.addEventListener("click", () => {
+    ["filter-tower", "filter-status", "filter-email", "filter-user", "filter-invited"].forEach((id) => {
+      const el = $(`#${id}`);
+      if (el) el.value = "";
+    });
+    renderOwnerFilterChips();
+    loadOwners();
+  });
+  document.querySelectorAll("[data-close-owner-drawer]").forEach((el) => {
+    el.addEventListener("click", closeOwnerDrawer);
   });
   $("#btn-export-owners")?.addEventListener("click", exportOwners);
   $("#btn-validate-owners")?.addEventListener("click", validateOwnersBulk);
@@ -181,6 +304,7 @@ function wireUi() {
 async function refreshSwitcher() {
   try {
     const memberships = await api("/api/ph/memberships/mine");
+    myMemberships = Array.isArray(memberships) ? memberships : [];
     const wrap = $("#ph-switcher");
     const select = $("#ph-switch-select");
     if (!memberships?.length) {
@@ -195,6 +319,7 @@ async function refreshSwitcher() {
       )
       .join("");
   } catch {
+    myMemberships = [];
     $("#ph-switcher").hidden = true;
   }
 }
@@ -223,7 +348,7 @@ async function loadList() {
         <h3>${escapeHtml(p.name)}</h3>
         <div class="meta">
           <span>${p.unitCount} unidades · ${p.ownerCount} propietarios</span>
-          <span class="badge">${escapeHtml(p.status)}</span>
+          <span class="badge">${escapeHtml(phLifecycleLabel(p.status))}</span>
         </div>
         <div class="cta-row">
           <button type="button" class="btn btn-primary" data-view="${p.id}">Ver</button>
@@ -234,7 +359,7 @@ async function loadList() {
           ${
             p.status === "Inactive"
               ? `<button type="button" data-reactivate="${p.id}">Reactivar</button>`
-              : `<button type="button" data-deactivate="${p.id}">Desactivar</button>`
+              : `<button type="button" data-archive="${p.id}">Archivar</button>`
           }
           <button type="button" data-delete="${p.id}">Eliminar…</button>
         </div>
@@ -256,11 +381,11 @@ async function loadList() {
       menu.hidden = !menu.hidden;
     });
   });
-  root.querySelectorAll("[data-deactivate]").forEach((btn) =>
+  root.querySelectorAll("[data-archive]").forEach((btn) =>
     btn.addEventListener("click", async (e) => {
       e.stopPropagation();
-      currentPhId = btn.dataset.deactivate;
-      await onDeactivatePh();
+      currentPhId = btn.dataset.archive;
+      await onArchivePh();
       await loadList();
     })
   );
@@ -316,8 +441,90 @@ async function openPh(id) {
   $("#view-list").hidden = true;
   $("#view-detail").hidden = false;
   $("#ph-title").textContent = ph.name;
-  $("#ph-meta").innerHTML = `<span>${escapeHtml(ph.code)}</span><span class="badge">${escapeHtml(ph.status)}</span><span>Paso ${ph.onboardingStep}/8</span>`;
-  renderSteps(ph.onboardingStep);
+  const statusBadge = escapeHtml(phLifecycleLabel(ph.status));
+  const prepHint =
+    ph.status === "ReadyForAssembly"
+      ? `<span class="badge badge-live">Preparación · Lista para convocar</span>`
+      : "";
+  $("#ph-meta").innerHTML = `<span>${escapeHtml(ph.code)}</span><span class="badge">${statusBadge}</span>${prepHint}`;
+
+  applyPhMode(ph);
+
+  // Detail DTO may omit aggregate counts — enrich from list summary when needed.
+  let unitCount = ph.unitCount;
+  let ownerCount = ph.ownerCount;
+  let activeUserCount = ph.activeUserCount;
+  let coefficientTotalPercent = ph.coefficientTotalPercent;
+  let coefficientsComplete = ph.coefficientsComplete;
+  if (unitCount == null || ownerCount == null) {
+    try {
+      const list = await api("/api/ph");
+      const row = (list || []).find((p) => String(p.id) === String(id));
+      if (row) {
+        unitCount = row.unitCount;
+        ownerCount = row.ownerCount;
+        activeUserCount = row.activeUserCount;
+        coefficientTotalPercent = row.coefficientTotalPercent;
+        coefficientsComplete = row.coefficientsComplete;
+        ph.unitCount = unitCount;
+        ph.ownerCount = ownerCount;
+        ph.activeUserCount = activeUserCount;
+        ph.coefficientTotalPercent = coefficientTotalPercent;
+        ph.coefficientsComplete = coefficientsComplete;
+        ph.nextAssemblyAtUtc = ph.nextAssemblyAtUtc ?? row.nextAssemblyAtUtc;
+        ph.nextAssemblyTitle = ph.nextAssemblyTitle ?? row.nextAssemblyTitle;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  $("#ph-stat-strip").innerHTML = `
+    <div class="ia-stat"><div class="ia-stat__value">${unitCount ?? 0}</div><div class="ia-stat__label">Unidades</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${ownerCount ?? 0}</div><div class="ia-stat__label">Propietarios</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${activeUserCount ?? 0}</div><div class="ia-stat__label">Usuarios activos</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${coefficientsComplete ? "100%" : `${Number(coefficientTotalPercent ?? 0).toFixed(0)}%`}</div><div class="ia-stat__label">Coeficientes</div></div>
+  `;
+
+  const nextHost = $("#ph-next-assembly");
+  if (ph.nextAssemblyAtUtc || ph.nextAssemblyTitle) {
+    nextHost.hidden = false;
+    const when = ph.nextAssemblyAtUtc ? formatDateTime(ph.nextAssemblyAtUtc) : "—";
+    nextHost.innerHTML = `
+      <p class="section-title" style="margin:0 0 0.35rem">Próxima asamblea</p>
+      <strong>${escapeHtml(ph.nextAssemblyTitle || "Asamblea")}</strong>
+      <p class="muted" style="margin:0.35rem 0 0.75rem">${escapeHtml(when)}</p>
+      <a class="btn btn-primary" id="btn-view-next-assembly" href="/calendar.html?phId=${encodeURIComponent(id)}">Ver asamblea</a>
+    `;
+  } else {
+    nextHost.hidden = true;
+    nextHost.innerHTML = "";
+  }
+
+  const newAsm = $("#btn-new-assembly");
+  if (newAsm) {
+    newAsm.href = `/calendar.html?phId=${encodeURIComponent(id)}`;
+  }
+
+  mountIaShell(
+    {
+      level: "ph",
+      user,
+      phId: id,
+      phName: ph.name,
+      current: "ph-overview"
+    },
+    {
+      breadcrumbs: [
+        { label: "Propiedades", href: "/ph.html" },
+        { label: ph.name }
+      ]
+    }
+  );
+
+  if (isOnboardingMode(ph)) {
+    renderSteps(ph.onboardingStep);
+  }
   const form = $("#form-ph");
   form.name.value = ph.name || "";
   form.legalName.value = ph.legalName || "";
@@ -331,13 +538,53 @@ async function openPh(id) {
   form.phone.value = ph.phone || "";
   if (form.concurrencyStamp) form.concurrencyStamp.value = ph.concurrencyStamp || "";
   const inactive = ph.status === "Inactive";
-  $("#btn-deactivate-ph").hidden = inactive;
-  $("#btn-reactivate-ph").hidden = !inactive;
-  $("#btn-mark-ready").disabled = inactive;
-  $("#btn-activate-ph").disabled = inactive;
+  $("#btn-archive-ph").hidden = inactive;
   $("#btn-template").href = `/api/ph/${id}/import/template`;
-  switchTab("info");
-  await Promise.all([loadUnits(), loadOwners(), loadCoefficients(), loadReadiness()]);
+  const initialTab = isOnboardingMode(ph) ? "info" : "resumen";
+  switchTab(initialTab);
+  await Promise.all([loadUnits(), loadOwners(), loadCoefficients(), loadReadiness(), loadAssemblies()]);
+  await renderAttentionAndPrep(ph);
+  setupPhFormBinder();
+  await refreshPhDeleteAvailability();
+  // Link next assembly to concrete event when available
+  const nextBtn = $("#btn-view-next-assembly");
+  const upcoming = phAssemblies.find((e) => assemblyListBucket(e.status) === "upcoming" || assemblyListBucket(e.status) === "live");
+  if (nextBtn && upcoming) {
+    nextBtn.href = `/dashboard.html?assemblyId=${encodeURIComponent(upcoming.assemblyId)}`;
+    nextBtn.textContent = "Ver asamblea";
+  }
+}
+
+function setupPhFormBinder() {
+  const form = $("#form-ph");
+  if (!form) return;
+  phFormBinder?.destroy?.();
+  phFormBinder = bindStickyForm(form, {
+    bar: $("#ph-sticky-actions"),
+    hint: $("#ph-dirty-hint"),
+    saveBtn: $("#btn-ph-save"),
+    cancelBtn: $("#btn-ph-discard")
+  });
+  phFormBinder.markClean();
+}
+
+async function refreshPhDeleteAvailability() {
+  const delBtn = $("#btn-delete-ph");
+  if (!delBtn || !currentPhId) return;
+  try {
+    const evaluation = await api(`/api/ph/${currentPhId}/delete-evaluation`);
+    delBtn.hidden = !evaluation.canHardDelete;
+    const copy = $("#ph-danger-copy");
+    if (copy && !evaluation.canHardDelete) {
+      copy.textContent =
+        "Esta propiedad tiene historial. Usa Archivar para sacarla de operación sin destruir evidencias ni actas.";
+    } else if (copy) {
+      copy.textContent =
+        "Este PH no tiene historial de asambleas. Puedes archivarlo o eliminarlo permanentemente.";
+    }
+  } catch {
+    delBtn.hidden = true;
+  }
 }
 
 function renderSteps(current) {
@@ -351,12 +598,173 @@ function renderSteps(current) {
 }
 
 function switchTab(tab) {
-  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("is-active", b.dataset.tab === tab));
+  document.querySelectorAll(".ph-module-tabs button, .tabs button").forEach((b) =>
+    b.classList.toggle("is-active", b.dataset.tab === tab)
+  );
   document.querySelectorAll(".wizard-panel").forEach((p) => {
     p.hidden = p.dataset.panel !== tab;
   });
   if (tab === "coefficients") loadCoefficients();
   if (tab === "readiness") loadReadiness();
+  if (tab === "assemblies") loadAssemblies();
+  if (tab === "resumen") renderAttentionAndPrep(currentPh);
+
+  const currentMap = {
+    resumen: "ph-overview",
+    info: "ph-config",
+    assemblies: "ph-assemblies",
+    units: "ph-units",
+    owners: "ph-owners",
+    coefficients: "ph-config",
+    import: "ph-config",
+    readiness: "ph-overview"
+  };
+  if (currentPh) {
+    mountIaShell(
+      {
+        level: "ph",
+        user,
+        phId: currentPhId,
+        phName: currentPh.name,
+        current: currentMap[tab] || "ph-overview"
+      },
+      {
+        breadcrumbs: [
+          { label: "Propiedades", href: "/ph.html" },
+          { label: currentPh.name, href: phHref(currentPhId, "resumen") },
+          tab === "resumen" ? null : { label: tabLabel(tab) }
+        ].filter(Boolean)
+      }
+    );
+  }
+
+  const desiredHash = tab === "info" ? "info" : tab;
+  if (location.hash.replace("#", "") !== desiredHash) {
+    history.replaceState({}, "", `${location.pathname}${location.search}#${desiredHash}`);
+  }
+}
+
+function tabLabel(tab) {
+  const labels = {
+    resumen: "Resumen",
+    info: "Configuración",
+    assemblies: "Asambleas",
+    units: "Unidades",
+    owners: "Propietarios",
+    coefficients: "Coeficientes",
+    import: "Importar",
+    readiness: "Preparación"
+  };
+  return labels[tab] || tab;
+}
+
+async function renderAttentionAndPrep(ph) {
+  if (!ph || !currentPhId) return;
+  const attention = $("#ph-attention");
+  const prep = $("#ph-prep-summary");
+  if (!attention || !prep) return;
+
+  let issues = [];
+  try {
+    const validation = await api(`/api/ph/${currentPhId}/owners/validate-bulk`, { method: "POST" });
+    if (validation.withoutEmail) issues.push(`${validation.withoutEmail} propietarios sin correo`);
+    if (validation.withoutUnit) issues.push(`${validation.withoutUnit} propietarios sin unidad`);
+    if (validation.withoutUser) issues.push(`${validation.withoutUser} propietarios sin acceso activado`);
+  } catch {
+    /* ignore */
+  }
+  if (!ph.coefficientsComplete) issues.push("Coeficientes incompletos");
+
+  if (issues.length) {
+    attention.hidden = false;
+    attention.innerHTML = `
+      <p class="section-title" style="margin:0 0 0.5rem">Atención</p>
+      <ul style="margin:0 0 0.75rem;padding-left:1.1rem">${issues.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>
+      <button type="button" class="btn btn-secondary" id="btn-review-pending">Revisar pendientes</button>`;
+    $("#btn-review-pending")?.addEventListener("click", () => switchTab("owners"));
+  } else {
+    attention.hidden = true;
+    attention.innerHTML = "";
+  }
+
+  prep.hidden = false;
+  prep.innerHTML = `
+    <p class="section-title" style="margin:0 0 0.5rem">Preparación del PH</p>
+    <ul style="margin:0;padding-left:1.1rem;line-height:1.7">
+      <li>${(ph.unitCount ?? 0) > 0 ? "✓" : "○"} Unidades</li>
+      <li>${(ph.ownerCount ?? 0) > 0 ? "✓" : "○"} Propietarios</li>
+      <li>${ph.coefficientsComplete ? "✓" : "⚠"} Coeficientes</li>
+      <li>${ph.status === "Active" || ph.status === "ReadyForAssembly" ? "✓" : "○"} Activación</li>
+    </ul>`;
+}
+
+async function loadAssemblies() {
+  if (!currentPhId) return;
+  const host = $("#ph-assemblies-list");
+  if (!host) return;
+  host.innerHTML = `<div class="skeleton" style="height:4rem"></div>`;
+  try {
+    const from = new Date();
+    from.setMonth(from.getMonth() - 6);
+    const to = new Date();
+    to.setMonth(to.getMonth() + 12);
+    const data = await api(
+      `/api/calendar/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&propertyHorizontalId=${encodeURIComponent(currentPhId)}`
+    );
+    phAssemblies = Array.isArray(data?.events) ? data.events : Array.isArray(data) ? data : [];
+    renderAssembliesList();
+  } catch (err) {
+    host.innerHTML = `<div class="empty-state">${escapeHtml(err.message || "No se pudieron cargar las asambleas.")}</div>`;
+  }
+}
+
+function renderAssembliesList() {
+  const host = $("#ph-assemblies-list");
+  if (!host) return;
+  const rows =
+    asmFilter === "all"
+      ? phAssemblies
+      : phAssemblies.filter((e) => assemblyListBucket(e.status) === asmFilter);
+
+  if (!rows.length) {
+    host.innerHTML = `<div class="empty-state">No hay asambleas en este filtro. <a href="/calendar.html?phId=${encodeURIComponent(currentPhId)}">Crear en calendario</a></div>`;
+    return;
+  }
+
+  const sorted = [...rows].sort(
+    (a, b) => new Date(a.scheduledAtUtc).getTime() - new Date(b.scheduledAtUtc).getTime()
+  );
+
+  host.innerHTML = sorted
+    .map((e) => {
+      const d = new Date(e.scheduledAtUtc);
+      const day = Number.isNaN(d.getTime()) ? "—" : String(d.getDate()).padStart(2, "0");
+      const mon = Number.isNaN(d.getTime())
+        ? ""
+        : d.toLocaleString("es-PA", { month: "short" }).replace(".", "").toUpperCase();
+      const time = Number.isNaN(d.getTime())
+        ? ""
+        : d.toLocaleString("es-PA", { hour: "numeric", minute: "2-digit" });
+      const id = encodeURIComponent(e.assemblyId);
+      return `
+      <article class="ia-asm-card" style="grid-template-columns:auto 1fr;align-items:start">
+        <div class="ia-asm-card__date"><strong>${escapeHtml(day)}</strong><span>${escapeHtml(mon)}</span></div>
+        <div>
+          <div class="cluster" style="justify-content:space-between;gap:0.75rem;flex-wrap:wrap;align-items:flex-start">
+            <div>
+              <strong>${escapeHtml(e.title)}</strong>
+              <p class="ia-asm-card__meta">${escapeHtml(e.modality || "—")} · ${escapeHtml(time)} · Convocados: ${e.participantCount ?? 0} · Confirmados: ${e.confirmedCount ?? 0}</p>
+            </div>
+            <span class="ia-badge-status">${escapeHtml(statusLabelEs(e.status))}</span>
+          </div>
+          <div class="cta-row" style="margin-top:0.75rem">
+            <a class="btn btn-primary" href="/convocation.html?assemblyId=${id}">Convocatoria</a>
+            <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${id}">Ver asamblea</a>
+          </div>
+        </div>
+      </article>`;
+    })
+    .join("");
 }
 
 async function confirmAction(title, body, okLabel = "Confirmar") {
@@ -374,17 +782,18 @@ async function confirmAction(title, body, okLabel = "Confirmar") {
   });
 }
 
-async function onDeactivatePh() {
+async function onArchivePh() {
   if (!currentPhId) return;
   const ok = await confirmAction(
-    "DESACTIVAR PH",
-    "El PH dejará de estar disponible para operaciones nuevas. Su información histórica será preservada.",
-    "Desactivar"
+    "Archivar propiedad",
+    "Esta propiedad dejará de estar disponible para operación normal. El historial será conservado.",
+    "Archivar"
   );
   if (!ok) return;
   await api(`/api/ph/${currentPhId}/deactivate`, { method: "POST", body: {} });
-  showAlert("PH desactivado.", "ok");
+  showAlert("Propiedad archivada.", "ok");
   if (!$("#view-detail").hidden) await openPh(currentPhId);
+  else await loadList();
 }
 
 async function onReactivatePh() {
@@ -399,17 +808,17 @@ async function onDeletePh() {
   const evaluation = await api(`/api/ph/${currentPhId}/delete-evaluation`);
   if (!evaluation.canHardDelete) {
     const ok = await confirmAction(
-      evaluation.summary || "NO SE PUEDE ELIMINAR ESTE PH",
-      `${(evaluation.blockingReasons || []).join(" ")} Puedes desactivarlo sin perder su historial.`,
-      "Desactivar"
+      "No se puede eliminar",
+      `${(evaluation.blockingReasons || []).join(" ") || evaluation.summary || ""} Usa Archivar para conservar el historial.`,
+      "Archivar"
     );
-    if (ok) await onDeactivatePh();
+    if (ok) await onArchivePh();
     return;
   }
   const ok = await confirmAction(
-    "Eliminar PH",
-    evaluation.summary || "Se eliminará este PH vacío de forma permanente.",
-    "Eliminar"
+    "Eliminar permanentemente",
+    evaluation.summary || "Se eliminará este PH vacío de forma permanente. Esta acción no se puede deshacer.",
+    "Eliminar permanentemente"
   );
   if (!ok) return;
   try {
@@ -418,6 +827,7 @@ async function onDeletePh() {
     currentPhId = null;
     $("#view-detail").hidden = true;
     $("#view-list").hidden = false;
+    mountPhListShell();
     await loadList();
   } catch (err) {
     showAlert(err.message || String(err));
@@ -426,25 +836,39 @@ async function onDeletePh() {
 
 async function onSavePh(ev) {
   ev.preventDefault();
-  const data = formData(ev.target);
-  await api(`/api/ph/${currentPhId}`, {
-    method: "PUT",
-    body: {
-      name: data.name,
-      legalName: data.legalName || null,
-      country: data.country || null,
-      stateProvince: data.stateProvince || null,
-      city: data.city || null,
-      address: data.address || null,
-      timeZoneId: data.timeZoneId,
-      adminEmail: data.adminEmail || null,
-      phone: data.phone || null,
-      onboardingStep: 2,
-      concurrencyStamp: data.concurrencyStamp || null
+  const saveBtn = $("#btn-ph-save");
+  const prev = saveBtn?.textContent;
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Guardando…";
+  }
+  try {
+    const data = formData(ev.target);
+    await api(`/api/ph/${currentPhId}`, {
+      method: "PUT",
+      body: {
+        name: data.name,
+        legalName: data.legalName || null,
+        country: data.country || null,
+        stateProvince: data.stateProvince || null,
+        city: data.city || null,
+        address: data.address || null,
+        timeZoneId: data.timeZoneId,
+        adminEmail: data.adminEmail || null,
+        phone: data.phone || null,
+        onboardingStep: 2,
+        concurrencyStamp: data.concurrencyStamp || null
+      }
+    });
+    showAlert("✓ Cambios guardados.", "ok");
+    await openPh(currentPhId);
+  } catch (err) {
+    showAlert(err.message || String(err));
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = prev || "Guardar cambios";
     }
-  });
-  showAlert("Información guardada.", "ok");
-  await openPh(currentPhId);
+  }
 }
 
 async function loadUnits() {
@@ -537,7 +961,15 @@ async function showUnit(unitId) {
   });
   el.querySelectorAll("[data-end-unit-own]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      if (!confirm("¿Finalizar esta titularidad?")) return;
+      if (
+        !(await confirmDialog({
+          title: "Finalizar titularidad",
+          body: "¿Finalizar esta titularidad? El historial de la unidad se conserva.",
+          confirmLabel: "Finalizar",
+          danger: true
+        }))
+      )
+        return;
       await api(`/api/ph/${currentPhId}/ownerships/${btn.dataset.endUnitOwn}/end`, { method: "POST" });
       showAlert("Titularidad finalizada.", "ok");
       await showUnit(unitId);
@@ -681,29 +1113,75 @@ async function loadOwners() {
   }
   const tbody = $("#owners-table tbody");
   tbody.innerHTML = owners
-    .map(
-      (o) => `<tr>
+    .map((o) => {
+      const access = o.platformAccessStatus || "NotInvited";
+      const action = inviteActionForAccess(access);
+      const inactive = o.status === "Inactive";
+      const email = maskEmail(o.email || "");
+      return `<tr>
       <td><input type="checkbox" value="${o.id}" aria-label="Seleccionar ${escapeHtml(o.displayName)}" /></td>
-      <td>${escapeHtml(o.displayName)}</td>
-      <td>${escapeHtml((o.unitCodes || []).join(", ") || "—")}</td>
-      <td>${Number(o.coefficientPercent).toFixed(4)}%</td>
-      <td><span class="badge">${escapeHtml(o.status)}</span></td>
       <td>
-        <button type="button" class="btn btn-secondary" data-owner="${o.id}">Ver</button>
-        <button type="button" class="btn btn-secondary" data-edit-owner="${o.id}">Editar</button>
-        <button type="button" class="btn btn-secondary" data-invite="${o.id}">Invitar</button>
+        <strong>${escapeHtml(o.displayName)}</strong>
+        <div class="muted" style="font-size:0.85rem">${escapeHtml(email || "sin correo")}</div>
       </td>
-    </tr>`
-    )
+      <td>${escapeHtml((o.unitCodes || []).join(", ") || "—")}</td>
+      <td>${Number(o.coefficientPercent).toFixed(2)}%</td>
+      <td><span class="badge badge-access">${escapeHtml(platformAccessLabel(access))}</span></td>
+      <td class="owners-actions">
+        <div class="ux-row-actions">
+          <button type="button" class="btn btn-secondary" data-owner="${o.id}">Ver</button>
+          <div class="ux-menu">
+            <button type="button" class="btn btn-ghost" data-more-owner="${o.id}" aria-haspopup="true" aria-label="Más acciones">⋮</button>
+            <div class="ux-menu__panel" id="owner-more-${o.id}" hidden>
+              <button type="button" data-edit-owner="${o.id}">Editar</button>
+              <button type="button" data-owner="${o.id}">Ver detalle</button>
+              ${
+                action
+                  ? `<button type="button" data-invite="${o.id}">${escapeHtml(action)}</button>`
+                  : ""
+              }
+              ${
+                inactive
+                  ? `<button type="button" data-reactivate-owner-row="${o.id}">Reactivar</button>`
+                  : `<button type="button" data-deactivate-owner-row="${o.id}">Desactivar</button>`
+              }
+              <button type="button" class="is-danger" data-delete-owner-row="${o.id}">Eliminar…</button>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+    })
     .join("");
+  renderOwnerFilterChips();
+  // rebind row actions — continue existing handlers below
   tbody.querySelectorAll("[data-owner]").forEach((btn) =>
     btn.addEventListener("click", () => showOwner(btn.dataset.owner))
   );
   tbody.querySelectorAll("[data-edit-owner]").forEach((btn) =>
     btn.addEventListener("click", () => startOwnerEdit(btn.dataset.editOwner))
   );
+  tbody.querySelectorAll("[data-more-owner]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const panel = $(`#owner-more-${btn.dataset.moreOwner}`);
+      document.querySelectorAll(".ux-menu__panel").forEach((p) => {
+        if (p !== panel) p.hidden = true;
+      });
+      if (panel) panel.hidden = !panel.hidden;
+    });
+  });
   tbody.querySelectorAll("[data-invite]").forEach((btn) =>
-    btn.addEventListener("click", () => inviteOwner(btn.dataset.invite))
+    btn.addEventListener("click", () => inviteOwner(btn.dataset.invite, btn))
+  );
+  tbody.querySelectorAll("[data-deactivate-owner-row]").forEach((btn) =>
+    btn.addEventListener("click", () => deactivateOwner(btn.dataset.deactivateOwnerRow))
+  );
+  tbody.querySelectorAll("[data-reactivate-owner-row]").forEach((btn) =>
+    btn.addEventListener("click", () => reactivateOwner(btn.dataset.reactivateOwnerRow))
+  );
+  tbody.querySelectorAll("[data-delete-owner-row]").forEach((btn) =>
+    btn.addEventListener("click", () => deleteOwner(btn.dataset.deleteOwnerRow))
   );
 }
 
@@ -743,15 +1221,40 @@ async function bulkInvite() {
     showAlert("Selecciona al menos un propietario.");
     return;
   }
-  if (!confirm(`¿Enviar invitaciones a ${ids.length} propietario(s)?`)) {
+  if (
+    !(await confirmDialog({
+      title: "Enviar invitaciones",
+      body: `¿Enviar invitaciones a ${ids.length} propietario(s)?`,
+      confirmLabel: "Enviar invitaciones"
+    }))
+  ) {
     return;
   }
-  const result = await api(`/api/ph/${currentPhId}/owners/invite-bulk`, {
-    method: "POST",
-    body: { ownerIds: ids }
-  });
-  showAlert(`Invitaciones: enviadas ${result.sent}, vinculadas ${result.linkedExisting}, fallidas ${result.failed}.`, result.failed ? "error" : "ok");
-  await loadOwners();
+  const btn = $("#btn-bulk-invite");
+  const prev = btn?.textContent;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Enviando invitaciones…";
+  }
+  try {
+    const result = await api(`/api/ph/${currentPhId}/owners/invite-bulk`, {
+      method: "POST",
+      body: { ownerIds: ids }
+    });
+    const ok = !result.failed;
+    showAlert(
+      `INVITACIONES — Procesadas: ${result.processed}. Enviadas: ${result.sent}. Ya activas: ${result.alreadyActive}. Sin email: ${result.withoutEmail}. Fallidas: ${result.failed}.`,
+      ok ? "ok" : "error"
+    );
+    await loadOwners();
+  } catch (err) {
+    showAlert(err.message || String(err));
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prev || "Enviar invitaciones";
+    }
+  }
 }
 
 function startOwnerCreate() {
@@ -762,6 +1265,8 @@ function startOwnerCreate() {
   form.concurrencyStamp.value = "";
   form.sharePercent.value = "100";
   $("#btn-save-owner").textContent = "Guardar propietario";
+  const title = $("#owner-form-title");
+  if (title) title.textContent = "Nuevo propietario";
   $("#owner-form-wrap").hidden = false;
   form.firstName.focus();
 }
@@ -780,12 +1285,18 @@ async function startOwnerEdit(ownerId) {
   form.phone.value = o.phone || "";
   form.unitId.value = "";
   $("#btn-save-owner").textContent = "Guardar cambios";
+  const title = $("#owner-form-title");
+  if (title) title.textContent = "Editar propietario";
   $("#owner-form-wrap").hidden = false;
   await showOwner(ownerId);
 }
 
 async function onSaveOwner(ev) {
   ev.preventDefault();
+  if (!canAdministerCurrentPh()) {
+    showAlert("No tienes permiso para editar propietarios en esta PH. Se requiere Administrador PH.");
+    return;
+  }
   const data = formData(ev.target);
   try {
     if (editingOwnerId) {
@@ -842,54 +1353,109 @@ async function onSaveOwner(ev) {
   }
 }
 
-async function showOwner(ownerId) {
-  const o = await api(`/api/ph/${currentPhId}/owners/${ownerId}`);
-  const el = $("#owner-detail");
-  el.hidden = false;
-  const inactive = o.status === "Inactive";
-  el.innerHTML = `
-    <h3>${escapeHtml(o.displayName)}</h3>
-    <p><span class="badge">${escapeHtml(o.status)}</span> · ${escapeHtml(o.email)} · ${escapeHtml(o.phone || "sin teléfono")}</p>
-    <h4>Unidades</h4>
-    <ul>${(o.units || [])
-      .map(
-        (u) =>
-          `<li>${escapeHtml(u.unitCode)} — coef ${Number(u.unitCoefficientPercent).toFixed(4)}% · share ${Number(u.sharePercent).toFixed(2)}% · ${u.isActive ? "activo" : "histórico"}
-          ${u.isActive ? `<button type="button" class="btn btn-secondary" data-end-own="${u.ownershipId}">Finalizar</button>` : ""}</li>`
-      )
-      .join("") || "<li>Sin unidades</li>"}</ul>
-    <div class="cta-row">
-      <button type="button" class="btn btn-primary" data-assoc-unit="${o.id}">+ Asociar unidad</button>
-      <button type="button" class="btn btn-secondary" data-edit-owner="${o.id}">Editar</button>
-      ${
-        inactive
-          ? `<button type="button" class="btn btn-primary" data-reactivate-owner="${o.id}">Reactivar</button>`
-          : `<button type="button" class="btn btn-secondary" data-deactivate-owner="${o.id}">Desactivar</button>`
-      }
-      <button type="button" class="btn btn-secondary" data-delete-owner="${o.id}">Eliminar…</button>
-    </div>`;
-  el.querySelectorAll("[data-assoc-unit]").forEach((btn) => {
+function renderOwnerFilterChips() {
+  const host = $("#owner-filter-chips");
+  if (!host) return;
+  const chips = [];
+  const add = (label, id) => {
+    const el = $(`#${id}`);
+    if (!el?.value) return;
+    const text = el.options?.[el.selectedIndex]?.text || el.value;
+    chips.push(`<span class="filter-chip">${escapeHtml(label)}: ${escapeHtml(text)} <button type="button" data-clear-filter="${id}" aria-label="Quitar filtro">×</button></span>`);
+  };
+  add("Torre", "filter-tower");
+  add("Estado", "filter-status");
+  add("Correo", "filter-email");
+  add("Acceso", "filter-user");
+  add("Invitación", "filter-invited");
+  host.hidden = chips.length === 0;
+  host.innerHTML = chips.join("");
+  host.querySelectorAll("[data-clear-filter]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      editingOwnerId = btn.dataset.assocUnit;
-      $("#owner-form-wrap").hidden = false;
-      $("#btn-save-owner").textContent = "Asociar unidad";
-      showAlert("Elige una unidad y el % de participación, luego guarda.", "ok");
-      $("#owner-unit-select")?.focus();
+      const el = $(`#${btn.dataset.clearFilter}`);
+      if (el) el.value = "";
+      renderOwnerFilterChips();
+      loadOwners();
     });
   });
-  el.querySelectorAll("[data-edit-owner]").forEach((btn) =>
-    btn.addEventListener("click", () => startOwnerEdit(btn.dataset.editOwner))
+}
+
+function closeOwnerDrawer() {
+  const drawer = $("#owner-drawer");
+  if (!drawer) return;
+  drawer.hidden = true;
+  drawer.setAttribute("aria-hidden", "true");
+}
+
+function openOwnerDrawer() {
+  const drawer = $("#owner-drawer");
+  if (!drawer) return;
+  drawer.hidden = false;
+  drawer.setAttribute("aria-hidden", "false");
+}
+
+async function showOwner(ownerId) {
+  const o = await api(`/api/ph/${currentPhId}/owners/${ownerId}`);
+  const inactive = o.status === "Inactive";
+  const access = o.platformAccessStatus || "NotInvited";
+  const canInvite = access !== "Active";
+  const inviteLabel = inviteActionForAccess(access) || "Enviar invitación";
+  const expires = o.invitationExpiresAtUtc
+    ? new Date(o.invitationExpiresAtUtc).toLocaleString("es-PA", { dateStyle: "medium", timeStyle: "short" })
+    : "—";
+
+  $("#owner-drawer-title").textContent = o.displayName || "Propietario";
+  $("#owner-drawer-sub").textContent = ownerLifecycleLabel(o.status);
+  $("#owner-drawer-body").innerHTML = `
+    <h3>Información</h3>
+    <div class="row"><span>Identificación</span><span>${escapeHtml([o.identificationType, o.identification].filter(Boolean).join(" ") || "—")}</span></div>
+    <div class="row"><span>Email</span><span>${escapeHtml(maskEmail(o.email))}</span></div>
+    <div class="row"><span>Teléfono</span><span>${escapeHtml(o.phone || "—")}</span></div>
+    <h3>Unidades</h3>
+    <ul style="margin:0;padding-left:1.1rem">${(o.units || [])
+      .map(
+        (u) =>
+          `<li>${escapeHtml(u.unitCode)} · ${Number(u.unitCoefficientPercent).toFixed(2)}% · participación ${Number(u.sharePercent).toFixed(0)}%
+          ${u.isActive ? `<button type="button" class="btn btn-ghost" data-end-own="${u.ownershipId}">Finalizar</button>` : " · histórico"}</li>`
+      )
+      .join("") || "<li>Sin unidades</li>"}</ul>
+    <h3>Acceso</h3>
+    <div class="row"><span>Estado</span><span class="badge badge-access">${escapeHtml(platformAccessLabel(access))}</span></div>
+    <div class="row"><span>Invitación expira</span><span>${escapeHtml(expires)}</span></div>
+  `;
+  $("#owner-drawer-footer").innerHTML = `
+    <button type="button" class="btn btn-primary" data-edit-owner="${o.id}">Editar</button>
+    <div class="cta-row">
+      ${canInvite ? `<button type="button" class="btn btn-secondary" data-invite-detail="${o.id}">${escapeHtml(inviteLabel)}</button>` : ""}
+      ${
+        inactive
+          ? `<button type="button" class="btn btn-secondary" data-reactivate-owner="${o.id}">Reactivar</button>`
+          : `<button type="button" class="btn btn-secondary" data-deactivate-owner="${o.id}">Desactivar</button>`
+      }
+      <button type="button" class="btn btn-danger" data-delete-owner="${o.id}">Eliminar…</button>
+    </div>`;
+
+  const body = $("#owner-drawer-body");
+  const footer = $("#owner-drawer-footer");
+  footer.querySelectorAll("[data-edit-owner]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      closeOwnerDrawer();
+      startOwnerEdit(btn.dataset.editOwner);
+    })
   );
-  el.querySelectorAll("[data-deactivate-owner]").forEach((btn) =>
+  footer.querySelectorAll("[data-deactivate-owner]").forEach((btn) =>
     btn.addEventListener("click", () => deactivateOwner(btn.dataset.deactivateOwner))
   );
-  el.querySelectorAll("[data-reactivate-owner]").forEach((btn) =>
+  footer.querySelectorAll("[data-reactivate-owner]").forEach((btn) =>
     btn.addEventListener("click", () => reactivateOwner(btn.dataset.reactivateOwner))
   );
-  el.querySelectorAll("[data-delete-owner]").forEach((btn) =>
+  footer.querySelectorAll("[data-delete-owner]").forEach((btn) =>
     btn.addEventListener("click", () => deleteOwner(btn.dataset.deleteOwner))
   );
-  el.querySelectorAll("[data-end-own]").forEach((btn) =>
+  footer.querySelectorAll("[data-invite-detail]").forEach((btn) =>
+    btn.addEventListener("click", () => inviteOwner(btn.dataset.inviteDetail, btn))
+  );
+  body.querySelectorAll("[data-end-own]").forEach((btn) =>
     btn.addEventListener("click", async () => {
       await api(`/api/ph/${currentPhId}/ownerships/${btn.dataset.endOwn}/end`, { method: "POST" });
       showAlert("Relación finalizada (histórico preservado).", "ok");
@@ -897,6 +1463,7 @@ async function showOwner(ownerId) {
       await loadOwners();
     })
   );
+  openOwnerDrawer();
 }
 
 async function deactivateOwner(ownerId) {
@@ -923,8 +1490,8 @@ async function deleteOwner(ownerId) {
   const evaluation = await api(`/api/ph/${currentPhId}/owners/${ownerId}/delete-evaluation`);
   if (!evaluation.canHardDelete) {
     const ok = await confirmAction(
-      evaluation.summary || "NO SE PUEDE ELIMINAR ESTE PROPIETARIO",
-      `${(evaluation.blockingReasons || []).join(" ")} Puedes desactivarlo sin perder el historial.`,
+      "No se puede eliminar este propietario",
+      `${(evaluation.blockingReasons || []).join(" ") || evaluation.summary || ""} Puedes desactivarlo sin perder el historial.`,
       "Desactivar"
     );
     if (ok) await deactivateOwner(ownerId);
@@ -932,28 +1499,131 @@ async function deleteOwner(ownerId) {
   }
   const ok = await confirmAction(
     "Eliminar propietario",
-    evaluation.summary || "Se eliminará este propietario sin historial.",
+    evaluation.summary || "Se eliminará este propietario sin historial de asambleas.",
     "Eliminar"
   );
   if (!ok) return;
   try {
     await api(`/api/ph/${currentPhId}/owners/${ownerId}`, { method: "DELETE" });
     showAlert("Propietario eliminado.", "ok");
-    $("#owner-detail").hidden = true;
+    closeOwnerDrawer();
     await loadOwners();
   } catch (err) {
     showAlert(err.message || String(err));
   }
 }
 
-async function inviteOwner(ownerId) {
-  const result = await api(`/api/ph/${currentPhId}/owners/${ownerId}/invite`, { method: "POST" });
-  if (result.existingUserLinked) {
-    showAlert(`Usuario existente vinculado: ${result.email}`, "ok");
-  } else {
-    showAlert(`Invitación enviada a ${result.email}. Ruta: ${result.activationPath}`, "ok");
+async function inviteOwner(ownerId, triggerBtn) {
+  const buttons = [
+    triggerBtn,
+    ...document.querySelectorAll(`[data-invite="${ownerId}"]`)
+  ].filter(Boolean);
+  buttons.forEach((b) => {
+    b.disabled = true;
+    if (b.dataset.invite != null || b.dataset.inviteDetail != null) {
+      b.dataset.prevLabel = b.textContent;
+      b.textContent = "Enviando invitación…";
+    }
+  });
+  try {
+    const result = await api(`/api/ph/${currentPhId}/owners/${ownerId}/invite`, { method: "POST" });
+    if (!result.emailSent) {
+      showAlert("No pudimos enviar la invitación.", "error");
+      return;
+    }
+    const loginHint = result.requiresLoginToAccept
+      ? " El destinatario ya tiene cuenta: deberá iniciar sesión para aceptar."
+      : "";
+    showAlert(
+      `✓ Invitación enviada a ${result.emailMasked || "el correo registrado"}. Estado: Enviada.${loginHint}`,
+      "ok"
+    );
+    await loadOwners();
+    await showOwner(ownerId);
+  } catch (err) {
+    const code = err.code || err.problem?.code || "";
+    const corr = err.correlationId ? ` CorrelationId: ${err.correlationId}` : "";
+    if (code === "COMMUNICATION_EMAIL_NOT_CONFIGURED" || code === "SMTP_NOT_CONFIGURED") {
+      const phName = currentPh?.name || "este PH";
+      showAlert(
+        `El correo electrónico todavía no está configurado para ${phName}. ${err.message || ""}${corr}`,
+        "error"
+      );
+      const alertEl = $("#page-alert");
+      if (alertEl && !alertEl.querySelector("[data-cfg-mail]")) {
+        const link = document.createElement("a");
+        link.dataset.cfgMail = "1";
+        link.className = "btn btn-primary";
+        link.style.marginLeft = "0.75rem";
+        link.href = `/communications.html?phId=${encodeURIComponent(currentPhId)}`;
+        link.textContent = "Configurar correo";
+        alertEl.appendChild(link);
+      }
+      return;
+    }
+    if (code === "OWNER_EMAIL_REQUIRED" || code === "OWNER_EMAIL_INVALID") {
+      showAlert(`Este propietario no tiene un correo válido. ${err.message || ""}${corr}`, "error");
+      return;
+    }
+    if (code === "PUBLIC_BASE_URL_MISSING") {
+      showAlert(`Falta la URL pública de activación. ${err.message || ""}${corr}`, "error");
+      return;
+    }
+    showAlert(`No pudimos enviar la invitación. ${err.message || ""}${corr}`.trim(), "error");
+  } finally {
+    buttons.forEach((b) => {
+      b.disabled = false;
+      if (b.dataset.prevLabel) {
+        b.textContent = b.dataset.prevLabel;
+        delete b.dataset.prevLabel;
+      }
+    });
   }
-  await loadOwners();
+}
+
+function phLifecycleLabel(status) {
+  const map = {
+    Draft: "Borrador",
+    ReadyForAssembly: "Listo para asamblea",
+    Active: "Activo",
+    Inactive: "Archivado"
+  };
+  return map[status] || status || "—";
+}
+
+function inviteActionForAccess(status) {
+  if (status === "Active") return null;
+  if (status === "InvitationPending" || status === "InvitationExpired") return "Reenviar";
+  if (status === "AccessSuspended") return null;
+  return "Invitar";
+}
+
+function platformAccessLabel(status) {
+  const map = {
+    NotInvited: "Sin invitar",
+    InvitationPending: "Invitación enviada",
+    InvitationExpired: "Invitación expirada",
+    Active: "Cuenta activa",
+    AccessSuspended: "Acceso suspendido"
+  };
+  return map[status] || status || "Sin invitar";
+}
+
+function ownerLifecycleLabel(status) {
+  const map = {
+    Draft: "Borrador",
+    Invited: "Invitado",
+    Active: "Activo",
+    Inactive: "Inactivo"
+  };
+  return map[status] || status || "—";
+}
+
+function maskEmail(email) {
+  if (!email || !email.includes("@")) return "—";
+  const [local, domain] = email.split("@");
+  const visible = Math.min(3, local.length);
+  return `${local.slice(0, visible)}******@${domain}`;
 }
 
 async function loadCoefficients() {

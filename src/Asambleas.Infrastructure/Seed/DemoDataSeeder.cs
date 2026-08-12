@@ -66,6 +66,7 @@ public sealed class DemoDataSeeder
             _logger.LogInformation("Demo seed already present; ensuring EO-006 powers and PH memberships.");
             if (seedUsers)
             {
+                await SeedUsersAsync(cancellationToken);
                 await EnsureEo006PowersAsync(cancellationToken);
                 await EnsureUserPropertyMembershipsAsync(cancellationToken);
                 await RotateDemoUserPasswordsAsync(cancellationToken);
@@ -128,6 +129,7 @@ public sealed class DemoDataSeeder
     [
         "president@ocean.demo",
         "secretary@ocean.demo",
+        "phadmin@ocean.demo",
         "owner101@ocean.demo",
         "owner102@ocean.demo",
         "owner103@ocean.demo",
@@ -140,23 +142,39 @@ public sealed class DemoDataSeeder
     {
         foreach (var roleName in Roles.All)
         {
+            ApplicationRole? role;
             if (await _roleManager.RoleExistsAsync(roleName))
+            {
+                role = await _roleManager.FindByNameAsync(roleName);
+            }
+            else
+            {
+                role = new ApplicationRole
+                {
+                    Id = Guid.NewGuid(),
+                    Name = roleName,
+                    NormalizedName = roleName.ToUpperInvariant()
+                };
+
+                var result = await _roleManager.CreateAsync(role);
+                if (!result.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to create role '{roleName}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
+                }
+            }
+
+            if (role is null)
             {
                 continue;
             }
 
-            var role = new ApplicationRole
+            // Keep AspNetRoleClaims in sync with RolePermissionMap (source of truth is still the map at login).
+            var existing = await _roleManager.GetClaimsAsync(role);
+            foreach (var claim in existing.Where(c =>
+                         string.Equals(c.Type, DemoSeedConstants.PermissionClaimType, StringComparison.Ordinal)))
             {
-                Id = Guid.NewGuid(),
-                Name = roleName,
-                NormalizedName = roleName.ToUpperInvariant()
-            };
-
-            var result = await _roleManager.CreateAsync(role);
-            if (!result.Succeeded)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to create role '{roleName}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
+                await _roleManager.RemoveClaimAsync(role, claim);
             }
 
             foreach (var permission in RolePermissionMap.GetPermissions(roleName))
@@ -380,6 +398,7 @@ public sealed class DemoDataSeeder
         {
             (DemoSeedConstants.UserPresidentId, "president", "president@ocean.demo", "Presidente Asamblea", Roles.AssemblyPresident, null, DemoSeedConstants.OwnerPresidentId),
             (DemoSeedConstants.UserSecretaryId, "secretary", "secretary@ocean.demo", "Secretario Asamblea", Roles.AssemblySecretary, null, DemoSeedConstants.OwnerSecretaryId),
+            (DemoSeedConstants.UserPhAdminId, "phadmin", "phadmin@ocean.demo", "Administrador PH", Roles.PHAdmin, null, null),
             (DemoSeedConstants.UserOwner101Id, "owner101", "owner101@ocean.demo", "Propietario 101", Roles.Owner, DemoSeedConstants.Unit101Id, DemoSeedConstants.Owner101Id),
             (DemoSeedConstants.UserOwner102Id, "owner102", "owner102@ocean.demo", "Propietario 102", Roles.Owner, DemoSeedConstants.Unit102Id, DemoSeedConstants.Owner102Id),
             (DemoSeedConstants.UserOwner103Id, "owner103", "owner103@ocean.demo", "Propietario 103", Roles.Owner, DemoSeedConstants.Unit103Id, DemoSeedConstants.Owner103Id),
@@ -420,13 +439,7 @@ public sealed class DemoDataSeeder
 
             await _userManager.AddToRoleAsync(user, role);
 
-            foreach (var permission in RolePermissionMap.GetPermissions(role))
-            {
-                await _userManager.AddClaimAsync(
-                    user,
-                    new System.Security.Claims.Claim(DemoSeedConstants.PermissionClaimType, permission));
-            }
-
+            // Permissions come from RolePermissionMap at principal creation — do not persist them on users.
             await _userManager.AddClaimAsync(
                 user,
                 new System.Security.Claims.Claim("property_horizontal_id", DemoSeedConstants.PhOceanId.ToString("D")));
@@ -489,84 +502,111 @@ public sealed class DemoDataSeeder
             });
         }
 
-        _db.Owners.Add(new Owner
+        if (!await _db.Owners.IgnoreQueryFilters().AnyAsync(o => o.Id == DemoSeedConstants.OwnerAbsentee107Id, cancellationToken))
         {
-            Id = DemoSeedConstants.OwnerAbsentee107Id,
-            TenantId = DemoSeedConstants.TenantOceanId,
-            DisplayName = "Propietario Ausente 107",
-            Email = "absentee107@ocean.demo",
-            UserId = null,
-            Status = OwnerLifecycleStatus.Active,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
-        });
-        _db.Owners.Add(new Owner
+            _db.Owners.Add(new Owner
+            {
+                Id = DemoSeedConstants.OwnerAbsentee107Id,
+                TenantId = DemoSeedConstants.TenantOceanId,
+                DisplayName = "Propietario Ausente 107",
+                Email = "absentee107@ocean.demo",
+                UserId = null,
+                Status = OwnerLifecycleStatus.Active,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        if (!await _db.Owners.IgnoreQueryFilters().AnyAsync(o => o.Id == DemoSeedConstants.OwnerAbsentee108Id, cancellationToken))
         {
-            Id = DemoSeedConstants.OwnerAbsentee108Id,
-            TenantId = DemoSeedConstants.TenantOceanId,
-            DisplayName = "Propietario Ausente 108",
-            Email = "absentee108@ocean.demo",
-            UserId = null,
-            Status = OwnerLifecycleStatus.Active,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
-        });
-        _db.Ownerships.Add(new Ownership
+            _db.Owners.Add(new Owner
+            {
+                Id = DemoSeedConstants.OwnerAbsentee108Id,
+                TenantId = DemoSeedConstants.TenantOceanId,
+                DisplayName = "Propietario Ausente 108",
+                Email = "absentee108@ocean.demo",
+                UserId = null,
+                Status = OwnerLifecycleStatus.Active,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        if (!await _db.Ownerships.IgnoreQueryFilters().AnyAsync(
+                o => o.UnitId == DemoSeedConstants.Unit107Id && o.OwnerId == DemoSeedConstants.OwnerAbsentee107Id,
+                cancellationToken))
         {
-            Id = Guid.NewGuid(),
-            TenantId = DemoSeedConstants.TenantOceanId,
-            UnitId = DemoSeedConstants.Unit107Id,
-            OwnerId = DemoSeedConstants.OwnerAbsentee107Id,
-            SharePercent = 100.00m,
-            EffectiveFromUtc = now,
-            IsActive = true,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
-        });
-        _db.Ownerships.Add(new Ownership
+            _db.Ownerships.Add(new Ownership
+            {
+                Id = Guid.NewGuid(),
+                TenantId = DemoSeedConstants.TenantOceanId,
+                UnitId = DemoSeedConstants.Unit107Id,
+                OwnerId = DemoSeedConstants.OwnerAbsentee107Id,
+                SharePercent = 100.00m,
+                EffectiveFromUtc = now,
+                IsActive = true,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        if (!await _db.Ownerships.IgnoreQueryFilters().AnyAsync(
+                o => o.UnitId == DemoSeedConstants.Unit108Id && o.OwnerId == DemoSeedConstants.OwnerAbsentee108Id,
+                cancellationToken))
         {
-            Id = Guid.NewGuid(),
-            TenantId = DemoSeedConstants.TenantOceanId,
-            UnitId = DemoSeedConstants.Unit108Id,
-            OwnerId = DemoSeedConstants.OwnerAbsentee108Id,
-            SharePercent = 100.00m,
-            EffectiveFromUtc = now,
-            IsActive = true,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
-        });
-        _db.Powers.Add(new Power
+            _db.Ownerships.Add(new Ownership
+            {
+                Id = Guid.NewGuid(),
+                TenantId = DemoSeedConstants.TenantOceanId,
+                UnitId = DemoSeedConstants.Unit108Id,
+                OwnerId = DemoSeedConstants.OwnerAbsentee108Id,
+                SharePercent = 100.00m,
+                EffectiveFromUtc = now,
+                IsActive = true,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        if (!await _db.Powers.IgnoreQueryFilters().AnyAsync(p => p.Id == DemoSeedConstants.Power107To102Id, cancellationToken))
         {
-            Id = DemoSeedConstants.Power107To102Id,
-            TenantId = DemoSeedConstants.TenantOceanId,
-            PropertyHorizontalId = DemoSeedConstants.PhOceanId,
-            AssemblyId = DemoSeedConstants.AssemblyOceanId,
-            PrincipalOwnerId = DemoSeedConstants.OwnerAbsentee107Id,
-            RepresentativeUserId = DemoSeedConstants.UserOwner102Id,
-            UnitId = DemoSeedConstants.Unit107Id,
-            Status = PowerStatus.Approved,
-            EvidenceReference = "EO-006 demo power 107→102",
-            ValidatedAtUtc = now,
-            ValidatedByUserId = DemoSeedConstants.UserPresidentId,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
-        });
-        _db.Powers.Add(new Power
+            _db.Powers.Add(new Power
+            {
+                Id = DemoSeedConstants.Power107To102Id,
+                TenantId = DemoSeedConstants.TenantOceanId,
+                PropertyHorizontalId = DemoSeedConstants.PhOceanId,
+                AssemblyId = DemoSeedConstants.AssemblyOceanId,
+                PrincipalOwnerId = DemoSeedConstants.OwnerAbsentee107Id,
+                RepresentativeUserId = DemoSeedConstants.UserOwner102Id,
+                UnitId = DemoSeedConstants.Unit107Id,
+                Status = PowerStatus.Approved,
+                EvidenceReference = "EO-006 demo power 107→102",
+                ValidatedAtUtc = now,
+                ValidatedByUserId = DemoSeedConstants.UserPresidentId,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        if (!await _db.Powers.IgnoreQueryFilters().AnyAsync(p => p.Id == DemoSeedConstants.Power108To105Id, cancellationToken))
         {
-            Id = DemoSeedConstants.Power108To105Id,
-            TenantId = DemoSeedConstants.TenantOceanId,
-            PropertyHorizontalId = DemoSeedConstants.PhOceanId,
-            AssemblyId = DemoSeedConstants.AssemblyOceanId,
-            PrincipalOwnerId = DemoSeedConstants.OwnerAbsentee108Id,
-            RepresentativeUserId = DemoSeedConstants.UserOwner105Id,
-            UnitId = DemoSeedConstants.Unit108Id,
-            Status = PowerStatus.Approved,
-            EvidenceReference = "EO-006 demo power 108→105",
-            ValidatedAtUtc = now,
-            ValidatedByUserId = DemoSeedConstants.UserPresidentId,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
-        });
+            _db.Powers.Add(new Power
+            {
+                Id = DemoSeedConstants.Power108To105Id,
+                TenantId = DemoSeedConstants.TenantOceanId,
+                PropertyHorizontalId = DemoSeedConstants.PhOceanId,
+                AssemblyId = DemoSeedConstants.AssemblyOceanId,
+                PrincipalOwnerId = DemoSeedConstants.OwnerAbsentee108Id,
+                RepresentativeUserId = DemoSeedConstants.UserOwner105Id,
+                UnitId = DemoSeedConstants.Unit108Id,
+                Status = PowerStatus.Approved,
+                EvidenceReference = "EO-006 demo power 108→105",
+                ValidatedAtUtc = now,
+                ValidatedByUserId = DemoSeedConstants.UserPresidentId,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();

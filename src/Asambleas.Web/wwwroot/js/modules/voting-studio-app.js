@@ -2,6 +2,8 @@ import { api } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
 import { escapeHtml, showToast, qs } from "./ui.js";
 import { showGlobalLoader, hideGlobalLoader } from "./loading.js";
+import { mountReadinessActionBar } from "./readiness-actions.js";
+import { isReadinessReturnContext } from "./return-context.js";
 
 const showLoader = (msg) => showGlobalLoader(msg, { immediate: true });
 const hideLoader = () => hideGlobalLoader();
@@ -734,6 +736,7 @@ async function init() {
   }
   qs("#user-chip").textContent = state.user.displayName || state.user.email || "Usuario";
   qs("#btn-logout").onclick = () => logout();
+  await bootIaPage({ current: "asm-voting" });
 
   if (!assemblyId) {
     try {
@@ -751,7 +754,7 @@ async function init() {
   }
 
   if (!assemblyId) {
-    showError("Falta assemblyId. Abra el Studio desde el panel de una asamblea.");
+    showError("Falta assemblyId. Abra Votaciones desde el panel de una asamblea.");
     return;
   }
 
@@ -759,9 +762,9 @@ async function init() {
     showError("No tiene permiso para diseñar votaciones.");
   }
 
-  qs("#nav-dashboard").href = `/dashboard.html?assemblyId=${assemblyId}`;
-  qs("#nav-assembly").href = `/assembly.html?assemblyId=${assemblyId}`;
-  qs("#nav-expediente").href = `/expediente.html?assemblyId=${assemblyId}`;
+  qs("#nav-dashboard")?.setAttribute("href", `/dashboard.html?assemblyId=${assemblyId}`);
+  qs("#nav-assembly")?.setAttribute("href", `/assembly.html?assemblyId=${assemblyId}`);
+  qs("#nav-expediente")?.setAttribute("href", `/expediente.html?assemblyId=${assemblyId}`);
 
   qs("#btn-new-vote").onclick = async () => {
     try {
@@ -800,6 +803,13 @@ async function init() {
     showError(err.message);
   } finally {
     hideLoader();
+  }
+
+  if (isReadinessReturnContext()) {
+    mountReadinessActionBar({
+      assemblyId,
+      hint: "Estás completando la preparación de esta asamblea — Votaciones."
+    });
   }
 }
 

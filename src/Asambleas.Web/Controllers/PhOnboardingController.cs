@@ -41,12 +41,12 @@ public sealed class PhOnboardingController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = Permissions.PhView)]
+    [Authorize(Policy = Permissions.PhCatalogOrPortal)]
     public Task<IReadOnlyList<PhSummaryDto>> List(CancellationToken cancellationToken) =>
         _ph.ListPhAsync(cancellationToken);
 
     [HttpGet("{propertyHorizontalId:guid}")]
-    [Authorize(Policy = Permissions.PhView)]
+    [Authorize(Policy = Permissions.PhCatalogOrPortal)]
     public Task<PhDetailDto> Get(Guid propertyHorizontalId, CancellationToken cancellationToken) =>
         _ph.GetPhAsync(propertyHorizontalId, cancellationToken);
 
@@ -159,32 +159,48 @@ public sealed class PhOnboardingController : ControllerBase
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var processed = 0;
         var sent = 0;
-        var linked = 0;
+        var alreadyActive = 0;
+        var withoutEmail = 0;
         var failed = 0;
+        var requiresLogin = 0;
         var errors = new List<string>();
         foreach (var ownerId in request.OwnerIds.Distinct())
         {
+            processed++;
             try
             {
                 var result = await _invitations.InviteAsync(propertyHorizontalId, ownerId, cancellationToken);
-                if (result.ExistingUserLinked)
-                {
-                    linked++;
-                }
-                else
+                if (result.EmailSent)
                 {
                     sent++;
+                }
+
+                if (result.RequiresLoginToAccept)
+                {
+                    requiresLogin++;
                 }
             }
             catch (DomainException ex)
             {
-                failed++;
-                errors.Add($"{ownerId}: {ex.Message}");
+                if (ex.Code is "OWNER_ALREADY_ACTIVE")
+                {
+                    alreadyActive++;
+                }
+                else if (ex.Code is "OWNER_EMAIL_REQUIRED")
+                {
+                    withoutEmail++;
+                }
+                else
+                {
+                    failed++;
+                    errors.Add($"{ownerId}: {ex.Message}");
+                }
             }
         }
 
-        return new BulkInviteResultDto(sent, linked, failed, errors);
+        return new BulkInviteResultDto(processed, sent, alreadyActive, withoutEmail, failed, requiresLogin, errors);
     }
 
     [HttpGet("{propertyHorizontalId:guid}/owners/{ownerId:guid}")]
@@ -196,7 +212,7 @@ public sealed class PhOnboardingController : ControllerBase
         _ph.GetOwnerAsync(propertyHorizontalId, ownerId, cancellationToken);
 
     [HttpPost("{propertyHorizontalId:guid}/owners")]
-    [Authorize(Policy = Permissions.OwnerManage)]
+    [Authorize(Policy = Permissions.OwnerView)]
     public Task<OwnerDetailDto> CreateOwner(
         Guid propertyHorizontalId,
         [FromBody] CreateOwnerRequest request,
@@ -204,7 +220,7 @@ public sealed class PhOnboardingController : ControllerBase
         _ph.CreateOwnerAsync(propertyHorizontalId, request, cancellationToken);
 
     [HttpPut("{propertyHorizontalId:guid}/owners/{ownerId:guid}")]
-    [Authorize(Policy = Permissions.OwnerManage)]
+    [Authorize(Policy = Permissions.OwnerView)]
     public Task<OwnerDetailDto> UpdateOwner(
         Guid propertyHorizontalId,
         Guid ownerId,
@@ -213,7 +229,7 @@ public sealed class PhOnboardingController : ControllerBase
         _ph.UpdateOwnerAsync(propertyHorizontalId, ownerId, request, cancellationToken);
 
     [HttpPost("{propertyHorizontalId:guid}/owners/{ownerId:guid}/deactivate")]
-    [Authorize(Policy = Permissions.OwnerManage)]
+    [Authorize(Policy = Permissions.OwnerView)]
     public Task<OwnerDetailDto> DeactivateOwner(
         Guid propertyHorizontalId,
         Guid ownerId,
@@ -222,7 +238,7 @@ public sealed class PhOnboardingController : ControllerBase
         _ph.DeactivateOwnerAsync(propertyHorizontalId, ownerId, request, cancellationToken);
 
     [HttpPost("{propertyHorizontalId:guid}/owners/{ownerId:guid}/reactivate")]
-    [Authorize(Policy = Permissions.OwnerManage)]
+    [Authorize(Policy = Permissions.OwnerView)]
     public Task<OwnerDetailDto> ReactivateOwner(
         Guid propertyHorizontalId,
         Guid ownerId,
@@ -230,7 +246,7 @@ public sealed class PhOnboardingController : ControllerBase
         _ph.ReactivateOwnerAsync(propertyHorizontalId, ownerId, cancellationToken);
 
     [HttpGet("{propertyHorizontalId:guid}/owners/{ownerId:guid}/delete-evaluation")]
-    [Authorize(Policy = Permissions.OwnerManage)]
+    [Authorize(Policy = Permissions.OwnerView)]
     public Task<EntityDeleteEvaluationDto> EvaluateOwnerDelete(
         Guid propertyHorizontalId,
         Guid ownerId,
@@ -238,7 +254,7 @@ public sealed class PhOnboardingController : ControllerBase
         _ph.EvaluateOwnerDeleteAsync(propertyHorizontalId, ownerId, cancellationToken);
 
     [HttpDelete("{propertyHorizontalId:guid}/owners/{ownerId:guid}")]
-    [Authorize(Policy = Permissions.OwnerManage)]
+    [Authorize(Policy = Permissions.OwnerView)]
     public async Task<IActionResult> DeleteOwner(
         Guid propertyHorizontalId,
         Guid ownerId,
@@ -336,12 +352,17 @@ public sealed class PhOnboardingController : ControllerBase
     }
 
     [HttpGet("memberships/mine")]
-    [Authorize(Policy = Permissions.PhView)]
+    [Authorize(Policy = Permissions.PhCatalogOrPortal)]
     public Task<IReadOnlyList<PhMembershipDto>> MyMemberships(CancellationToken cancellationToken) =>
         _ph.ListMyMembershipsAsync(cancellationToken);
 
+    [HttpGet("me/owner-profile")]
+    [Authorize(Policy = Permissions.PortalSelf)]
+    public Task<MyOwnerProfileDto> MyOwnerProfile(CancellationToken cancellationToken) =>
+        _ph.GetMyOwnerProfileAsync(cancellationToken);
+
     [HttpPost("switch")]
-    [Authorize(Policy = Permissions.PhView)]
+    [Authorize(Policy = Permissions.PhCatalogOrPortal)]
     public async Task<IReadOnlyList<PhMembershipDto>> SwitchPh(
         [FromBody] SwitchPhRequest request,
         CancellationToken cancellationToken)

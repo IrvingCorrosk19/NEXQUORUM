@@ -2,6 +2,8 @@ namespace Asambleas.Infrastructure.Communications;
 
 using System.Net;
 using System.Net.Mail;
+using System.Net.Mime;
+using System.Text;
 using System.Text.Json;
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Abstractions.Communications;
@@ -79,14 +81,33 @@ public sealed class SmtpEmailProvider : IEmailProvider
             using var mail = new MailMessage
             {
                 From = new MailAddress(from, message.FromDisplayName ?? _settings.FromDisplayName),
-                Subject = message.Subject,
-                Body = string.IsNullOrWhiteSpace(message.HtmlBody) ? message.TextBody : message.HtmlBody,
-                IsBodyHtml = !string.IsNullOrWhiteSpace(message.HtmlBody)
+                Subject = message.Subject
             };
             mail.To.Add(new MailAddress(message.To, message.ToDisplayName));
             if (!string.IsNullOrWhiteSpace(message.ReplyTo ?? _settings.ReplyTo))
             {
                 mail.ReplyToList.Add(message.ReplyTo ?? _settings.ReplyTo!);
+            }
+
+            // Multipart: text/plain + text/html when both are present (email clients / accessibility).
+            var hasHtml = !string.IsNullOrWhiteSpace(message.HtmlBody);
+            var hasText = !string.IsNullOrWhiteSpace(message.TextBody);
+            if (hasHtml && hasText)
+            {
+                mail.AlternateViews.Add(
+                    AlternateView.CreateAlternateViewFromString(message.TextBody, Encoding.UTF8, MediaTypeNames.Text.Plain));
+                mail.AlternateViews.Add(
+                    AlternateView.CreateAlternateViewFromString(message.HtmlBody, Encoding.UTF8, MediaTypeNames.Text.Html));
+            }
+            else if (hasHtml)
+            {
+                mail.Body = message.HtmlBody;
+                mail.IsBodyHtml = true;
+            }
+            else
+            {
+                mail.Body = message.TextBody ?? string.Empty;
+                mail.IsBodyHtml = false;
             }
 
             await client.SendMailAsync(mail, cancellationToken);

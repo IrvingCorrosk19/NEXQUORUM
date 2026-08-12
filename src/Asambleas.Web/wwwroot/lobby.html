@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ASAMBLEAS — Lobby</title>
+  <title>ASAMBLEAS — Sala (previa)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
@@ -11,18 +11,36 @@
   <link rel="stylesheet" href="/css/base.css?v=px1" />
   <link rel="stylesheet" href="/css/components.css?v=px1" />
   <link rel="stylesheet" href="/css/loading.css?v=px1" />
+  <link rel="stylesheet" href="/css/loading.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
-  <div class="page-shell lobby-shell">
-    <header class="page-header">
-      <h1 class="brand">ASAMBLEAS</h1>
-      <a id="link-dashboard" class="btn btn-secondary" href="#">Volver</a>
-    </header>
-    <main id="main" class="page-main lobby-main">
+    <div class="app-shell">
+    <aside class="app-nav" aria-label="Navegación">
+      <div>
+        <h1 class="brand">ASAMBLEAS</h1>
+        <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
+      </div>
+      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
+    </aside>
+    <header class="app-top" role="banner">
+      <div class="ia-top-context">
+        <span class="ia-top-context__brand">ASAMBLEAS</span>
+        <span class="ia-top-context__path" id="ia-context-label">Sala</span>
+      </div>
+      <div class="cluster">
+        <span id="ia-role-chip" class="badge badge-live"></span>
+        <span id="user-chip" class="badge badge-live"></span>
+        <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
+      </div>
+    </header><main id="main" class="page-main lobby-main">
+      <div id="ia-breadcrumbs"></div>
       <div id="page-alert" class="alert" hidden role="alert"></div>
       <section class="page-hero lobby-hero">
-        <h1 id="lobby-title">Lobby de asamblea</h1>
+        <h1 id="lobby-title">Previa de sala</h1>
         <div class="meta-row" id="lobby-meta"></div>
         <p id="lobby-status" class="muted lobby-status" hidden></p>
       </section>
@@ -88,6 +106,6 @@
       </div>
     </main>
   </div>
-  <script type="module" src="/js/modules/lobby-app.js?v=acc1"></script>
+  <script type="module" src="/js/modules/lobby-app.js?v=ia3"></script>
 </body>
 </html>

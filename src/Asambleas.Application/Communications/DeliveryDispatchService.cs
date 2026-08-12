@@ -11,7 +11,7 @@ public sealed class DeliveryDispatchService
 {
     private readonly IAsambleasDbContext _db;
     private readonly CommunicationConfigurationService _config;
-    private readonly ICommunicationEnvironment _environment;
+    private readonly AssemblyAccessLinkService _accessLinks;
     private readonly IPortalNotificationProvider _portal;
     private readonly IWhatsAppProvider _mockWhatsApp;
     private readonly ISmsProvider _mockSms;
@@ -20,7 +20,7 @@ public sealed class DeliveryDispatchService
     public DeliveryDispatchService(
         IAsambleasDbContext db,
         CommunicationConfigurationService config,
-        ICommunicationEnvironment environment,
+        AssemblyAccessLinkService accessLinks,
         IPortalNotificationProvider portal,
         IWhatsAppProvider mockWhatsApp,
         ISmsProvider mockSms,
@@ -28,7 +28,7 @@ public sealed class DeliveryDispatchService
     {
         _db = db;
         _config = config;
-        _environment = environment;
+        _accessLinks = accessLinks;
         _portal = portal;
         _mockWhatsApp = mockWhatsApp;
         _mockSms = mockSms;
@@ -47,7 +47,9 @@ public sealed class DeliveryDispatchService
         var (profile, emailCfg, waCfg, smsCfg, portalCfg) =
             await _config.LoadRuntimeAsync(convocation.PropertyHorizontalId, cancellationToken);
 
-        var forceMock = profile.SandboxMode || _environment.IsNonProduction;
+        // Match invitations / channel tests: only SandboxMode forces Mock.
+        // Host environment alone must not suppress real SMTP when SandboxMode=false.
+        var forceMock = profile.SandboxMode;
         var emailProvider = await _config.ResolveEmailProviderAsync(emailCfg, forceMock, cancellationToken);
 
         var deliveries = await _db.CommunicationDeliveries
@@ -57,6 +59,12 @@ public sealed class DeliveryDispatchService
         var recipients = await _db.ConvocationRecipients
             .Where(r => r.ConvocationId == convocation.Id)
             .ToDictionaryAsync(r => r.Id, cancellationToken);
+
+        EmailComposeContext? emailContext = null;
+        if (deliveries.Any(d => d.Channel == CommunicationChannel.Email))
+        {
+            emailContext = await BuildEmailComposeContextAsync(convocation, recipients.Values, cancellationToken);
+        }
 
         foreach (var delivery in deliveries)
         {
@@ -80,6 +88,7 @@ public sealed class DeliveryDispatchService
                     smsCfg,
                     portalCfg,
                     forceMock,
+                    emailContext,
                     cancellationToken);
 
                 delivery.ProviderType = result.ProviderType;
@@ -129,6 +138,59 @@ public sealed class DeliveryDispatchService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
+    private sealed record EmailComposeContext(
+        Domain.Entities.Assembly Assembly,
+        PropertyHorizontal Ph,
+        IReadOnlyList<(int Ordinal, string Title)> Agenda,
+        IReadOnlyDictionary<Guid, (string Code, decimal Coef)> OwnershipByOwnerId);
+
+    private async Task<EmailComposeContext> BuildEmailComposeContextAsync(
+        Convocation convocation,
+        IEnumerable<ConvocationRecipient> recipients,
+        CancellationToken cancellationToken)
+    {
+        var assembly = await _db.Assemblies.AsNoTracking()
+            .FirstAsync(a => a.Id == convocation.AssemblyId, cancellationToken);
+        var ph = await _db.PropertyHorizontals.AsNoTracking()
+            .FirstAsync(p => p.Id == convocation.PropertyHorizontalId, cancellationToken);
+        var agenda = await _db.AgendaItems.AsNoTracking()
+            .Where(i => i.AssemblyId == assembly.Id)
+            .OrderBy(i => i.Ordinal)
+            .Select(i => new ValueTuple<int, string>(i.Ordinal, i.Title))
+            .ToListAsync(cancellationToken);
+
+        var ownerIds = recipients
+            .Where(r => r.OwnerId is Guid)
+            .Select(r => r.OwnerId!.Value)
+            .Distinct()
+            .ToList();
+
+        var ownershipByOwner = new Dictionary<Guid, (string Code, decimal Coef)>();
+        if (ownerIds.Count > 0)
+        {
+            var ownershipRows = await (
+                from o in _db.Ownerships.AsNoTracking()
+                join u in _db.Units.AsNoTracking() on o.UnitId equals u.Id
+                where ownerIds.Contains(o.OwnerId)
+                      && u.PropertyHorizontalId == convocation.PropertyHorizontalId
+                      && o.IsActive
+                orderby o.OwnerId, u.Code
+                select new
+                {
+                    o.OwnerId,
+                    u.Code,
+                    Coef = u.CoefficientPercent * (o.SharePercent / 100m)
+                }).ToListAsync(cancellationToken);
+
+            foreach (var row in ownershipRows)
+            {
+                ownershipByOwner.TryAdd(row.OwnerId, (row.Code, row.Coef));
+            }
+        }
+
+        return new EmailComposeContext(assembly, ph, agenda, ownershipByOwner);
+    }
+
     private async Task<(ProviderSendResult Send, CommunicationProviderType ProviderType, string? Destination, bool Redirected)>
         SendOneAsync(
             CommunicationDelivery delivery,
@@ -141,6 +203,7 @@ public sealed class DeliveryDispatchService
             ChannelConfiguration? smsCfg,
             ChannelConfiguration? portalCfg,
             bool forceMock,
+            EmailComposeContext? emailContext,
             CancellationToken cancellationToken)
     {
         switch (delivery.Channel)
@@ -174,13 +237,21 @@ public sealed class DeliveryDispatchService
                         redirected);
                 }
 
+                var composed = await ComposePremiumEmailAsync(
+                    delivery,
+                    recipient,
+                    convocation,
+                    forceMock,
+                    emailContext,
+                    cancellationToken);
+
                 var send = await emailProvider.SendAsync(
                     new EmailMessage(
                         to,
                         recipient.DisplayName,
-                        convocation.Subject,
-                        Render(convocation.BodyHtml, recipient, convocation),
-                        Render(convocation.BodyText, recipient, convocation),
+                        composed.Subject,
+                        composed.Html,
+                        composed.Text,
                         null,
                         profile.DefaultFromDisplayName,
                         profile.DefaultReplyTo,
@@ -295,6 +366,55 @@ public sealed class DeliveryDispatchService
         });
 
         await Task.CompletedTask;
+    }
+
+    private async Task<ConvocationEmailComposer.ComposeResult> ComposePremiumEmailAsync(
+        CommunicationDelivery delivery,
+        ConvocationRecipient recipient,
+        Convocation convocation,
+        bool sandbox,
+        EmailComposeContext? emailContext,
+        CancellationToken cancellationToken)
+    {
+        emailContext ??= await BuildEmailComposeContextAsync(convocation, [recipient], cancellationToken);
+        var assembly = emailContext.Assembly;
+        var ph = emailContext.Ph;
+        var agenda = emailContext.Agenda;
+
+        string? unitCode = null;
+        decimal? coef = null;
+        if (recipient.OwnerId is Guid ownerId
+            && emailContext.OwnershipByOwnerId.TryGetValue(ownerId, out var ownership))
+        {
+            unitCode = ownership.Code;
+            coef = ownership.Coef;
+        }
+
+        var issued = await _accessLinks.IssueAsync(
+            convocation,
+            recipient,
+            delivery.Id,
+            assembly.ScheduledAtUtc,
+            cancellationToken);
+
+        delivery.ProviderMessageId = $"access-link:{issued.Link.Id:N}";
+
+        return ConvocationEmailComposer.Compose(
+            new ConvocationEmailComposer.ComposeInput(
+                recipient.DisplayName,
+                ph.Name,
+                assembly.Title,
+                assembly.AssemblyKind,
+                assembly.ScheduledAtUtc,
+                ph.TimeZoneId,
+                assembly.Modality,
+                assembly.LocationText,
+                unitCode,
+                coef,
+                agenda,
+                issued.AbsoluteUrl,
+                null,
+                sandbox));
     }
 
     private static string Render(string template, ConvocationRecipient recipient, Convocation convocation) =>

@@ -7,6 +7,7 @@ import { isOperator } from "./roles.js";
 import { renderQuorum } from "./quorum.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
+import { bootIaPage } from "./ia-page.js";
 
 let assemblyId = assemblyIdFromUrl();
 let participants = [];
@@ -437,10 +438,16 @@ async function init() {
   await initI18n();
   qs("#page-title").textContent = t("checkin.title");
   qs("#btn-self-checkin").textContent = t("checkin.selfCheckIn");
-  qs("#link-lobby").textContent = t("dashboard.linkLobby");
-  qs("#link-lobby").href = `/lobby.html?assemblyId=${assemblyId}`;
-  qs("#link-dashboard").href = `/dashboard.html?assemblyId=${assemblyId}`;
-  qs("#link-dashboard").textContent = t("back");
+  const linkLobby = qs("#link-lobby");
+  if (linkLobby) {
+    linkLobby.textContent = t("dashboard.linkLobby");
+    linkLobby.href = `/lobby.html?assemblyId=${assemblyId}`;
+  }
+  const linkDash = qs("#link-dashboard");
+  if (linkDash) {
+    linkDash.href = `/dashboard.html?assemblyId=${assemblyId}`;
+    linkDash.textContent = t("back");
+  }
   qs("#btn-dialog-close").textContent = t("checkin.close");
   qs("#btn-dialog-accredit").textContent = t("checkin.confirmAccredit");
   qs("#btn-open-desk").textContent = t("checkin.openDesk");
@@ -464,6 +471,8 @@ async function init() {
     location.href = "/";
     return;
   }
+
+  await bootIaPage({ current: "asm-checkin" });
 
   try {
     assembly = await api(`/api/assemblies/${assemblyId}`);

@@ -10,15 +10,33 @@
   <link rel="stylesheet" href="/css/tokens.css?v=px1" />
   <link rel="stylesheet" href="/css/base.css?v=px1" />
   <link rel="stylesheet" href="/css/components.css?v=px1" />
+  <link rel="stylesheet" href="/css/loading.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
-  <div class="page-shell">
-    <header class="page-header">
-      <h1 class="brand">ASAMBLEAS</h1>
-      <a id="link-dashboard" class="btn btn-secondary" href="#">Volver</a>
-    </header>
-    <main id="main" class="page-main">
+    <div class="app-shell">
+    <aside class="app-nav" aria-label="Navegación">
+      <div>
+        <h1 class="brand">ASAMBLEAS</h1>
+        <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
+      </div>
+      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
+    </aside>
+    <header class="app-top" role="banner">
+      <div class="ia-top-context">
+        <span class="ia-top-context__brand">ASAMBLEAS</span>
+        <span class="ia-top-context__path" id="ia-context-label">Evidencias</span>
+      </div>
+      <div class="cluster">
+        <span id="ia-role-chip" class="badge badge-live"></span>
+        <span id="user-chip" class="badge badge-live"></span>
+        <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
+      </div>
+    </header><main id="main" class="page-main">
+      <div id="ia-breadcrumbs"></div>
       <section class="page-hero">
         <h1 id="page-title">Paquete de evidencias</h1>
       </section>
@@ -26,6 +44,6 @@
       <article id="evidence-root" class="panel"><div class="skeleton" style="height:12rem"></div></article>
     </main>
   </div>
-  <script type="module" src="/js/modules/evidence-app.js?v=px1"></script>
+  <script type="module" src="/js/modules/evidence-app.js?v=ia3"></script>
 </body>
 </html>

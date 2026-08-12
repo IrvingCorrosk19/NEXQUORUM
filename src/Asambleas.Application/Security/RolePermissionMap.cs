@@ -7,6 +7,8 @@ public static class RolePermissionMap
         {
             [Roles.PlatformAdmin] = new HashSet<string>(Permissions.All, StringComparer.Ordinal),
             [Roles.TenantAdmin] = new HashSet<string>(Permissions.All, StringComparer.Ordinal),
+
+            // PH administration (owners/units/SMTP/import) — NOT automatic voting rights.
             [Roles.PHAdmin] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
@@ -52,8 +54,11 @@ public static class RolePermissionMap
                 Permissions.OwnerView,
                 Permissions.OwnerManage,
                 Permissions.OwnerInvite,
-                Permissions.PhImport
+                Permissions.PhImport,
+                Permissions.PortalSelf
             ], StringComparer.Ordinal),
+
+            // Assembly authority — no PH CRUD, no SMTP, no owner admin, no vote:cast.
             [Roles.AssemblyPresident] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
@@ -84,23 +89,18 @@ public static class RolePermissionMap
                 Permissions.ExpedienteView,
                 Permissions.ExpedienteDownload,
                 Permissions.CommunicationsView,
-                Permissions.CommunicationsConfigure,
                 Permissions.CommunicationsTest,
                 Permissions.TemplatesView,
-                Permissions.TemplatesManage,
                 Permissions.ConvocationsCreate,
                 Permissions.ConvocationsSend,
                 Permissions.ConvocationsResend,
                 Permissions.ConvocationsViewEvidence,
                 Permissions.PhView,
-                Permissions.PhManage,
                 Permissions.UnitView,
-                Permissions.UnitManage,
                 Permissions.OwnerView,
-                Permissions.OwnerManage,
-                Permissions.OwnerInvite,
-                Permissions.PhImport
+                Permissions.PortalSelf
             ], StringComparer.Ordinal),
+
             [Roles.AssemblySecretary] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
@@ -134,8 +134,10 @@ public static class RolePermissionMap
                 Permissions.ConvocationsViewEvidence,
                 Permissions.PhView,
                 Permissions.UnitView,
-                Permissions.OwnerView
+                Permissions.OwnerView,
+                Permissions.PortalSelf
             ], StringComparer.Ordinal),
+
             [Roles.AssemblyOperator] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
@@ -157,8 +159,11 @@ public static class RolePermissionMap
                 Permissions.ConvocationsCreate,
                 Permissions.PhView,
                 Permissions.UnitView,
-                Permissions.OwnerView
+                Permissions.OwnerView,
+                Permissions.PortalSelf
             ], StringComparer.Ordinal),
+
+            // Owner: participate only. No PH/SMTP/owner/unit admin. No communications config.
             [Roles.Owner] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
@@ -172,12 +177,10 @@ public static class RolePermissionMap
                 Permissions.VoteResults,
                 Permissions.MeetingJoin,
                 Permissions.RecordingView,
-                Permissions.RecordingDownload,
                 Permissions.ExpedienteView,
-                Permissions.ExpedienteDownload,
-                Permissions.CommunicationsView,
-                Permissions.PhView
+                Permissions.PortalSelf
             ], StringComparer.Ordinal),
+
             [Roles.Auditor] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
@@ -194,7 +197,8 @@ public static class RolePermissionMap
                 Permissions.ExpedienteView,
                 Permissions.ExpedienteDownload,
                 Permissions.CommunicationsView,
-                Permissions.ConvocationsViewEvidence
+                Permissions.ConvocationsViewEvidence,
+                Permissions.PortalSelf
             ], StringComparer.Ordinal)
         };
 

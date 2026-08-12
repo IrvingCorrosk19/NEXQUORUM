@@ -3,6 +3,7 @@ import { me } from "./auth.js";
 import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
+import { bootIaPage } from "./ia-page.js";
 
 let assemblyId = assemblyIdFromUrl();
 
@@ -174,8 +175,10 @@ function renderTimeline(items) {
 
 async function load() {
   const data = await api(`/api/assemblies/${assemblyId}/expediente`);
-  qs("#page-sub").textContent = `${data.assemblyTitle || ""} · ${data.status || ""}`;
-  qs("#link-back").href = `/dashboard.html?assemblyId=${assemblyId}`;
+  const sub = qs("#page-sub");
+  if (sub) sub.textContent = `${data.assemblyTitle || ""} · ${data.status || ""}`;
+  const linkBack = qs("#link-back");
+  if (linkBack) linkBack.href = `/dashboard.html?assemblyId=${assemblyId}`;
 
   const policy = data.policy;
   if (policy?.requireNoticeAcknowledgement && !policy.currentUserAcceptedNotice) {
@@ -189,20 +192,23 @@ async function load() {
   renderTimeline(data.timeline || []);
 
   const pkgBtn = qs('[data-dl="package"]');
-  pkgBtn.disabled = !data.canDownloadEvidencePackage;
-  pkgBtn.onclick = async () => {
-    try {
-      await downloadBlob(`/api/assemblies/${assemblyId}/expediente/package`, "expediente.zip");
-      showToast("Expediente descargado", "success");
-    } catch (e) {
-      showError(e.message);
-    }
-  };
+  if (pkgBtn) {
+    pkgBtn.disabled = !data.canDownloadEvidencePackage;
+    pkgBtn.onclick = async () => {
+      try {
+        await downloadBlob(`/api/assemblies/${assemblyId}/expediente/package`, "expediente.zip");
+        showToast("Expediente descargado", "success");
+      } catch (e) {
+        showError(e.message);
+      }
+    };
+  }
 }
 
 async function init() {
   await initI18n();
-  qs("#page-title").textContent = "Expediente digital";
+  const pageTitle = qs("#page-title");
+  if (pageTitle) pageTitle.textContent = "Expediente digital";
   if (!assemblyId) {
     assemblyId = await ensureAssemblyIdOrRedirect();
     if (!assemblyId) {
@@ -217,6 +223,8 @@ async function init() {
     location.href = "/";
     return;
   }
+
+  await bootIaPage({ current: "asm-expediente" });
 
   qs("#btn-ack-notice")?.addEventListener("click", async () => {
     await api(`/api/assemblies/${assemblyId}/recording/notice/ack`, {

@@ -77,6 +77,8 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
 
     public DbSet<CommunicationDeliveryEvent> CommunicationDeliveryEvents => Set<CommunicationDeliveryEvent>();
 
+    public DbSet<AssemblyAccessLink> AssemblyAccessLinks => Set<AssemblyAccessLink>();
+
     public DbSet<PortalNotification> PortalNotifications => Set<PortalNotification>();
 
     public DbSet<ReminderRule> ReminderRules => Set<ReminderRule>();

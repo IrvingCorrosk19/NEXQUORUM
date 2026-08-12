@@ -84,12 +84,12 @@ public sealed class CommunicationsController : ControllerBase
         _config.UpsertTemplateAsync(propertyHorizontalId, request, cancellationToken);
 
     [HttpGet("portal/me")]
-    [Authorize(Policy = Permissions.CommunicationsView)]
+    [Authorize(Policy = Permissions.PortalSelf)]
     public Task<IReadOnlyList<PortalNotificationDto>> MyPortal(CancellationToken cancellationToken) =>
         _convocations.ListMyPortalNotificationsAsync(cancellationToken);
 
     [HttpPost("portal/{notificationId:guid}/read")]
-    [Authorize(Policy = Permissions.CommunicationsView)]
+    [Authorize(Policy = Permissions.PortalSelf)]
     public Task<PortalNotificationDto> MarkPortalRead(Guid notificationId, CancellationToken cancellationToken) =>
         _convocations.MarkPortalReadAsync(notificationId, cancellationToken);
 
@@ -160,6 +160,21 @@ public sealed class ConvocationsController : ControllerBase
         [FromBody] SendConvocationRequest request,
         CancellationToken cancellationToken) =>
         _convocations.SendAsync(convocationId, request, cancellationToken);
+
+    [HttpPost("{convocationId:guid}/resend")]
+    [Authorize(Policy = Permissions.ConvocationsResend)]
+    public Task<CommunicationBatchDto> Resend(
+        Guid convocationId,
+        [FromBody] ResendConvocationRequest request,
+        CancellationToken cancellationToken) =>
+        _convocations.ResendAsync(convocationId, request, cancellationToken);
+
+    [HttpGet("{convocationId:guid}/recipient-deliveries")]
+    [Authorize(Policy = Permissions.ConvocationsViewEvidence)]
+    public Task<IReadOnlyList<ConvocationRecipientDeliveryDto>> RecipientDeliveries(
+        Guid convocationId,
+        CancellationToken cancellationToken) =>
+        _convocations.ListRecipientDeliveryStatusAsync(convocationId, cancellationToken);
 
     [HttpGet("{convocationId:guid}/deliveries")]
     [Authorize(Policy = Permissions.ConvocationsViewEvidence)]

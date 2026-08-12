@@ -1,6 +1,7 @@
 using Asambleas.Application;
 using Asambleas.Application.Abstractions;
 using Asambleas.Infrastructure;
+using Asambleas.Infrastructure.Identity;
 using Asambleas.Infrastructure.Persistence;
 using Asambleas.Infrastructure.Seed;
 using Asambleas.Web.Hubs;
@@ -34,6 +35,7 @@ try
     builder.Services.AddAsambleasApplication();
     builder.Services.AddAsambleasInfrastructure(builder.Configuration);
 
+    builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, AsambleasUserClaimsPrincipalFactory>();
     builder.Services.AddScoped<IAssemblyRealtimePublisher, SignalRAssemblyRealtimePublisher>();
 
     builder.Services

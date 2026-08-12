@@ -2,6 +2,9 @@ import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { resolveDefaultAssemblyId } from "./assembly-context.js";
+import { bootIaPage } from "./ia-page.js";
+import { mountReadinessActionBar } from "./readiness-actions.js";
+import { isReadinessReturnContext } from "./return-context.js";
 
 let assemblyId = assemblyIdFromUrl();
 let phId = null;
@@ -42,18 +45,27 @@ function showFieldErrorFromApi(err) {
   else if (code === "REPLY_TO_INVALID") setFieldHint("profile-reply", `⚠ ${msg}`, "err");
 }
 
-async function loadAssemblyContext() {
+async function loadPhContext() {
+  const params = new URLSearchParams(location.search);
+  const urlPhId = params.get("phId");
+  if (urlPhId) {
+    phId = urlPhId;
+    const ph = await api(`/api/ph/${phId}`);
+    return { kind: "ph", ph };
+  }
+
   if (!assemblyId) {
     assemblyId = await resolveDefaultAssemblyId();
     if (assemblyId) {
       location.replace(`/communications.html?assemblyId=${encodeURIComponent(assemblyId)}`);
       return null;
     }
-    throw new Error("Falta assemblyId en la URL.");
+    throw new Error("Abre Comunicaciones desde un PH (Propiedades → Comunicaciones) o indica ?phId=.");
   }
+
   const assembly = await api(`/api/assemblies/${assemblyId}`);
   phId = assembly.propertyHorizontalId;
-  return assembly;
+  return { kind: "assembly", assembly };
 }
 
 function renderChannels(channels) {
@@ -172,22 +184,48 @@ async function init() {
     return;
   }
 
+  if (!hasPermission(user, "communications:view")) {
+    location.href = "/owner.html?denied=communications";
+    return;
+  }
+
   canConfigure = hasPermission(user, "communications:configure");
   qs("#user-chip").textContent = user.displayName;
-  qs("#nav-tenant").textContent = user.tenantCode || user.tenantName || "Gobernanza";
+  qs("#nav-tenant") && (qs("#nav-tenant").textContent = user.tenantCode || user.tenantName || "Gobernanza");
+
+  await bootIaPage({
+    current: "comms",
+    requirePermission: null
+  });
 
   try {
-    const ctx = await loadAssemblyContext();
+    const ctx = await loadPhContext();
     if (!ctx) return;
+    const phName =
+      ctx.kind === "ph"
+        ? ctx.ph?.name
+        : ctx.assembly?.propertyHorizontalName || ctx.assembly?.name || "PH";
+    const heroTitle = qs("#comms-ph-title");
+    if (heroTitle) heroTitle.textContent = phName || "Comunicaciones";
+    const heroSub = qs("#comms-ph-sub");
+    if (heroSub) {
+      heroSub.textContent = `Canales y SMTP para: ${phName}. Los secretos nunca se muestran.`;
+    }
   } catch (e) {
     showError(e.message);
     return;
   }
 
-  const q = `assemblyId=${encodeURIComponent(assemblyId || "")}`;
-  qs("#nav-dashboard").href = `/dashboard.html?${q}`;
-  qs("#nav-convocation").href = `/convocation.html?${q}`;
-  qs("#nav-assembly").href = `/assembly.html?${q}`;
+  const q = assemblyId
+    ? `assemblyId=${encodeURIComponent(assemblyId)}`
+    : phId
+      ? `phId=${encodeURIComponent(phId)}`
+      : "";
+  qs("#nav-dashboard")?.setAttribute("href", q ? `/dashboard.html?${q}` : "/dashboard.html");
+  qs("#nav-convocation")?.setAttribute("href", q ? `/convocation.html?${q}` : "#");
+  qs("#nav-assembly")?.setAttribute("href", q ? `/assembly.html?${q}` : "#");
+  const navPh = qs("#nav-ph");
+  if (navPh && phId) navPh.href = `/ph.html?phId=${encodeURIComponent(phId)}`;
 
   qs("#btn-logout")?.addEventListener("click", async () => {
     await logout();
@@ -266,6 +304,52 @@ async function init() {
 
   await refreshChannels();
   await refreshTemplates();
+
+  if (isReadinessReturnContext() && assemblyId) {
+    let profileDirty = false;
+    const markProfileDirty = () => {
+      profileDirty = true;
+    };
+    qs("#profile-form")?.addEventListener("input", markProfileDirty);
+    qs("#profile-form")?.addEventListener("change", markProfileDirty);
+
+    async function saveCommsProfile() {
+      if (!canConfigure) return false;
+      clearFieldErrors();
+      try {
+        const updated = await api(`/api/communications/ph/${phId}/profile`, {
+          method: "PUT",
+          body: {
+            sandboxMode: qs("#profile-sandbox").checked,
+            testRecipientOverride: qs("#profile-override").value || null,
+            defaultTimezoneId: qs("#profile-tz").value,
+            defaultFromDisplayName: qs("#profile-from-name").value || null,
+            defaultReplyTo: qs("#profile-reply").value || null
+          }
+        });
+        const chip = qs("#sandbox-chip");
+        if (chip) chip.hidden = !(updated.isSandboxEnvironment || updated.sandboxMode);
+        showToast("Perfil guardado", "success");
+        profileDirty = false;
+        return true;
+      } catch (e) {
+        showFieldErrorFromApi(e);
+        showToast(e.message || "No se pudo guardar", "warn");
+        return false;
+      }
+    }
+
+    mountReadinessActionBar({
+      assemblyId,
+      getDirty: () => profileDirty,
+      setDirty: (v) => {
+        profileDirty = v;
+      },
+      onSave: canConfigure ? saveCommsProfile : null,
+      saveLabel: "Guardar perfil",
+      hint: "Estás completando la preparación de esta asamblea — Comunicaciones."
+    });
+  }
 }
 
 init().catch((error) => {

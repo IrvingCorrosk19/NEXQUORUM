@@ -3,6 +3,7 @@ import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { hydrateRoomState } from "./room-state.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
+import { bootIaPage } from "./ia-page.js";
 import {
   enumerateMediaDevices,
   fetchJoinToken,
@@ -215,8 +216,11 @@ async function init() {
   qs("#label-speaker-select").textContent = t("lobby.speaker");
   qs("#label-mic-level").textContent = t("lobby.micLevel");
   qs("#btn-enter").textContent = t("lobby.enter");
-  qs("#link-dashboard").href = `/dashboard.html?assemblyId=${assemblyId}`;
-  qs("#link-dashboard").textContent = t("back");
+  const linkDash = qs("#link-dashboard");
+  if (linkDash) {
+    linkDash.href = `/dashboard.html?assemblyId=${assemblyId}`;
+    linkDash.textContent = t("back");
+  }
   const checkinLink = qs("#link-checkin");
   if (checkinLink) {
     checkinLink.textContent = t("lobby.goToCheckin");
@@ -224,7 +228,11 @@ async function init() {
   }
 
   if (!assemblyId) {
-    showError(t("dashboard.missingId"));
+    assemblyId = await ensureAssemblyIdOrRedirect();
+    if (!assemblyId) {
+      showError(t("dashboard.missingId"));
+      return;
+    }
     return;
   }
 
@@ -235,6 +243,8 @@ async function init() {
     location.href = "/";
     return;
   }
+
+  await bootIaPage({ current: "asm-room" });
 
   let room;
   try {

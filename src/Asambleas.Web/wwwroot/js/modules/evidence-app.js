@@ -2,6 +2,7 @@ import { me } from "./auth.js";
 import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { getEvidence } from "./room-state.js";
+import { bootIaPage } from "./ia-page.js";
 
 const assemblyId = assemblyIdFromUrl();
 
@@ -74,8 +75,11 @@ function renderEvidence(data) {
 async function init() {
   await initI18n();
   qs("#page-title").textContent = t("evidence.title");
-  qs("#link-dashboard").href = `/dashboard.html?assemblyId=${assemblyId}`;
-  qs("#link-dashboard").textContent = t("back");
+  const linkDash = qs("#link-dashboard");
+  if (linkDash) {
+    linkDash.href = `/dashboard.html?assemblyId=${assemblyId}`;
+    linkDash.textContent = t("back");
+  }
 
   if (!assemblyId) {
     showError(t("dashboard.missingId"));
@@ -88,6 +92,8 @@ async function init() {
     location.href = "/";
     return;
   }
+
+  await bootIaPage({ current: "asm-evidence" });
 
   const result = await getEvidence(assemblyId);
   if (!result.ok) {

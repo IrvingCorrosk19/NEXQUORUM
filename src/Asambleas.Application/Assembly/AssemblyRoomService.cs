@@ -35,6 +35,8 @@ public sealed class AssemblyRoomService
     private readonly Audit.AuditService _audit;
     private readonly Evidence.AssemblyEvidenceService _evidence;
 
+    private readonly AssemblyReadinessService _readiness;
+
     public AssemblyRoomService(
         IAsambleasDbContext db,
         ICurrentTenant currentTenant,
@@ -48,7 +50,8 @@ public sealed class AssemblyRoomService
         SpeakerService speakers,
         MeetingService meetings,
         Audit.AuditService audit,
-        Evidence.AssemblyEvidenceService evidence)
+        Evidence.AssemblyEvidenceService evidence,
+        AssemblyReadinessService readiness)
     {
         _db = db;
         _currentTenant = currentTenant;
@@ -63,6 +66,7 @@ public sealed class AssemblyRoomService
         _meetings = meetings;
         _audit = audit;
         _evidence = evidence;
+        _readiness = readiness;
     }
 
     public async Task<AssemblyRoomStateDto> GetRoomStateAsync(
@@ -157,76 +161,8 @@ public sealed class AssemblyRoomService
         Guid assemblyId,
         CancellationToken cancellationToken = default)
     {
-        TenantGuard.EnsureAuthenticated(_currentTenant);
-
         var assembly = await RequireAssemblyAsync(assemblyId, cancellationToken);
-
-        var participantCount = await _db.AssemblyParticipants
-            .AsNoTracking()
-            .CountAsync(p => p.AssemblyId == assemblyId, cancellationToken);
-
-        var units = await _db.Units
-            .AsNoTracking()
-            .Where(u => u.PropertyHorizontalId == assembly.PropertyHorizontalId)
-            .Select(u => u.CoefficientPercent)
-            .ToListAsync(cancellationToken);
-
-        var agendaCount = await _db.AgendaItems
-            .AsNoTracking()
-            .CountAsync(i => i.AssemblyId == assemblyId, cancellationToken);
-
-        var meetingConfigured = await _meetingProvider.IsConfiguredAsync(cancellationToken);
-        var modalityAllowsWithoutAv = !string.Equals(
-            assembly.Modality,
-            AssemblyEntity.ModalityVirtual,
-            StringComparison.OrdinalIgnoreCase);
-
-        var participantsReady = participantCount > 0;
-        var coefficientsReady = units.Count > 0 && units.All(c => c > 0m);
-        var agendaReady = agendaCount > 0;
-        // LiveKit is optional for EO-002 demo: governance can proceed without AV.
-        // meetingReady reflects real AV readiness; missing LiveKit does not block ReadyToStart.
-        var meetingReady = meetingConfigured || modalityAllowsWithoutAv;
-        var votingRulesReady = assembly.RequiredQuorumPercent > 0m;
-
-        var blockers = new List<string>();
-        if (!participantsReady)
-        {
-            blockers.Add("Participants: no registered participants.");
-        }
-
-        if (!coefficientsReady)
-        {
-            blockers.Add(units.Count == 0
-                ? "Coefficients: no units configured for the property."
-                : "Coefficients: one or more units have a non-positive coefficient.");
-        }
-
-        if (!agendaReady)
-        {
-            blockers.Add("Agenda: at least one agenda item is required.");
-        }
-
-        if (!meetingReady)
-        {
-            blockers.Add("Meeting: LiveKit is not configured — audio/video BLOCKED; assembly may continue without AV.");
-        }
-
-        if (!votingRulesReady)
-        {
-            blockers.Add("Voting rules: required quorum percent must be greater than zero.");
-        }
-
-        var ready = participantsReady && coefficientsReady && agendaReady && votingRulesReady;
-
-        return new AssemblyReadinessDto(
-            participantsReady,
-            coefficientsReady,
-            agendaReady,
-            meetingReady,
-            votingRulesReady,
-            ready,
-            blockers);
+        return await _readiness.BuildAsync(assembly, cancellationToken);
     }
 
     public async Task<AssemblyDashboardDto> GetDashboardAsync(
@@ -234,37 +170,20 @@ public sealed class AssemblyRoomService
         CancellationToken cancellationToken = default)
     {
         var detail = await _assemblies.GetAsync(assemblyId, cancellationToken);
-        var readiness = await GetReadinessAsync(assemblyId, cancellationToken);
-
-        var participants = await _db.AssemblyParticipants
-            .AsNoTracking()
-            .Where(p => p.AssemblyId == assemblyId)
-            .Select(p => p.AttendanceStatus)
-            .ToListAsync(cancellationToken);
-
-        var unitCount = await _db.Units
-            .AsNoTracking()
-            .CountAsync(u => u.PropertyHorizontalId == detail.PropertyHorizontalId, cancellationToken);
-
-        var agendaCount = await _db.AgendaItems
-            .AsNoTracking()
-            .CountAsync(i => i.AssemblyId == assemblyId, cancellationToken);
-
-        var motionCount = await _db.Motions
-            .AsNoTracking()
-            .CountAsync(m => m.AssemblyId == assemblyId, cancellationToken);
-
-        var checkedIn = participants.Count(s =>
-            s is AttendanceStatus.CheckedIn
-                or AttendanceStatus.Present
-                or AttendanceStatus.TemporarilyDisconnected);
+        var assembly = await RequireAssemblyAsync(assemblyId, cancellationToken);
+        var metrics = await AssemblyMetricsLoader.LoadAsync(
+            _db,
+            assemblyId,
+            detail.PropertyHorizontalId,
+            cancellationToken);
+        var readiness = await _readiness.BuildAsync(assembly, metrics, cancellationToken);
 
         var counts = new AssemblyDashboardCountsDto(
-            participants.Count,
-            checkedIn,
-            unitCount,
-            agendaCount,
-            motionCount);
+            metrics.ParticipantCount,
+            metrics.CheckedInCount,
+            metrics.UnitCount,
+            metrics.AgendaCount,
+            metrics.MotionCount);
 
         return new AssemblyDashboardDto(
             detail.Id,

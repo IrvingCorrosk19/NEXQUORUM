@@ -3,14 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ASAMBLEAS — Panel</title>
+  <title>ASAMBLEAS — Asamblea</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=px1" />
-  <link rel="stylesheet" href="/css/base.css?v=px1" />
-  <link rel="stylesheet" href="/css/components.css?v=px1" />
-  <link rel="stylesheet" href="/css/loading.css?v=px1" />
+  <link rel="stylesheet" href="/css/tokens.css?v=ia1" />
+  <link rel="stylesheet" href="/css/base.css?v=ia1" />
+  <link rel="stylesheet" href="/css/components.css?v=ia1" />
+  <link rel="stylesheet" href="/css/loading.css?v=ia1" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia1" />
+  <link rel="stylesheet" href="/css/ia.css?v=rd1" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -20,26 +24,16 @@
         <h1 class="brand">ASAMBLEAS</h1>
         <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
       </div>
-      <nav>
-        <a id="nav-dashboard" href="/dashboard.html" aria-current="page">Panel</a>
-        <a href="/ph.html">Propiedades</a>
-        <a href="/calendar.html">Calendario</a>
-        <a id="nav-comms" href="#">Comunicaciones</a>
-        <a id="nav-convocation" href="#">Convocatoria</a>
-        <a id="nav-checkin" href="#">Acreditación</a>
-        <a id="nav-lobby" href="#">Lobby</a>
-        <a id="nav-assembly" href="#">Sala</a>
-        <a id="nav-evidence" href="#">Evidencias</a>
-        <a id="nav-minutes" href="#">Actas</a>
-      </nav>
+      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
     </aside>
 
     <header class="app-top" role="banner">
-      <div class="cluster">
-        <span class="command-eyebrow">Command center</span>
-        <span id="conn-chip" class="badge badge-live">Sincronizado</span>
+      <div class="ia-top-context">
+        <span class="ia-top-context__brand">ASAMBLEAS</span>
+        <span class="ia-top-context__path" id="ia-context-label">Asamblea</span>
       </div>
       <div class="cluster">
+        <span id="ia-role-chip" class="badge badge-live"></span>
         <span id="user-chip" class="badge badge-live"></span>
         <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
       </div>
@@ -47,32 +41,35 @@
 
     <main id="main" class="app-workspace page-main">
       <div id="page-alert" class="alert" hidden role="alert"></div>
+      <div id="ia-breadcrumbs"></div>
+
       <section class="page-hero">
         <p class="command-eyebrow">Asamblea</p>
-        <h1 id="assembly-name"><span class="skeleton" style="display:inline-block;width:16rem;height:1.6rem"></span></h1>
+        <div class="cluster" style="gap:0.75rem;align-items:center;flex-wrap:wrap">
+          <h1 id="assembly-name" style="margin:0"><span class="skeleton" style="display:inline-block;width:16rem;height:1.6rem"></span></h1>
+          <span id="assembly-status-badge" class="ia-badge-status" hidden></span>
+        </div>
         <div class="meta-row" id="assembly-meta"></div>
       </section>
+
       <div class="stack">
-        <section id="ph-admin-panel" class="panel" aria-label="Propiedad horizontal" hidden>
-          <h2 class="section-title">Tu PH</h2>
-          <div id="ph-admin-card"><div class="skeleton" style="height:5rem"></div></div>
-        </section>
-        <section id="next-assembly-panel" class="panel" aria-label="Próxima asamblea">
-          <h2 class="section-title">Próxima asamblea</h2>
-          <div id="next-assembly-card"><div class="skeleton" style="height:5rem"></div></div>
-        </section>
-        <section class="panel" aria-label="Acciones principales">
-          <h2 class="section-title">Siguiente acción</h2>
-          <div class="cta-row" id="primary-cta"></div>
-          <div class="cta-row" id="secondary-links"></div>
-        </section>
         <section class="panel" aria-labelledby="readiness-heading">
-          <h2 id="readiness-heading" class="section-title">Preparación operacional</h2>
+          <h2 id="readiness-heading" class="section-title">Preparación de la asamblea</h2>
           <div id="readiness-panel"><div class="skeleton" style="height:8rem"></div></div>
+        </section>
+
+        <section class="panel" aria-label="Siguiente paso">
+          <h2 class="section-title">Siguiente paso</h2>
+          <div id="primary-cta"></div>
+        </section>
+
+        <section class="panel" aria-label="Espacio de trabajo">
+          <h2 class="section-title">Espacio de trabajo</h2>
+          <div id="secondary-links"></div>
         </section>
       </div>
     </main>
   </div>
-  <script type="module" src="/js/modules/dashboard-app.js?v=dash4"></script>
+  <script type="module" src="/js/modules/dashboard-app.js?v=rd1"></script>
 </body>
 </html>

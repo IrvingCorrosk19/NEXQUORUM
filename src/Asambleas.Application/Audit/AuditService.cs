@@ -72,6 +72,49 @@ public sealed class AuditService : IAuditService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task WriteSystemAsync(
+        Guid tenantId,
+        string eventType,
+        Guid? propertyHorizontalId = null,
+        Guid? correlationId = null,
+        Guid? userId = null,
+        object? metadata = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventType);
+        if (tenantId == Guid.Empty)
+        {
+            throw new DomainException("TENANT_REQUIRED", "Tenant id is required for system audit events.");
+        }
+
+        Guid? organizationId = null;
+        if (propertyHorizontalId is Guid phId)
+        {
+            organizationId = await _db.PropertyHorizontals
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => p.Id == phId)
+                .Select(p => (Guid?)p.OrganizationId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        var auditEvent = new AuditEvent
+        {
+            TenantId = tenantId,
+            OrganizationId = organizationId,
+            PropertyHorizontalId = propertyHorizontalId,
+            AssemblyId = null,
+            UserId = userId,
+            EventType = eventType,
+            CorrelationId = correlationId ?? Guid.NewGuid(),
+            OccurredAtUtc = DateTimeOffset.UtcNow,
+            MetadataJson = Mapping.ToJson(metadata)
+        };
+
+        _db.AuditEvents.Add(auditEvent);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<AuditEventPageDto> QueryAsync(
         AuditEventQuery query,
         CancellationToken cancellationToken = default)

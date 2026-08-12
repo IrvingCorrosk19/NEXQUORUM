@@ -11,6 +11,9 @@
   <link rel="stylesheet" href="/css/base.css?v=px3" />
   <link rel="stylesheet" href="/css/components.css?v=px3" />
   <link rel="stylesheet" href="/css/loading.css?v=px3" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -20,20 +23,13 @@
         <h1 class="brand">ASAMBLEAS</h1>
         <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
       </div>
-      <nav>
-        <a id="nav-dashboard" href="/dashboard.html">Panel</a>
-        <a href="/communications.html" aria-current="page">Comunicaciones</a>
-        <a id="nav-convocation" href="#">Convocatoria</a>
-        <a id="nav-assembly" href="#">Sala</a>
-      </nav>
+      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
     </aside>
 
     <header class="app-top" role="banner">
+      <div class="ia-top-context"><span class="ia-top-context__brand">ASAMBLEAS</span><span class="ia-top-context__path" id="ia-context-label">Comunicaciones</span></div>
       <div class="cluster">
-        <span class="command-eyebrow">Configuración</span>
-        <span id="sandbox-chip" class="badge badge-warn" hidden>MODO PRUEBA</span>
-      </div>
-      <div class="cluster">
+        <span id="ia-role-chip" class="badge badge-live"></span>
         <span id="user-chip" class="badge badge-live"></span>
         <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
       </div>
@@ -41,10 +37,11 @@
 
     <main id="main" class="app-workspace page-main">
       <div id="page-alert" class="alert" hidden role="alert"></div>
+      <div id="ia-breadcrumbs"></div>
       <section class="page-hero">
-        <p class="command-eyebrow">Communication Center</p>
-        <h1>Comunicaciones</h1>
-        <p class="lede">Canales, plantillas y sandbox por propiedad horizontal. Los secretos nunca se muestran.</p>
+        <p class="command-eyebrow">Comunicaciones del PH</p>
+        <h1 id="comms-ph-title">Comunicaciones</h1>
+        <p class="lede" id="comms-ph-sub">Canales, plantillas y sandbox por propiedad horizontal. Los secretos nunca se muestran.</p>
       </section>
 
       <div class="stack">
@@ -52,7 +49,7 @@
           <h2 id="profile-heading" class="section-title">General</h2>
           <form id="profile-form" class="form-grid">
             <label class="field">
-              <span>Sandbox</span>
+              <span>Modo de prueba</span>
               <input type="checkbox" id="profile-sandbox" />
             </label>
             <label class="field">
@@ -68,7 +65,7 @@
               <input type="text" id="profile-from-name" />
             </label>
             <label class="field">
-              <span>Reply-To</span>
+              <span>Responder a</span>
               <input type="email" id="profile-reply" />
             </label>
             <div class="cta-row">
@@ -108,6 +105,6 @@
       </div>
     </main>
   </div>
-  <script type="module" src="/js/modules/communications-app.js?v=px3"></script>
+  <script type="module" src="/js/modules/communications-app.js?v=px5"></script>
 </body>
 </html>

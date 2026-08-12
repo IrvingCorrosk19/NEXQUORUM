@@ -199,11 +199,16 @@ public sealed class ConvocationService
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
 
-        if (!string.Equals(request.ConfirmationPhrase?.Trim(), SendConfirmationPhrase, StringComparison.Ordinal))
+        // Explicit confirm from UI (button). Legacy typed phrase still accepted.
+        var phraseOk = string.Equals(
+            request.ConfirmationPhrase?.Trim(),
+            SendConfirmationPhrase,
+            StringComparison.Ordinal);
+        if (!request.Confirmed && !phraseOk)
         {
             throw new DomainException(
                 "CONFIRMATION_REQUIRED",
-                $"Type '{SendConfirmationPhrase}' to confirm mass send.");
+                "Confirma el envío de la convocatoria para continuar.");
         }
 
         var c = await _db.Convocations.FirstOrDefaultAsync(x => x.Id == convocationId, cancellationToken)
@@ -231,18 +236,23 @@ public sealed class ConvocationService
         await ValidateAsync(convocationId, cancellationToken);
         c = await _db.Convocations.FirstAsync(x => x.Id == convocationId, cancellationToken);
 
-        var recipients = await _db.ConvocationRecipients
-            .Where(r => r.ConvocationId == convocationId)
-            .ToListAsync(cancellationToken);
+        var recipientsQuery = _db.ConvocationRecipients.Where(r => r.ConvocationId == convocationId);
+        if (request.RecipientIds is { Count: > 0 })
+        {
+            var selected = request.RecipientIds.Distinct().ToHashSet();
+            recipientsQuery = recipientsQuery.Where(r => selected.Contains(r.Id));
+        }
+
+        var recipients = await recipientsQuery.ToListAsync(cancellationToken);
 
         if (recipients.Count == 0)
         {
-            throw new DomainException("NO_RECIPIENTS", "No recipients to send.");
+            throw new DomainException("NO_RECIPIENTS", "Selecciona al menos un destinatario válido.");
         }
 
         if (recipients.Any(r => !r.IsValid))
         {
-            throw new DomainException("VALIDATION_FAILED", "Fix recipient validation issues before send.");
+            throw new DomainException("VALIDATION_FAILED", "Hay destinatarios con datos incompletos. Corrige o desmárcalos.");
         }
 
         var channels = ParseChannels(c.ChannelsJson);
@@ -325,11 +335,184 @@ public sealed class ConvocationService
             "convocation.send.started",
             assemblyId: c.AssemblyId,
             correlationId: batch.Id,
-            metadata: new { c.Id, batch.TotalCount, sandbox = _environment.IsNonProduction },
+            metadata: new { c.Id, batch.TotalCount },
             cancellationToken: cancellationToken);
 
         var refreshed = await _db.CommunicationBatches.AsNoTracking().FirstAsync(b => b.Id == batch.Id, cancellationToken);
         return ToBatchDto(refreshed);
+    }
+
+    public async Task<CommunicationBatchDto> ResendAsync(
+        Guid convocationId,
+        ResendConvocationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        if (!request.Confirmed)
+        {
+            throw new DomainException("CONFIRMATION_REQUIRED", "Confirma el reenvío de la convocatoria.");
+        }
+
+        var c = await _db.Convocations.FirstOrDefaultAsync(x => x.Id == convocationId, cancellationToken)
+            ?? throw new DomainException("CONVOCATION_NOT_FOUND", "Convocation not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, c.TenantId);
+
+        if (c.Status is not (ConvocationStatus.Sent or ConvocationStatus.Partial or ConvocationStatus.Failed or ConvocationStatus.Ready or ConvocationStatus.Approved or ConvocationStatus.Draft))
+        {
+            if (c.Status == ConvocationStatus.Sending)
+            {
+                throw new DomainException("SEND_IN_PROGRESS", "Hay un envío en curso. Espera a que termine.");
+            }
+        }
+
+        var recipientsQuery = _db.ConvocationRecipients.Where(r => r.ConvocationId == convocationId && r.IsValid);
+        if (request.RecipientIds is { Count: > 0 })
+        {
+            var selected = request.RecipientIds.Distinct().ToHashSet();
+            recipientsQuery = recipientsQuery.Where(r => selected.Contains(r.Id));
+        }
+
+        var recipients = await recipientsQuery.ToListAsync(cancellationToken);
+        if (recipients.Count == 0)
+        {
+            throw new DomainException("NO_RECIPIENTS", "Selecciona al menos un destinatario válido.");
+        }
+
+        if (request.OnlyFailedOrPending)
+        {
+            var okIds = await _db.CommunicationDeliveries.AsNoTracking()
+                .Where(d => d.ConvocationId == convocationId
+                            && d.Channel == CommunicationChannel.Email
+                            && (d.Status == DeliveryStatus.Sent || d.Status == DeliveryStatus.Delivered))
+                .Select(d => d.RecipientId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            var okSet = okIds.ToHashSet();
+            recipients = recipients.Where(r => !okSet.Contains(r.Id)).ToList();
+            if (recipients.Count == 0)
+            {
+                throw new DomainException("NOTHING_TO_RESEND", "No hay destinatarios pendientes o fallidos.");
+            }
+        }
+
+        // Rate limit: block if any selected recipient was emailed in the last 45 seconds.
+        var recentCutoff = DateTimeOffset.UtcNow.AddSeconds(-45);
+        var recentlySent = await _db.CommunicationDeliveries.AsNoTracking()
+            .Where(d => d.ConvocationId == convocationId
+                        && d.Channel == CommunicationChannel.Email
+                        && d.SentAtUtc != null
+                        && d.SentAtUtc > recentCutoff
+                        && recipients.Select(r => r.Id).Contains(d.RecipientId))
+            .Select(d => d.RecipientId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (recentlySent.Count > 0)
+        {
+            throw new DomainException(
+                "RESEND_COOLDOWN",
+                "Espera unos segundos antes de reenviar a los mismos destinatarios.");
+        }
+
+        var channels = ParseChannels(c.ChannelsJson);
+        await EnsureChannelsEnabledAsync(c.PropertyHorizontalId, channels, cancellationToken);
+
+        var idempotency = string.IsNullOrWhiteSpace(request.IdempotencyKey)
+            ? $"resend-{convocationId:N}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
+            : request.IdempotencyKey.Trim();
+
+        var existing = await _db.CommunicationBatches
+            .FirstOrDefaultAsync(b => b.TenantId == _currentTenant.TenantId && b.IdempotencyKey == idempotency, cancellationToken);
+        if (existing is not null)
+        {
+            return ToBatchDto(existing);
+        }
+
+        c.Status = ConvocationStatus.Sending;
+        var batch = new CommunicationBatch
+        {
+            TenantId = _currentTenant.TenantId,
+            ConvocationId = c.Id,
+            IdempotencyKey = idempotency,
+            Status = ConvocationStatus.Sending,
+            StartedAtUtc = DateTimeOffset.UtcNow
+        };
+        _db.CommunicationBatches.Add(batch);
+
+        var deliveries = new List<CommunicationDelivery>();
+        foreach (var recipient in recipients)
+        {
+            foreach (var channel in channels)
+            {
+                deliveries.Add(new CommunicationDelivery
+                {
+                    TenantId = _currentTenant.TenantId,
+                    BatchId = batch.Id,
+                    ConvocationId = c.Id,
+                    RecipientId = recipient.Id,
+                    Channel = channel,
+                    Status = DeliveryStatus.Pending,
+                    QueuedAtUtc = DateTimeOffset.UtcNow
+                });
+            }
+        }
+
+        batch.TotalCount = deliveries.Count;
+        _db.CommunicationDeliveries.AddRange(deliveries);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _dispatch.ProcessBatchAsync(batch.Id, cancellationToken);
+
+        await _audit.WriteAsync(
+            "convocation.resend",
+            assemblyId: c.AssemblyId,
+            correlationId: batch.Id,
+            metadata: new { c.Id, batch.TotalCount, recipientCount = recipients.Count },
+            cancellationToken: cancellationToken);
+
+        var refreshed = await _db.CommunicationBatches.AsNoTracking().FirstAsync(b => b.Id == batch.Id, cancellationToken);
+        return ToBatchDto(refreshed);
+    }
+
+    public async Task<IReadOnlyList<ConvocationRecipientDeliveryDto>> ListRecipientDeliveryStatusAsync(
+        Guid convocationId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var c = await _db.Convocations.AsNoTracking().FirstOrDefaultAsync(x => x.Id == convocationId, cancellationToken)
+            ?? throw new DomainException("CONVOCATION_NOT_FOUND", "Convocation not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, c.TenantId);
+
+        var recipients = await _db.ConvocationRecipients.AsNoTracking()
+            .Where(r => r.ConvocationId == convocationId)
+            .OrderBy(r => r.DisplayName)
+            .ToListAsync(cancellationToken);
+
+        var deliveries = await _db.CommunicationDeliveries.AsNoTracking()
+            .Where(d => d.ConvocationId == convocationId && d.Channel == CommunicationChannel.Email)
+            .ToListAsync(cancellationToken);
+
+        var byRecipient = deliveries.GroupBy(d => d.RecipientId).ToDictionary(g => g.Key, g => g.ToList());
+        var cooldown = DateTimeOffset.UtcNow.AddSeconds(-45);
+
+        return recipients.Select(r =>
+        {
+            byRecipient.TryGetValue(r.Id, out var list);
+            list ??= [];
+            var last = list.OrderByDescending(d => d.SentAtUtc ?? d.CreatedAtUtc).FirstOrDefault();
+            var status = last?.Status.ToString() ?? "NotSent";
+            var lastSent = list.Where(d => d.SentAtUtc != null).Max(d => d.SentAtUtc);
+            var attempts = list.Count;
+            var canResend = r.IsValid && (lastSent is null || lastSent <= cooldown);
+            return new ConvocationRecipientDeliveryDto(
+                r.Id,
+                r.DisplayName,
+                r.Email,
+                null,
+                status,
+                lastSent,
+                attempts,
+                canResend);
+        }).ToList();
     }
 
     public async Task<IReadOnlyList<DeliveryDto>> ListDeliveriesAsync(
@@ -354,6 +537,7 @@ public sealed class ConvocationService
             d.Status.ToString(),
             d.Destination,
             d.WasRedirectedToTestOverride,
+            d.ProviderType.ToString(),
             d.ProviderMessageId,
             d.ErrorDetail,
             d.SentAtUtc,
@@ -479,7 +663,7 @@ public sealed class ConvocationService
             recipients.Count,
             channelCounts,
             missingExternal,
-            profile.SandboxMode || _environment.IsNonProduction,
+            profile.SandboxMode,
             profile.TestRecipientOverride,
             _environment.EnvironmentLabel);
     }

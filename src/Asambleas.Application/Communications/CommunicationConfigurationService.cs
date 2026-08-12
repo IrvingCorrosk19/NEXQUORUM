@@ -351,7 +351,35 @@ public sealed class CommunicationConfigurationService
             channels.FirstOrDefault(c => c.Channel == CommunicationChannel.Portal));
     }
 
-    internal async Task<IEmailProvider> ResolveEmailProviderAsync(
+    /// <summary>
+    /// Resolves the PH Email channel provider (SMTP when Sandbox=false and configured).
+    /// Shared by Communication Center tests, convocations, and owner invitations.
+    /// </summary>
+    public async Task<(IEmailProvider Provider, bool UsedSandbox, string ProviderName)> ResolvePhEmailProviderAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
+
+        var profile = await GetOrCreateEntityAsync(propertyHorizontalId, cancellationToken);
+        var row = await _db.ChannelConfigurations
+            .FirstOrDefaultAsync(
+                c => c.PropertyHorizontalId == propertyHorizontalId && c.Channel == CommunicationChannel.Email,
+                cancellationToken);
+
+        var forceMock = profile.SandboxMode;
+        var provider = await ResolveEmailProviderAsync(row, forceMock, cancellationToken);
+        var name = forceMock
+                   || row is null
+                   || row.ProviderType == CommunicationProviderType.Mock
+                   || !row.IsEnabled
+            ? "Mock"
+            : row.ProviderType.ToString();
+        return (provider, forceMock, name);
+    }
+
+    public async Task<IEmailProvider> ResolveEmailProviderAsync(
         ChannelConfiguration? config,
         bool forceMock,
         CancellationToken cancellationToken)
@@ -484,7 +512,7 @@ public sealed class CommunicationConfigurationService
             profile.DefaultTimezoneId,
             profile.DefaultFromDisplayName,
             profile.DefaultReplyTo,
-            _environment.IsNonProduction || profile.SandboxMode);
+            profile.SandboxMode);
 
     private static ChannelConfigurationDto ToChannelDto(ChannelConfiguration row)
     {

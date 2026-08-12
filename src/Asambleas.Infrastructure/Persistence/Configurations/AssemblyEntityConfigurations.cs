@@ -24,6 +24,10 @@ internal sealed class AssemblyConfiguration : IEntityTypeConfiguration<AssemblyE
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.PropertyHorizontalId);
         builder.HasIndex(x => x.Status);
+        builder.HasIndex(x => new { x.PropertyHorizontalId, x.ScheduledAtUtc })
+            .HasDatabaseName("IX_assemblies_PropertyHorizontalId_ScheduledAtUtc");
+        builder.HasIndex(x => new { x.PropertyHorizontalId, x.Status, x.ScheduledAtUtc })
+            .HasDatabaseName("IX_assemblies_PropertyHorizontalId_Status_ScheduledAtUtc");
         builder.HasOne<PropertyHorizontal>().WithMany().HasForeignKey(x => x.PropertyHorizontalId).OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -64,6 +64,8 @@ public interface IAsambleasDbContext
 
     DbSet<CommunicationDeliveryEvent> CommunicationDeliveryEvents { get; }
 
+    DbSet<AssemblyAccessLink> AssemblyAccessLinks { get; }
+
     DbSet<PortalNotification> PortalNotifications { get; }
 
     DbSet<ReminderRule> ReminderRules { get; }

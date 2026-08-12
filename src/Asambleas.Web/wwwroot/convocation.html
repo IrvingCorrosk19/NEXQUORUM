@@ -11,6 +11,9 @@
   <link rel="stylesheet" href="/css/base.css?v=px2" />
   <link rel="stylesheet" href="/css/components.css?v=px2" />
   <link rel="stylesheet" href="/css/loading.css?v=px2" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -20,20 +23,13 @@
         <h1 class="brand">ASAMBLEAS</h1>
         <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
       </div>
-      <nav>
-        <a id="nav-dashboard" href="/dashboard.html">Panel</a>
-        <a id="nav-comms" href="/communications.html">Comunicaciones</a>
-        <a href="/convocation.html" aria-current="page">Convocatoria</a>
-        <a id="nav-assembly" href="#">Sala</a>
-      </nav>
+      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
     </aside>
 
     <header class="app-top" role="banner">
+      <div class="ia-top-context"><span class="ia-top-context__brand">ASAMBLEAS</span><span class="ia-top-context__path" id="ia-context-label">Convocatoria</span></div>
       <div class="cluster">
-        <span class="command-eyebrow">Convocatoria</span>
-        <span id="sandbox-chip" class="badge badge-warn" hidden>MODO PRUEBA</span>
-      </div>
-      <div class="cluster">
+        <span id="ia-role-chip" class="badge badge-live"></span>
         <span id="user-chip" class="badge badge-live"></span>
         <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
       </div>
@@ -41,20 +37,21 @@
 
     <main id="main" class="app-workspace page-main">
       <div id="page-alert" class="alert" hidden role="alert"></div>
+      <div id="ia-breadcrumbs"></div>
       <section class="page-hero">
-        <p class="command-eyebrow">Envío multicanal</p>
+        <p class="command-eyebrow">Convocatoria</p>
         <h1>Convocatoria</h1>
-        <p class="lede">Crear, validar y enviar con confirmación explícita. SENT ≠ DELIVERED.</p>
+        <p class="lede">Selecciona destinatarios y envía. El correo real usa la configuración SMTP del PH.</p>
       </section>
 
       <div class="stack">
         <section class="panel">
           <h2 class="section-title">Nueva convocatoria</h2>
           <form id="create-form" class="form-grid">
-            <label class="field full"><span>Título</span><input id="c-title" required /></label>
-            <label class="field full"><span>Asunto</span><input id="c-subject" required /></label>
-            <label class="field full"><span>Cuerpo HTML</span><textarea id="c-html" rows="4">Hola {{nombre}}, queda convocado a la asamblea.</textarea></label>
-            <label class="field full"><span>Cuerpo texto</span><textarea id="c-text" rows="3">Hola {{nombre}}, queda convocado a la asamblea.</textarea></label>
+            <label class="field full"><span>Título</span><input id="c-title" required placeholder="Convocatoria — Asamblea Extraordinaria" /></label>
+            <label class="field full"><span>Asunto (opcional)</span><input id="c-subject" placeholder="Se genera automáticamente si lo dejas vacío" /></label>
+            <label class="field full"><span>Notas internas (no reemplazan el correo premium)</span><textarea id="c-html" rows="2" placeholder="El correo institucional se genera automáticamente al enviar."></textarea></label>
+            <label class="field full" hidden><span>Cuerpo texto</span><textarea id="c-text" rows="2"></textarea></label>
             <fieldset class="field full">
               <legend>Canales</legend>
               <label><input type="checkbox" name="ch" value="Email" checked /> Email</label>
@@ -85,6 +82,6 @@
       </div>
     </main>
   </div>
-  <script type="module" src="/js/modules/convocation-app.js?v=px2"></script>
+  <script type="module" src="/js/modules/convocation-app.js?v=prem1"></script>
 </body>
 </html>

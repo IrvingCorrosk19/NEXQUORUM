@@ -18,6 +18,11 @@ public interface IAssemblyRepresentationService
         Guid userId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<AssemblyRepresentationSnapshot>>> GetActiveForUsersAsync(
+        Guid assemblyId,
+        IReadOnlyCollection<Guid> userIds,
+        CancellationToken cancellationToken = default);
+
     Task<decimal> GetEffectiveCoefficientAsync(
         Guid assemblyId,
         Guid userId,

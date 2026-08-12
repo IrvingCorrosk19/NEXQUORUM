@@ -95,7 +95,76 @@ public sealed record AssemblyReadinessDto(
     bool MeetingReady,
     bool VotingRulesReady,
     bool ReadyToStart,
-    IReadOnlyList<string> Blockers);
+    IReadOnlyList<string> Blockers,
+    string OverallStatus,
+    int CompletedChecks,
+    int TotalChecks,
+    int BlockingOpenCount,
+    ReadinessActionDto? NextAction,
+    IReadOnlyList<ReadinessCheckDto> Checks);
+
+public sealed record ReadinessCheckDto(
+    string Key,
+    string Status,
+    string Severity,
+    string Title,
+    string Description,
+    string? Detail,
+    string? ActionLabel,
+    string? DestinationKey,
+    bool CanAct);
+
+public sealed record ReadinessActionDto(
+    string Key,
+    string Title,
+    string Description,
+    string ActionLabel,
+    string DestinationKey,
+    bool CanAct);
+
+public static class ReadinessCheckKeys
+{
+    public const string Participants = "participants";
+    public const string Coefficients = "coefficients";
+    public const string Agenda = "agenda";
+    public const string Documents = "documents";
+    public const string Voting = "voting";
+    public const string Meeting = "meeting";
+    public const string Communications = "communications";
+}
+
+public static class ReadinessDestinationKeys
+{
+    public const string AssemblyOverview = "assembly-overview";
+    public const string AssemblyAgenda = "assembly-agenda";
+    public const string AssemblyParticipants = "assembly-participants";
+    public const string PhUnits = "ph-units";
+    public const string AssemblyVoting = "assembly-voting";
+    public const string AssemblyConvocation = "assembly-convocation";
+    public const string PhComms = "ph-comms";
+    public const string AssemblyLobby = "assembly-lobby";
+}
+
+public static class ReadinessOverallStatuses
+{
+    public const string Blocking = "Blocking";
+    public const string Warning = "Warning";
+    public const string Ready = "Ready";
+}
+
+public static class ReadinessCheckStatuses
+{
+    public const string Ready = "Ready";
+    public const string Attention = "Attention";
+    public const string Optional = "Optional";
+}
+
+public static class ReadinessSeverities
+{
+    public const string Blocking = "Blocking";
+    public const string Warning = "Warning";
+    public const string Info = "Info";
+}
 
 public sealed record AssemblyDashboardCountsDto(
     int Participants,

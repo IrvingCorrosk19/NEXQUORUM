@@ -37,6 +37,8 @@ internal sealed class AssemblyRepresentationConfiguration : IEntityTypeConfigura
         builder.HasIndex(x => x.AssemblyId);
         builder.HasIndex(x => x.RepresentativeUserId);
         builder.HasIndex(x => x.UnitId);
+        builder.HasIndex(x => new { x.AssemblyId, x.RepresentativeUserId, x.IsActive })
+            .HasDatabaseName("IX_assembly_representations_AssemblyId_RepresentativeUserId_IsActive");
         builder.HasIndex(x => new { x.AssemblyId, x.UnitId })
             .IsUnique()
             .HasFilter("\"IsActive\" = TRUE");

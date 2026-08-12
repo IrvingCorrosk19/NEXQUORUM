@@ -116,32 +116,51 @@ public sealed class AssemblyRepresentationService : IAssemblyRepresentationServi
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        var map = await GetActiveForUsersAsync(assemblyId, [userId], cancellationToken);
+        return map.GetValueOrDefault(userId, []);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<AssemblyRepresentationSnapshot>>> GetActiveForUsersAsync(
+        Guid assemblyId,
+        IReadOnlyCollection<Guid> userIds,
+        CancellationToken cancellationToken = default)
+    {
         TenantGuard.EnsureAuthenticated(_currentTenant);
 
+        if (userIds.Count == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyList<AssemblyRepresentationSnapshot>>();
+        }
+
+        var distinctUserIds = userIds.Distinct().ToList();
         var rows = await _db.AssemblyRepresentations
             .AsNoTracking()
-            .Where(r => r.AssemblyId == assemblyId && r.RepresentativeUserId == userId && r.IsActive)
+            .Where(r => r.AssemblyId == assemblyId && r.IsActive && distinctUserIds.Contains(r.RepresentativeUserId))
             .ToListAsync(cancellationToken);
 
         if (rows.Count == 0)
         {
-            return [];
+            return distinctUserIds.ToDictionary(id => id, _ => (IReadOnlyList<AssemblyRepresentationSnapshot>)[]);
         }
 
-        var unitIds = rows.Select(r => r.UnitId).ToList();
+        var unitIds = rows.Select(r => r.UnitId).Distinct().ToList();
         var codes = await _db.Units
             .AsNoTracking()
             .Where(u => unitIds.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, u => u.Code, cancellationToken);
 
         return rows
-            .Select(r => new AssemblyRepresentationSnapshot(
-                r.UnitId,
-                codes.GetValueOrDefault(r.UnitId, "?"),
-                r.CoefficientSnapshot,
-                r.Source.ToString(),
-                r.PowerId))
-            .ToList();
+            .GroupBy(r => r.RepresentativeUserId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<AssemblyRepresentationSnapshot>)g
+                    .Select(r => new AssemblyRepresentationSnapshot(
+                        r.UnitId,
+                        codes.GetValueOrDefault(r.UnitId, "?"),
+                        r.CoefficientSnapshot,
+                        r.Source.ToString(),
+                        r.PowerId))
+                    .ToList());
     }
 
     public async Task<decimal> GetEffectiveCoefficientAsync(

@@ -64,6 +64,23 @@ public sealed class AuthenticatedClient
         return await Client.SendAsync(request);
     }
 
+    public async Task<HttpResponseMessage> PutJsonAsync<T>(string url, T body)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, url)
+        {
+            Content = JsonContent.Create(body)
+        };
+        request.Headers.TryAddWithoutValidation("RequestVerificationToken", AntiforgeryToken);
+        return await Client.SendAsync(request);
+    }
+
+    public async Task<HttpResponseMessage> DeleteAsync(string url)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, url);
+        request.Headers.TryAddWithoutValidation("RequestVerificationToken", AntiforgeryToken);
+        return await Client.SendAsync(request);
+    }
+
     public Task<HttpResponseMessage> PostAsync(string url) =>
         PostJsonAsync(url, new { });
 

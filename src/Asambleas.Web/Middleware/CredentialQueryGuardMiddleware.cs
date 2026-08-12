@@ -70,6 +70,10 @@ public sealed class CredentialQueryGuardMiddleware
     {
         var value = path.Value ?? string.Empty;
         return value.Equals("/activate.html", StringComparison.OrdinalIgnoreCase)
-               || value.Equals("/activate", StringComparison.OrdinalIgnoreCase);
+               || value.Equals("/activate", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/join.html", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/join", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/api/ph/invitations/preview", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/api/join/preview", StringComparison.OrdinalIgnoreCase);
     }
 }

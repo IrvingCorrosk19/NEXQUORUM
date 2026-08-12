@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASAMBLEAS — Agenda</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=rd1" />
+  <link rel="stylesheet" href="/css/base.css?v=rd1" />
+  <link rel="stylesheet" href="/css/components.css?v=rd1" />
+  <link rel="stylesheet" href="/css/ia.css?v=rd1" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <div class="app-shell">
+    <aside class="app-nav" aria-label="Navegación">
+      <div>
+        <h1 class="brand">ASAMBLEAS</h1>
+        <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
+      </div>
+      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
+    </aside>
+    <header class="app-top" role="banner">
+      <div class="ia-top-context">
+        <span class="ia-top-context__brand">ASAMBLEAS</span>
+        <span class="ia-top-context__path" id="ia-context-label">Agenda</span>
+      </div>
+      <div class="cluster">
+        <span id="ia-role-chip" class="badge badge-live"></span>
+        <span id="user-chip" class="badge badge-live"></span>
+        <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
+      </div>
+    </header>
+    <main id="main" class="app-workspace page-main has-readiness-bar">
+      <div id="page-alert" class="alert" hidden role="alert"></div>
+      <div id="ia-breadcrumbs"></div>
+      <section class="page-hero">
+        <h1 id="page-title">Agenda de la asamblea</h1>
+        <p class="muted" id="assembly-label"></p>
+      </section>
+      <section class="panel">
+        <h2 class="section-title">Puntos de agenda</h2>
+        <div id="agenda-list" class="stack"><div class="skeleton" style="height:6rem"></div></div>
+      </section>
+      <section class="panel" id="add-panel">
+        <h2 class="section-title">Agregar punto</h2>
+        <form id="agenda-form" class="stack">
+          <label class="field">
+            <span>Código</span>
+            <input id="agenda-code" type="text" maxlength="64" placeholder="A01" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Título</span>
+            <input id="agenda-title" type="text" required maxlength="200" placeholder="Ej. Aprobación de estados financieros" />
+          </label>
+          <button type="submit" class="btn btn-primary">Agregar a la agenda</button>
+        </form>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/js/modules/agenda-app.js?v=rd1"></script>
+</body>
+</html>

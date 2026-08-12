@@ -107,7 +107,27 @@ public sealed record CreateConvocationRequest(
     Guid? TemplateId,
     string? IdempotencyKey);
 
-public sealed record SendConvocationRequest(string ConfirmationPhrase, string? IdempotencyKey);
+public sealed record SendConvocationRequest(
+    bool Confirmed = false,
+    string? ConfirmationPhrase = null,
+    string? IdempotencyKey = null,
+    IReadOnlyList<Guid>? RecipientIds = null);
+
+public sealed record ResendConvocationRequest(
+    bool Confirmed = false,
+    string? IdempotencyKey = null,
+    IReadOnlyList<Guid>? RecipientIds = null,
+    bool OnlyFailedOrPending = false);
+
+public sealed record ConvocationRecipientDeliveryDto(
+    Guid RecipientId,
+    string DisplayName,
+    string? Email,
+    string? UnitCodes,
+    string DeliveryStatus,
+    DateTimeOffset? LastSentAtUtc,
+    int EmailAttemptCount,
+    bool CanResend);
 
 public sealed record SendPreviewDto(
     int RecipientCount,
@@ -136,6 +156,7 @@ public sealed record DeliveryDto(
     string Status,
     string? Destination,
     bool WasRedirectedToTestOverride,
+    string? ProviderType,
     string? ProviderMessageId,
     string? ErrorDetail,
     DateTimeOffset? SentAtUtc,
