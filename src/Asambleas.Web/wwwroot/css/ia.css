@@ -956,6 +956,11 @@ body.is-fullscreen-ops .app-shell {
   background: var(--color-surface-elevated, #0f172a);
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
   overflow: hidden;
+  z-index: 60;
+}
+
+.ph-switcher-pop[hidden] {
+  display: none !important;
 }
 
 .ph-switcher-pop__head {

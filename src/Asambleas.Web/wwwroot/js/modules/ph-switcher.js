@@ -162,9 +162,15 @@ export async function mountGlobalPhSwitcher(host = null) {
   mountedRoot = root;
 
   const trigger = root.querySelector(".ph-switcher-trigger");
-  trigger?.addEventListener("click", () => {
+  trigger?.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
     if (open) closePopover();
     else openPopover();
+  });
+
+  root.querySelector(".ph-switcher-pop")?.addEventListener("click", (ev) => {
+    ev.stopPropagation();
   });
 
   root.querySelector("[data-ph-search]")?.addEventListener("input", (e) => {
@@ -175,9 +181,11 @@ export async function mountGlobalPhSwitcher(host = null) {
   if (!boundDocClick) {
     boundDocClick = (ev) => {
       if (!open || !mountedRoot) return;
-      if (!mountedRoot.contains(ev.target)) closePopover();
+      if (mountedRoot.contains(ev.target)) return;
+      closePopover();
     };
-    document.addEventListener("click", boundDocClick);
+    // Capture on next tick so the opening click does not immediately close.
+    document.addEventListener("pointerdown", boundDocClick);
   }
 
   if (!boundKey) {

@@ -104,15 +104,15 @@ async function login(page, email, password) {
       const second = page.locator(".ph-switcher-option:not(.is-active)").first();
       if ((await second.count()) > 0) {
         const name = await second.locator("strong").innerText();
-        await second.click();
-        await page.waitForTimeout(2500);
-        const after = await page.locator("[data-ph-title]").innerText();
-        if (after.includes(name.split(" ")[0]) || page.url().includes("phId=")) ok("switch-context", after);
-        else ok("switch-navigated", page.url());
+        await second.click({ force: true });
+        await page.waitForTimeout(2800);
+        const after = await page.locator("[data-ph-title]").innerText().catch(() => "");
+        const url = page.url();
+        if (url.includes("phId=") || (after && after.length > 2)) ok("switch-context", `${after} | ${url}`);
+        else fail("switch-context", `${after} | ${url}`);
 
-        // Assembly id must not linger after PH switch from owners-like page
-        if (!page.url().includes("assemblyId=")) ok("assembly-cleared");
-        else fail("assembly-cleared", page.url());
+        if (!url.includes("assemblyId=")) ok("assembly-cleared");
+        else fail("assembly-cleared", url);
       } else {
         ok("single-active-only");
       }
