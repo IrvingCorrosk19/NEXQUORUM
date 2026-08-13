@@ -2,9 +2,9 @@ import { api, ensureAntiforgery } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
 import { mountIaShell, phHref } from "./ia-nav.js";
 import { assemblyListBucket, statusLabelEs } from "./ia-actions.js";
-import { formatDateTime } from "./ui.js";
+import { formatDateTime, confirmDialog, notify } from "./ui.js";
 import { bindStickyForm } from "./ux-forms.js";
-import { confirmDialog } from "./ui.js";
+import { runWithButton } from "./loading.js";
 
 const STEP_LABELS = [
   "Información",
@@ -966,37 +966,32 @@ async function onDeletePh() {
 async function onSavePh(ev) {
   ev.preventDefault();
   const saveBtn = $("#btn-ph-save");
-  const prev = saveBtn?.textContent;
-  if (saveBtn) {
-    saveBtn.disabled = true;
-    saveBtn.textContent = "Guardando…";
-  }
   try {
     const data = formData(ev.target);
-    await api(`/api/ph/${currentPhId}`, {
-      method: "PUT",
-      body: {
-        name: data.name,
-        legalName: data.legalName || null,
-        country: data.country || null,
-        stateProvince: data.stateProvince || null,
-        city: data.city || null,
-        address: data.address || null,
-        timeZoneId: data.timeZoneId,
-        adminEmail: data.adminEmail || null,
-        phone: data.phone || null,
-        onboardingStep: 2,
-        concurrencyStamp: data.concurrencyStamp || null
-      }
+    await runWithButton(saveBtn, "Guardando…", async () => {
+      await api(`/api/ph/${currentPhId}`, {
+        method: "PUT",
+        body: {
+          name: data.name,
+          legalName: data.legalName || null,
+          country: data.country || null,
+          stateProvince: data.stateProvince || null,
+          city: data.city || null,
+          address: data.address || null,
+          timeZoneId: data.timeZoneId,
+          adminEmail: data.adminEmail || null,
+          phone: data.phone || null,
+          onboardingStep: 2,
+          concurrencyStamp: data.concurrencyStamp || null
+        }
+      });
+      notify.success("Los cambios de la propiedad se guardaron correctamente.", {
+        title: "PH actualizada"
+      });
+      await openPh(currentPhId);
     });
-    showAlert("✓ Cambios guardados.", "ok");
-    await openPh(currentPhId);
   } catch (err) {
-    showAlert(err.message || String(err));
-    if (saveBtn) {
-      saveBtn.disabled = false;
-      saveBtn.textContent = prev || "Guardar cambios";
-    }
+    notify.fromError(err);
   }
 }
 
@@ -1171,21 +1166,29 @@ async function onTransferOwnership(ev) {
 async function onCreateUnit(ev) {
   ev.preventDefault();
   const data = formData(ev.target);
-  await api(`/api/ph/${currentPhId}/units`, {
-    method: "POST",
-    body: {
-      code: data.code,
-      tower: data.tower || null,
-      floor: data.floor === "" ? null : Number(data.floor),
-      unitType: data.unitType || null,
-      coefficientPercent: Number(data.coefficientPercent),
-      isActive: true
-    }
-  });
-  ev.target.reset();
-  $("#unit-form-wrap").hidden = true;
-  await loadUnits();
-  await loadCoefficients();
+  const btn = ev.submitter || ev.target.querySelector('button[type="submit"]');
+  try {
+    await runWithButton(btn, "Creando…", async () => {
+      await api(`/api/ph/${currentPhId}/units`, {
+        method: "POST",
+        body: {
+          code: data.code,
+          tower: data.tower || null,
+          floor: data.floor === "" ? null : Number(data.floor),
+          unitType: data.unitType || null,
+          coefficientPercent: Number(data.coefficientPercent),
+          isActive: true
+        }
+      });
+      ev.target.reset();
+      $("#unit-form-wrap").hidden = true;
+      await loadUnits();
+      await loadCoefficients();
+      notify.success("La unidad ya aparece en el listado.", { title: "Unidad creada" });
+    });
+  } catch (err) {
+    notify.fromError(err, "No se pudo crear la unidad");
+  }
 }
 
 async function runBulk(previewOnly) {
@@ -1423,61 +1426,73 @@ async function startOwnerEdit(ownerId) {
 async function onSaveOwner(ev) {
   ev.preventDefault();
   if (!canAdministerCurrentPh()) {
+    notify.error("No tienes permiso para editar propietarios en esta PH. Se requiere Administrador PH.");
     showAlert("No tienes permiso para editar propietarios en esta PH. Se requiere Administrador PH.");
     return;
   }
+  const btn = $("#btn-save-owner");
   const data = formData(ev.target);
   try {
-    if (editingOwnerId) {
-      await api(`/api/ph/${currentPhId}/owners/${editingOwnerId}`, {
-        method: "PUT",
-        body: {
-          firstName: data.firstName || null,
-          lastName: data.lastName || null,
-          identificationType: data.identificationType || null,
-          identification: data.identification || null,
-          email: data.email,
-          phone: data.phone || null,
-          concurrencyStamp: data.concurrencyStamp || null
-        }
-      });
-      if (data.unitId) {
-        await api(`/api/ph/${currentPhId}/ownerships`, {
-          method: "POST",
+    await runWithButton(btn, editingOwnerId ? "Guardando…" : "Creando…", async () => {
+      if (editingOwnerId) {
+        await api(`/api/ph/${currentPhId}/owners/${editingOwnerId}`, {
+          method: "PUT",
           body: {
-            ownerId: editingOwnerId,
-            unitId: data.unitId,
-            sharePercent: Number(data.sharePercent || 100)
+            firstName: data.firstName || null,
+            lastName: data.lastName || null,
+            identificationType: data.identificationType || null,
+            identification: data.identification || null,
+            email: data.email,
+            phone: data.phone || null,
+            concurrencyStamp: data.concurrencyStamp || null
           }
         });
-      }
-      showAlert("Propietario actualizado.", "ok");
-    } else {
-      await api(`/api/ph/${currentPhId}/owners`, {
-        method: "POST",
-        body: {
-          firstName: data.firstName || null,
-          lastName: data.lastName || null,
-          identificationType: data.identificationType || null,
-          identification: data.identification || null,
-          email: data.email,
-          phone: data.phone || null,
-          unitId: data.unitId || null,
-          sharePercent: data.unitId ? Number(data.sharePercent || 100) : null
+        if (data.unitId) {
+          await api(`/api/ph/${currentPhId}/ownerships`, {
+            method: "POST",
+            body: {
+              ownerId: editingOwnerId,
+              unitId: data.unitId,
+              sharePercent: Number(data.sharePercent || 100)
+            }
+          });
         }
-      });
-      showAlert("Propietario creado.", "ok");
-    }
-    editingOwnerId = null;
-    ev.target.reset();
-    $("#owner-form-wrap").hidden = true;
-    await loadOwners();
+        notify.success("Los cambios del propietario se actualizaron correctamente.", {
+          title: "Propietario guardado"
+        });
+        showAlert("Propietario actualizado.", "ok");
+      } else {
+        await api(`/api/ph/${currentPhId}/owners`, {
+          method: "POST",
+          body: {
+            firstName: data.firstName || null,
+            lastName: data.lastName || null,
+            identificationType: data.identificationType || null,
+            identification: data.identification || null,
+            email: data.email,
+            phone: data.phone || null,
+            unitId: data.unitId || null,
+            sharePercent: data.unitId ? Number(data.sharePercent || 100) : null
+          }
+        });
+        notify.success("El propietario fue creado y ya aparece en el listado.", {
+          title: "Propietario creado"
+        });
+        showAlert("Propietario creado.", "ok");
+      }
+      editingOwnerId = null;
+      ev.target.reset();
+      $("#owner-form-wrap").hidden = true;
+      await loadOwners();
+    });
   } catch (err) {
     const msg = err?.message || String(err);
     if (/already linked|OWNERSHIP_DUPLICATE|ya (está|esta) vinculad/i.test(msg)) {
+      notify.warning("Este propietario ya está vinculado a esa unidad. Elige otra unidad o deja el campo vacío.");
       showAlert("Este propietario ya está vinculado a esa unidad. Elige otra unidad o deja el campo vacío.", "error");
       return;
     }
+    notify.fromError(err, msg);
     showAlert(msg);
   }
 }
@@ -1626,19 +1641,24 @@ async function deleteOwner(ownerId) {
     if (ok) await deactivateOwner(ownerId);
     return;
   }
-  const ok = await confirmAction(
-    "Eliminar propietario",
-    evaluation.summary || "Se eliminará este propietario sin historial de asambleas.",
-    "Eliminar"
-  );
+  const ok = await confirmDialog({
+    title: "Eliminar propietario",
+    body: evaluation.summary || "Se eliminará este propietario sin historial de asambleas.",
+    confirmLabel: "Eliminar",
+    danger: true
+  });
   if (!ok) return;
   try {
-    await api(`/api/ph/${currentPhId}/owners/${ownerId}`, { method: "DELETE" });
-    showAlert("Propietario eliminado.", "ok");
-    closeOwnerDrawer();
-    await loadOwners();
+    const trigger = document.activeElement;
+    const { runWithButton } = await import("./loading.js");
+    await runWithButton(trigger?.tagName === "BUTTON" ? trigger : null, "Eliminando…", async () => {
+      await api(`/api/ph/${currentPhId}/owners/${ownerId}`, { method: "DELETE" });
+      notify.success("El propietario fue eliminado del listado.", { title: "Propietario eliminado" });
+      closeOwnerDrawer();
+      await loadOwners();
+    });
   } catch (err) {
-    showAlert(err.message || String(err));
+    notify.fromError(err);
   }
 }
 

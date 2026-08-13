@@ -820,45 +820,53 @@ function wireChrome() {
     if (!validateScheduleForm()) return;
     state.scheduleSubmitting = true;
     const btn = qs("#btn-create-assembly");
-    if (btn) btn.disabled = true;
     const editingId = state.editingAssemblyId;
-    setLoading(true, editingId ? "Guardando cambios…" : "Preparando tu asamblea…");
+    const { runWithButton } = await import("./loading.js");
     const ph = selectedPh();
     try {
-      const body = buildSchedulePayload();
-      let result;
-      if (editingId) {
-        result = await api(`/api/assemblies/${editingId}`, {
-          method: "PUT",
-          body: {
-            title: body.title,
-            modality: body.modality,
-            assemblyKind: body.assemblyKind,
-            scheduledAtUtc: body.scheduledAtUtc,
-            estimatedEndAtUtc: body.estimatedEndAtUtc,
-            locationText: body.locationText,
-            notes: body.notes,
-            joinWindowMinutesBefore: body.joinWindowMinutesBefore
-          }
-        });
-        state.scheduleDirty = false;
-        closeDialog("schedule-dialog");
-        showToast("Cambios guardados", "success");
-        closeDrawer();
-      } else {
-        result = await api("/api/assemblies", { method: "POST", body });
-        state.scheduleDirty = false;
-        closeDialog("schedule-dialog");
-        showScheduleSuccess(result, ph, body.estimatedEndAtUtc);
-      }
-      await loadEvents();
-      await loadNextBanner();
+      await runWithButton(btn, editingId ? "Guardando…" : "Creando…", async () => {
+        const body = buildSchedulePayload();
+        let result;
+        if (editingId) {
+          result = await api(`/api/assemblies/${editingId}`, {
+            method: "PUT",
+            body: {
+              title: body.title,
+              modality: body.modality,
+              assemblyKind: body.assemblyKind,
+              scheduledAtUtc: body.scheduledAtUtc,
+              estimatedEndAtUtc: body.estimatedEndAtUtc,
+              locationText: body.locationText,
+              notes: body.notes,
+              joinWindowMinutesBefore: body.joinWindowMinutesBefore
+            }
+          });
+          state.scheduleDirty = false;
+          closeDialog("schedule-dialog");
+          showToast({
+            title: "Asamblea actualizada",
+            message: "Los cambios se aplicaron al calendario.",
+            variant: "success"
+          });
+          closeDrawer();
+        } else {
+          result = await api("/api/assemblies", { method: "POST", body });
+          state.scheduleDirty = false;
+          closeDialog("schedule-dialog");
+          showScheduleSuccess(result, ph, body.estimatedEndAtUtc);
+        }
+        await loadEvents();
+        await loadNextBanner();
+      });
     } catch (err) {
-      showToast(err.message || "No se pudo guardar la asamblea", "error");
-      state.scheduleSubmitting = false;
-      if (btn) btn.disabled = false;
+      showToast({
+        title: "No se pudo guardar",
+        message: err.message || "No se pudo guardar la asamblea",
+        variant: "error",
+        correlationId: err.correlationId
+      });
     } finally {
-      setLoading(false);
+      state.scheduleSubmitting = false;
     }
   });
 

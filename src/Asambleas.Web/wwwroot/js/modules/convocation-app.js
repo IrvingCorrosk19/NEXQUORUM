@@ -384,10 +384,16 @@ async function init() {
         }
       });
       const label = statusEs(batch.status);
-      showToast(
-        `Convocatoria ${label}: enviados ${batch.sentCount}, fallidos ${batch.failedCount}`,
-        batch.failedCount ? "warn" : "success"
-      );
+      showToast({
+        title: batch.failedCount ? "Envío parcial" : "Convocatoria enviada",
+        message: `${label}: ${batch.sentCount} enviados, ${batch.failedCount} fallidos.`,
+        variant: batch.failedCount ? "warning" : "success",
+        actionLabel: "Ver entregas",
+        onAction: () => {
+          location.hash = "#deliveries";
+          openDetail(selectedId);
+        }
+      });
       await openDetail(selectedId);
       await refreshList();
     } catch (e) {

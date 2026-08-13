@@ -356,6 +356,8 @@ export function renderVotePanel(
       const evidence = receipt?.evidenceId || receipt?.EvidenceId || "—";
       const at = receipt?.castAtUtc || receipt?.CastAtUtc || new Date().toISOString();
       root.innerHTML = renderReceipt(evidence, at, tally, session, { waiting: true });
+      const { notify } = await import("./ui.js");
+      notify.success("Tu voto quedó registrado correctamente.", { title: "Voto registrado" });
     } catch (error) {
       const networkish =
         !error?.status ||

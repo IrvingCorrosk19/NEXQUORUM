@@ -73,26 +73,35 @@
 .btn.is-loading,
 .btn[aria-busy="true"] {
   position: relative;
-  color: transparent !important;
   pointer-events: none;
   cursor: wait;
+  opacity: 0.94;
+  padding-left: 2.15rem;
 }
 
 .btn.is-loading > *,
 .btn[aria-busy="true"] > * {
-  visibility: hidden;
+  visibility: visible;
+}
+
+.btn.is-loading::before,
+.btn[aria-busy="true"]::before {
+  content: "";
+  position: absolute;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-top-color: currentColor;
+  animation: btn-spin 0.7s linear infinite;
+  left: 0.7rem;
+  top: 50%;
+  margin-top: -0.48rem;
 }
 
 .btn.is-loading::after,
 .btn[aria-busy="true"]::after {
-  content: "";
-  position: absolute;
-  width: 1.1rem;
-  height: 1.1rem;
-  border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--text-on-brand) 28%, transparent);
-  border-top-color: var(--text-on-brand);
-  animation: btn-spin 0.7s linear infinite;
+  content: none;
 }
 
 .btn-secondary.is-loading::after,
@@ -101,8 +110,13 @@
 .btn-ghost[aria-busy="true"]::after,
 .btn-gold.is-loading::after,
 .btn-gold[aria-busy="true"]::after {
-  border-color: color-mix(in srgb, var(--color-teal-700) 28%, transparent);
-  border-top-color: var(--color-teal-700);
+  content: none;
+}
+.btn-ghost.is-loading::after,
+.btn-ghost[aria-busy="true"]::after,
+.btn-gold.is-loading::after,
+.btn-gold[aria-busy="true"]::after {
+  content: none;
 }
 
 @keyframes btn-spin {
@@ -488,21 +502,25 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Toast (secondary feedback only) */
+/* Toast (premium, top-right — visible above chrome) */
 .toast-region {
   position: fixed;
+  top: max(var(--space-4), env(safe-area-inset-top, 0px));
   right: max(var(--space-4), env(safe-area-inset-right, 0px));
-  bottom: max(var(--space-4), env(safe-area-inset-bottom, 0px));
   z-index: var(--z-toast);
   display: grid;
   gap: var(--space-2);
-  max-width: min(22rem, calc(100vw - 2rem));
+  max-width: min(24rem, calc(100vw - 2rem));
   pointer-events: none;
 }
 
 .toast {
   pointer-events: auto;
-  padding: var(--space-3) var(--space-4);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.85rem 0.9rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-surface-elevated);
@@ -510,6 +528,79 @@
   color: var(--color-ink);
   font-size: 0.9rem;
   animation: fade-rise var(--motion-med) var(--ease-out);
+}
+
+.toast__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--color-teal-500) 18%, transparent);
+  color: var(--color-teal-700, #0f5c5c);
+}
+
+.toast-success .toast__icon {
+  background: color-mix(in srgb, var(--color-success) 22%, transparent);
+  color: var(--color-success);
+}
+
+.toast-warn .toast__icon {
+  background: color-mix(in srgb, var(--color-warning) 22%, transparent);
+  color: var(--color-warning);
+}
+
+.toast-error .toast__icon {
+  background: color-mix(in srgb, var(--color-danger) 22%, transparent);
+  color: var(--color-danger);
+}
+
+.toast__title {
+  display: block;
+  font-size: 0.92rem;
+  margin: 0 0 0.15rem;
+}
+
+.toast__message,
+.toast__meta {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--color-ink-muted, #4b5563);
+  line-height: 1.35;
+}
+
+.toast__meta code {
+  font-size: 0.78rem;
+}
+
+.toast__action {
+  margin-top: 0.45rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-teal-700, #0f5c5c);
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.toast__close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.15rem;
+}
+
+.toast.is-leaving {
+  opacity: 0;
+  transform: translateY(-0.25rem);
+  transition: opacity 160ms ease, transform 160ms ease;
 }
 
 .toast-info {
@@ -526,9 +617,33 @@
 
 .toast-error {
   border-left: 3px solid var(--color-danger);
-  /* Entrance only — dismiss left to JS; no CSS fade-out / fill that hides permanently */
   animation: fade-rise var(--motion-med) var(--ease-out);
   animation-fill-mode: none;
+}
+
+@media (max-width: 640px) {
+  .toast-region {
+    left: max(var(--space-3), env(safe-area-inset-left, 0px));
+    right: max(var(--space-3), env(safe-area-inset-right, 0px));
+    max-width: none;
+  }
+}
+
+.dialog-typeconfirm {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.85rem 0 0.25rem;
+  font-size: 0.9rem;
+}
+
+.dialog-typeconfirm input {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 4px);
+}
+
+.dialog-body {
+  white-space: pre-line;
 }
 
 /* Connection lost banner (fullscreen / sticky) */

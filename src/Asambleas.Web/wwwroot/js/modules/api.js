@@ -1,4 +1,7 @@
+import { startTopProgress, stopTopProgress } from "./loading.js";
+
 let antiforgeryToken = null;
+const inflightControllers = new Map();
 
 export async function ensureAntiforgery() {
   if (antiforgeryToken) {
@@ -18,9 +21,19 @@ export async function ensureAntiforgery() {
   return antiforgeryToken;
 }
 
+/**
+ * @param {string} path
+ * @param {RequestInit & {
+ *   body?: unknown,
+ *   progress?: boolean,
+ *   signal?: AbortSignal,
+ *   dedupeKey?: string
+ * }} [options]
+ */
 export async function api(path, options = {}) {
   const method = (options.method || "GET").toUpperCase();
   const headers = new Headers(options.headers || {});
+  const useProgress = options.progress ?? ["POST", "PUT", "PATCH", "DELETE"].includes(method);
 
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
@@ -35,40 +48,62 @@ export async function api(path, options = {}) {
     headers.set("RequestVerificationToken", token);
   }
 
-  const response = await fetch(path, {
-    ...options,
-    method,
-    headers,
-    credentials: "same-origin",
-    body: options.body && typeof options.body !== "string"
-      ? JSON.stringify(options.body)
-      : options.body
-  });
-
-  if (response.status === 204) {
-    return null;
+  let signal = options.signal;
+  if (options.dedupeKey) {
+    const prev = inflightControllers.get(options.dedupeKey);
+    prev?.abort();
+    const controller = new AbortController();
+    inflightControllers.set(options.dedupeKey, controller);
+    signal = controller.signal;
   }
 
-  const contentType = response.headers.get("content-type") || "";
-  const payload = contentType.includes("application/json")
-    ? await response.json()
-    : await response.text();
+  if (useProgress) startTopProgress();
+  try {
+    const response = await fetch(path, {
+      ...options,
+      method,
+      headers,
+      credentials: "same-origin",
+      signal,
+      body:
+        options.body && typeof options.body !== "string"
+          ? JSON.stringify(options.body)
+          : options.body
+    });
 
-  if (!response.ok) {
-    const detail =
-      typeof payload === "object" && payload
-        ? payload.detail || payload.title || JSON.stringify(payload)
-        : String(payload);
-    const error = new Error(detail || `Request failed (${response.status})`);
-    error.status = response.status;
-    error.payload = payload;
-    error.code = typeof payload === "object" && payload ? payload.code || payload.extensions?.code : undefined;
-    error.correlationId =
-      typeof payload === "object" && payload
-        ? payload.correlationId || payload.extensions?.correlationId
-        : undefined;
-    throw error;
+    if (response.status === 204) {
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    const payload = contentType.includes("application/json")
+      ? await response.json()
+      : await response.text();
+
+    if (!response.ok) {
+      const detail =
+        typeof payload === "object" && payload
+          ? payload.detail || payload.title || JSON.stringify(payload)
+          : String(payload);
+      const error = new Error(detail || `Request failed (${response.status})`);
+      error.status = response.status;
+      error.payload = payload;
+      error.code =
+        typeof payload === "object" && payload
+          ? payload.code || payload.extensions?.code
+          : undefined;
+      error.correlationId =
+        typeof payload === "object" && payload
+          ? payload.correlationId || payload.extensions?.correlationId
+          : undefined;
+      throw error;
+    }
+
+    return payload;
+  } finally {
+    if (useProgress) stopTopProgress();
+    if (options.dedupeKey && inflightControllers.get(options.dedupeKey)?.signal === signal) {
+      inflightControllers.delete(options.dedupeKey);
+    }
   }
-
-  return payload;
 }

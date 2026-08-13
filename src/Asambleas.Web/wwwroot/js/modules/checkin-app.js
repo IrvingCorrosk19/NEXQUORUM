@@ -327,7 +327,8 @@ async function ensureDeskOpen() {
 async function confirmAccredit() {
   if (!pendingPreview) return;
   const btn = qs("#btn-dialog-accredit");
-  btn.disabled = true;
+  const { setButtonLoading } = await import("./loading.js");
+  setButtonLoading(btn, true, "Acreditando…");
   try {
     await ensureDeskOpen();
 
@@ -355,10 +356,11 @@ async function confirmAccredit() {
     });
 
     announce(`Acreditación completada: ${pendingPreview.displayName}`);
-    showToast(
-      `✓ ${pendingPreview.displayName} · ${formatCoeff(result.effectiveCoefficientPercent ?? 0)}`,
-      "success"
-    );
+    showToast({
+      title: "Acreditado",
+      message: `${pendingPreview.displayName} · ${formatCoeff(result.effectiveCoefficientPercent ?? 0)}`,
+      variant: "success"
+    });
 
     if (result.currentQuorumCoefficient != null) {
       quorum = {
@@ -379,7 +381,7 @@ async function confirmAccredit() {
   } catch (error) {
     showError(errorMessage(error));
     announce(errorMessage(error));
-    btn.disabled = false;
+    setButtonLoading(btn, false);
   }
 }
 

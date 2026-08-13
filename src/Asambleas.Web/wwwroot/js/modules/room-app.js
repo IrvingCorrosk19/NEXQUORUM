@@ -1517,7 +1517,13 @@ function wireOperatorControls() {
     const speaker = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
     const ok = await confirmDialog({
       title: t("assembly.endAssembly"),
-      body: `${t("assembly.confirmEnd")}
+      body: `Al finalizar:
+• se cerrará la operación en vivo;
+• no se podrán emitir nuevos votos;
+• el quórum quedará sellado;
+• la asamblea pasará a modo histórico.
+
+${t("assembly.confirmEnd")}
 
 ${t("assembly.endPrecheck", {
         agenda: `${done} / ${agendaItems || "—"}`,
@@ -1529,14 +1535,25 @@ ${t("assembly.endPrecheck", {
         quorum: quorumText
       })}`,
       confirmLabel: t("assembly.endAssembly"),
-      danger: true
+      danger: true,
+      typeConfirm: "FINALIZAR"
     });
     if (!ok) return;
+    const endBtn = qs("#btn-end");
     try {
-      state.assembly = await api(`/api/assemblies/${assemblyId}/complete`, { method: "POST" });
-      await rehydrate();
+      const { runWithButton } = await import("./loading.js");
+      await runWithButton(endBtn, "Finalizando…", async () => {
+        state.assembly = await api(`/api/assemblies/${assemblyId}/complete`, { method: "POST" });
+        await rehydrate();
+        showToast({
+          title: "Asamblea finalizada",
+          message: "La asamblea quedó en modo consulta histórico.",
+          variant: "success"
+        });
+      });
     } catch (error) {
       showError(error.message);
+      showToast({ title: "No se pudo finalizar", message: error.message, variant: "error", correlationId: error.correlationId });
     }
   });
 

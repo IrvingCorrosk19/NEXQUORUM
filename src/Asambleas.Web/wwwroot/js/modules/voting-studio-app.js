@@ -1,7 +1,7 @@
 import { api } from "./api.js";
 import { hasPermission } from "./auth.js";
 import { statusLabelEs } from "./ia-actions.js";
-import { escapeHtml, showToast, qs } from "./ui.js";
+import { escapeHtml, showToast, qs, confirmDialog } from "./ui.js";
 import { showGlobalLoader, hideGlobalLoader } from "./loading.js";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";
@@ -413,12 +413,15 @@ function bindListActions() {
     if (t.dataset.resultsSurvey) {
       try {
         const results = await api(`/api/assemblies/${assemblyId}/surveys/${t.dataset.resultsSurvey}/results`);
-        alert(
-          `${results.title}\nRespuestas: ${results.responseCount}\n` +
-            (results.questions || [])
-              .map((q) => `• ${q.title}: ${(q.distribution || []).map((d) => `${d.label} ${d.count}`).join(", ")}`)
-              .join("\n")
-        );
+        const lines = (results.questions || [])
+          .map((q) => `• ${q.title}: ${(q.distribution || []).map((d) => `${d.label} ${d.count}`).join(", ")}`)
+          .join("\n");
+        await confirmDialog({
+          title: results.title || "Resultados",
+          body: `Respuestas: ${results.responseCount}\n${lines}`,
+          confirmLabel: "Cerrar",
+          cancelLabel: "OK"
+        });
       } catch (err) {
         showError(err.message);
       }

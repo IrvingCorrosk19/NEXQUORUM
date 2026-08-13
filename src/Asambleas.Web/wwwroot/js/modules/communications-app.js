@@ -5,6 +5,7 @@ import { resolveDefaultAssemblyId } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";
+import { runWithButton } from "./loading.js";
 
 let assemblyId = assemblyIdFromUrl();
 let phId = null;
@@ -118,41 +119,65 @@ function renderChannels(channels) {
       const secret = card.querySelector('[data-k="secret"]')?.value || null;
       const providerType = card.querySelector("[data-provider]")?.value || "Mock";
       const isEnabled = Boolean(card.querySelector("[data-enabled]")?.checked);
+      const saveBtn = card.querySelector("[data-save]");
       try {
-        await api(`/api/communications/ph/${phId}/channels/${channel}`, {
-          method: "PUT",
-          body: { providerType, isEnabled, settings, secret: secret || null }
+        await runWithButton(saveBtn, "Guardando configuración…", async () => {
+          await api(`/api/communications/ph/${phId}/channels/${channel}`, {
+            method: "PUT",
+            body: { providerType, isEnabled, settings, secret: secret || null }
+          });
+          showToast({
+            title: "Configuración guardada",
+            message: `Canal ${channel} actualizado.`,
+            variant: "success"
+          });
+          await refreshChannels();
         });
-        showToast("Canal guardado", "success");
-        await refreshChannels();
       } catch (e) {
-        showToast(e.message, "warn");
+        showToast({ title: "No se pudo guardar", message: e.message, variant: "error", correlationId: e.correlationId });
       }
     });
 
     card.querySelector("[data-test]")?.addEventListener("click", async () => {
       const channel = card.getAttribute("data-channel");
-      const destination = qs("#profile-override")?.value || prompt("Destino de prueba");
-      if (!destination) return;
-      try {
-        const result = await api(`/api/communications/ph/${phId}/channels/${channel}/test`, {
-          method: "POST",
-          body: { destination }
+      const destination = qs("#profile-override")?.value?.trim();
+      if (!destination) {
+        showToast({
+          title: "Destino requerido",
+          message: "Indica un correo en «Destinatario de prueba» del perfil antes de probar.",
+          variant: "warning"
         });
-        const el = card.querySelector("[data-test-result]");
-        if (result.succeeded) {
-          const mock = /ResolvedProvider=Mock|MOCK/i.test(result.detail || "");
-          el.textContent = mock
-            ? `⚠ ${result.detail}`
-            : `✓ CORREO DE PRUEBA ENVIADO — El servidor SMTP aceptó el mensaje. Destinatario: ${destination}. ${result.detail || ""}`;
-          showToast(mock ? "Prueba usó Mock (revisa Sandbox)" : "Correo de prueba aceptado por SMTP", mock ? "warn" : "success");
-        } else {
-          el.textContent = `⚠ ${result.detail || "Prueba falló"}`;
-          showToast("Prueba falló", "warn");
-        }
+        qs("#profile-override")?.focus();
+        return;
+      }
+      const testBtn = card.querySelector("[data-test]");
+      const el = card.querySelector("[data-test-result]");
+      try {
+        await runWithButton(testBtn, "Probando conexión…", async () => {
+          const result = await api(`/api/communications/ph/${phId}/channels/${channel}/test`, {
+            method: "POST",
+            body: { destination }
+          });
+          if (result.succeeded) {
+            const mock = /ResolvedProvider=Mock|MOCK/i.test(result.detail || "");
+            el.textContent = mock
+              ? `⚠ ${result.detail}`
+              : `✓ Conexión SMTP correcta — Correo de prueba enviado a ${destination}. ${result.detail || ""}`;
+            showToast({
+              title: mock ? "Prueba en modo Mock" : "Conexión SMTP correcta",
+              message: mock
+                ? "Revisa Sandbox / proveedor Mock."
+                : `Correo de prueba enviado a ${destination}.`,
+              variant: mock ? "warning" : "success"
+            });
+          } else {
+            el.textContent = `⚠ ${result.detail || "Prueba falló"}`;
+            showToast({ title: "Prueba falló", message: result.detail || "Revisa la configuración SMTP.", variant: "error" });
+          }
+        });
       } catch (e) {
-        card.querySelector("[data-test-result]").textContent = e.message;
-        showToast(e.message, "warn");
+        if (el) el.textContent = e.message;
+        showToast({ title: "Prueba falló", message: e.message, variant: "error", correlationId: e.correlationId });
       }
     });
   });

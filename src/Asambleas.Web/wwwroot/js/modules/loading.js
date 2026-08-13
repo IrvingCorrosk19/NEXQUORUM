@@ -1,5 +1,6 @@
 const LONG_MS = 8000;
 const SHOW_DELAY_MS = 120;
+const PROGRESS_DELAY_MS = 180;
 
 let host = null;
 let messageEl = null;
@@ -7,6 +8,10 @@ let hintEl = null;
 let showTimer = null;
 let longTimer = null;
 let depth = 0;
+
+let progressEl = null;
+let progressDepth = 0;
+let progressTimer = null;
 
 function ensureHost() {
   if (host) {
@@ -40,6 +45,16 @@ function ensureHost() {
   return host;
 }
 
+function ensureProgress() {
+  if (progressEl) return progressEl;
+  progressEl = document.createElement("div");
+  progressEl.className = "asambleas-top-progress";
+  progressEl.setAttribute("aria-hidden", "true");
+  progressEl.innerHTML = `<div class="asambleas-top-progress__bar"></div>`;
+  document.body.appendChild(progressEl);
+  return progressEl;
+}
+
 function clearTimers() {
   if (showTimer) {
     clearTimeout(showTimer);
@@ -51,6 +66,7 @@ function clearTimers() {
   }
 }
 
+/** Level 3 — only for real full-view loads (login, heavy studio). Prefer button/top progress for CRUD. */
 export function showGlobalLoader(message = "Preparando tu asamblea…", options = {}) {
   ensureHost();
   depth += 1;
@@ -94,6 +110,34 @@ export function hideGlobalLoader() {
   }, 280);
 }
 
+/** Level 1 — discrete top progress for navigation / API mutations. */
+export function startTopProgress() {
+  ensureProgress();
+  progressDepth += 1;
+  if (progressTimer) clearTimeout(progressTimer);
+  progressTimer = setTimeout(() => {
+    if (progressDepth > 0) {
+      progressEl.classList.add("is-active");
+    }
+  }, PROGRESS_DELAY_MS);
+}
+
+export function stopTopProgress() {
+  progressDepth = Math.max(0, progressDepth - 1);
+  if (progressDepth > 0) return;
+  if (progressTimer) {
+    clearTimeout(progressTimer);
+    progressTimer = null;
+  }
+  if (!progressEl) return;
+  progressEl.classList.remove("is-active");
+  progressEl.classList.add("is-done");
+  setTimeout(() => progressEl?.classList.remove("is-done"), 320);
+}
+
+/**
+ * Level 1 — button loading with visible label (no invisible text flash).
+ */
 export function setButtonLoading(button, loading, loadingLabel) {
   if (!button) {
     return;
@@ -101,14 +145,14 @@ export function setButtonLoading(button, loading, loadingLabel) {
 
   if (loading) {
     if (!button.dataset.labelBackup) {
-      button.dataset.labelBackup = button.textContent || "";
+      button.dataset.labelBackup = button.textContent?.trim() || "";
     }
     button.classList.add("is-loading");
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
-    if (loadingLabel) {
-      button.setAttribute("aria-label", loadingLabel);
-    }
+    const label = loadingLabel || button.dataset.labelBackup || "Procesando…";
+    button.textContent = label;
+    button.setAttribute("aria-label", label);
   } else {
     button.classList.remove("is-loading");
     button.disabled = false;
@@ -119,6 +163,24 @@ export function setButtonLoading(button, loading, loadingLabel) {
     }
     button.removeAttribute("aria-label");
   }
+}
+
+/** Run async work with button lock + optional top progress. */
+export async function runWithButton(button, loadingLabel, work, { progress = true } = {}) {
+  setButtonLoading(button, true, loadingLabel);
+  if (progress) startTopProgress();
+  try {
+    return await work();
+  } finally {
+    if (progress) stopTopProgress();
+    setButtonLoading(button, false);
+  }
+}
+
+export function setComponentBusy(el, busy) {
+  if (!el) return;
+  el.classList.toggle("is-busy", Boolean(busy));
+  el.setAttribute("aria-busy", String(Boolean(busy)));
 }
 
 /** Strip any credential-shaped query params from the address bar without reading values into app state. */
@@ -142,3 +204,17 @@ export function scrubCredentialQueryFromLocation() {
     // ignore
   }
 }
+
+export const loading = {
+  page: {
+    start: showGlobalLoader,
+    stop: hideGlobalLoader
+  },
+  progress: {
+    start: startTopProgress,
+    stop: stopTopProgress
+  },
+  button: setButtonLoading,
+  component: setComponentBusy,
+  run: runWithButton
+};

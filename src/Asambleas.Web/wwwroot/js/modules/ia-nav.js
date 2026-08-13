@@ -277,6 +277,18 @@ export function mountIaShell(ctx, { breadcrumbs = [] } = {}) {
     };
     roleChip.textContent = labels[roleFamily(ctx.user)] || ctx.user.displayName || "";
   }
+
+  // Immediate click feedback for in-app navigation (not full SPA).
+  document.querySelectorAll("#ia-nav a[href], #ia-assembly-tabs a[href], #ia-breadcrumbs a[href]").forEach((a) => {
+    if (a.dataset.progressBound) return;
+    a.dataset.progressBound = "1";
+    a.addEventListener("click", (ev) => {
+      if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || a.target === "_blank") return;
+      const href = a.getAttribute("href") || "";
+      if (!href || href.startsWith("#") || href.startsWith("mailto:")) return;
+      import("./loading.js").then(({ startTopProgress }) => startTopProgress()).catch(() => {});
+    });
+  });
 }
 
 export function phHref(phId, hash = "") {
