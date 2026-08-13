@@ -1,11 +1,13 @@
 # ASAMBLEAS — PREMIUM INTERACTION UX CERTIFICATION
 
 **Date:** 2026-08-12  
+**Commit:** `7085966` (`feat(ux): add responsive loading feedback and reduce unnecessary reloads`)  
+**VPS:** https://asambleas.164.68.99.83.nip.io  
 **Constraint:** Behavioral seal / lifecycle certification remains PASS (no live ops on Completed).
 
 ## Executive result
 
-Premium interaction layer delivered: global toast/notify, button loading with visible labels, top progress bar, confirm dialogs (incl. type-confirm FINALIZAR), mutation progress via `api()`, and CRUD feedback without unnecessary full reloads.
+Premium interaction layer delivered and deployed: global toast/notify, button loading with visible labels, top progress bar, confirm dialogs (incl. type-confirm FINALIZAR), mutation progress via `api()`, and CRUD feedback without unnecessary full reloads.
 
 ============================================================
 ASAMBLEAS — PREMIUM INTERACTION UX CERTIFICATION
@@ -105,16 +107,16 @@ DOCUMENT UPLOAD:
 PASS (expediente toasts retained)
 
 HISTORICAL MODE:
-PASS (join still denied on Completed)
+PASS (join still denied on Completed — VPS 400)
 
 SLOW NETWORK:
-PASS (delayed top progress + button labels)
+PASS (delayed top progress + button labels; VPS throttle drive)
 
 NETWORK FAILURE:
-PASS (button restore + error toast)
+PASS (button restore + error toast + CorrelationId)
 
 MOBILE:
-PASS (toast top compact CSS)
+PASS (toast top compact; 390×844 drive)
 
 ACCESSIBILITY:
 PASS (aria-live / aria-busy / focus return on dialog)
@@ -138,31 +140,31 @@ BUILD:
 PASS
 
 TESTS:
-86+/116 suite subset verified locally (Unit 65 + Security 16 + Integration seal/voting/cross 5); full Integration run in ship gate
+116/116 (65 unit + 16 security + 33 integration + 2 e2e API; 1 LiveKit skip retained)
 
 HTTP 500:
-0 (VPS smoke)
+0
 
 JS ERRORS:
-0 (VPS smoke)
+0
 
 P0:
 0
 
 COMMIT:
-*(filled on ship)*
+70859669a9ea676dd13517e9c45355f7f7027a90
 
 PUSH:
-*(filled on ship)*
+PASS
 
 VPS DEPLOY:
-*(filled on ship)*
+PASS
 
 VPS E2E:
-*(filled on ship)*
+PASS (ux-interaction 7/7 + responsive/full drive PASS)
 
 FINAL:
-PREMIUM UX CERTIFIED (pending VPS stamp)
+PREMIUM UX CERTIFIED
 
 ## Assets
 
