@@ -1,7 +1,7 @@
 # ASAMBLEAS — BEHAVIOR REMEDIATION CERTIFICATION
 
 **Date:** 2026-08-12  
-**Commit:** *(filled at ship time)*  
+**Commit:** `0bc22d403de3ac0eefe0a24cb71cffb67540002a`  
 **Domain rule:** `Completed` = Finalizada (histórico sellado). No new Closed/Finalized enums.
 
 ---
