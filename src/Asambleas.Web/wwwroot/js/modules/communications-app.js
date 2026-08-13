@@ -262,7 +262,7 @@ async function init() {
   qs("#profile-from-name").value = profile.defaultFromDisplayName || "";
   qs("#profile-reply").value = profile.defaultReplyTo || "";
   const chip = qs("#sandbox-chip");
-  if (profile.isSandboxEnvironment || profile.sandboxMode) {
+  if (chip && (profile.isSandboxEnvironment || profile.sandboxMode)) {
     chip.hidden = false;
   }
 
@@ -287,7 +287,7 @@ async function init() {
           defaultReplyTo: qs("#profile-reply").value || null
         }
       });
-      chip.hidden = !(updated.isSandboxEnvironment || updated.sandboxMode);
+      if (chip) chip.hidden = !(updated.isSandboxEnvironment || updated.sandboxMode);
       setFieldHint("profile-tz", "✓ Zona horaria válida", "ok");
       showToast("Perfil guardado", "success");
     } catch (e) {
