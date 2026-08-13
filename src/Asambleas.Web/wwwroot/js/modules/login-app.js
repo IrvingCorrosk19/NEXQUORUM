@@ -19,6 +19,13 @@ const passwordInput = document.querySelector("#password");
 const submitBtn = document.querySelector("#login-submit");
 let defaultAssemblyId = null;
 
+const loginParams = new URLSearchParams(location.search);
+if (loginParams.get("activated") === "1") {
+  AppFeedback.success("Tu cuenta quedó activa. Inicia sesión con tu correo y la contraseña que definiste.", {
+    title: "Cuenta activada"
+  });
+}
+
 function showError(message) {
   AppFeedback.banner.login(message, "error");
 }

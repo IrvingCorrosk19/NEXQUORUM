@@ -20,12 +20,12 @@
     <div id="page-alert" class="alert" hidden role="alert"></div>
     <div id="activate-meta" class="panel" hidden style="margin-bottom:1rem;padding:1rem"></div>
     <form id="form-activate" class="form-grid panel">
-      <label>Nombre para mostrar <input name="displayName" /></label>
+      <label>Nombre para mostrar <input name="displayName" autocomplete="name" /></label>
       <label>Nueva contraseña <input name="password" type="password" required minlength="12" autocomplete="new-password" /></label>
-      <label>Confirmar contraseña <input name="confirm" type="password" required minlength="12" autocomplete="new-password" /></label>
+      <label>Confirmar contraseña <input name="confirmPassword" type="password" required minlength="12" autocomplete="new-password" /></label>
       <button type="submit" class="btn btn-primary">Activar cuenta</button>
     </form>
   </main>
-  <script type="module" src="/js/modules/activate-app.js?v=ph2"></script>
+  <script type="module" src="/js/modules/activate-app.js?v=ph3"></script>
 </body>
 </html>
