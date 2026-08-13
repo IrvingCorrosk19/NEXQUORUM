@@ -110,6 +110,13 @@ function rangeForView() {
 }
 
 async function loadEvents() {
+  let version = 0;
+  try {
+    const { getContextVersion } = await import("./ph-context.js");
+    version = getContextVersion();
+  } catch {
+    version = 0;
+  }
   setLoading(true, "Cargando calendario…");
   showError("");
   try {
@@ -120,7 +127,14 @@ async function loadEvents() {
     const q = new URLSearchParams({ from, to });
     if (status) q.set("status", status);
     if (modality) q.set("modality", modality);
+    if (state.phId) q.set("propertyHorizontalId", state.phId);
     const data = await api(`/api/calendar/events?${q}`);
+    try {
+      const { isCurrentVersion } = await import("./ph-context.js");
+      if (version && !isCurrentVersion(version)) return;
+    } catch {
+      /* ignore */
+    }
     state.events = data.events || [];
     render();
   } catch (e) {
@@ -814,6 +828,16 @@ function wireChrome() {
     closeDialog("schedule-dialog");
   });
 
+  import("./ph-context.js")
+    .then(({ setDirtyGuard }) => {
+      setDirtyGuard(() =>
+        state.scheduleDirty
+          ? { dirty: true, message: "Hay cambios sin guardar en el formulario de asamblea." }
+          : false
+      );
+    })
+    .catch(() => {});
+
   qs("#schedule-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (state.scheduleSubmitting) return;
@@ -1009,8 +1033,10 @@ async function init() {
   qs("#user-chip").textContent = state.user.displayName || state.user.email;
   const brandSub = qs("#nav-tenant");
   if (brandSub) brandSub.textContent = state.user.tenantName || "Gobernanza";
-  state.phId = state.user.propertyHorizontalId || null;
-  await bootIaPage({ current: "calendar" });
+
+  const urlPh = new URLSearchParams(location.search).get("phId");
+  const boot = await bootIaPage({ current: "calendar", pageLabel: "Calendario" });
+  state.phId = urlPh || boot?.phId || state.user.propertyHorizontalId || null;
 
   const ownerPortal = isOwnerPortalUser(state.user);
   if (ownerPortal) {
@@ -1030,15 +1056,14 @@ async function init() {
   wireChrome();
   let navAssemblyId = null;
   try {
-    const next = await api("/api/calendar/next");
+    const nextQ = state.phId
+      ? `/api/calendar/next?propertyHorizontalId=${encodeURIComponent(state.phId)}`
+      : "/api/calendar/next";
+    const next = await api(nextQ);
     navAssemblyId = next?.next?.assemblyId || next?.assemblyId || null;
   } catch {
     /* ignore */
   }
-  const assemblies = await api("/api/assemblies").catch(() => []);
-  const first = Array.isArray(assemblies) ? assemblies[0] : null;
-  if (first?.propertyHorizontalId) state.phId = first.propertyHorizontalId;
-  if (!navAssemblyId) navAssemblyId = first?.id || null;
   if (!ownerPortal) {
     wireNav(navAssemblyId);
   }

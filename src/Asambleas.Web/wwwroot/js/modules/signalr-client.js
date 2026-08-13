@@ -28,6 +28,11 @@ export function createAssemblyConnection(handlers = {}) {
 
   for (const name of EVENT_NAMES) {
     connection.on(name, (payload) => {
+      // Ignore events if we already left / switched away from this assembly.
+      if (joinedAssemblyId == null) return;
+      const payloadAsm =
+        payload?.assemblyId || payload?.AssemblyId || payload?.id || payload?.Id || null;
+      if (payloadAsm && String(payloadAsm) !== String(joinedAssemblyId)) return;
       handlers[name]?.(payload);
       handlers.onAny?.(name, payload);
     });

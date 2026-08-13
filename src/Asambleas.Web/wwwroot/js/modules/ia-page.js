@@ -7,6 +7,7 @@ import { me, logout, hasPermission } from "./auth.js";
 import { isOwnerPortalUser } from "./roles.js";
 import { mountIaShell, buildAssemblyBreadcrumbs, phHref } from "./ia-nav.js";
 import { readIaContext, syncIaContextFromUrl, writeIaContext } from "./ia-context.js";
+import { ensureActivePhClaim, hydratePhContext, loadMyMemberships } from "./ph-context.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -118,6 +119,21 @@ export async function bootIaPage(opts) {
   }
 
   writeIaContext({ phId, phName, assemblyId, assemblyTitle, assemblyStatus });
+
+  try {
+    await loadMyMemberships();
+    if (phId && String(user.propertyHorizontalId || "") !== String(phId)) {
+      await ensureActivePhClaim(phId);
+      user = (await me()) || user;
+    }
+  } catch (err) {
+    if (err?.status === 403 || err?.status === 404) {
+      location.href = "/ph.html?denied=ph";
+      return null;
+    }
+  }
+
+  hydratePhContext({ phId, phName, user, bump: true });
 
   const resolvedLevel = assemblyId ? "assembly" : phId ? "ph" : level;
 

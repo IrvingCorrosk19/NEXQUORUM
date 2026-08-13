@@ -1748,6 +1748,29 @@ async function init() {
   });
 
   await state.hub.start(assemblyId);
+  try {
+    const { setLiveSessionGuard, clearLiveSessionGuard } = await import("./ph-context.js");
+    setLiveSessionGuard({
+      assemblyId,
+      status: state.assembly?.status,
+      leave: async () => {
+        state.intentionalDisconnect = true;
+        try {
+          await state.hub?.stop(assemblyId);
+        } catch {
+          /* ignore */
+        }
+        try {
+          await disconnectLiveKit();
+        } catch {
+          /* ignore */
+        }
+        clearLiveSessionGuard();
+      }
+    });
+  } catch {
+    /* ignore */
+  }
   refreshPanels();
   await hydrateRecording();
   await bootstrapMeeting();

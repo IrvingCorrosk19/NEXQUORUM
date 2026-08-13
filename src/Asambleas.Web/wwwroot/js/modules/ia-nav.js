@@ -278,6 +278,19 @@ export function mountIaShell(ctx, { breadcrumbs = [] } = {}) {
     roleChip.textContent = labels[roleFamily(ctx.user)] || ctx.user.displayName || "";
   }
 
+  // Global PH switcher in app shell (authorized memberships only).
+  import("./ph-context.js")
+    .then(({ hydratePhContext }) => {
+      hydratePhContext({
+        phId: ctx.phId || null,
+        phName: ctx.phName || null,
+        user: ctx.user || null
+      });
+      return import("./ph-switcher.js");
+    })
+    .then((m) => m.mountGlobalPhSwitcher())
+    .catch(() => {});
+
   // Immediate click feedback for in-app navigation (not full SPA).
   document.querySelectorAll("#ia-nav a[href], #ia-assembly-tabs a[href], #ia-breadcrumbs a[href]").forEach((a) => {
     if (a.dataset.progressBound) return;

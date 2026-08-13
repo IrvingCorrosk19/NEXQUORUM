@@ -289,36 +289,31 @@ function wireUi() {
   $("#btn-analyze").addEventListener("click", analyzeImport);
   $("#btn-validate-import").addEventListener("click", validateImport);
   $("#btn-commit-import").addEventListener("click", commitImport);
-  $("#ph-switch-select").addEventListener("change", onSwitchPh);
 }
 
 async function refreshSwitcher() {
+  // Legacy select removed — global topbar switcher owns PH switching.
   try {
-    const memberships = await api("/api/ph/memberships/mine");
-    myMemberships = Array.isArray(memberships) ? memberships : [];
-    const wrap = $("#ph-switcher");
-    const select = $("#ph-switch-select");
-    if (!memberships?.length) {
-      wrap.hidden = true;
-      return;
+    const { loadMyMemberships, hydratePhContext } = await import("./ph-context.js");
+    hydratePhContext({ user });
+    const memberships = await loadMyMemberships();
+    myMemberships = memberships;
+    if (currentPhId) {
+      hydratePhContext({
+        phId: currentPhId,
+        phName: currentPh?.name || null,
+        user
+      });
     }
-    wrap.hidden = memberships.length < 2;
-    select.innerHTML = memberships
-      .map(
-        (m) =>
-          `<option value="${m.propertyHorizontalId}" ${m.isCurrent ? "selected" : ""}>${escapeHtml(m.name)}</option>`
-      )
-      .join("");
+    const { mountGlobalPhSwitcher } = await import("./ph-switcher.js");
+    await mountGlobalPhSwitcher();
   } catch {
     myMemberships = [];
-    $("#ph-switcher").hidden = true;
   }
 }
 
-async function onSwitchPh(ev) {
-  const id = ev.target.value;
-  await api("/api/ph/switch", { method: "POST", body: { propertyHorizontalId: id } });
-  location.href = `/ph.html?phId=${id}`;
+async function onSwitchPh(_ev) {
+  /* no-op: global switcher */
 }
 
 async function loadList() {
@@ -516,6 +511,25 @@ async function openPh(id, preferredTab = null) {
       ]
     }
   );
+
+  try {
+    const { hydratePhContext, ensureActivePhClaim, setDirtyGuard } = await import("./ph-context.js");
+    if (String(user?.propertyHorizontalId || "") !== String(id)) {
+      await ensureActivePhClaim(id);
+      user = (await me()) || user;
+    }
+    hydratePhContext({ phId: id, phName: ph.name, user, bump: true });
+    setDirtyGuard(() => {
+      const dirty = Boolean(phFormBinder?.isDirty?.() || phFormBinder?.dirty);
+      return dirty
+        ? { dirty: true, message: "Hay cambios sin guardar en la configuración del PH." }
+        : false;
+    });
+  } catch {
+    /* ignore */
+  }
+
+  window.__asambleasOpenPh = (phId) => openPh(phId, (location.hash || "").replace("#", "") || null);
 
   if (isOnboardingMode(ph)) {
     renderSteps(ph.onboardingStep);

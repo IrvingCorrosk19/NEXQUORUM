@@ -1556,7 +1556,7 @@ public sealed class PhOnboardingService
 
         var hasMembership = await _db.UserPropertyMemberships.AsNoTracking().AnyAsync(
             m => m.UserId == userId && m.PropertyHorizontalId == propertyHorizontalId && m.IsActive, cancellationToken);
-        if (!hasMembership)
+        if (!hasMembership && !_currentTenant.Permissions.Contains(Permissions.PhManage))
         {
             throw new DomainException("PH_MEMBERSHIP_NOT_FOUND", "You do not have access to this property horizontal.");
         }
