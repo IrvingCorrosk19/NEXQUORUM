@@ -67,17 +67,26 @@ try
             context.Response.Redirect("/");
             return Task.CompletedTask;
         };
-        options.Events.OnRedirectToAccessDenied = context =>
+        options.Events.OnRedirectToAccessDenied = async context =>
         {
             if (context.Request.Path.StartsWithSegments("/api")
                 || context.Request.Path.StartsWithSegments("/hubs"))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                return Task.CompletedTask;
+                context.Response.ContentType = "application/problem+json";
+                await context.Response.WriteAsJsonAsync(new Microsoft.AspNetCore.Mvc.ProblemDetails
+                {
+                    Status = StatusCodes.Status403Forbidden,
+                    Title = "Sin permiso",
+                    Detail =
+                        "No tienes permiso para realizar esta acción. "
+                        + "Para crear un PH necesitas el permiso «Administrar PH» "
+                        + "(rol Administrador PH o Presidente de asamblea)."
+                });
+                return;
             }
 
             context.Response.Redirect("/");
-            return Task.CompletedTask;
         };
     });
 
@@ -192,6 +201,11 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
+    app.MapGet("/favicon.ico", (IWebHostEnvironment env) =>
+    {
+        var path = Path.Combine(env.WebRootPath, "favicon.svg");
+        return Results.File(path, "image/svg+xml");
+    });
     app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
     {
         Predicate = _ => false

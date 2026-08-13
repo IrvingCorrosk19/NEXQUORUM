@@ -166,9 +166,43 @@ function applyPhMode(ph) {
   $("#btn-mark-ready").disabled = inactive;
 }
 
+function canCreatePh() {
+  return hasPermission(user, "ph:manage");
+}
+
+function applyCreatePhGate() {
+  const can = canCreatePh();
+  ["#btn-create-ph", "#btn-create-first"].forEach((sel) => {
+    const btn = $(sel);
+    if (!btn) return;
+    btn.hidden = !can;
+    btn.disabled = !can;
+  });
+  const emptyCopy = $("#ph-empty-copy");
+  if (emptyCopy) {
+    emptyCopy.textContent = can
+      ? "Configura tu propiedad horizontal para comenzar a organizar propietarios y asambleas."
+      : "Tu usuario puede ver propiedades, pero no crearlas. Usa una cuenta con permiso «Administrar PH» (Administrador PH o Presidente).";
+  }
+}
+
+function openCreatePhDialog() {
+  if (!canCreatePh()) {
+    notify.error(
+      "No tienes permiso para crear un PH. Inicia sesión con Administrador PH o Presidente de asamblea.",
+      { title: "Sin permiso" }
+    );
+    showAlert("No tienes permiso para crear un PH.", "error");
+    return;
+  }
+  clearAlert();
+  $("#dlg-create-ph")?.showModal();
+}
+
 function wireUi() {
-  $("#btn-create-ph").addEventListener("click", () => $("#dlg-create-ph").showModal());
-  $("#btn-create-first")?.addEventListener("click", () => $("#dlg-create-ph").showModal());
+  applyCreatePhGate();
+  $("#btn-create-ph").addEventListener("click", openCreatePhDialog);
+  $("#btn-create-first")?.addEventListener("click", openCreatePhDialog);
   $("#btn-cancel-create").addEventListener("click", () => $("#dlg-create-ph").close());
   $("#form-create-ph").addEventListener("submit", onCreatePh);
   $("#btn-continue-config")?.addEventListener("click", () => {
@@ -253,6 +287,7 @@ function wireUi() {
   $("#btn-goto-import")?.addEventListener("click", () => switchTab("import"));
   $("#btn-empty-import")?.addEventListener("click", () => switchTab("import"));
   $("#form-owner").addEventListener("submit", onSaveOwner);
+  $("#owner-unit-select")?.addEventListener("change", () => syncOwnerShareForSelectedUnit());
   $("#owner-search")?.addEventListener("input", () => loadOwners());
   $("#btn-owner-filters")?.addEventListener("click", () => {
     const pop = $("#owner-filters-popover");
@@ -399,28 +434,72 @@ async function loadList() {
 
 async function onCreatePh(ev) {
   ev.preventDefault();
-  const data = formData(ev.target);
-  const created = await api("/api/ph", {
-    method: "POST",
-    body: {
-      name: data.name,
-      legalName: data.legalName || null,
-      code: data.code,
-      country: data.country || null,
-      stateProvince: data.stateProvince || null,
-      city: data.city || null,
-      address: data.address || null,
-      timeZoneId: data.timeZoneId,
-      adminEmail: data.adminEmail || null,
-      phone: data.phone || null,
-      organizationId: null
+  ev.stopPropagation();
+  if (!canCreatePh()) {
+    notify.error(
+      "No tienes permiso para crear un PH. Se requiere «Administrar PH».",
+      { title: "Creación bloqueada" }
+    );
+    showAlert("No tienes permiso para crear un PH.", "error");
+    return;
+  }
+
+  const form = ev.target;
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const data = formData(form);
+
+    const inlineErr = $("#create-ph-error");
+    if (inlineErr) {
+      inlineErr.hidden = true;
+      inlineErr.textContent = "";
     }
-  });
-  $("#dlg-create-ph").close();
-  await refreshSwitcher();
-  currentPhId = created.id;
-  $("#dlg-ph-created-name").textContent = created.name;
-  $("#dlg-ph-created").showModal();
+
+  try {
+    const created = await runWithButton(submitBtn, "Creando…", async () =>
+      api("/api/ph", {
+        method: "POST",
+        body: {
+          name: data.name,
+          legalName: data.legalName || null,
+          code: data.code,
+          country: data.country || null,
+          stateProvince: data.stateProvince || null,
+          city: data.city || null,
+          address: data.address || null,
+          timeZoneId: data.timeZoneId,
+          adminEmail: data.adminEmail || null,
+          phone: data.phone || null,
+          organizationId: null
+        },
+        dedupeKey: "ph-create"
+      })
+    );
+
+    $("#dlg-create-ph").close();
+    form.reset();
+    notify.success("La propiedad horizontal se creó correctamente.", { title: "PH creado" });
+    showAlert("PH creado correctamente.", "ok");
+    await refreshSwitcher();
+    currentPhId = created.id;
+    $("#dlg-ph-created-name").textContent = created.name;
+    $("#dlg-ph-created").showModal();
+  } catch (err) {
+    const status = err?.status;
+    let msg = err?.message || "No se pudo crear el PH.";
+    if (status === 403) {
+      msg =
+        "No tienes permiso para crear el PH. Tu rol no incluye «Administrar PH». " +
+        "Usa Administrador PH (phadmin@ocean.demo) o Presidente de asamblea, e inicia sesión de nuevo.";
+    } else if (status === 401) {
+      msg = "Tu sesión expiró. Vuelve a iniciar sesión e intenta crear el PH otra vez.";
+    }
+    if (inlineErr) {
+      inlineErr.hidden = false;
+      inlineErr.textContent = msg;
+    }
+    notify.error(msg, { title: "No se creó el PH" });
+    showAlert(msg, "error");
+  }
 }
 
 async function openPh(id, preferredTab = null) {
@@ -1114,12 +1193,15 @@ async function showUnit(unitId) {
       await loadOwners();
     });
   });
-  el.querySelector("#btn-add-coowner")?.addEventListener("click", () => {
+  el.querySelector("#btn-add-coowner")?.addEventListener("click", async () => {
     startOwnerCreate();
     const select = $("#owner-unit-select");
     if (select) select.value = unitId;
     switchTab("owners");
-    showAlert("Selecciona o crea el propietario y confirma la participación %.", "ok");
+    await syncOwnerShareForSelectedUnit();
+    notify.info("Indica el % de participación disponible para el copropietario y guarda.", {
+      title: "Agregar copropietario"
+    });
   });
 }
 
@@ -1409,7 +1491,13 @@ function startOwnerCreate() {
   form.reset();
   form.ownerId.value = "";
   form.concurrencyStamp.value = "";
+  form.identificationType.value = "Cédula";
   form.sharePercent.value = "100";
+  const hint = $("#owner-share-hint");
+  if (hint) {
+    hint.hidden = true;
+    hint.textContent = "";
+  }
   $("#btn-save-owner").textContent = "Guardar propietario";
   const title = $("#owner-form-title");
   if (title) title.textContent = "Nuevo propietario";
@@ -1417,7 +1505,76 @@ function startOwnerCreate() {
   form.firstName.focus();
 }
 
+async function syncOwnerShareForSelectedUnit() {
+  const select = $("#owner-unit-select");
+  const shareInput = $("#owner-share-percent") || $("#form-owner")?.sharePercent;
+  const hint = $("#owner-share-hint");
+  if (!select || !shareInput) return;
+
+  const unitId = select.value;
+  if (!unitId) {
+    shareInput.value = "100";
+    shareInput.max = "100";
+    if (hint) {
+      hint.hidden = true;
+      hint.textContent = "";
+    }
+    return;
+  }
+
+  try {
+    const detail = await api(`/api/ph/${currentPhId}/units/${unitId}/ownerships`);
+    const used = Number(detail.activeShareTotalPercent || 0);
+    const remaining = Math.max(0, Number((100 - used).toFixed(4)));
+    shareInput.max = remaining > 0 ? String(remaining) : "100";
+
+    if (remaining <= 0) {
+      shareInput.value = "";
+      if (hint) {
+        hint.hidden = false;
+        hint.textContent =
+          "Esta unidad ya tiene 100% asignado. Reduce o finaliza una titularidad existente antes de agregar otro copropietario.";
+      }
+      notify.warning(
+        "La unidad ya está al 100%. Ajusta un titular existente (ej. 50/50) o finaliza una participación.",
+        { title: "Sin % disponible" }
+      );
+      return;
+    }
+
+    shareInput.value = String(remaining);
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent =
+        used > 0
+          ? `Copropiedad: ya hay ${used.toFixed(2)}% asignado. Quedan ${remaining.toFixed(2)}% para este propietario.`
+          : "Primer titular: se sugiere 100%. Si habrá copropietarios, deja espacio (ej. 50%).";
+    }
+  } catch (err) {
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = "No se pudo consultar la titularidad de la unidad. Revisa el % manualmente (máx. 100% en total).";
+    }
+  }
+}
+
+function ensureIdentificationTypeOption(value) {
+  const select = $("#owner-id-type") || $("#form-owner")?.identificationType;
+  if (!select || !value) return;
+  const normalized = String(value).trim();
+  if (!normalized) return;
+  const exists = Array.from(select.options).some((opt) => opt.value === normalized);
+  if (!exists) {
+    const opt = document.createElement("option");
+    opt.value = normalized;
+    opt.textContent = normalized;
+    select.appendChild(opt);
+  }
+}
+
 async function startOwnerEdit(ownerId) {
+  // Close detail drawer first — it is modal and otherwise intercepts form clicks.
+  closeOwnerDrawer();
   const o = await api(`/api/ph/${currentPhId}/owners/${ownerId}`);
   editingOwnerId = ownerId;
   const form = $("#form-owner");
@@ -1425,6 +1582,7 @@ async function startOwnerEdit(ownerId) {
   form.concurrencyStamp.value = o.concurrencyStamp || "";
   form.firstName.value = o.firstName || "";
   form.lastName.value = o.lastName || "";
+  ensureIdentificationTypeOption(o.identificationType);
   form.identificationType.value = o.identificationType || "";
   form.identification.value = o.identification || "";
   form.email.value = o.email || "";
@@ -1434,7 +1592,7 @@ async function startOwnerEdit(ownerId) {
   const title = $("#owner-form-title");
   if (title) title.textContent = "Editar propietario";
   $("#owner-form-wrap").hidden = false;
-  await showOwner(ownerId);
+  form.firstName?.focus();
 }
 
 async function onSaveOwner(ev) {
@@ -1504,6 +1662,12 @@ async function onSaveOwner(ev) {
     if (/already linked|OWNERSHIP_DUPLICATE|ya (está|esta) vinculad/i.test(msg)) {
       notify.warning("Este propietario ya está vinculado a esa unidad. Elige otra unidad o deja el campo vacío.");
       showAlert("Este propietario ya está vinculado a esa unidad. Elige otra unidad o deja el campo vacío.", "error");
+      return;
+    }
+    if (/OWNERSHIP_SHARE_OVERFLOW|sumaría|máximo 100|copropiedad/i.test(msg) || err?.code === "OWNERSHIP_SHARE_OVERFLOW") {
+      notify.warning(msg, { title: "Participación excede 100%" });
+      showAlert(msg, "error");
+      await syncOwnerShareForSelectedUnit();
       return;
     }
     notify.fromError(err, msg);

@@ -81,11 +81,20 @@ export async function api(path, options = {}) {
       : await response.text();
 
     if (!response.ok) {
-      const detail =
+      let detail =
         typeof payload === "object" && payload
           ? payload.detail || payload.title || JSON.stringify(payload)
-          : String(payload);
-      const error = new Error(detail || `Request failed (${response.status})`);
+          : String(payload || "");
+      if (!detail || detail === "{}") {
+        if (response.status === 403) {
+          detail = "No tienes permiso para realizar esta acción.";
+        } else if (response.status === 401) {
+          detail = "Tu sesión expiró. Vuelve a iniciar sesión.";
+        } else {
+          detail = `Request failed (${response.status})`;
+        }
+      }
+      const error = new Error(detail);
       error.status = response.status;
       error.payload = payload;
       error.code =

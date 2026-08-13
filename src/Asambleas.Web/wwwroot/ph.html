@@ -14,7 +14,9 @@
   <link rel="stylesheet" href="/css/ph.css?v=ia1" />
   <link rel="stylesheet" href="/css/ia.css?v=phsw2" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
-  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia3" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -55,7 +57,7 @@
         </section>
         <div id="ph-empty" class="panel empty-hero" hidden>
           <h2>Todavía no tienes un PH configurado</h2>
-          <p>Configura tu propiedad horizontal para comenzar a organizar propietarios y asambleas.</p>
+          <p id="ph-empty-copy">Configura tu propiedad horizontal para comenzar a organizar propietarios y asambleas.</p>
           <button type="button" id="btn-create-first" class="btn btn-primary">Crear primer PH</button>
         </div>
         <div id="ph-list" class="ph-grid" aria-live="polite"></div>
@@ -305,14 +307,23 @@
               <input type="hidden" name="concurrencyStamp" value="" />
               <label>Nombre <input name="firstName" /></label>
               <label>Apellido <input name="lastName" /></label>
-              <label>Tipo ID <input name="identificationType" placeholder="Cédula" /></label>
+              <label>Tipo ID
+                <select name="identificationType" id="owner-id-type">
+                  <option value="">— seleccionar —</option>
+                  <option value="Cédula" selected>Cédula</option>
+                  <option value="Pasaporte">Pasaporte</option>
+                  <option value="RUC">RUC</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </label>
               <label>Identificación <input name="identification" /></label>
               <label>Email <input name="email" type="email" required /></label>
               <label>Teléfono <input name="phone" /></label>
               <label>Unidad
                 <select name="unitId" id="owner-unit-select"><option value="">— asociar después —</option></select>
               </label>
-              <label>Participación % <input name="sharePercent" type="number" min="0.0001" max="100" step="0.0001" value="100" /></label>
+              <label>Participación % <input name="sharePercent" id="owner-share-percent" type="number" min="0.0001" max="100" step="0.0001" value="100" /></label>
+              <p id="owner-share-hint" class="muted" style="grid-column:1/-1;margin:0" hidden></p>
               <div class="cta-row ux-sticky-actions" style="grid-column:1/-1" data-dirty="true">
                 <button type="button" class="btn btn-secondary" id="btn-cancel-owner">Cancelar</button>
                 <button type="submit" class="btn btn-primary" id="btn-save-owner">Guardar cambios</button>
@@ -365,22 +376,23 @@
       </section>
 
       <dialog id="dlg-create-ph">
-        <form method="dialog" id="form-create-ph" class="panel" style="min-width:min(32rem,90vw)">
+        <form id="form-create-ph" class="panel" style="min-width:min(32rem,90vw)">
           <h2 class="section-title">Crear propiedad horizontal</h2>
           <div class="form-grid">
-            <label>Nombre <input name="name" required /></label>
-            <label>Nombre legal <input name="legalName" /></label>
-            <label>Código interno <input name="code" required /></label>
+            <label>Nombre <input name="name" required maxlength="200" autocomplete="organization" /></label>
+            <label>Nombre legal <input name="legalName" maxlength="200" /></label>
+            <label>Código interno <input name="code" required maxlength="64" /></label>
             <label>País <input name="country" value="Panamá" /></label>
             <label>Provincia/Estado <input name="stateProvince" /></label>
             <label>Ciudad <input name="city" /></label>
             <label>Dirección <input name="address" /></label>
             <label>Zona horaria <input name="timeZoneId" value="America/Panama" required /></label>
-            <label>Email administrativo <input name="adminEmail" type="email" required /></label>
+            <label>Email administrativo <input name="adminEmail" type="email" required autocomplete="email" /></label>
             <label>Teléfono <input name="phone" /></label>
           </div>
+          <p id="create-ph-error" class="alert alert-danger" hidden role="alert" style="margin-top:0.75rem"></p>
           <div class="cta-row" style="margin-top:1rem">
-            <button type="submit" class="btn btn-primary" value="create">Crear</button>
+            <button type="submit" id="btn-submit-create-ph" class="btn btn-primary">Crear</button>
             <button type="button" class="btn btn-secondary" id="btn-cancel-create">Cancelar</button>
           </div>
         </form>
@@ -397,6 +409,6 @@
       </dialog>
     </main>
   </div>
-  <script type="module" src="/js/modules/ph-app.js?v=ia2"></script>
+  <script type="module" src="/js/modules/ph-app.js?v=ia5"></script>
 </body>
 </html>

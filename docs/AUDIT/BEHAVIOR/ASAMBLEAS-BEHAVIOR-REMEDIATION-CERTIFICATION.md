@@ -81,4 +81,15 @@ P1 OPEN: 0 (critical paths closed; PARTIAL are polish)
 
 ## VPS
 
-Filled after deploy section in ship report.
+| Item | Result |
+|------|--------|
+| Deploy | PASS (`DEPLOY_OK`, migration `EO017_AssemblyHistoricalSeal`) |
+| Backup | PASS `pre_perf_20260812_190023.sql.gz` |
+| Image SHA | `sha256:d6a73476dc4f4641aa258bb9996a873d0c2dc6c6e1cb8fde0163a9cec67771bc` |
+| Git SHA | `0bc22d4` |
+| VPS E2E login/cross-tenant/http500 | PASS |
+| VPS Finalized mode (Complete Ocean demo) | PASS — join 400, minutes `isSealed=true`, lobby→historical, banner FINALIZADA, Sala CTA=0 |
+| VPS HTTP 500 (E2E window) | 0 |
+
+**FINAL VERDICT: BEHAVIORALLY CERTIFIED**
+

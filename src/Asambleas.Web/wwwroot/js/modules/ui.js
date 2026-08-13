@@ -128,7 +128,10 @@ export const notify = {
       });
     }
     if (status === 403) {
-      message = "No tienes permiso para realizar esta acción.";
+      message =
+        error?.message && !/^Request failed \(403\)$/i.test(error.message)
+          ? error.message
+          : "No tienes permiso para realizar esta acción.";
     }
     if (status === 409) {
       message =

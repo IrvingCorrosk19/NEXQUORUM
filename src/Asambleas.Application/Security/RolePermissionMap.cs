@@ -96,6 +96,9 @@ public static class RolePermissionMap
                 Permissions.ConvocationsResend,
                 Permissions.ConvocationsViewEvidence,
                 Permissions.PhView,
+                // Allow bootstrap create of a new PH after empty/clean environments.
+                // Per-PH admin of that new PH still comes from membership RoleHint=PHAdmin.
+                Permissions.PhManage,
                 Permissions.UnitView,
                 Permissions.OwnerView,
                 Permissions.PortalSelf

@@ -49,7 +49,10 @@ TESTS: 80/80 critical (65 unit + 3 arch + 12 integration targeted)
 DB MIGRATION: PASS (PerformanceOptimizationIndexes on VPS)
 DB BACKUP: PASS
 
-VPS DEPLOY: PASS
+COMMIT: ee9b5f2e064043df531269adb06da859abd72d1c
+PUSH: PASS
+
+VPS DEPLOY: PASS (docker image sha256:e2778a44257a...)
 SERVICE: RUNNING (health/ready 200)
 HTTPS: PASS
 VPS BROWSER E2E: PASS

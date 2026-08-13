@@ -956,6 +956,28 @@ public sealed class PhOnboardingService
                 throw new DomainException("SHARE_PERCENT_INVALID", "SharePercent must be greater than 0 and at most 100.");
             }
 
+            await _db.Ownerships
+                .Where(o => o.UnitId == unit.Id && o.IsActive)
+                .LoadAsync(cancellationToken);
+            var usedByOthers = CoefficientValidator.Normalize(
+                _db.Ownerships.Local
+                    .Where(o => o.UnitId == unit.Id && o.IsActive && o.OwnerId != owner.Id)
+                    .Sum(o => o.SharePercent));
+            var remaining = CoefficientValidator.Normalize(100m - usedByOthers);
+            if (remaining <= 0.0001m)
+            {
+                throw new DomainException(
+                    "OWNERSHIP_SHARE_OVERFLOW",
+                    "Esta unidad ya tiene 100% de titularidad activa. "
+                    + "Reduce o finaliza una participación existente antes de agregar otro copropietario.");
+            }
+
+            if (sharePercent > remaining)
+            {
+                // Co-ownership happy path: UI often defaults to 100%; fit into remaining capacity.
+                sharePercent = remaining;
+            }
+
             await UpsertOwnershipAsync(unit, owner.Id, sharePercent, null, cancellationToken);
             await EnsureActiveShareTotalAsync(unit.Id, excludeOwnershipId: null, cancellationToken);
         }
@@ -2020,7 +2042,9 @@ public sealed class PhOnboardingService
         {
             throw new DomainException(
                 "OWNERSHIP_SHARE_OVERFLOW",
-                $"La titularidad activa de la unidad sumaría {total:0.####}% (máximo 100%). Ajusta los porcentajes.");
+                $"La titularidad de la unidad sumaría {total:0.####}% (máximo 100%). "
+                + "Para copropiedad los % deben sumar ≤ 100 (ej. 50% + 50%). "
+                + "Reduce la participación o finaliza una titularidad existente.");
         }
     }
 
