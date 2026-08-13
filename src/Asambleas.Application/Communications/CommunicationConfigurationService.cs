@@ -213,10 +213,33 @@ public sealed class CommunicationConfigurationService
             throw new DomainException("INVALID_RECIPIENT", "El destinatario de prueba no es válido.");
         }
 
+        if (channel == CommunicationChannel.Email)
+        {
+            if (row.ProviderType != CommunicationProviderType.Smtp)
+            {
+                throw new DomainException(
+                    "SMTP_NOT_CONFIGURED",
+                    "Guarda la configuración SMTP antes de probar.");
+            }
+
+            if (!row.HasSecret)
+            {
+                throw new DomainException(
+                    "SMTP_SECRET_REQUIRED",
+                    "Indica la contraseña de aplicación y guarda antes de probar.");
+            }
+
+            if (!row.IsEnabled)
+            {
+                throw new DomainException(
+                    "SMTP_CHANNEL_DISABLED",
+                    "Activa el canal de correo antes de probar.");
+            }
+        }
+
         ProviderSendResult result;
-        // SandboxMode forces mock. Host environment alone must NOT force mock when admin
-        // explicitly disabled sandbox and configured real SMTP in Production.
-        var forceMock = profile.SandboxMode;
+        // Email channel tests always use real SMTP — never mock/simulator.
+        var forceMock = channel == CommunicationChannel.Email ? false : profile.SandboxMode;
 
         switch (channel)
         {
@@ -259,20 +282,20 @@ public sealed class CommunicationConfigurationService
 
         row.LastTestedAtUtc = DateTimeOffset.UtcNow;
         row.LastTestSucceeded = result.Succeeded;
-        var resolved = forceMock || row.ProviderType == CommunicationProviderType.Mock
-            ? "Mock"
-            : row.ProviderType.ToString();
-        row.LastTestDetail =
-            $"{result.Detail} | ResolvedProvider={resolved} | Sandbox={(forceMock ? "true" : "false")}";
+        row.LastTestDetail = channel == CommunicationChannel.Email
+            ? result.Succeeded
+                ? $"Correo enviado correctamente a {destination}."
+                : (result.Detail ?? "No se pudo enviar el correo. Revisa host, puerto, usuario y contraseña.")
+            : $"{result.Detail} | ResolvedProvider={(forceMock ? "Mock" : row.ProviderType.ToString())}";
         await _db.SaveChangesAsync(cancellationToken);
 
         await _audit.WriteAsync(
             "communications.channel.tested",
             correlationId: row.Id,
-            metadata: new { channel = channel.ToString(), result.Succeeded, sandbox = forceMock },
+            metadata: new { channel = channel.ToString(), result.Succeeded, sandbox = false },
             cancellationToken: cancellationToken);
 
-        return new ChannelTestResultDto(result.Succeeded, row.LastTestDetail ?? result.Detail ?? string.Empty, row.LastTestedAtUtc.Value);
+        return new ChannelTestResultDto(result.Succeeded, row.LastTestDetail ?? string.Empty, row.LastTestedAtUtc.Value);
     }
 
     public async Task<IReadOnlyList<MessageTemplateDto>> ListTemplatesAsync(
@@ -464,6 +487,12 @@ public sealed class CommunicationConfigurationService
 
         if (profile is not null)
         {
+            if (profile.SandboxMode)
+            {
+                profile.SandboxMode = false;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
             return profile;
         }
 

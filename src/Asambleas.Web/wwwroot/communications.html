@@ -32,6 +32,32 @@
     .comms-status-ok { color: var(--color-success, #34d399); }
     .comms-status-warn { color: var(--color-warn, #fbbf24); }
     .comms-status-err { color: var(--color-danger, #f87171); }
+    .comms-semaphore {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle, #1e293b);
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+    .comms-semaphore__dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 12px currentColor;
+    }
+    .comms-semaphore--idle { color: #94a3b8; background: rgba(148,163,184,0.08); }
+    .comms-semaphore--idle .comms-semaphore__dot { background: #64748b; color: #64748b; }
+    .comms-semaphore--ok { color: #34d399; background: rgba(52,211,153,0.08); border-color: rgba(52,211,153,0.35); }
+    .comms-semaphore--ok .comms-semaphore__dot { background: #22c55e; color: #22c55e; }
+    .comms-semaphore--fail { color: #f87171; background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.35); }
+    .comms-semaphore--fail .comms-semaphore__dot { background: #ef4444; color: #ef4444; }
+    .comms-semaphore--busy { color: #fbbf24; background: rgba(251,191,36,0.08); border-color: rgba(251,191,36,0.35); }
+    .comms-semaphore--busy .comms-semaphore__dot { background: #f59e0b; color: #f59e0b; animation: comms-pulse 1s ease-in-out infinite; }
+    @keyframes comms-pulse { 50% { opacity: 0.45; } }
   </style>
 </head>
 <body>
@@ -101,6 +127,6 @@
       </div>
     </main>
   </div>
-  <script type="module" src="/js/modules/communications-app.js?v=px8"></script>
+  <script type="module" src="/js/modules/communications-app.js?v=px9"></script>
 </body>
 </html>

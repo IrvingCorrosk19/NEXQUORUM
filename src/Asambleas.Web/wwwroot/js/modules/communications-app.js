@@ -70,12 +70,19 @@ async function loadPhContext() {
   return { kind: "assembly", assembly };
 }
 
-function connectionStatus(ch) {
-  if (!ch) return { label: "Sin configurar", className: "comms-status-warn" };
-  if (ch.lastTestSucceeded === true) return { label: "Conexión verificada", className: "comms-status-ok" };
-  if (ch.lastTestSucceeded === false) return { label: "Última prueba falló", className: "comms-status-err" };
-  if (ch.providerType === "Smtp" && ch.hasSecret) return { label: "Configurado — sin probar", className: "comms-status-warn" };
-  return { label: "Pendiente de configurar", className: "comms-status-warn" };
+function semaphoreState(ch) {
+  if (!ch) return { mode: "idle", label: "Sin probar — guarda SMTP y pulsa Verificar" };
+  if (ch.lastTestSucceeded === true) return { mode: "ok", label: "Configuración correcta" };
+  if (ch.lastTestSucceeded === false) return { mode: "fail", label: "Configuración incorrecta" };
+  return { mode: "idle", label: "Sin probar — guarda SMTP y pulsa Verificar" };
+}
+
+function setSemaphore(mode, label) {
+  const box = qs("#smtp-semaphore");
+  const text = qs("#smtp-semaphore-label");
+  if (!box || !text) return;
+  box.className = `comms-semaphore comms-semaphore--${mode}`;
+  text.textContent = label;
 }
 
 function renderEmailChannel(ch) {
@@ -84,12 +91,12 @@ function renderEmailChannel(ch) {
   if (!panel) return;
 
   const settings = ch?.publicSettings || {};
-  const status = connectionStatus(ch);
+  const sem = semaphoreState(ch);
 
   panel.innerHTML = `
-    <div class="cluster" style="justify-content:space-between;margin-bottom:1rem">
-      <span class="badge ${ch?.isEnabled ? "badge-success" : "badge-warn"}">${ch?.isEnabled ? "Activo" : "Inactivo"}</span>
-      <span class="${status.className}">${escapeHtml(status.label)}</span>
+    <div id="smtp-semaphore" class="comms-semaphore comms-semaphore--${sem.mode}" role="status" aria-live="polite">
+      <span class="comms-semaphore__dot" aria-hidden="true"></span>
+      <span id="smtp-semaphore-label">${escapeHtml(sem.label)}</span>
     </div>
     <div class="form-grid">
       <label class="field"><span>Servidor SMTP</span>
@@ -110,15 +117,13 @@ function renderEmailChannel(ch) {
       </label>
       <label class="field"><span>Correo para probar</span>
         <input id="test-email" type="email" placeholder="donde@recibir.com" autocomplete="email" />
-        <small class="muted">Te enviaremos una convocatoria de ejemplo para verificar SMTP.</small>
       </label>
     </div>
     <div class="cta-row">
-      <label><input type="checkbox" id="smtp-enabled" ${ch?.isEnabled ? "checked" : ""} /> Canal habilitado</label>
-      <button type="button" class="btn btn-primary" id="btn-save-smtp">Guardar configuración</button>
-      <button type="button" class="btn btn-secondary" id="btn-test-smtp">Probar envío</button>
+      <label><input type="checkbox" id="smtp-enabled" ${ch?.isEnabled !== false ? "checked" : ""} /> Canal habilitado</label>
+      <button type="button" class="btn btn-primary" id="btn-save-smtp">Guardar</button>
+      <button type="button" class="btn btn-secondary" id="btn-test-smtp">Verificar configuración</button>
     </div>
-    <p class="muted" id="smtp-test-result">${ch?.lastTestDetail ? escapeHtml(ch.lastTestDetail) : ""}</p>
   `;
 
   qs("#btn-save-smtp")?.addEventListener("click", onSaveSmtp);
@@ -133,29 +138,30 @@ function renderEmailChannel(ch) {
   }
 }
 
+async function saveSmtpConfig() {
+  const secret = qs("#smtp-secret")?.value?.trim();
+  await api(`/api/communications/ph/${phId}/channels/Email`, {
+    method: "PUT",
+    body: {
+      providerType: "Smtp",
+      isEnabled: Boolean(qs("#smtp-enabled")?.checked),
+      settings: {
+        host: qs("#smtp-host")?.value?.trim(),
+        port: qs("#smtp-port")?.value?.trim(),
+        fromAddress: qs("#smtp-from")?.value?.trim(),
+        username: qs("#smtp-user")?.value?.trim()
+      },
+      secret: secret || null
+    }
+  });
+}
+
 async function onSaveSmtp() {
   const btn = qs("#btn-save-smtp");
   try {
     await runWithButton(btn, "Guardando…", async () => {
-      await api(`/api/communications/ph/${phId}/channels/Email`, {
-        method: "PUT",
-        body: {
-          providerType: "Smtp",
-          isEnabled: Boolean(qs("#smtp-enabled")?.checked),
-          settings: {
-            host: qs("#smtp-host")?.value?.trim(),
-            port: qs("#smtp-port")?.value?.trim(),
-            fromAddress: qs("#smtp-from")?.value?.trim(),
-            username: qs("#smtp-user")?.value?.trim()
-          },
-          secret: qs("#smtp-secret")?.value || null
-        }
-      });
-      showToast({
-        title: "Configuración guardada",
-        message: "SMTP listo. Usa «Probar envío» para confirmar.",
-        variant: "success"
-      });
+      await saveSmtpConfig();
+      showToast({ title: "Guardado", message: "Configuración SMTP guardada.", variant: "success" });
       await refreshEmailChannel();
     });
   } catch (e) {
@@ -166,50 +172,41 @@ async function onSaveSmtp() {
 async function onTestSmtp() {
   const destination = qs("#test-email")?.value?.trim();
   if (!destination) {
-    showToast({
-      title: "Correo requerido",
-      message: "Indica a qué correo enviar la prueba.",
-      variant: "warning"
-    });
+    showToast({ title: "Correo requerido", message: "Indica a qué correo enviar la verificación.", variant: "warning" });
     qs("#test-email")?.focus();
     return;
   }
 
   const btn = qs("#btn-test-smtp");
-  const el = qs("#smtp-test-result");
   try {
-    await runWithButton(btn, "Enviando prueba…", async () => {
+    setSemaphore("busy", "Verificando configuración…");
+    await runWithButton(btn, "Verificando…", async () => {
+      await saveSmtpConfig();
       const result = await api(`/api/communications/ph/${phId}/channels/Email/test`, {
         method: "POST",
         body: { destination }
       });
       if (result.succeeded) {
-        const mock = /ResolvedProvider=Mock|MOCK/i.test(result.detail || "");
-        el.textContent = mock
-          ? `⚠ ${result.detail}`
-          : `✓ Correo de prueba enviado a ${destination}. ${result.detail || ""}`;
-        el.className = mock ? "comms-status-warn" : "comms-status-ok";
+        setSemaphore("ok", "Configuración correcta");
         showToast({
-          title: mock ? "Proveedor Mock activo" : "Correo enviado correctamente",
-          message: mock
-            ? "Configura SMTP real y guarda de nuevo."
-            : `Revisa la bandeja de ${destination}.`,
-          variant: mock ? "warning" : "success"
+          title: "Configuración correcta",
+          message: `Correo de prueba enviado a ${destination}.`,
+          variant: "success"
         });
       } else {
-        el.textContent = `⚠ ${result.detail || "La prueba falló"}`;
-        el.className = "comms-status-err";
-        showToast({ title: "Prueba falló", message: result.detail || "Revisa host, puerto y contraseña.", variant: "error" });
+        setSemaphore("fail", "Configuración incorrecta");
+        showToast({
+          title: "Configuración incorrecta",
+          message: result.detail || "Revisa host, puerto, usuario y contraseña.",
+          variant: "error"
+        });
       }
       await refreshEmailChannel();
     });
   } catch (e) {
-    if (el) {
-      el.textContent = e.message;
-      el.className = "comms-status-err";
-    }
+    setSemaphore("fail", "Configuración incorrecta");
     showFieldErrorFromApi(e);
-    showToast({ title: "Prueba falló", message: e.message, variant: "error", correlationId: e.correlationId });
+    showToast({ title: "Configuración incorrecta", message: e.message, variant: "error", correlationId: e.correlationId });
   }
 }
 
