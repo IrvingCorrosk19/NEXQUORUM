@@ -172,18 +172,55 @@ async function loadNextBanner() {
 }
 
 function eventsOnDay(dayUtc) {
-  const start = Date.UTC(dayUtc.getUTCFullYear(), dayUtc.getUTCMonth(), dayUtc.getUTCDate());
-  const end = start + 86400000;
+  const ymd = utcDayYmd(dayUtc);
   return state.events.filter((e) => {
-    const t = new Date(e.scheduledAtUtc).getTime();
-    return t >= start && t < end;
+    try {
+      const parts = utcIsoToPhLocalParts(e.scheduledAtUtc, e.timeZoneId || "America/Panama");
+      return parts.date === ymd;
+    } catch {
+      const t = new Date(e.scheduledAtUtc).getTime();
+      const start = Date.UTC(dayUtc.getUTCFullYear(), dayUtc.getUTCMonth(), dayUtc.getUTCDate());
+      return t >= start && t < start + 86400000;
+    }
   });
+}
+
+function utcDayYmd(day) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${day.getUTCFullYear()}-${pad(day.getUTCMonth() + 1)}-${pad(day.getUTCDate())}`;
+}
+
+function formatScheduleDateLabel(ymd) {
+  if (!ymd) return "";
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(Date.UTC(y, m - 1, d, 12));
+  return new Intl.DateTimeFormat("es-PA", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(dt);
+}
+
+function setScheduleLede(prefillDateYmd) {
+  const lede = qs("#schedule-lede");
+  if (!lede) return;
+  const phName =
+    state.schedulablePhs.find((p) => p.id === (qs("#sched-ph")?.value || state.phId))?.name ||
+    "tu propiedad horizontal";
+  if (prefillDateYmd) {
+    lede.textContent = `${formatScheduleDateLabel(prefillDateYmd)} · ${phName}`;
+  } else {
+    lede.textContent = `Programa una nueva sesión para ${phName}.`;
+  }
 }
 
 function renderMonth() {
   const root = qs("#calendar-root");
   const monthStart = startOfMonth(state.cursor);
   const gridStart = startOfWeek(monthStart);
+  const canSchedule = canScheduleAssemblies(state.user);
   const dows = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
   let html = dows.map((d) => `<div class="cal-dow">${d}</div>`).join("");
   for (let i = 0; i < 42; i++) {
@@ -196,8 +233,13 @@ function renderMonth() {
       day.getUTCMonth() === today.getUTCMonth() &&
       day.getUTCDate() === today.getUTCDate();
     const items = eventsOnDay(day);
-    html += `<div class="cal-day ${outside ? "is-outside" : ""} ${isToday ? "is-today" : ""}">
+    const ymd = utcDayYmd(day);
+    const schedulable = canSchedule && !outside;
+    html += `<div class="cal-day ${outside ? "is-outside" : ""} ${isToday ? "is-today" : ""} ${schedulable ? "is-schedulable" : ""}"${
+      schedulable ? ` data-schedule-date="${ymd}" role="button" tabindex="0" aria-label="Nueva asamblea el ${formatScheduleDateLabel(ymd)}"` : ""
+    }>
       <div class="cal-day-num">${day.getUTCDate()}</div>
+      ${schedulable ? `<span class="cal-day-hint" aria-hidden="true">+ Nueva</span>` : ""}
       ${items
         .map(
           (e) => `<button type="button" class="cal-chip" data-id="${e.assemblyId}">
@@ -211,17 +253,24 @@ function renderMonth() {
   root.innerHTML = `<div class="cal-month">${html}</div>${renderAgendaFallback()}`;
   root.dataset.view = "month";
   wireChips(root);
+  wireDayScheduling(root);
 }
 
 function renderWeek() {
   const root = qs("#calendar-root");
   const from = startOfWeek(state.cursor);
+  const canSchedule = canScheduleAssemblies(state.user);
   let html = "";
   for (let i = 0; i < 7; i++) {
     const day = new Date(from);
     day.setUTCDate(from.getUTCDate() + i);
     const items = eventsOnDay(day);
-    html += `<div class="cal-week-col">
+    const ymd = utcDayYmd(day);
+    html += `<div class="cal-week-col ${canSchedule ? "is-schedulable" : ""}"${
+      canSchedule
+        ? ` data-schedule-date="${ymd}" role="button" tabindex="0" aria-label="Nueva asamblea el ${formatScheduleDateLabel(ymd)}"`
+        : ""
+    }>
       <strong>${day.toLocaleDateString("es-PA", { weekday: "short", day: "numeric", timeZone: "UTC" })}</strong>
       ${items
         .map(
@@ -236,6 +285,7 @@ function renderWeek() {
   root.innerHTML = `<div class="cal-week">${html}</div>${renderAgendaFallback()}`;
   root.dataset.view = "week";
   wireChips(root);
+  wireDayScheduling(root);
 }
 
 function renderAgendaFallback() {
@@ -292,15 +342,40 @@ function emptyState() {
 
 function wireChips(root) {
   root.querySelectorAll("[data-id]").forEach((el) => {
-    el.addEventListener("click", () => openEvent(el.getAttribute("data-id")));
+    el.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openEvent(el.getAttribute("data-id"));
+    });
     el.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter" || ev.key === " ") {
         ev.preventDefault();
+        ev.stopPropagation();
         openEvent(el.getAttribute("data-id"));
       }
     });
   });
   qs("#empty-schedule")?.addEventListener("click", () => openScheduleDialog());
+}
+
+function wireDayScheduling(root) {
+  if (!canScheduleAssemblies(state.user)) return;
+  root.querySelectorAll("[data-schedule-date]").forEach((cell) => {
+    const open = (ev) => {
+      if (ev.target.closest("[data-id]")) return;
+      const dateYmd = cell.getAttribute("data-schedule-date");
+      if (!dateYmd) return;
+      openScheduleDialog({ dateYmd });
+    };
+    cell.addEventListener("click", open);
+    cell.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        if (ev.target.closest("[data-id]")) return;
+        ev.preventDefault();
+        open(ev);
+      }
+    });
+  });
 }
 
 function render() {
@@ -512,6 +587,26 @@ function humanTzLabel(timeZoneId) {
   return `Hora local · ${timeZoneId.replace("America/", "").replaceAll("_", " ")}`;
 }
 
+function phOptionFromRow(p, fallbackName) {
+  return {
+    id: p.id || p.propertyHorizontalId,
+    name: p.name || fallbackName || "PH",
+    timeZoneId: p.timeZoneId || "America/Panama",
+    city: p.city,
+    unitCount: p.unitCount,
+    status: p.status
+  };
+}
+
+/** When calendar is scoped to an active PH, lock create/edit to that PH. */
+function applyActivePhLock({ editing = false } = {}) {
+  const phSelect = qs("#sched-ph");
+  if (!phSelect) return;
+  const lock = editing || Boolean(state.phId);
+  phSelect.disabled = lock;
+  qs("#field-ph")?.classList.toggle("is-single", state.schedulablePhs.length <= 1 || lock);
+}
+
 async function loadSchedulablePhs() {
   const [memberships, list] = await Promise.all([
     api("/api/ph/memberships/mine").catch(() => []),
@@ -535,14 +630,25 @@ async function loadSchedulablePhs() {
   if (!phs.length && list?.length) {
     phs = list
       .filter((p) => p.status !== "Inactive")
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        timeZoneId: p.timeZoneId || "America/Panama",
-        city: p.city,
-        unitCount: p.unitCount,
-        status: p.status
-      }));
+      .map((p) => phOptionFromRow(p));
+  }
+
+  // Active PH may be outside memberships (platform admin / claimed context).
+  // Always expose it so scheduling inherits the calendar scope — never another PH.
+  if (state.phId && !phs.some((p) => String(p.id) === String(state.phId))) {
+    const full = byId.get(state.phId);
+    if (full && full.status !== "Inactive") {
+      phs.unshift(phOptionFromRow(full, state.phName));
+    } else if (!full || full.status !== "Inactive") {
+      phs.unshift({
+        id: state.phId,
+        name: state.phName || "PH activo",
+        timeZoneId: "America/Panama",
+        city: null,
+        unitCount: null,
+        status: "Active"
+      });
+    }
   }
 
   state.schedulablePhs = phs;
@@ -552,11 +658,12 @@ async function loadSchedulablePhs() {
     select.innerHTML = `<option value="">No hay propiedades disponibles</option>`;
     return;
   }
-  const preferred = state.phId && phs.some((p) => p.id === state.phId) ? state.phId : phs[0].id;
+  const preferred = state.phId && phs.some((p) => String(p.id) === String(state.phId)) ? state.phId : phs[0].id;
   select.innerHTML = phs
-    .map((p) => `<option value="${p.id}" ${p.id === preferred ? "selected" : ""}>${escapeHtml(p.name)}</option>`)
+    .map((p) => `<option value="${p.id}" ${String(p.id) === String(preferred) ? "selected" : ""}>${escapeHtml(p.name)}</option>`)
     .join("");
-  qs("#field-ph")?.classList.toggle("is-single", phs.length === 1);
+  select.value = preferred;
+  applyActivePhLock({ editing: Boolean(state.editingAssemblyId) });
   syncTzHint();
 }
 
@@ -576,7 +683,7 @@ function resetScheduleForm() {
   qs("#sched-date").value = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
   if (state.schedulablePhs.length) {
     const preferred =
-      state.phId && state.schedulablePhs.some((p) => p.id === state.phId)
+      state.phId && state.schedulablePhs.some((p) => String(p.id) === String(state.phId))
         ? state.phId
         : state.schedulablePhs[0].id;
     qs("#sched-ph").value = preferred;
@@ -585,22 +692,33 @@ function resetScheduleForm() {
   qs("#sched-lobby").value = "30";
   qs("#schedule-title").textContent = "Nueva asamblea";
   qs("#btn-create-assembly").textContent = "Crear asamblea";
-  qs("#field-ph")?.classList.toggle("is-single", state.schedulablePhs.length === 1);
-  const phSelect = qs("#sched-ph");
-  if (phSelect) phSelect.disabled = false;
+  applyActivePhLock({ editing: false });
   syncModalityUi();
   syncDurationUi();
   syncLobbySummary();
   syncTitleSuggestion();
   syncTzHint();
+  setScheduleLede(null);
   const btn = qs("#btn-create-assembly");
   if (btn) btn.disabled = false;
 }
 
-async function openScheduleDialog() {
+/**
+ * Opens the shared Nueva asamblea modal.
+ * @param {{ dateYmd?: string, timeHm?: string } | null} [prefill]
+ */
+async function openScheduleDialog(prefill = null) {
   clearFieldErrors();
   await loadSchedulablePhs();
   resetScheduleForm();
+  if (prefill?.dateYmd) {
+    qs("#sched-date").value = prefill.dateYmd;
+  }
+  if (prefill?.timeHm) {
+    fillTimeSelect(qs("#sched-time"), prefill.timeHm);
+  }
+  setScheduleLede(prefill?.dateYmd || null);
+  syncTitleSuggestion();
   openDialog("schedule-dialog");
   qs("#sched-title")?.focus();
 }
@@ -616,9 +734,8 @@ async function openEditDialog(ev) {
   const phSelect = qs("#sched-ph");
   if (phSelect) {
     phSelect.value = ev.propertyHorizontalId;
-    phSelect.disabled = true;
   }
-  qs("#field-ph")?.classList.add("is-single");
+  applyActivePhLock({ editing: true });
   qs("#sched-title").value = ev.title || "";
   const kind = (ev.assemblyKind || "ORDINARY").toUpperCase();
   const kindRadio = qs(`#schedule-form input[name="assemblyKind"][value="${kind}"]`);
@@ -647,6 +764,7 @@ async function openEditDialog(ev) {
   syncDurationUi();
   syncLobbySummary();
   syncTzHint();
+  setScheduleLede(parts.date);
   openDialog("schedule-dialog");
   qs("#sched-title")?.focus();
 }
@@ -846,7 +964,7 @@ function wireChrome() {
     const { runWithButton } = await import("./loading.js");
     const ph = selectedPh();
     try {
-      await runWithButton(btn, editingId ? "Guardando…" : "Creando…", async () => {
+      await runWithButton(btn, editingId ? "Guardando cambios…" : "Creando asamblea…", async () => {
         const body = buildSchedulePayload();
         let result;
         if (editingId) {
@@ -875,6 +993,11 @@ function wireChrome() {
           result = await api("/api/assemblies", { method: "POST", body });
           state.scheduleDirty = false;
           closeDialog("schedule-dialog");
+          showToast({
+            title: "Asamblea programada",
+            message: "La asamblea fue agregada al calendario.",
+            variant: "success"
+          });
           showScheduleSuccess(result, ph, body.estimatedEndAtUtc);
         }
         await loadEvents();
@@ -1035,6 +1158,7 @@ async function init() {
   const urlPh = new URLSearchParams(location.search).get("phId");
   const boot = await bootIaPage({ current: "calendar", pageLabel: "Calendario" });
   state.phId = urlPh || boot?.phId || state.user.propertyHorizontalId || null;
+  state.phName = boot?.phName || null;
 
   const ownerPortal = isOwnerPortalUser(state.user);
   if (ownerPortal) {

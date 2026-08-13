@@ -47,15 +47,38 @@
   background: var(--surface-secondary);
   padding: 0.35rem;
   display: flex; flex-direction: column; gap: 0.25rem;
+  position: relative;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 .cal-day.is-outside { opacity: 0.45; }
 .cal-day.is-today { border-color: var(--brand-teal-500); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-teal-500) 35%, transparent); }
+.cal-day.is-schedulable { cursor: pointer; }
+.cal-day.is-schedulable:hover,
+.cal-day.is-schedulable:focus-within {
+  border-color: color-mix(in srgb, var(--brand-teal-500) 55%, var(--border-subtle));
+  background: color-mix(in srgb, var(--brand-teal-700) 10%, var(--surface-secondary));
+}
 .cal-day-num { font-size: 0.8rem; color: var(--text-secondary); }
+.cal-day-hint {
+  position: absolute;
+  right: 0.35rem;
+  top: 0.3rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.02em;
+  color: var(--brand-teal-300);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.cal-day.is-schedulable:hover .cal-day-hint,
+.cal-day.is-schedulable:focus-within .cal-day-hint { opacity: 0.9; }
 .cal-chip {
   display: block; width: 100%; text-align: left;
   border: 0; border-radius: 0.35rem; padding: 0.28rem 0.35rem;
   background: color-mix(in srgb, var(--brand-navy-700) 70%, black);
   color: var(--text-primary); cursor: pointer; font-size: 0.72rem; line-height: 1.25;
+  position: relative;
+  z-index: 1;
 }
 .cal-chip:hover, .cal-chip:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
 .cal-chip .t { font-weight: 600; }
@@ -64,6 +87,14 @@
 .cal-week-col {
   border: 1px solid var(--border-subtle); border-radius: 0.5rem; min-height: 14rem;
   background: var(--surface-secondary); padding: 0.5rem;
+  position: relative;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.cal-week-col.is-schedulable { cursor: pointer; }
+.cal-week-col.is-schedulable:hover,
+.cal-week-col.is-schedulable:focus-within {
+  border-color: color-mix(in srgb, var(--brand-teal-500) 55%, var(--border-subtle));
+  background: color-mix(in srgb, var(--brand-teal-700) 10%, var(--surface-secondary));
 }
 .cal-agenda { display: flex; flex-direction: column; gap: 1.25rem; }
 .cal-agenda-group h3 {
