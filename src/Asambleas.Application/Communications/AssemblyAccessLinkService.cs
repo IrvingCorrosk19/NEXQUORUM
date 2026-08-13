@@ -15,8 +15,13 @@ public sealed class AssemblyAccessLinkService
     public static readonly TimeSpan DefaultLifetime = TimeSpan.FromDays(14);
 
     private readonly IAsambleasDbContext _db;
+    private readonly IPublicBaseUrlProvider _publicBaseUrl;
 
-    public AssemblyAccessLinkService(IAsambleasDbContext db) => _db = db;
+    public AssemblyAccessLinkService(IAsambleasDbContext db, IPublicBaseUrlProvider publicBaseUrl)
+    {
+        _db = db;
+        _publicBaseUrl = publicBaseUrl;
+    }
 
     public async Task<(string RawToken, string AbsoluteUrl, AssemblyAccessLink Link)> IssueAsync(
         Convocation convocation,
@@ -57,7 +62,7 @@ public sealed class AssemblyAccessLinkService
         _db.AssemblyAccessLinks.Add(link);
         await _db.SaveChangesAsync(cancellationToken);
 
-        var url = BuildAbsoluteUrl($"/join.html?token={Uri.EscapeDataString(raw)}");
+        var url = _publicBaseUrl.BuildAbsoluteUrl($"/join.html?token={Uri.EscapeDataString(raw)}");
         return (raw, url, link);
     }
 
@@ -112,21 +117,6 @@ public sealed class AssemblyAccessLinkService
             .Replace('/', '_');
     }
 
-    public static string BuildAbsoluteUrl(string path)
-    {
-        var baseUrl = FirstNonEmpty(
-            Environment.GetEnvironmentVariable("ASAMBLEAS_PUBLIC_BASE_URL"),
-            Environment.GetEnvironmentVariable("App__PublicBaseUrl"));
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            throw new DomainException(
-                "PUBLIC_BASE_URL_REQUIRED",
-                "ASAMBLEAS_PUBLIC_BASE_URL no está configurada. No se pueden generar enlaces de convocatoria.");
-        }
-
-        return $"{baseUrl.TrimEnd('/')}{path}";
-    }
-
     private static DateTimeOffset ResolveExpiry(DateTimeOffset? scheduledAtUtc, DateTimeOffset now)
     {
         if (scheduledAtUtc is DateTimeOffset scheduled)
@@ -139,19 +129,6 @@ public sealed class AssemblyAccessLinkService
         }
 
         return now.Add(DefaultLifetime);
-    }
-
-    private static string? FirstNonEmpty(params string?[] values)
-    {
-        foreach (var v in values)
-        {
-            if (!string.IsNullOrWhiteSpace(v))
-            {
-                return v.Trim();
-            }
-        }
-
-        return null;
     }
 }
 

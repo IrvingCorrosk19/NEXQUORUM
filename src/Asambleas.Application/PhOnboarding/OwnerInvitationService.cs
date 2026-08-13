@@ -28,6 +28,7 @@ public sealed class OwnerInvitationService
     private readonly CommunicationConfigurationService _communications;
     private readonly IPortalNotificationProvider _portal;
     private readonly IAuditService _audit;
+    private readonly IPublicBaseUrlProvider _publicBaseUrl;
 
     public OwnerInvitationService(
         IAsambleasDbContext db,
@@ -35,7 +36,8 @@ public sealed class OwnerInvitationService
         IOwnerPortalIdentityService identity,
         CommunicationConfigurationService communications,
         IPortalNotificationProvider portal,
-        IAuditService audit)
+        IAuditService audit,
+        IPublicBaseUrlProvider publicBaseUrl)
     {
         _db = db;
         _currentTenant = currentTenant;
@@ -43,6 +45,7 @@ public sealed class OwnerInvitationService
         _communications = communications;
         _portal = portal;
         _audit = audit;
+        _publicBaseUrl = publicBaseUrl;
     }
 
     public async Task<InviteOwnerResultDto> InviteAsync(
@@ -126,7 +129,7 @@ public sealed class OwnerInvitationService
         await _db.SaveChangesAsync(cancellationToken);
 
         var activationPath = $"/activate.html?token={Uri.EscapeDataString(rawToken)}";
-        var activationUrl = BuildAbsoluteUrl(activationPath);
+        var activationUrl = _publicBaseUrl.BuildAbsoluteUrl(activationPath);
 
         ProviderSendResult sendResult;
         try
@@ -557,25 +560,6 @@ public sealed class OwnerInvitationService
           <p style="font-size:12px;color:#777">Si no esperabas esta invitación, puedes ignorar este mensaje.</p>
         </div>
         """;
-
-    private static string BuildAbsoluteUrl(string path)
-    {
-        var baseUrl = FirstNonEmpty(
-            Environment.GetEnvironmentVariable("ASAMBLEAS_PUBLIC_BASE_URL"),
-            Environment.GetEnvironmentVariable("App__PublicBaseUrl"));
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            // Fail closed for production invitations: relative links break in email clients.
-            throw new DomainException(
-                "PUBLIC_BASE_URL_MISSING",
-                "Falta ASAMBLEAS_PUBLIC_BASE_URL. Configura la URL pública HTTPS de ASAMBLEAS.");
-        }
-
-        return $"{baseUrl.TrimEnd('/')}{path}";
-    }
-
-    private static string? FirstNonEmpty(params string?[] values) =>
-        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
     private static string MaskEmail(string email)
     {

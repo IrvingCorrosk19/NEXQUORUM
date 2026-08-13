@@ -1919,10 +1919,11 @@ async function inviteOwner(ownerId, triggerBtn) {
       });
       return;
     }
-    if (code === "PUBLIC_BASE_URL_MISSING") {
-      AppFeedback.error("Contacta al administrador para configurar la URL pública de activación.", {
-        title: "Activación no disponible"
-      });
+    if (code === "PUBLIC_BASE_URL_MISSING" || code === "PUBLIC_BASE_URL_REQUIRED") {
+      AppFeedback.error(
+        "Falta la URL pública de ASAMBLEAS. En local se usa https://localhost:7188; en producción configura ASAMBLEAS_PUBLIC_BASE_URL.",
+        { title: "No se pudo armar el enlace del correo" }
+      );
       return;
     }
     AppFeedback.error("Verifica la conexión e inténtalo nuevamente.", {

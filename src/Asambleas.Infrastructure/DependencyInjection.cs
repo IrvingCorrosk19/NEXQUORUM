@@ -29,6 +29,7 @@ public static class DependencyInjection
 
         services.AddScoped<CurrentTenant>();
         services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<CurrentTenant>());
+        services.AddSingleton<IPublicBaseUrlProvider, PublicBaseUrlProvider>();
 
         BindLiveKitOptions(services, configuration);
 
