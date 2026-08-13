@@ -9,6 +9,7 @@ import {
   qs,
   showToast
 } from "./ui.js";
+import { showPageError } from "./app-feedback.js";
 import { getDashboard, getReadiness } from "./room-state.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
 import { api } from "./api.js";
@@ -25,10 +26,7 @@ import { historicalOverviewUrl, isTerminalStatus, renderHistoricalBanner } from 
 let assemblyId = assemblyIdFromUrl();
 
 function showError(message) {
-  const el = qs("#page-alert");
-  if (!el) return;
-  el.hidden = !message;
-  el.textContent = message || "";
+  showPageError(message);
 }
 
 async function runPrimaryAction(action, operator) {

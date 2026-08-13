@@ -118,10 +118,11 @@ public sealed class PhOnboardingController : ControllerBase
         [FromQuery] bool? hasEmail,
         [FromQuery] bool? invited,
         [FromQuery] bool? hasUser,
+        [FromQuery] string? accessStatus,
         CancellationToken cancellationToken) =>
         _ph.ListOwnersAsync(
             propertyHorizontalId,
-            new OwnerQuery(search, tower, floor, status, hasEmail, invited, hasUser),
+            new OwnerQuery(search, tower, floor, status, hasEmail, invited, hasUser, accessStatus),
             cancellationToken);
 
     [HttpGet("{propertyHorizontalId:guid}/owners/export")]
@@ -135,11 +136,12 @@ public sealed class PhOnboardingController : ControllerBase
         [FromQuery] bool? hasEmail,
         [FromQuery] bool? invited,
         [FromQuery] bool? hasUser,
+        [FromQuery] string? accessStatus,
         CancellationToken cancellationToken)
     {
         var bytes = await _ph.ExportOwnersCsvAsync(
             propertyHorizontalId,
-            new OwnerQuery(search, tower, floor, status, hasEmail, invited, hasUser),
+            new OwnerQuery(search, tower, floor, status, hasEmail, invited, hasUser, accessStatus),
             cancellationToken);
         return File(bytes, "text/csv; charset=utf-8", "propietarios.csv");
     }

@@ -3,6 +3,7 @@ import { me, logout, hasPermission } from "./auth.js";
 import { mountIaShell, phHref } from "./ia-nav.js";
 import { assemblyListBucket, statusLabelEs } from "./ia-actions.js";
 import { formatDateTime, confirmDialog, notify } from "./ui.js";
+import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton } from "./loading.js";
 
@@ -59,14 +60,8 @@ function canAdministerCurrentPh() {
   return canAdministerPh(currentPhId);
 }
 
-function showAlert(message, kind = "error") {
-  alertEl.hidden = false;
-  alertEl.textContent = message;
-  alertEl.className = `alert alert-${kind === "error" ? "danger" : "success"}`;
-}
-
 function clearAlert() {
-  alertEl.hidden = true;
+  if (alertEl) alertEl.hidden = true;
 }
 
 function formData(form) {
@@ -188,11 +183,9 @@ function applyCreatePhGate() {
 
 function openCreatePhDialog() {
   if (!canCreatePh()) {
-    notify.error(
-      "No tienes permiso para crear un PH. Inicia sesión con Administrador PH o Presidente de asamblea.",
-      { title: "Sin permiso" }
-    );
-    showAlert("No tienes permiso para crear un PH.", "error");
+    AppFeedback.error("Inicia sesión con Administrador PH o Presidente de asamblea.", {
+      title: "Sin permiso"
+    });
     return;
   }
   clearAlert();
@@ -215,16 +208,16 @@ function wireUi() {
   $("#btn-mark-ready").addEventListener("click", async () => {
     try {
       await api(`/api/ph/${currentPhId}/ready`, { method: "POST" });
-      showAlert("PH marcado listo para asamblea.", "ok");
+      AppFeedback.success("La propiedad está lista para convocar asambleas.", { title: "PH listo" });
       await openPh(currentPhId);
     } catch (err) {
-      showAlert(err.message || String(err));
+      AppFeedback.fromError(err);
       await loadReadiness();
     }
   });
   $("#btn-activate-ph").addEventListener("click", async () => {
     await api(`/api/ph/${currentPhId}/activate`, { method: "POST" });
-    showAlert("PH activado.", "ok");
+    AppFeedback.success("La propiedad horizontal quedó activa.", { title: "PH activado" });
     await openPh(currentPhId);
   });
   $("#btn-continue-onboarding")?.addEventListener("click", () => {
@@ -302,13 +295,24 @@ function wireUi() {
     loadOwners();
   });
   $("#btn-filters-clear")?.addEventListener("click", () => {
-    ["filter-tower", "filter-status", "filter-email", "filter-user", "filter-invited"].forEach((id) => {
+    ["filter-tower", "filter-status", "filter-email", "filter-access", "filter-invited"].forEach((id) => {
       const el = $(`#${id}`);
       if (el) el.value = "";
     });
+    syncAccessFilterUi();
     renderOwnerFilterChips();
     loadOwners();
   });
+  $("#owner-access-filters")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-access-filter]");
+    if (!btn) return;
+    const select = $("#filter-access");
+    if (select) select.value = btn.dataset.accessFilter || "";
+    syncAccessFilterUi();
+    renderOwnerFilterChips();
+    loadOwners();
+  });
+  $("#filter-access")?.addEventListener("change", syncAccessFilterUi);
   document.querySelectorAll("[data-close-owner-drawer]").forEach((el) => {
     el.addEventListener("click", closeOwnerDrawer);
   });
@@ -436,11 +440,9 @@ async function onCreatePh(ev) {
   ev.preventDefault();
   ev.stopPropagation();
   if (!canCreatePh()) {
-    notify.error(
-      "No tienes permiso para crear un PH. Se requiere «Administrar PH».",
-      { title: "Creación bloqueada" }
-    );
-    showAlert("No tienes permiso para crear un PH.", "error");
+    AppFeedback.error("No tienes permiso para crear un PH. Se requiere «Administrar PH».", {
+      title: "Creación bloqueada"
+    });
     return;
   }
 
@@ -477,8 +479,7 @@ async function onCreatePh(ev) {
 
     $("#dlg-create-ph").close();
     form.reset();
-    notify.success("La propiedad horizontal se creó correctamente.", { title: "PH creado" });
-    showAlert("PH creado correctamente.", "ok");
+    AppFeedback.success(`${created.name} está listo para comenzar.`, { title: "PH creado" });
     await refreshSwitcher();
     currentPhId = created.id;
     $("#dlg-ph-created-name").textContent = created.name;
@@ -497,8 +498,7 @@ async function onCreatePh(ev) {
       inlineErr.hidden = false;
       inlineErr.textContent = msg;
     }
-    notify.error(msg, { title: "No se creó el PH" });
-    showAlert(msg, "error");
+    AppFeedback.error(msg, { title: "No se creó el PH" });
   }
 }
 
@@ -998,7 +998,7 @@ async function onArchivePh() {
   );
   if (!ok) return;
   await api(`/api/ph/${currentPhId}/deactivate`, { method: "POST", body: {} });
-  showAlert("Propiedad archivada.", "ok");
+  AppFeedback.success("La propiedad quedó archivada. El historial se conserva.", { title: "Propiedad archivada" });
   if (!$("#view-detail").hidden) await openPh(currentPhId);
   else await loadList();
 }
@@ -1006,14 +1006,14 @@ async function onArchivePh() {
 async function onReactivatePh() {
   if (!currentPhId) return;
   await api(`/api/ph/${currentPhId}/reactivate`, { method: "POST" });
-  showAlert("PH reactivado.", "ok");
+  AppFeedback.success("La propiedad volvió a estar activa.", { title: "PH reactivado" });
   if (!$("#view-detail").hidden) await openPh(currentPhId);
 }
 
 async function onDeletePh() {
   if (!currentPhId) return;
   if (!canAdministerCurrentPh()) {
-    showAlert("No tienes permiso para eliminar este PH. Se requiere Administrador PH.");
+    AppFeedback.error("Se requiere Administrador PH.", { title: "Sin permiso" });
     return;
   }
   let evaluation;
@@ -1021,11 +1021,7 @@ async function onDeletePh() {
     evaluation = await api(`/api/ph/${currentPhId}/delete-evaluation`);
   } catch (err) {
     const msg = err?.message || String(err);
-    if (/403|Forbidden|permiso/i.test(msg)) {
-      showAlert("No tienes permiso para eliminar este PH. Inicia sesión como Administrador PH o como el administrador de esta propiedad.");
-    } else {
-      showAlert(msg);
-    }
+    AppFeedback.fromError(err);
     return;
   }
   if (!evaluation.canHardDelete) {
@@ -1045,14 +1041,14 @@ async function onDeletePh() {
   if (!ok) return;
   try {
     await api(`/api/ph/${currentPhId}`, { method: "DELETE" });
-    showAlert("PH eliminado.", "ok");
+    AppFeedback.success("La propiedad fue eliminada permanentemente.", { title: "PH eliminado" });
     currentPhId = null;
     $("#view-detail").hidden = true;
     $("#view-list").hidden = false;
     mountPhListShell();
     await loadList();
   } catch (err) {
-    showAlert(err.message || String(err));
+    AppFeedback.fromError(err);
   }
 }
 
@@ -1188,7 +1184,7 @@ async function showUnit(unitId) {
       )
         return;
       await api(`/api/ph/${currentPhId}/ownerships/${btn.dataset.endUnitOwn}/end`, { method: "POST" });
-      showAlert("Titularidad finalizada.", "ok");
+      AppFeedback.success("La titularidad quedó en histórico.", { title: "Titularidad finalizada" });
       await showUnit(unitId);
       await loadOwners();
     });
@@ -1251,10 +1247,9 @@ async function onTransferOwnership(ev) {
   const dlg = $("#transfer-dialog");
   dlg.hidden = true;
   dlg.style.display = "none";
-  showAlert(
-    `Transferencia OK: ${result.fromOwnerName} → ${result.toOwnerName} (unidad ${result.unitCode}).`,
-    "ok"
-  );
+  AppFeedback.success(`Unidad ${result.unitCode}: ${result.fromOwnerName} → ${result.toOwnerName}.`, {
+    title: "Transferencia completada"
+  });
   await showUnit(result.unitId);
   await loadOwners();
 }
@@ -1308,7 +1303,7 @@ async function runBulk(previewOnly) {
     (result.previewCodes || []).slice(0, 40).join("\n") +
     ((result.previewCodes?.length || 0) > 40 ? "\n…" : "");
   if (!previewOnly) {
-    showAlert(`Unidades creadas: ${result.created?.length || 0}`, "ok");
+    AppFeedback.success(`${result.created?.length || 0} unidades agregadas al PH.`, { title: "Unidades creadas" });
     await loadUnits();
   }
 }
@@ -1324,15 +1319,15 @@ async function loadOwners() {
   if (status) params.set("status", status);
   const hasEmail = $("#filter-email")?.value;
   if (hasEmail) params.set("hasEmail", hasEmail);
-  const hasUser = $("#filter-user")?.value;
-  if (hasUser) params.set("hasUser", hasUser);
+  const accessStatus = $("#filter-access")?.value;
+  if (accessStatus) params.set("accessStatus", accessStatus);
   const invited = $("#filter-invited")?.value;
   if (invited) params.set("invited", invited);
   const q = params.toString() ? `?${params}` : "";
   const owners = await api(`/api/ph/${currentPhId}/owners${q}`);
   const empty = $("#owners-empty");
   const tableWrap = $("#owners-table")?.closest(".table-wrap");
-  if (!owners.length && !search && !tower && !status && !hasEmail && !hasUser && !invited) {
+  if (!owners.length && !search && !tower && !status && !hasEmail && !accessStatus && !invited) {
     empty.hidden = false;
     if (tableWrap) tableWrap.hidden = true;
   } else {
@@ -1340,6 +1335,11 @@ async function loadOwners() {
     if (tableWrap) tableWrap.hidden = false;
   }
   const tbody = $("#owners-table tbody");
+  const hasFilters = !!(search || tower || status || hasEmail || accessStatus || invited);
+  if (!owners.length && hasFilters) {
+    tbody.innerHTML =
+      '<tr><td colspan="6" class="muted" style="text-align:center;padding:1.5rem">Ningún propietario coincide con los filtros aplicados.</td></tr>';
+  } else {
   tbody.innerHTML = owners
     .map((o) => {
       const access = o.platformAccessStatus || "NotInvited";
@@ -1381,6 +1381,8 @@ async function loadOwners() {
     </tr>`;
     })
     .join("");
+  }
+  syncAccessFilterUi();
   renderOwnerFilterChips();
   // rebind row actions — continue existing handlers below
   tbody.querySelectorAll("[data-owner]").forEach((btn) =>
@@ -1423,8 +1425,8 @@ function ownerQueryString() {
   if (status) params.set("status", status);
   const hasEmail = $("#filter-email")?.value;
   if (hasEmail) params.set("hasEmail", hasEmail);
-  const hasUser = $("#filter-user")?.value;
-  if (hasUser) params.set("hasUser", hasUser);
+  const accessStatus = $("#filter-access")?.value;
+  if (accessStatus) params.set("accessStatus", accessStatus);
   const invited = $("#filter-invited")?.value;
   if (invited) params.set("invited", invited);
   const q = params.toString();
@@ -1437,16 +1439,20 @@ async function exportOwners() {
 
 async function validateOwnersBulk() {
   const result = await api(`/api/ph/${currentPhId}/owners/validate-bulk`, { method: "POST" });
-  showAlert(
-    `Validación: ${result.ownerCount} propietarios. Sin email: ${result.withoutEmail}. Sin unidad: ${result.withoutUnit}. Sin usuario: ${result.withoutUser}. ${(result.issues || []).join(" ")}`,
-    result.issues?.length ? "error" : "ok"
-  );
+  if (result.issues?.length) {
+    AppFeedback.warning(
+      `${result.ownerCount} propietarios revisados. Sin email: ${result.withoutEmail}. Sin unidad: ${result.withoutUnit}.`,
+      { title: "Validación con observaciones" }
+    );
+  } else {
+    AppFeedback.success(`${result.ownerCount} propietarios cumplen los requisitos.`, { title: "Validación correcta" });
+  }
 }
 
 async function bulkInvite() {
   const ids = [...document.querySelectorAll("#owners-table tbody input[type=checkbox]:checked")].map((cb) => cb.value);
   if (!ids.length) {
-    showAlert("Selecciona al menos un propietario.");
+    AppFeedback.warning("Selecciona al menos un propietario.", { title: "Selección requerida" });
     return;
   }
   if (
@@ -1470,13 +1476,20 @@ async function bulkInvite() {
       body: { ownerIds: ids }
     });
     const ok = !result.failed;
-    showAlert(
-      `INVITACIONES — Procesadas: ${result.processed}. Enviadas: ${result.sent}. Ya activas: ${result.alreadyActive}. Sin email: ${result.withoutEmail}. Fallidas: ${result.failed}.`,
-      ok ? "ok" : "error"
-    );
+    if (ok) {
+      AppFeedback.success(
+        `Enviadas: ${result.sent}. Ya activas: ${result.alreadyActive}. Procesadas: ${result.processed}.`,
+        { title: "Invitaciones enviadas" }
+      );
+    } else {
+      AppFeedback.warning(
+        `Enviadas: ${result.sent}. Fallidas: ${result.failed}. Sin email: ${result.withoutEmail}.`,
+        { title: "Invitaciones parciales" }
+      );
+    }
     await loadOwners();
   } catch (err) {
-    showAlert(err.message || String(err));
+    AppFeedback.fromError(err, "No pudimos enviar las invitaciones.");
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -1598,12 +1611,23 @@ async function startOwnerEdit(ownerId) {
 async function onSaveOwner(ev) {
   ev.preventDefault();
   if (!canAdministerCurrentPh()) {
-    notify.error("No tienes permiso para editar propietarios en esta PH. Se requiere Administrador PH.");
-    showAlert("No tienes permiso para editar propietarios en esta PH. Se requiere Administrador PH.");
+    AppFeedback.error("No tienes permiso para editar propietarios en esta PH. Se requiere Administrador PH.", {
+      title: "Sin permiso"
+    });
     return;
   }
   const btn = $("#btn-save-owner");
   const data = formData(ev.target);
+  const emailInput = ev.target.email;
+  AppFeedback.field.clearForm(ev.target);
+  if (!data.email?.trim()) {
+    AppFeedback.field.error(emailInput, "El correo electrónico es obligatorio.");
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.email).trim())) {
+    AppFeedback.field.error(emailInput, "Ingresa un correo electrónico válido.");
+    return;
+  }
   try {
     await runWithButton(btn, editingOwnerId ? "Guardando…" : "Creando…", async () => {
       if (editingOwnerId) {
@@ -1629,10 +1653,9 @@ async function onSaveOwner(ev) {
             }
           });
         }
-        notify.success("Los cambios del propietario se actualizaron correctamente.", {
+        AppFeedback.success("Los cambios se guardaron correctamente.", {
           title: "Propietario guardado"
         });
-        showAlert("Propietario actualizado.", "ok");
       } else {
         await api(`/api/ph/${currentPhId}/owners`, {
           method: "POST",
@@ -1647,10 +1670,9 @@ async function onSaveOwner(ev) {
             sharePercent: data.unitId ? Number(data.sharePercent || 100) : null
           }
         });
-        notify.success("El propietario fue creado y ya aparece en el listado.", {
+        AppFeedback.success("El propietario ya aparece en el listado.", {
           title: "Propietario creado"
         });
-        showAlert("Propietario creado.", "ok");
       }
       editingOwnerId = null;
       ev.target.reset();
@@ -1660,19 +1682,28 @@ async function onSaveOwner(ev) {
   } catch (err) {
     const msg = err?.message || String(err);
     if (/already linked|OWNERSHIP_DUPLICATE|ya (está|esta) vinculad/i.test(msg)) {
-      notify.warning("Este propietario ya está vinculado a esa unidad. Elige otra unidad o deja el campo vacío.");
-      showAlert("Este propietario ya está vinculado a esa unidad. Elige otra unidad o deja el campo vacío.", "error");
+      AppFeedback.warning("Este propietario ya está vinculado a esa unidad. Elige otra unidad o deja el campo vacío.", {
+        title: "Unidad duplicada"
+      });
       return;
     }
     if (/OWNERSHIP_SHARE_OVERFLOW|sumaría|máximo 100|copropiedad/i.test(msg) || err?.code === "OWNERSHIP_SHARE_OVERFLOW") {
-      notify.warning(msg, { title: "Participación excede 100%" });
-      showAlert(msg, "error");
+      AppFeedback.warning(msg, { title: "Participación excede 100%" });
       await syncOwnerShareForSelectedUnit();
       return;
     }
-    notify.fromError(err, msg);
-    showAlert(msg);
+    AppFeedback.fromError(err, msg);
   }
+}
+
+function syncAccessFilterUi() {
+  const current = $("#filter-access")?.value || "";
+  document.querySelectorAll("[data-access-filter]").forEach((btn) => {
+    const value = btn.dataset.accessFilter || "";
+    const active = value === current;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-pressed", String(active));
+  });
 }
 
 function renderOwnerFilterChips() {
@@ -1688,7 +1719,7 @@ function renderOwnerFilterChips() {
   add("Torre", "filter-tower");
   add("Estado", "filter-status");
   add("Correo", "filter-email");
-  add("Acceso", "filter-user");
+  add("Acceso", "filter-access");
   add("Invitación", "filter-invited");
   host.hidden = chips.length === 0;
   host.innerHTML = chips.join("");
@@ -1696,6 +1727,7 @@ function renderOwnerFilterChips() {
     btn.addEventListener("click", () => {
       const el = $(`#${btn.dataset.clearFilter}`);
       if (el) el.value = "";
+      syncAccessFilterUi();
       renderOwnerFilterChips();
       loadOwners();
     });
@@ -1780,7 +1812,7 @@ async function showOwner(ownerId) {
   body.querySelectorAll("[data-end-own]").forEach((btn) =>
     btn.addEventListener("click", async () => {
       await api(`/api/ph/${currentPhId}/ownerships/${btn.dataset.endOwn}/end`, { method: "POST" });
-      showAlert("Relación finalizada (histórico preservado).", "ok");
+      AppFeedback.success("La relación quedó en histórico.", { title: "Relación finalizada" });
       await showOwner(ownerId);
       await loadOwners();
     })
@@ -1796,14 +1828,14 @@ async function deactivateOwner(ownerId) {
   );
   if (!ok) return;
   await api(`/api/ph/${currentPhId}/owners/${ownerId}/deactivate`, { method: "POST", body: {} });
-  showAlert("Propietario desactivado.", "ok");
+  AppFeedback.success("El propietario quedó inactivo.", { title: "Propietario desactivado" });
   await loadOwners();
   await showOwner(ownerId);
 }
 
 async function reactivateOwner(ownerId) {
   await api(`/api/ph/${currentPhId}/owners/${ownerId}/reactivate`, { method: "POST" });
-  showAlert("Propietario reactivado. Vuelve a asociar unidades si es necesario.", "ok");
+  AppFeedback.success("Vuelve a asociar unidades si es necesario.", { title: "Propietario reactivado" });
   await loadOwners();
   await showOwner(ownerId);
 }
@@ -1855,48 +1887,49 @@ async function inviteOwner(ownerId, triggerBtn) {
   try {
     const result = await api(`/api/ph/${currentPhId}/owners/${ownerId}/invite`, { method: "POST" });
     if (!result.emailSent) {
-      showAlert("No pudimos enviar la invitación.", "error");
+      AppFeedback.error("Verifica la configuración de correo e inténtalo nuevamente.", {
+        title: "No pudimos enviar la invitación"
+      });
       return;
     }
     const loginHint = result.requiresLoginToAccept
-      ? " El destinatario ya tiene cuenta: deberá iniciar sesión para aceptar."
+      ? " Deberá iniciar sesión para aceptar."
       : "";
-    showAlert(
-      `✓ Invitación enviada a ${result.emailMasked || "el correo registrado"}. Estado: Enviada.${loginHint}`,
-      "ok"
-    );
+    AppFeedback.success(`La invitación fue enviada a ${result.emailMasked || "el correo registrado"}.${loginHint}`, {
+      title: "Invitación enviada"
+    });
     await loadOwners();
     await showOwner(ownerId);
   } catch (err) {
     const code = err.code || err.problem?.code || "";
-    const corr = err.correlationId ? ` CorrelationId: ${err.correlationId}` : "";
     if (code === "COMMUNICATION_EMAIL_NOT_CONFIGURED" || code === "SMTP_NOT_CONFIGURED") {
       const phName = currentPh?.name || "este PH";
-      showAlert(
-        `El correo electrónico todavía no está configurado para ${phName}. ${err.message || ""}${corr}`,
-        "error"
-      );
-      const alertEl = $("#page-alert");
-      if (alertEl && !alertEl.querySelector("[data-cfg-mail]")) {
-        const link = document.createElement("a");
-        link.dataset.cfgMail = "1";
-        link.className = "btn btn-primary";
-        link.style.marginLeft = "0.75rem";
-        link.href = `/communications.html?phId=${encodeURIComponent(currentPhId)}`;
-        link.textContent = "Configurar correo";
-        alertEl.appendChild(link);
-      }
+      AppFeedback.error(`Configura el correo electrónico para ${phName} antes de invitar propietarios.`, {
+        title: "Correo no configurado",
+        actionLabel: "Configurar correo",
+        onAction: () => {
+          location.href = `/communications.html?phId=${encodeURIComponent(currentPhId)}`;
+        }
+      });
       return;
     }
     if (code === "OWNER_EMAIL_REQUIRED" || code === "OWNER_EMAIL_INVALID") {
-      showAlert(`Este propietario no tiene un correo válido. ${err.message || ""}${corr}`, "error");
+      AppFeedback.warning("Agrega un correo electrónico válido al propietario antes de invitar.", {
+        title: "Correo requerido"
+      });
       return;
     }
     if (code === "PUBLIC_BASE_URL_MISSING") {
-      showAlert(`Falta la URL pública de activación. ${err.message || ""}${corr}`, "error");
+      AppFeedback.error("Contacta al administrador para configurar la URL pública de activación.", {
+        title: "Activación no disponible"
+      });
       return;
     }
-    showAlert(`No pudimos enviar la invitación. ${err.message || ""}${corr}`.trim(), "error");
+    AppFeedback.error("Verifica la conexión e inténtalo nuevamente.", {
+      title: "No pudimos enviar la invitación",
+      actionLabel: "Intentar nuevamente",
+      onAction: () => inviteOwner(ownerId)
+    });
   } finally {
     buttons.forEach((b) => {
       b.disabled = false;
@@ -1982,7 +2015,7 @@ async function loadReadiness() {
 async function analyzeImport() {
   const file = $("#import-file").files?.[0];
   if (!file) {
-    showAlert("Selecciona un archivo CSV o XLSX.");
+    AppFeedback.warning("Selecciona un archivo CSV o XLSX.", { title: "Archivo requerido" });
     return;
   }
   await ensureAntiforgery();
@@ -2034,9 +2067,9 @@ async function commitImport() {
     method: "POST",
     body: { sessionId: importSession, mappings: collectMappings() }
   });
-  showAlert(
-    `Importación OK — unidades ${result.unitsCreated}, propietarios ${result.ownersCreated}, ownerships ${result.ownershipsCreated}`,
-    "ok"
+  AppFeedback.success(
+    `Unidades ${result.unitsCreated}, propietarios ${result.ownersCreated}, titularidades ${result.ownershipsCreated}.`,
+    { title: "Importación completada" }
   );
   await Promise.all([loadUnits(), loadOwners(), loadCoefficients(), loadReadiness()]);
 }
@@ -2064,4 +2097,4 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-init().catch((err) => showAlert(err.message || String(err)));
+init().catch((err) => AppFeedback.fromError(err));

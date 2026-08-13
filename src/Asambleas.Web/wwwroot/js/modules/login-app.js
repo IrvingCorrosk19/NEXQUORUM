@@ -8,6 +8,7 @@ import {
   hideGlobalLoader,
   setButtonLoading
 } from "/js/modules/loading.js";
+import { AppFeedback } from "/js/modules/app-feedback.js";
 
 scrubCredentialQueryFromLocation();
 
@@ -19,8 +20,7 @@ const submitBtn = document.querySelector("#login-submit");
 let defaultAssemblyId = null;
 
 function showError(message) {
-  errorEl.hidden = !message;
-  errorEl.textContent = message || "";
+  AppFeedback.banner.login(message, "error");
 }
 
 async function resolvePostLoginAssemblyId() {

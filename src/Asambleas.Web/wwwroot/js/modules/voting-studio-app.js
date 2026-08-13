@@ -2,6 +2,7 @@ import { api } from "./api.js";
 import { hasPermission } from "./auth.js";
 import { statusLabelEs } from "./ia-actions.js";
 import { escapeHtml, showToast, qs, confirmDialog } from "./ui.js";
+import { showPageError } from "./app-feedback.js";
 import { showGlobalLoader, hideGlobalLoader } from "./loading.js";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";

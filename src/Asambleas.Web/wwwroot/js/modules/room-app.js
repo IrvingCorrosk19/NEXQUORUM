@@ -47,6 +47,7 @@ import {
   setConnectionLostVisible,
   showToast
 } from "./ui.js";
+import { AppFeedback } from "./app-feedback.js";
 import { hydrateRoomState, resumeAssembly } from "./room-state.js";
 import { isOperator, resolveViewerRole } from "./roles.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
@@ -548,8 +549,11 @@ function setMediaBusy(message) {
 
 function showError(message) {
   if (!els.alert) return;
-  els.alert.hidden = !message;
-  els.alert.textContent = message || "";
+  if (!message) {
+    AppFeedback.banner.clear(els.alert);
+    return;
+  }
+  AppFeedback.banner.show(els.alert, message, "error");
 }
 
 function setConnectionState(status) {

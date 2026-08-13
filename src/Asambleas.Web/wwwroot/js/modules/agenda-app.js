@@ -2,6 +2,7 @@ import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { initI18n } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
+import { showPageError } from "./app-feedback.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js";
 import { mountReadinessActionBar } from "./readiness-actions.js";
@@ -12,10 +13,7 @@ let dirty = false;
 let canManage = false;
 
 function showError(message) {
-  const el = qs("#page-alert");
-  if (!el) return;
-  el.hidden = !message;
-  el.textContent = message || "";
+  showPageError(message);
 }
 
 function markDirty() {

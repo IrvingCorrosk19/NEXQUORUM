@@ -365,7 +365,10 @@ export async function switchPh(propertyHorizontalId, { targetUrl = null, silent 
 
     const dest = targetUrl || resolvePhSwitchTarget(nextId);
     if (!silent) {
-      notify.success(state.phName, { title: "PH activo", ttlMs: 2800 });
+      notify.success(`Ahora estás trabajando en ${state.phName}.`, {
+        title: "PH actualizado",
+        ttlMs: 3200
+      });
     }
 
     // Soft path: same ph.html document — replace URL and let page handler react.
@@ -401,9 +404,8 @@ export async function switchPh(propertyHorizontalId, { targetUrl = null, silent 
     emit();
     document.body.classList.remove("is-ph-switching");
     document.querySelector("main.app-workspace")?.removeAttribute("aria-busy");
-    notify.error(err?.message || "No pudimos cambiar de PH. Tu contexto actual se mantiene.", {
+    notify.error("No pudimos cambiar de PH. Tu contexto actual se mantiene.", {
       title: "Cambio de PH fallido",
-      correlationId: err?.correlationId,
       actionLabel: "Reintentar",
       onAction: () => switchPh(nextId, { targetUrl, silent }),
       ttlMs: 14000

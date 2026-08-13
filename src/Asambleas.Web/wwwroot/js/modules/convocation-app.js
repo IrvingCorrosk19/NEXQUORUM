@@ -1,6 +1,8 @@
 import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
-import { assemblyIdFromUrl, confirmDialog, escapeHtml, qs, showToast } from "./ui.js";
+import { assemblyIdFromUrl, confirmDialog, escapeHtml, qs } from "./ui.js";
+import { AppFeedback, showPageError } from "./app-feedback.js";
+import { runWithButton } from "./loading.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js";
 import { mountReadinessActionBar } from "./readiness-actions.js";
@@ -12,10 +14,7 @@ let selectedPreview = null;
 let currentRecipients = [];
 
 function showError(message) {
-  const el = qs("#page-alert");
-  if (!el) return;
-  el.hidden = !message;
-  el.textContent = message || "";
+  showPageError(message, "error");
 }
 
 function statusEs(status) {
@@ -233,7 +232,7 @@ async function resendSelected(onlyPending) {
   if (!selectedId) return;
   const ids = onlyPending ? null : selectedRecipientIds();
   if (!onlyPending && (!ids || !ids.length)) {
-    showToast("Selecciona al menos un destinatario", "warn");
+    AppFeedback.warning("Marca al menos un destinatario antes de reenviar.", { title: "Selección requerida" });
     return;
   }
   const ok = await confirmDialog({
@@ -261,14 +260,19 @@ async function doResend({ recipientIds, onlyFailedOrPending }) {
         idempotencyKey: `resend-${selectedId}-${Date.now()}`
       }
     });
-    showToast(
-      `Reenvío ${statusEs(batch.status)}: enviados ${batch.sentCount}, fallidos ${batch.failedCount}`,
-      batch.failedCount ? "warn" : "success"
-    );
+    if (batch.failedCount) {
+      AppFeedback.warning(`Enviados ${batch.sentCount} · ${batch.failedCount} pendientes.`, {
+        title: "Reenvío parcial"
+      });
+    } else {
+      AppFeedback.success(`Se reenvió correctamente a ${batch.sentCount} destinatario(s).`, {
+        title: "Convocatorias reenviadas"
+      });
+    }
     await openDetail(selectedId);
     await refreshList();
   } catch (e) {
-    showToast(e.message, "warn");
+    AppFeedback.fromError(e, "No pudimos completar el reenvío.");
   }
 }
 
@@ -305,7 +309,7 @@ async function init() {
   qs("#create-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     if (!hasPermission(user, "convocations:create")) {
-      showToast("Sin permiso", "warn");
+      AppFeedback.warning("No tienes permiso para crear convocatorias.", { title: "Sin permiso" });
       return;
     }
     const channels = [...document.querySelectorAll('input[name="ch"]:checked')].map((el) => el.value);
@@ -325,11 +329,11 @@ async function init() {
           idempotencyKey: `ui-${Date.now()}`
         }
       });
-      showToast("Borrador creado", "success");
+      AppFeedback.success("La convocatoria quedó guardada como borrador.", { title: "Convocatoria creada" });
       await refreshList();
       await openDetail(created.id);
     } catch (e) {
-      showToast(e.message, "warn");
+      AppFeedback.fromError(e, "No pudimos crear la convocatoria.");
     }
   });
 
@@ -337,18 +341,18 @@ async function init() {
     if (!selectedId) return;
     try {
       await api(`/api/convocations/${selectedId}/validate`, { method: "POST", body: {} });
-      showToast("Validación ejecutada", "success");
+      AppFeedback.success("La convocatoria cumple los requisitos para enviarse.", { title: "Validación correcta" });
       await openDetail(selectedId);
       await refreshList();
     } catch (e) {
-      showToast(e.message, "warn");
+      AppFeedback.fromError(e, "La convocatoria tiene pendientes por corregir.");
     }
   });
 
   qs("#btn-send")?.addEventListener("click", async () => {
     if (!selectedId) return;
     if (!hasPermission(user, "convocations:send")) {
-      showToast("Sin permiso de envío", "warn");
+      AppFeedback.warning("No tienes permiso para enviar convocatorias.", { title: "Sin permiso" });
       return;
     }
     const sendBtn = qs("#btn-send");
@@ -356,7 +360,7 @@ async function init() {
 
     const ids = selectedRecipientIds();
     if (!ids.length) {
-      showToast("Selecciona al menos un destinatario", "warn");
+      AppFeedback.warning("Selecciona al menos un destinatario.", { title: "Destinatarios requeridos" });
       return;
     }
 
@@ -365,44 +369,65 @@ async function init() {
       title: "Enviar convocatoria",
       body: sandbox
         ? `Se enviará a ${ids.length} destinatario(s) en modo prueba (sin SMTP real).`
-        : `Se enviará el correo real a ${ids.length} destinatario(s) seleccionados.`,
+        : `Se enviará el correo profesional a ${ids.length} destinatario(s) seleccionados.`,
       confirmLabel: "Enviar ahora"
     });
     if (!ok) return;
 
-    sendBtn.disabled = true;
-    sendBtn.setAttribute("aria-busy", "true");
-    sendBtn.classList.add("is-loading");
-    sendBtn.textContent = "Enviando…";
+    AppFeedback.info("Estamos preparando y enviando las notificaciones.", {
+      title: "Enviando convocatoria…",
+      ttlMs: 3500
+    });
+
     try {
-      const batch = await api(`/api/convocations/${selectedId}/send`, {
-        method: "POST",
-        body: {
-          confirmed: true,
-          recipientIds: ids,
-          idempotencyKey: `send-${selectedId}-${Date.now()}`
-        }
-      });
-      const label = statusEs(batch.status);
-      showToast({
-        title: batch.failedCount ? "Envío parcial" : "Convocatoria enviada",
-        message: `${label}: ${batch.sentCount} enviados, ${batch.failedCount} fallidos.`,
-        variant: batch.failedCount ? "warning" : "success",
-        actionLabel: "Ver entregas",
-        onAction: () => {
-          location.hash = "#deliveries";
-          openDetail(selectedId);
-        }
-      });
+      const batch = await runWithButton(sendBtn, "Enviando…", async () =>
+        api(`/api/convocations/${selectedId}/send`, {
+          method: "POST",
+          body: {
+            confirmed: true,
+            recipientIds: ids,
+            idempotencyKey: `send-${selectedId}-${Date.now()}`
+          }
+        })
+      );
+
+      const count = batch.sentCount ?? ids.length;
+      const failed = batch.failedCount ?? 0;
+      if (failed > 0) {
+        AppFeedback.warning(
+          `${count} enviados · ${failed} no pudieron completarse. Revisa el historial de entregas.`,
+          {
+            title: "Envío parcial",
+            actionLabel: "Ver entregas",
+            onAction: () => {
+              location.hash = "#deliveries";
+              openDetail(selectedId);
+            },
+            ttlMs: 12000
+          }
+        );
+      } else {
+        const recipientLabel =
+          count === 1 ? "1 propietario fue notificado correctamente." : `${count} propietarios fueron notificados correctamente.`;
+        AppFeedback.success(recipientLabel, {
+          title: count === 1 ? "Convocatoria enviada" : "Convocatorias enviadas",
+          actionLabel: "Ver entregas",
+          onAction: () => {
+            location.hash = "#deliveries";
+            openDetail(selectedId);
+          }
+        });
+      }
       await openDetail(selectedId);
       await refreshList();
     } catch (e) {
-      showToast(e.message, "warn");
+      AppFeedback.error("Verifica tu conexión e inténtalo nuevamente.", {
+        title: "No pudimos enviar la convocatoria",
+        actionLabel: "Intentar nuevamente",
+        onAction: () => sendBtn?.click()
+      });
     } finally {
-      sendBtn.disabled = false;
-      sendBtn.removeAttribute("aria-busy");
-      sendBtn.classList.remove("is-loading");
-      sendBtn.textContent = "Enviar";
+      if (sendBtn) sendBtn.textContent = "Enviar";
     }
   });
 

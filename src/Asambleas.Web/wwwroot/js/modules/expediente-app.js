@@ -2,16 +2,14 @@ import { api } from "./api.js";
 import { me } from "./auth.js";
 import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
+import { showPageError } from "./app-feedback.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js";
 
 let assemblyId = assemblyIdFromUrl();
 
 function showError(message) {
-  const el = qs("#page-alert");
-  if (!el) return;
-  el.hidden = !message;
-  el.textContent = message || "";
+  showPageError(message);
 }
 
 function formatSize(bytes) {

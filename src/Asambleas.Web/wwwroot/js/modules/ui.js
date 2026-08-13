@@ -59,9 +59,10 @@ export function showToast(input, variant = "info", ttlMs) {
   const actionHtml = opts.actionLabel
     ? `<button type="button" class="toast__action" data-toast-action>${escapeHtml(opts.actionLabel)}</button>`
     : "";
-  const corrHtml = opts.correlationId
-    ? `<p class="toast__meta">CorrelationId: <code>${escapeHtml(opts.correlationId)}</code></p>`
-    : "";
+  const corrHtml =
+    opts.correlationId && opts.showCorrelationId
+      ? `<p class="toast__meta">CorrelationId: <code>${escapeHtml(opts.correlationId)}</code></p>`
+      : "";
 
   el.innerHTML = `
     <span class="toast__icon" aria-hidden="true">${ICONS[tone] || ICONS.info}</span>

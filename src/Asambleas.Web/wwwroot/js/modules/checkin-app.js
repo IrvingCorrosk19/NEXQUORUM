@@ -2,6 +2,7 @@ import { api } from "./api.js";
 import { me, hasPermission } from "./auth.js";
 import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
+import { showPageError } from "./app-feedback.js";
 import { getParticipants, hydrateRoomState } from "./room-state.js";
 import { isOperator } from "./roles.js";
 import { renderQuorum } from "./quorum.js";
@@ -21,10 +22,7 @@ let assemblyStatus = null;
 const OPEN_STATUSES = new Set(["CheckIn", "InProgress", "Paused"]);
 
 function showError(message) {
-  const el = qs("#page-alert");
-  if (!el) return;
-  el.hidden = !message;
-  el.textContent = message || "";
+  showPageError(message);
 }
 
 function announce(message) {

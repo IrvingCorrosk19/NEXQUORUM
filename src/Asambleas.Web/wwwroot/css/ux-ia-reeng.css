@@ -72,6 +72,25 @@
   padding: 0;
 }
 
+.access-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+}
+
+.access-filter-row .btn {
+  font-size: 0.82rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+}
+
+.access-filter-row .btn.is-active {
+  background: rgba(45, 212, 191, 0.16);
+  border-color: rgba(45, 212, 191, 0.55);
+  color: #5eead4;
+}
+
 .owners-actions .ux-row-actions {
   display: flex;
   gap: 0.35rem;

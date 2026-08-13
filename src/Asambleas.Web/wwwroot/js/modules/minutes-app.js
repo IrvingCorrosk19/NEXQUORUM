@@ -1,16 +1,14 @@
 import { me } from "./auth.js";
 import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
+import { showPageError } from "./app-feedback.js";
 import { getMinutes } from "./room-state.js";
 import { bootIaPage } from "./ia-page.js";
 
 const assemblyId = assemblyIdFromUrl();
 
 function showError(message) {
-  const el = qs("#page-alert");
-  if (!el) return;
-  el.hidden = !message;
-  el.textContent = message || "";
+  showPageError(message);
 }
 
 function pct(n) {

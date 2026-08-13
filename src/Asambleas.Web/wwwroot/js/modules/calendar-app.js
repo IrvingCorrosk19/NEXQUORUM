@@ -2,6 +2,7 @@ import { api } from "./api.js";
 import { logout, me, hasPermission } from "./auth.js";
 import { isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, qs, showToast } from "./ui.js";
+import { showPageError } from "./app-feedback.js";
 import { bootIaPage } from "./ia-page.js";
 import {
   fillTimeSelect,
@@ -82,10 +83,7 @@ function setLoading(on, msg) {
 }
 
 function showError(message) {
-  const el = qs("#page-alert");
-  if (!el) return;
-  el.hidden = !message;
-  el.textContent = message || "";
+  showPageError(message);
 }
 
 function rangeForView() {

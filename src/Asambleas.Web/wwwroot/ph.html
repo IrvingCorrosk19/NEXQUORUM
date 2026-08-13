@@ -14,7 +14,8 @@
   <link rel="stylesheet" href="/css/ph.css?v=ia1" />
   <link rel="stylesheet" href="/css/ia.css?v=phsw2" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
-  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia3" />
+  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia4" />
+  <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
 </head>
@@ -253,6 +254,14 @@
             <button type="button" id="btn-validate-owners" class="btn btn-ghost" hidden>Validar</button>
           </div>
           <div id="owner-filter-chips" class="filter-chips" hidden></div>
+          <div id="owner-access-filters" class="access-filter-row" role="group" aria-label="Filtrar por acceso">
+            <button type="button" class="btn btn-ghost is-active" data-access-filter="" aria-pressed="true">Todos</button>
+            <button type="button" class="btn btn-ghost" data-access-filter="NotInvited" aria-pressed="false">Sin invitar</button>
+            <button type="button" class="btn btn-ghost" data-access-filter="InvitationPending" aria-pressed="false">Invitación enviada</button>
+            <button type="button" class="btn btn-ghost" data-access-filter="InvitationExpired" aria-pressed="false">Invitación expirada</button>
+            <button type="button" class="btn btn-ghost" data-access-filter="Active" aria-pressed="false">Cuenta activa</button>
+            <button type="button" class="btn btn-ghost" data-access-filter="AccessSuspended" aria-pressed="false">Acceso suspendido</button>
+          </div>
           <div id="owner-filters-popover" class="filter-popover" hidden>
             <div class="form-grid">
               <label>Torre <select id="filter-tower"><option value="">Todas</option></select></label>
@@ -273,10 +282,13 @@
                 </select>
               </label>
               <label>Acceso
-                <select id="filter-user">
+                <select id="filter-access">
                   <option value="">Todos</option>
-                  <option value="true">Con cuenta</option>
-                  <option value="false">Sin cuenta</option>
+                  <option value="NotInvited">Sin invitar</option>
+                  <option value="InvitationPending">Invitación enviada</option>
+                  <option value="InvitationExpired">Invitación expirada</option>
+                  <option value="Active">Cuenta activa</option>
+                  <option value="AccessSuspended">Acceso suspendido</option>
                 </select>
               </label>
               <label>Invitación
@@ -390,7 +402,7 @@
             <label>Email administrativo <input name="adminEmail" type="email" required autocomplete="email" /></label>
             <label>Teléfono <input name="phone" /></label>
           </div>
-          <p id="create-ph-error" class="alert alert-danger" hidden role="alert" style="margin-top:0.75rem"></p>
+          <p id="create-ph-error" class="field-error" hidden role="alert" style="margin-top:0.75rem;grid-column:1/-1"></p>
           <div class="cta-row" style="margin-top:1rem">
             <button type="submit" id="btn-submit-create-ph" class="btn btn-primary">Crear</button>
             <button type="button" class="btn btn-secondary" id="btn-cancel-create">Cancelar</button>
@@ -409,6 +421,6 @@
       </dialog>
     </main>
   </div>
-  <script type="module" src="/js/modules/ph-app.js?v=ia5"></script>
+  <script type="module" src="/js/modules/ph-app.js?v=fb2"></script>
 </body>
 </html>

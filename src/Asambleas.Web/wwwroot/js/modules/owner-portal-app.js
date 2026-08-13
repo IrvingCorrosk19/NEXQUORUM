@@ -2,13 +2,11 @@ import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { isOperator, isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, formatDateTime, qs } from "./ui.js";
+import { showPageError } from "./app-feedback.js";
 import { mountIaShell } from "./ia-nav.js";
 
 function showError(message) {
-  const el = qs("#page-alert");
-  if (!el) return;
-  el.hidden = !message;
-  el.textContent = message || "";
+  showPageError(message);
 }
 
 async function init() {

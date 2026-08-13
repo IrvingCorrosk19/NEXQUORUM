@@ -1,13 +1,11 @@
 import { api } from "./api.js";
 import { me, logout } from "./auth.js";
 import { escapeHtml, formatDateTime, qs, showToast } from "./ui.js";
+import { showPageError } from "./app-feedback.js";
 import { bootIaPage } from "./ia-page.js";
 
 function showError(message) {
-  const el = qs("#page-alert");
-  if (!el) return;
-  el.hidden = !message;
-  el.textContent = message || "";
+  showPageError(message);
 }
 
 let all = [];
