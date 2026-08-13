@@ -17,24 +17,31 @@ let searchQuery = "";
 let boundDocClick = null;
 let boundKey = null;
 
+function openPopover() {
+  open = true;
+  const pop = mountedRoot?.querySelector(".ph-switcher-pop");
+  const btn = mountedRoot?.querySelector(".ph-switcher-trigger");
+  if (pop) {
+    pop.hidden = false;
+    // Ensure measurable visibility even if ancestors clip.
+    pop.style.display = "flex";
+  }
+  btn?.setAttribute("aria-expanded", "true");
+  const input = pop?.querySelector("[data-ph-search]");
+  input?.focus();
+  renderList();
+}
+
 function closePopover() {
   open = false;
   searchQuery = "";
   const pop = mountedRoot?.querySelector(".ph-switcher-pop");
   const btn = mountedRoot?.querySelector(".ph-switcher-trigger");
-  if (pop) pop.hidden = true;
+  if (pop) {
+    pop.hidden = true;
+    pop.style.display = "";
+  }
   btn?.setAttribute("aria-expanded", "false");
-}
-
-function openPopover() {
-  open = true;
-  const pop = mountedRoot?.querySelector(".ph-switcher-pop");
-  const btn = mountedRoot?.querySelector(".ph-switcher-trigger");
-  if (pop) pop.hidden = false;
-  btn?.setAttribute("aria-expanded", "true");
-  const input = pop?.querySelector("[data-ph-search]");
-  input?.focus();
-  renderList();
 }
 
 function filteredMemberships(memberships) {

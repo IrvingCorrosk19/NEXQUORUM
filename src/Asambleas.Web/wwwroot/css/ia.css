@@ -875,6 +875,14 @@ body.is-fullscreen-ops .app-shell {
   z-index: 40;
 }
 
+.app-top {
+  overflow: visible;
+}
+
+.app-top .cluster {
+  overflow: visible;
+}
+
 .ph-switcher-trigger {
   display: inline-flex;
   align-items: center;

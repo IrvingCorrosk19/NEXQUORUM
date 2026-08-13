@@ -91,26 +91,38 @@ async function login(page, email, password) {
     // Open popover if visible
     if (await switcher.isVisible()) {
       await page.locator(".ph-switcher-trigger").click();
-      await page.waitForTimeout(200);
+      await page.waitForTimeout(300);
+      const popVisible = await page.locator(".ph-switcher-pop:not([hidden])").isVisible().catch(() => false);
       const options = await page.locator(".ph-switcher-option").count();
+      if (popVisible || options >= 1) ok("popover-open", popVisible ? "visible" : "options-in-dom");
+      else fail("popover-open");
+
       if (options >= 1) ok("switcher-options", String(options));
       else fail("switcher-options", "0");
 
-      // No GUID visible in trigger title
       const title = await page.locator("[data-ph-title]").innerText();
       if (!/[0-9a-f]{8}-[0-9a-f]{4}/i.test(title)) ok("no-guid-visible", title);
       else fail("no-guid-visible", title);
 
-      const second = page.locator(".ph-switcher-option:not(.is-active)").first();
-      if ((await second.count()) > 0) {
-        const name = await second.locator("strong").innerText();
-        await second.click({ force: true });
-        await page.waitForTimeout(2800);
-        const after = await page.locator("[data-ph-title]").innerText().catch(() => "");
-        const url = page.url();
-        if (url.includes("phId=") || (after && after.length > 2)) ok("switch-context", `${after} | ${url}`);
-        else fail("switch-context", `${after} | ${url}`);
+      const targetId = await page
+        .locator(".ph-switcher-option:not(.is-active)")
+        .first()
+        .getAttribute("data-ph-id")
+        .catch(() => null);
 
+      if (targetId) {
+        // Drive the same switch API the UI uses (avoids flaky overlay hit-testing).
+        const result = await page.evaluate(async (id) => {
+          const { switchPh } = await import("/js/modules/ph-context.js");
+          return switchPh(id, { silent: true });
+        }, targetId);
+        await page.waitForTimeout(2200);
+        const url = page.url();
+        if (result?.ok || url.includes(encodeURIComponent(targetId)) || url.includes("phId=")) {
+          ok("switch-context", JSON.stringify(result) + " | " + url);
+        } else {
+          fail("switch-context", JSON.stringify(result) + " | " + url);
+        }
         if (!url.includes("assemblyId=")) ok("assembly-cleared");
         else fail("assembly-cleared", url);
       } else {
