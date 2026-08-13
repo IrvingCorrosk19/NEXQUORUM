@@ -67,11 +67,17 @@ export function hasPermission(user, permission) {
   return Boolean(user?.permissions?.includes(permission));
 }
 
-const PH_ADMIN_HINTS = new Set(["PHAdmin", "TenantAdmin", "PlatformAdmin"]);
+const PH_ADMIN_HINTS = new Set(["PHAdmin", "TenantAdmin", "PlatformAdmin", "AssemblyPresident"]);
 
 /** True when the user may configure communications for this PH (global claim or PH membership). */
 export async function canConfigurePhComms(user, phId) {
   if (hasPermission(user, "communications:configure")) {
+    return true;
+  }
+  if (user?.roles?.some((r) => PH_ADMIN_HINTS.has(r))) {
+    return true;
+  }
+  if (hasPermission(user, "ph:manage")) {
     return true;
   }
   if (!phId) {

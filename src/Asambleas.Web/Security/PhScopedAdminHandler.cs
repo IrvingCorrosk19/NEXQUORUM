@@ -59,7 +59,8 @@ public sealed class PhScopedAdminHandler : AuthorizationHandler<PhScopedAdminReq
                  && m.IsActive
                  && (m.RoleHint == Roles.PHAdmin
                      || m.RoleHint == Roles.TenantAdmin
-                     || m.RoleHint == Roles.PlatformAdmin));
+                     || m.RoleHint == Roles.PlatformAdmin
+                     || m.RoleHint == Roles.AssemblyPresident));
 
         if (isPhAdmin)
         {

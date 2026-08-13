@@ -85,7 +85,6 @@ function renderEmailChannel(ch) {
 
   const settings = ch?.publicSettings || {};
   const status = connectionStatus(ch);
-  const readonly = !canConfigure;
 
   panel.innerHTML = `
     <div class="cluster" style="justify-content:space-between;margin-bottom:1rem">
@@ -94,38 +93,44 @@ function renderEmailChannel(ch) {
     </div>
     <div class="form-grid">
       <label class="field"><span>Servidor SMTP</span>
-        <input id="smtp-host" value="${escapeHtml(settings.host || "smtp.gmail.com")}" ${readonly ? "readonly" : ""} placeholder="smtp.gmail.com" />
+        <input id="smtp-host" value="${escapeHtml(settings.host || "")}" placeholder="smtp.gmail.com" />
       </label>
       <label class="field"><span>Puerto</span>
-        <input id="smtp-port" value="${escapeHtml(settings.port || "587")}" ${readonly ? "readonly" : ""} />
+        <input id="smtp-port" value="${escapeHtml(settings.port || "587")}" inputmode="numeric" />
       </label>
       <label class="field"><span>Correo remitente (From)</span>
-        <input id="smtp-from" type="email" value="${escapeHtml(settings.fromAddress || "")}" ${readonly ? "readonly" : ""} placeholder="tu@gmail.com" />
+        <input id="smtp-from" type="email" value="${escapeHtml(settings.fromAddress || "")}" placeholder="tu@gmail.com" />
       </label>
       <label class="field"><span>Usuario</span>
-        <input id="smtp-user" value="${escapeHtml(settings.username || "")}" ${readonly ? "readonly" : ""} placeholder="tu@gmail.com" />
+        <input id="smtp-user" value="${escapeHtml(settings.username || "")}" placeholder="tu@gmail.com" autocomplete="username" />
       </label>
       <label class="field"><span>Contraseña / app password</span>
-        <input id="smtp-secret" type="password" autocomplete="new-password" ${readonly ? "readonly" : ""}
-          placeholder="${ch?.hasSecret ? "•••••••• (guardada)" : "Contraseña de aplicación"}" />
+        <input id="smtp-secret" type="password" autocomplete="new-password"
+          placeholder="${ch?.hasSecret ? "•••••••• (guardada — deja vacío para mantener)" : "Contraseña de aplicación de Google"}" />
       </label>
       <label class="field"><span>Correo para probar</span>
-        <input id="test-email" type="email" placeholder="donde@recibir.com" autocomplete="off" />
+        <input id="test-email" type="email" placeholder="donde@recibir.com" autocomplete="email" />
         <small class="muted">Te enviaremos una convocatoria de ejemplo para verificar SMTP.</small>
       </label>
     </div>
     <div class="cta-row">
-      <label><input type="checkbox" id="smtp-enabled" ${ch?.isEnabled ? "checked" : ""} ${readonly ? "disabled" : ""} /> Canal habilitado</label>
-      ${canConfigure ? `<button type="button" class="btn btn-primary" id="btn-save-smtp">Guardar configuración</button>` : ""}
-      ${canConfigure ? `<button type="button" class="btn btn-secondary" id="btn-test-smtp">Probar envío</button>` : ""}
+      <label><input type="checkbox" id="smtp-enabled" ${ch?.isEnabled ? "checked" : ""} /> Canal habilitado</label>
+      <button type="button" class="btn btn-primary" id="btn-save-smtp">Guardar configuración</button>
+      <button type="button" class="btn btn-secondary" id="btn-test-smtp">Probar envío</button>
     </div>
     <p class="muted" id="smtp-test-result">${ch?.lastTestDetail ? escapeHtml(ch.lastTestDetail) : ""}</p>
   `;
 
-  if (!canConfigure) return;
-
   qs("#btn-save-smtp")?.addEventListener("click", onSaveSmtp);
   qs("#btn-test-smtp")?.addEventListener("click", onTestSmtp);
+
+  if (!canConfigure) {
+    panel.querySelectorAll("input,button").forEach((el) => el.setAttribute("disabled", "disabled"));
+    const note = document.createElement("p");
+    note.className = "alert alert-warn";
+    note.textContent = "No tienes permiso para editar la configuración de este PH. Cierra sesión e ingresa como administrador del PH.";
+    panel.prepend(note);
+  }
 }
 
 async function onSaveSmtp() {
@@ -259,6 +264,16 @@ async function saveProfile(ev) {
   }
 }
 
+async function resolveCanConfigure(user) {
+  try {
+    const caps = await api(`/api/communications/ph/${phId}/capabilities`);
+    if (caps?.canConfigure) return true;
+  } catch {
+    // fall through to client-side heuristics
+  }
+  return canConfigurePhComms(user, phId);
+}
+
 async function init() {
   let user;
   try {
@@ -290,7 +305,7 @@ async function init() {
     return;
   }
 
-  canConfigure = await canConfigurePhComms(user, phId);
+  canConfigure = await resolveCanConfigure(user);
   qs("#user-chip").textContent = user.displayName;
   qs("#nav-tenant") && (qs("#nav-tenant").textContent = user.tenantCode || user.tenantName || "Gobernanza");
 
@@ -305,9 +320,7 @@ async function init() {
   qs("#profile-reply").value = profile.defaultReplyTo || "";
 
   if (!canConfigure) {
-    qs("#profile-form")?.querySelectorAll("input,button").forEach((el) => {
-      if (el.id !== "test-email") el.setAttribute("disabled", "disabled");
-    });
+    qs("#profile-form")?.querySelectorAll("input,button").forEach((el) => el.setAttribute("disabled", "disabled"));
   }
 
   qs("#profile-form")?.addEventListener("submit", saveProfile);

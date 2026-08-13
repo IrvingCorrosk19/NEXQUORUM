@@ -44,6 +44,8 @@ public sealed record ConvocationEmailPreviewDto(
     string Html,
     string Text);
 
+public sealed record CommsCapabilitiesDto(bool CanConfigure, bool CanTest);
+
 public sealed record MessageTemplateDto(
     Guid Id,
     string Code,

@@ -15,13 +15,25 @@ public sealed class CommunicationsController : ControllerBase
 {
     private readonly CommunicationConfigurationService _config;
     private readonly ConvocationService _convocations;
+    private readonly IAuthorizationService _authorization;
 
     public CommunicationsController(
         CommunicationConfigurationService config,
-        ConvocationService convocations)
+        ConvocationService convocations,
+        IAuthorizationService authorization)
     {
         _config = config;
         _convocations = convocations;
+        _authorization = authorization;
+    }
+
+    [HttpGet("ph/{propertyHorizontalId:guid}/capabilities")]
+    [Authorize(Policy = Permissions.CommunicationsView)]
+    public async Task<CommsCapabilitiesDto> GetCapabilities(Guid propertyHorizontalId)
+    {
+        var configure = (await _authorization.AuthorizeAsync(User, Permissions.CommunicationsConfigure)).Succeeded;
+        var test = (await _authorization.AuthorizeAsync(User, Permissions.CommunicationsTest)).Succeeded;
+        return new CommsCapabilitiesDto(configure, test);
     }
 
     [HttpGet("ph/{propertyHorizontalId:guid}/profile")]

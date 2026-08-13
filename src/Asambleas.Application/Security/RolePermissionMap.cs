@@ -58,7 +58,7 @@ public static class RolePermissionMap
                 Permissions.PortalSelf
             ], StringComparer.Ordinal),
 
-            // Assembly authority — no PH CRUD, no SMTP, no owner admin, no vote:cast.
+            // Assembly authority — may configure SMTP/convocations; no owner CRUD, no vote:cast.
             [Roles.AssemblyPresident] = new HashSet<string>(
             [
                 Permissions.AssemblyView,
@@ -89,8 +89,10 @@ public static class RolePermissionMap
                 Permissions.ExpedienteView,
                 Permissions.ExpedienteDownload,
                 Permissions.CommunicationsView,
+                Permissions.CommunicationsConfigure,
                 Permissions.CommunicationsTest,
                 Permissions.TemplatesView,
+                Permissions.TemplatesManage,
                 Permissions.ConvocationsCreate,
                 Permissions.ConvocationsSend,
                 Permissions.ConvocationsResend,
