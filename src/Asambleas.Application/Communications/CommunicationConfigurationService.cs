@@ -62,10 +62,11 @@ public sealed class CommunicationConfigurationService
             {
                 TenantId = _currentTenant.TenantId,
                 PropertyHorizontalId = propertyHorizontalId,
-                SandboxMode = _environment.IsNonProduction
+                SandboxMode = false
             };
             _db.CommunicationProfiles.Add(profile);
             await EnsureDefaultChannelsAsync(propertyHorizontalId, cancellationToken);
+            await EnsureDefaultConvocationTemplateAsync(propertyHorizontalId, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
         }
 
@@ -81,7 +82,7 @@ public sealed class CommunicationConfigurationService
         await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
 
         var profile = await GetOrCreateEntityAsync(propertyHorizontalId, cancellationToken);
-        profile.SandboxMode = request.SandboxMode;
+        profile.SandboxMode = false;
         profile.TestRecipientOverride = NormalizeOptionalEmail(
             request.TestRecipientOverride,
             "TEST_RECIPIENT_INVALID",
@@ -221,13 +222,18 @@ public sealed class CommunicationConfigurationService
         {
             case CommunicationChannel.Email:
                 var emailProvider = await ResolveEmailProviderAsync(row, forceMock, cancellationToken);
+                var phName = await _db.PropertyHorizontals.AsNoTracking()
+                    .Where(p => p.Id == propertyHorizontalId)
+                    .Select(p => p.Name)
+                    .FirstOrDefaultAsync(cancellationToken) ?? "Su propiedad horizontal";
+                var preview = BuildSampleConvocationEmail(phName);
                 result = await emailProvider.SendAsync(
                     new EmailMessage(
                         destination,
                         null,
-                        "ASAMBLEAS — Prueba de correo",
-                        "<p>Correo de prueba del Communication Center.</p>",
-                        "Correo de prueba del Communication Center.",
+                        preview.Subject,
+                        preview.Html,
+                        preview.Text,
                         null,
                         profile.DefaultFromDisplayName,
                         profile.DefaultReplyTo,
@@ -275,6 +281,9 @@ public sealed class CommunicationConfigurationService
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
         await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
+
+        await EnsureDefaultConvocationTemplateAsync(propertyHorizontalId, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
 
         var rows = await _db.MessageTemplates
             .AsNoTracking()
@@ -462,12 +471,84 @@ public sealed class CommunicationConfigurationService
         {
             TenantId = _currentTenant.TenantId,
             PropertyHorizontalId = propertyHorizontalId,
-            SandboxMode = _environment.IsNonProduction
+            SandboxMode = false
         };
         _db.CommunicationProfiles.Add(profile);
         await EnsureDefaultChannelsAsync(propertyHorizontalId, cancellationToken);
+        await EnsureDefaultConvocationTemplateAsync(propertyHorizontalId, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
         return profile;
+    }
+
+    public async Task<ConvocationEmailPreviewDto> GetConvocationEmailPreviewAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
+
+        var phName = await _db.PropertyHorizontals.AsNoTracking()
+            .Where(p => p.Id == propertyHorizontalId)
+            .Select(p => p.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Su propiedad horizontal";
+
+        var sample = BuildSampleConvocationEmail(phName);
+        return new ConvocationEmailPreviewDto(sample.Subject, sample.Preheader, sample.Html, sample.Text);
+    }
+
+    private static ConvocationEmailComposer.ComposeResult BuildSampleConvocationEmail(string phName) =>
+        ConvocationEmailComposer.Compose(
+            new ConvocationEmailComposer.ComposeInput(
+                "María González",
+                phName,
+                "Asamblea Ordinaria",
+                "Ordinaria",
+                DateTimeOffset.UtcNow.AddDays(14).Date.AddHours(18),
+                "America/Panama",
+                "Virtual",
+                "Sala virtual ASAMBLEAS",
+                "101",
+                12.5m,
+                [
+                    (1, "Verificación de quórum"),
+                    (2, "Informe de administración"),
+                    (3, "Aprobación de estados financieros")
+                ],
+                "https://asambleas.app/ejemplo-acceso",
+                null,
+                false));
+
+    private async Task EnsureDefaultConvocationTemplateAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken)
+    {
+        const string code = "convocatoria-std";
+        var exists = await _db.MessageTemplates.AsNoTracking()
+            .AnyAsync(t => t.PropertyHorizontalId == propertyHorizontalId && t.Code == code, cancellationToken);
+        if (exists)
+        {
+            return;
+        }
+
+        var phName = await _db.PropertyHorizontals.AsNoTracking()
+            .Where(p => p.Id == propertyHorizontalId)
+            .Select(p => p.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Su PH";
+        var sample = BuildSampleConvocationEmail(phName);
+
+        _db.MessageTemplates.Add(new MessageTemplate
+        {
+            TenantId = _currentTenant.TenantId,
+            PropertyHorizontalId = propertyHorizontalId,
+            Code = code,
+            Name = "Convocatoria institucional",
+            ChannelScope = TemplateChannelScope.Email,
+            Subject = sample.Subject,
+            BodyHtml = sample.Html,
+            BodyText = sample.Text,
+            IsActive = true,
+            Version = 1
+        });
     }
 
     private async Task EnsureDefaultChannelsAsync(Guid propertyHorizontalId, CancellationToken cancellationToken)

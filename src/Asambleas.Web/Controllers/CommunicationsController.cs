@@ -68,6 +68,13 @@ public sealed class CommunicationsController : ControllerBase
         return await _config.TestChannelAsync(propertyHorizontalId, parsed, request, cancellationToken);
     }
 
+    [HttpGet("ph/{propertyHorizontalId:guid}/convocation-email-preview")]
+    [Authorize(Policy = Permissions.CommunicationsView)]
+    public Task<ConvocationEmailPreviewDto> ConvocationEmailPreview(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken) =>
+        _config.GetConvocationEmailPreviewAsync(propertyHorizontalId, cancellationToken);
+
     [HttpGet("ph/{propertyHorizontalId:guid}/templates")]
     [Authorize(Policy = Permissions.TemplatesView)]
     public Task<IReadOnlyList<MessageTemplateDto>> ListTemplates(

@@ -38,6 +38,12 @@ public sealed record ChannelTestRequest(string? Destination);
 
 public sealed record ChannelTestResultDto(bool Succeeded, string Detail, DateTimeOffset TestedAtUtc);
 
+public sealed record ConvocationEmailPreviewDto(
+    string Subject,
+    string Preheader,
+    string Html,
+    string Text);
+
 public sealed record MessageTemplateDto(
     Guid Id,
     string Code,

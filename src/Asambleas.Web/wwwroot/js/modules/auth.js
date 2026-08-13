@@ -66,3 +66,25 @@ export function cachedUser() {
 export function hasPermission(user, permission) {
   return Boolean(user?.permissions?.includes(permission));
 }
+
+const PH_ADMIN_HINTS = new Set(["PHAdmin", "TenantAdmin", "PlatformAdmin"]);
+
+/** True when the user may configure communications for this PH (global claim or PH membership). */
+export async function canConfigurePhComms(user, phId) {
+  if (hasPermission(user, "communications:configure")) {
+    return true;
+  }
+  if (!phId) {
+    return false;
+  }
+  try {
+    const memberships = await api("/api/ph/memberships/mine");
+    return memberships.some(
+      (m) =>
+        String(m.propertyHorizontalId).toLowerCase() === String(phId).toLowerCase()
+        && PH_ADMIN_HINTS.has(m.roleHint)
+    );
+  } catch {
+    return false;
+  }
+}

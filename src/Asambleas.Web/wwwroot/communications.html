@@ -15,6 +15,24 @@
   <link rel="stylesheet" href="/css/ia.css?v=ia2" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
+  <style>
+    .comms-email-preview {
+      border: 1px solid var(--border-subtle, #1e293b);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #f3f4f6;
+    }
+    .comms-email-preview iframe {
+      display: block;
+      width: 100%;
+      min-height: 420px;
+      border: 0;
+      background: #fff;
+    }
+    .comms-status-ok { color: var(--color-success, #34d399); }
+    .comms-status-warn { color: var(--color-warn, #fbbf24); }
+    .comms-status-err { color: var(--color-danger, #f87171); }
+  </style>
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -42,70 +60,47 @@
       <section class="page-hero">
         <p class="command-eyebrow">Comunicaciones del PH</p>
         <h1 id="comms-ph-title">Comunicaciones</h1>
-        <p class="lede" id="comms-ph-sub">Canales, plantillas y sandbox por propiedad horizontal. Los secretos nunca se muestran.</p>
+        <p class="lede" id="comms-ph-sub">Configura el envío de correos para convocatorias e invitaciones. Los secretos nunca se muestran.</p>
       </section>
 
       <div class="stack">
+        <section class="panel" aria-labelledby="smtp-heading">
+          <h2 id="smtp-heading" class="section-title">Correo electrónico (SMTP)</h2>
+          <p class="muted" style="margin:0 0 1rem">Conecta tu cuenta (Gmail, Outlook u otro SMTP) para enviar convocatorias reales a los propietarios.</p>
+          <div id="email-channel-panel"><div class="skeleton" style="height:12rem"></div></div>
+        </section>
+
         <section class="panel" aria-labelledby="profile-heading">
-          <h2 id="profile-heading" class="section-title">General</h2>
+          <h2 id="profile-heading" class="section-title">Remitente</h2>
           <form id="profile-form" class="form-grid">
-            <label class="field">
-              <span>Modo de prueba</span>
-              <input type="checkbox" id="profile-sandbox" />
-            </label>
-            <label class="field">
-              <span>Destinatario de prueba</span>
-              <input type="email" id="profile-override" placeholder="qa@ejemplo.com" autocomplete="off" />
-            </label>
             <label class="field">
               <span>Zona horaria</span>
               <input type="text" id="profile-tz" value="America/Panama" />
             </label>
             <label class="field">
               <span>Nombre remitente</span>
-              <input type="text" id="profile-from-name" />
+              <input type="text" id="profile-from-name" placeholder="Administración PH" />
             </label>
             <label class="field">
               <span>Responder a</span>
-              <input type="email" id="profile-reply" />
+              <input type="email" id="profile-reply" placeholder="admin@tuph.com" />
             </label>
             <div class="cta-row">
-              <button type="submit" class="btn btn-primary">Guardar perfil</button>
+              <button type="submit" class="btn btn-secondary">Guardar remitente</button>
             </div>
           </form>
         </section>
 
-        <section class="panel" aria-labelledby="channels-heading">
-          <h2 id="channels-heading" class="section-title">Canales</h2>
-          <div id="channels-panel"><div class="skeleton" style="height:8rem"></div></div>
-        </section>
-
-        <section class="panel" aria-labelledby="templates-heading">
-          <h2 id="templates-heading" class="section-title">Plantillas</h2>
-          <form id="template-form" class="form-grid">
-            <label class="field"><span>Código</span><input id="tpl-code" required /></label>
-            <label class="field"><span>Nombre</span><input id="tpl-name" required /></label>
-            <label class="field">
-              <span>Canal</span>
-              <select id="tpl-scope">
-                <option value="Email">Email</option>
-                <option value="Portal">Portal</option>
-                <option value="WhatsApp">WhatsApp</option>
-                <option value="Sms">SMS</option>
-              </select>
-            </label>
-            <label class="field"><span>Asunto</span><input id="tpl-subject" /></label>
-            <label class="field full"><span>HTML</span><textarea id="tpl-html" rows="4"></textarea></label>
-            <label class="field full"><span>Texto</span><textarea id="tpl-text" rows="3"></textarea></label>
-            <div class="cta-row">
-              <button type="submit" class="btn btn-primary">Guardar plantilla</button>
-            </div>
-          </form>
-          <div id="templates-list" class="stack" style="margin-top:1rem"></div>
+        <section class="panel" aria-labelledby="preview-heading">
+          <h2 id="preview-heading" class="section-title">Plantilla de convocatoria</h2>
+          <p class="muted" style="margin:0 0 1rem">Este diseño se envía automáticamente al convocar una asamblea (asunto, agenda, botón de acceso).</p>
+          <div class="comms-email-preview">
+            <iframe id="email-preview-frame" title="Vista previa del correo de convocatoria" sandbox=""></iframe>
+          </div>
         </section>
       </div>
     </main>
   </div>
-  <script type="module" src="/js/modules/communications-app.js?v=px6"></script>
+  <script type="module" src="/js/modules/communications-app.js?v=px7"></script>
 </body>
 </html>
