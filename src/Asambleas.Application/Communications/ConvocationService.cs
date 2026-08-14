@@ -4,6 +4,7 @@ using System.Text.Json;
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Abstractions.Communications;
 using Asambleas.Application.Common;
+using Asambleas.Application.Security;
 using Asambleas.Contracts.Communications;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
@@ -328,6 +329,12 @@ public sealed class ConvocationService
 
         batch.TotalCount = deliveries.Count;
         _db.CommunicationDeliveries.AddRange(deliveries);
+        await EnsureAssemblyParticipantsForRecipientsAsync(
+            c.AssemblyId,
+            c.TenantId,
+            c.PropertyHorizontalId,
+            recipients,
+            cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         // Fix BatchId FK after batch Id assigned — deliveries were created with batch.Id already set since Guid.NewGuid on Entity.
@@ -471,6 +478,12 @@ public sealed class ConvocationService
 
         batch.TotalCount = deliveries.Count;
         _db.CommunicationDeliveries.AddRange(deliveries);
+        await EnsureAssemblyParticipantsForRecipientsAsync(
+            c.AssemblyId,
+            c.TenantId,
+            c.PropertyHorizontalId,
+            recipients,
+            cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         await _dispatch.ProcessBatchAsync(batch.Id, cancellationToken);
@@ -612,6 +625,92 @@ public sealed class ConvocationService
                     "CHANNEL_DISABLED",
                     $"Channel {channel} is disabled or not configured. Enable it before send.");
             }
+        }
+    }
+
+    /// <summary>
+    /// Convoked owners with platform accounts must be enrolled as assembly participants
+    /// so owner portal and attendance flows can resolve the assembly.
+    /// </summary>
+    private async Task EnsureAssemblyParticipantsForRecipientsAsync(
+        Guid assemblyId,
+        Guid tenantId,
+        Guid propertyHorizontalId,
+        IReadOnlyList<ConvocationRecipient> recipients,
+        CancellationToken cancellationToken)
+    {
+        var enrollable = recipients
+            .Where(r => r.IsValid && r.UserId is Guid userId && userId != Guid.Empty)
+            .ToList();
+        if (enrollable.Count == 0)
+        {
+            return;
+        }
+
+        var userIds = enrollable.Select(r => r.UserId!.Value).Distinct().ToList();
+        var existingUserIds = await _db.AssemblyParticipants
+            .Where(p => p.AssemblyId == assemblyId && userIds.Contains(p.UserId))
+            .Select(p => p.UserId)
+            .ToListAsync(cancellationToken);
+        var existing = existingUserIds.ToHashSet();
+
+        var missing = enrollable
+            .Where(r => !existing.Contains(r.UserId!.Value))
+            .GroupBy(r => r.UserId!.Value)
+            .Select(g => g.First())
+            .ToList();
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        var ownerIds = missing
+            .Where(r => r.OwnerId is Guid ownerId && ownerId != Guid.Empty)
+            .Select(r => r.OwnerId!.Value)
+            .Distinct()
+            .ToList();
+
+        Dictionary<Guid, Guid> unitByOwner = [];
+        if (ownerIds.Count > 0)
+        {
+            var ownershipRows = await (
+                from own in _db.Ownerships.AsNoTracking()
+                join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
+                where ownerIds.Contains(own.OwnerId)
+                      && own.IsActive
+                      && u.PropertyHorizontalId == propertyHorizontalId
+                select new { own.OwnerId, own.UnitId, own.SharePercent })
+                .ToListAsync(cancellationToken);
+
+            unitByOwner = ownershipRows
+                .GroupBy(x => x.OwnerId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(x => x.SharePercent).First().UnitId);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var recipient in missing)
+        {
+            Guid? unitId = recipient.OwnerId is Guid ownerId && unitByOwner.TryGetValue(ownerId, out var uid)
+                ? uid
+                : null;
+
+            _db.AssemblyParticipants.Add(new AssemblyParticipant
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                AssemblyId = assemblyId,
+                UserId = recipient.UserId!.Value,
+                UnitId = unitId,
+                DisplayName = string.IsNullOrWhiteSpace(recipient.DisplayName)
+                    ? "Propietario"
+                    : recipient.DisplayName.Trim(),
+                RoleCode = Roles.Owner,
+                AttendanceStatus = AttendanceStatus.Registered,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
         }
     }
 
