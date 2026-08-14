@@ -1148,8 +1148,12 @@ async function showUnit(unitId) {
     <ul>${active.length
       ? active
           .map(
-            (o) => `<li>
-              <strong>${escapeHtml(o.ownerDisplayName)}</strong> · ${Number(o.sharePercent).toFixed(2)}%
+            (o) => `<li class="unit-owner-row">
+              <strong>${escapeHtml(o.ownerDisplayName)}</strong>
+              <label class="unit-share-edit">Participación %
+                <input type="number" min="0.0001" max="100" step="0.0001" value="${Number(o.sharePercent).toFixed(4)}" data-share-input="${o.ownershipId}" />
+              </label>
+              <button type="button" class="btn btn-ghost" data-save-share="${o.ownershipId}">Guardar %</button>
               <span class="muted">${formatDate(o.effectiveFromUtc)} → actual</span>
               <button type="button" class="btn btn-secondary" data-transfer="${o.ownershipId}" data-unit="${detail.unitId}" data-owner-name="${escapeHtml(o.ownerDisplayName)}" data-unit-code="${escapeHtml(detail.unitCode)}">Transferir</button>
               <button type="button" class="btn btn-ghost" data-end-unit-own="${o.ownershipId}">Finalizar</button>
@@ -1171,6 +1175,28 @@ async function showUnit(unitId) {
 
   el.querySelectorAll("[data-transfer]").forEach((btn) => {
     btn.addEventListener("click", () => openTransferDialog(btn.dataset));
+  });
+  el.querySelectorAll("[data-save-share]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const ownershipId = btn.dataset.saveShare;
+      const input = el.querySelector(`[data-share-input="${ownershipId}"]`);
+      const sharePercent = Number(input?.value);
+      if (!(sharePercent > 0) || sharePercent > 100) {
+        AppFeedback.warning("Indica un % de participación entre 0 y 100.", { title: "Participación inválida" });
+        return;
+      }
+      try {
+        await api(`/api/ph/${currentPhId}/ownerships/${ownershipId}/share`, {
+          method: "PUT",
+          body: { sharePercent }
+        });
+        AppFeedback.success("Participación actualizada.", { title: "Copropiedad" });
+        await showUnit(unitId);
+        await loadOwners();
+      } catch (err) {
+        AppFeedback.fromError(err, err?.message || "No se pudo actualizar la participación.");
+      }
+    });
   });
   el.querySelectorAll("[data-end-unit-own]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -1539,29 +1565,28 @@ async function syncOwnerShareForSelectedUnit() {
     const detail = await api(`/api/ph/${currentPhId}/units/${unitId}/ownerships`);
     const used = Number(detail.activeShareTotalPercent || 0);
     const remaining = Math.max(0, Number((100 - used).toFixed(4)));
-    shareInput.max = remaining > 0 ? String(remaining) : "100";
+    const activeCount = (detail.owners || []).filter((o) => o.isActive).length;
 
     if (remaining <= 0) {
-      shareInput.value = "";
+      const equal = Number((100 / (activeCount + 1)).toFixed(4));
+      shareInput.max = "100";
+      shareInput.value = String(equal);
       if (hint) {
         hint.hidden = false;
         hint.textContent =
-          "Esta unidad ya tiene 100% asignado. Reduce o finaliza una titularidad existente antes de agregar otro copropietario.";
+          `La unidad ya tiene ${activeCount} titular(es) al 100%. Al guardar se redistribuirá en partes iguales (~${equal}% cada uno).`;
       }
-      notify.warning(
-        "La unidad ya está al 100%. Ajusta un titular existente (ej. 50/50) o finaliza una participación.",
-        { title: "Sin % disponible" }
-      );
       return;
     }
 
+    shareInput.max = String(remaining);
     shareInput.value = String(remaining);
     if (hint) {
       hint.hidden = false;
       hint.textContent =
         used > 0
           ? `Copropiedad: ya hay ${used.toFixed(2)}% asignado. Quedan ${remaining.toFixed(2)}% para este propietario.`
-          : "Primer titular: se sugiere 100%. Si habrá copropietarios, deja espacio (ej. 50%).";
+          : "Primer titular: se sugiere 100%. Si habrá copropietarios, deja espacio (ej. 50%) o agrégalos después (se redistribuye solo).";
     }
   } catch (err) {
     if (hint) {
@@ -1688,7 +1713,10 @@ async function onSaveOwner(ev) {
       return;
     }
     if (/OWNERSHIP_SHARE_OVERFLOW|sumaría|máximo 100|copropiedad/i.test(msg) || err?.code === "OWNERSHIP_SHARE_OVERFLOW") {
-      AppFeedback.warning(msg, { title: "Participación excede 100%" });
+      AppFeedback.warning(
+        msg + " Puedes editar el % de cada titular en la ficha de la unidad, o agregar el copropietario y el sistema redistribuirá en partes iguales.",
+        { title: "Participación excede 100%" }
+      );
       await syncOwnerShareForSelectedUnit();
       return;
     }

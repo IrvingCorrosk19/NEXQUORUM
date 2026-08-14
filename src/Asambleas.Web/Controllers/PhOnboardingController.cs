@@ -274,6 +274,15 @@ public sealed class PhOnboardingController : ControllerBase
         CancellationToken cancellationToken) =>
         _ph.CreateOwnershipAsync(propertyHorizontalId, request, cancellationToken);
 
+    [HttpPut("{propertyHorizontalId:guid}/ownerships/{ownershipId:guid}/share")]
+    [Authorize(Policy = Permissions.OwnerManage)]
+    public Task<OwnerUnitLinkDto> UpdateOwnershipShare(
+        Guid propertyHorizontalId,
+        Guid ownershipId,
+        [FromBody] UpdateOwnershipShareRequest request,
+        CancellationToken cancellationToken) =>
+        _ph.UpdateOwnershipShareAsync(propertyHorizontalId, ownershipId, request, cancellationToken);
+
     [HttpPost("{propertyHorizontalId:guid}/ownerships/{ownershipId:guid}/end")]
     [Authorize(Policy = Permissions.OwnerManage)]
     public async Task<IActionResult> EndOwnership(

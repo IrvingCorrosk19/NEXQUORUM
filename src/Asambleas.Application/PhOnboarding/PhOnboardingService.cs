@@ -956,28 +956,8 @@ public sealed class PhOnboardingService
                 throw new DomainException("SHARE_PERCENT_INVALID", "SharePercent must be greater than 0 and at most 100.");
             }
 
-            await _db.Ownerships
-                .Where(o => o.UnitId == unit.Id && o.IsActive)
-                .LoadAsync(cancellationToken);
-            var usedByOthers = CoefficientValidator.Normalize(
-                _db.Ownerships.Local
-                    .Where(o => o.UnitId == unit.Id && o.IsActive && o.OwnerId != owner.Id)
-                    .Sum(o => o.SharePercent));
-            var remaining = CoefficientValidator.Normalize(100m - usedByOthers);
-            if (remaining <= 0.0001m)
-            {
-                throw new DomainException(
-                    "OWNERSHIP_SHARE_OVERFLOW",
-                    "Esta unidad ya tiene 100% de titularidad activa. "
-                    + "Reduce o finaliza una participación existente antes de agregar otro copropietario.");
-            }
-
-            if (sharePercent > remaining)
-            {
-                // Co-ownership happy path: UI often defaults to 100%; fit into remaining capacity.
-                sharePercent = remaining;
-            }
-
+            sharePercent = await ResolveShareForNewCoOwnerAsync(
+                unit.Id, owner.Id, sharePercent, cancellationToken);
             await UpsertOwnershipAsync(unit, owner.Id, sharePercent, null, cancellationToken);
             await EnsureActiveShareTotalAsync(unit.Id, excludeOwnershipId: null, cancellationToken);
         }
@@ -1236,15 +1216,59 @@ public sealed class PhOnboardingService
             throw new DomainException("SHARE_PERCENT_INVALID", "SharePercent must be greater than 0 and at most 100.");
         }
 
+        var sharePercent = await ResolveShareForNewCoOwnerAsync(
+            unit.Id, request.OwnerId, request.SharePercent, cancellationToken);
         var ownership = await UpsertOwnershipAsync(
-            unit, request.OwnerId, request.SharePercent, request.EffectiveFromUtc, cancellationToken);
+            unit, request.OwnerId, sharePercent, request.EffectiveFromUtc, cancellationToken);
         await EnsureActiveShareTotalAsync(unit.Id, excludeOwnershipId: null, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         await _audit.WriteAsync(
             AuditEventType.OwnershipCreated,
             correlationId: ownership.Id,
-            metadata: new { propertyHorizontalId, request.UnitId, request.OwnerId, request.SharePercent },
+            metadata: new { propertyHorizontalId, request.UnitId, request.OwnerId, SharePercent = sharePercent },
+            cancellationToken: cancellationToken);
+
+        return new OwnerUnitLinkDto(
+            ownership.Id, unit.Id, unit.Code, unit.Tower, unit.CoefficientPercent,
+            ownership.SharePercent, ownership.IsActive, ownership.EffectiveFromUtc, ownership.EffectiveToUtc);
+    }
+
+    public async Task<OwnerUnitLinkDto> UpdateOwnershipShareAsync(
+        Guid propertyHorizontalId,
+        Guid ownershipId,
+        UpdateOwnershipShareRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAdministrationAsync(propertyHorizontalId, cancellationToken);
+        var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        EnsurePhNotInactiveForMutation(ph);
+
+        if (request.SharePercent <= 0 || request.SharePercent > 100)
+        {
+            throw new DomainException("SHARE_PERCENT_INVALID", "SharePercent must be greater than 0 and at most 100.");
+        }
+
+        var ownership = await _db.Ownerships.FirstOrDefaultAsync(o => o.Id == ownershipId, cancellationToken)
+            ?? throw new DomainException("OWNERSHIP_NOT_FOUND", "Ownership not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, ownership.TenantId);
+
+        var unit = await LoadUnitInPhAsync(propertyHorizontalId, ownership.UnitId, cancellationToken);
+        if (!ownership.IsActive)
+        {
+            throw new DomainException("OWNERSHIP_INACTIVE", "No se puede editar una titularidad finalizada.");
+        }
+
+        ownership.SharePercent = CoefficientValidator.Normalize(request.SharePercent);
+        await EnsureActiveShareTotalAsync(unit.Id, excludeOwnershipId: null, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.WriteAsync(
+            AuditEventType.OwnershipChanged,
+            correlationId: ownership.Id,
+            metadata: new { propertyHorizontalId, ownership.UnitId, ownership.OwnerId, ownership.SharePercent, action = "share_updated" },
             cancellationToken: cancellationToken);
 
         return new OwnerUnitLinkDto(
@@ -1540,8 +1564,8 @@ public sealed class PhOnboardingService
             from own in _db.Ownerships.AsNoTracking()
             join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
             join p in _db.PropertyHorizontals.AsNoTracking() on u.PropertyHorizontalId equals p.Id
-            where ownerIds.Contains(own.OwnerId) && own.IsActive
-            orderby p.Name, u.Code
+            where ownerIds.Contains(own.OwnerId)
+            orderby own.IsActive descending, p.Name, u.Code
             select new MyOwnerUnitDto(
                 u.Code,
                 u.Tower,
@@ -2014,6 +2038,72 @@ public sealed class PhOnboardingService
         };
         _db.Ownerships.Add(ownership);
         return ownership;
+    }
+
+    /// <summary>
+    /// Resolves share % for a new (or reactivated) co-owner on a unit.
+    /// If capacity remains, clamps to remaining. If the unit is already at 100%,
+    /// redistributes equally among existing active owners + the new co-owner so
+    /// multiple propietarios can always be linked to one unidad.
+    /// </summary>
+    private async Task<decimal> ResolveShareForNewCoOwnerAsync(
+        Guid unitId,
+        Guid ownerId,
+        decimal requestedShare,
+        CancellationToken cancellationToken)
+    {
+        await _db.Ownerships
+            .Where(o => o.UnitId == unitId)
+            .LoadAsync(cancellationToken);
+
+        var others = _db.Ownerships.Local
+            .Where(o => o.UnitId == unitId && o.IsActive && o.OwnerId != ownerId)
+            .OrderBy(o => o.EffectiveFromUtc)
+            .ThenBy(o => o.Id)
+            .ToList();
+
+        var usedByOthers = CoefficientValidator.Normalize(others.Sum(o => o.SharePercent));
+        var remaining = CoefficientValidator.Normalize(100m - usedByOthers);
+
+        if (remaining > CoefficientValidator.Tolerance)
+        {
+            var desired = CoefficientValidator.Normalize(requestedShare);
+            return desired > remaining ? remaining : desired;
+        }
+
+        // Already at 100%: equal split across all co-owners (existing + new).
+        var parts = SplitPercentEqually(others.Count + 1);
+        for (var i = 0; i < others.Count; i++)
+        {
+            others[i].SharePercent = parts[i];
+        }
+
+        return parts[^1];
+    }
+
+    private static decimal[] SplitPercentEqually(int count)
+    {
+        if (count <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count));
+        }
+
+        if (count == 1)
+        {
+            return [100m];
+        }
+
+        var baseShare = CoefficientValidator.Normalize(100m / count);
+        var parts = new decimal[count];
+        var assigned = 0m;
+        for (var i = 0; i < count - 1; i++)
+        {
+            parts[i] = baseShare;
+            assigned += baseShare;
+        }
+
+        parts[count - 1] = CoefficientValidator.Normalize(100m - assigned);
+        return parts;
     }
 
     /// <summary>

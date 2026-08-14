@@ -182,6 +182,8 @@ public sealed record CreateOwnershipRequest(
     decimal SharePercent,
     DateTimeOffset? EffectiveFromUtc);
 
+public sealed record UpdateOwnershipShareRequest(decimal SharePercent);
+
 public sealed record TransferOwnershipRequest(
     Guid FromOwnershipId,
     Guid ToOwnerId,
