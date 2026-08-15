@@ -88,6 +88,18 @@ if (!token) {
       passwordInput?.focus();
       return;
     }
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasDigit = /\d/.test(password);
+    const hasSymbol = /[^A-Za-z0-9]/.test(password);
+    if (!hasUpper || !hasLower || !hasDigit || !hasSymbol) {
+      const msg =
+        "La contraseña debe tener al menos 12 caracteres, una mayúscula, una minúscula, un número y un símbolo (ej. ! @ # $).";
+      AppFeedback.field.error(passwordInput, msg);
+      AppFeedback.warning(msg, { title: "Contraseña débil" });
+      passwordInput?.focus();
+      return;
+    }
     if (password !== confirm) {
       AppFeedback.field.error(confirmInput, "Las contraseñas no coinciden.");
       AppFeedback.warning("Las contraseñas no coinciden.", { title: "Revisa la confirmación" });
@@ -118,6 +130,16 @@ if (!token) {
           title: "Cuenta existente"
         });
         location.href = `/?acceptInvite=1&token=${encodeURIComponent(token)}`;
+        return;
+      }
+      if (code === "PASSWORD_WEAK") {
+        const msg =
+          err?.message ||
+          "La contraseña debe tener al menos 12 caracteres, una mayúscula, una minúscula, un número y un símbolo (ej. ! @ # $).";
+        AppFeedback.field.error(passwordInput, msg);
+        AppFeedback.warning(msg, { title: "Contraseña débil" });
+        AppFeedback.banner.page(msg, "error");
+        passwordInput?.focus();
         return;
       }
       AppFeedback.fromError(err, "No pudimos activar tu cuenta. Verifica los datos e inténtalo de nuevo.");

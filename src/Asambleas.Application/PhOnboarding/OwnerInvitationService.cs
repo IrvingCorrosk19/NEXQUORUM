@@ -245,8 +245,12 @@ public sealed class OwnerInvitationService
 
         if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 12)
         {
-            throw new DomainException("PASSWORD_WEAK", "Password must be at least 12 characters.");
+            throw new DomainException(
+                "PASSWORD_WEAK",
+                "La contraseña debe tener al menos 12 caracteres, una mayúscula, una minúscula, un número y un símbolo (ej. ! @ # $).");
         }
+
+        EnsurePasswordMeetsPolicy(request.Password);
 
         var owner = await _db.Owners.IgnoreQueryFilters()
             .FirstOrDefaultAsync(o => o.Id == invitation.OwnerId, cancellationToken)
@@ -620,6 +624,20 @@ public sealed class OwnerInvitationService
         {
             existing.IsActive = true;
             existing.RoleHint = roleHint;
+        }
+    }
+
+    private static void EnsurePasswordMeetsPolicy(string password)
+    {
+        var hasUpper = password.Any(char.IsUpper);
+        var hasLower = password.Any(char.IsLower);
+        var hasDigit = password.Any(char.IsDigit);
+        var hasSymbol = password.Any(ch => !char.IsLetterOrDigit(ch));
+        if (password.Length < 12 || !hasUpper || !hasLower || !hasDigit || !hasSymbol)
+        {
+            throw new DomainException(
+                "PASSWORD_WEAK",
+                "La contraseña debe tener al menos 12 caracteres, una mayúscula, una minúscula, un número y un símbolo (ej. ! @ # $).");
         }
     }
 

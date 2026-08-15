@@ -2,6 +2,7 @@ namespace Asambleas.Infrastructure.Identity;
 
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Security;
+using Asambleas.Domain.Common;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -60,8 +61,17 @@ public sealed class OwnerPortalIdentityService : IOwnerPortalIdentityService
         var result = await _userManager.CreateAsync(user, password);
         if (!result.Succeeded)
         {
+            if (result.Errors.Any(e =>
+                    e.Code.StartsWith("Password", StringComparison.OrdinalIgnoreCase)
+                    || e.Description.Contains("Passwords must", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new DomainException(
+                    "PASSWORD_WEAK",
+                    "La contraseña debe tener al menos 12 caracteres, una mayúscula, una minúscula, un número y un símbolo (ej. ! @ # $).");
+            }
+
             var detail = string.Join("; ", result.Errors.Select(e => e.Description));
-            throw new InvalidOperationException($"Unable to create owner user: {detail}");
+            throw new DomainException("OWNER_USER_CREATE_FAILED", $"No pudimos crear la cuenta: {detail}");
         }
 
         await LinkOwnerRoleAsync(user.Id, cancellationToken);
