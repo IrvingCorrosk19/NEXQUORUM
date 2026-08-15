@@ -26,6 +26,7 @@ import {
   getLocalPublishIntent,
   getMediaConnectionState,
   highlightOfficialSpeaker,
+  isLiveKitConnected,
   listIncidents,
   loadDevicePrefs,
   renderAvBlocked,
@@ -86,6 +87,7 @@ const state = {
   queue: null,
   quorum: null,
   motion: null,
+  motions: [],
   session: null,
   tally: null,
   myVote: null,
@@ -106,7 +108,7 @@ const liveWorkspace = createLiveVotingWorkspace({
   getAssemblyId: () => assemblyId,
   getUser: () => state.user,
   getAgenda: () => state.agenda,
-  getMotions: () => null,
+  getMotions: () => state.motions || [],
   getSession: () => state.session,
   getMotion: () => state.motion,
   refreshRoom: async () => {
@@ -115,6 +117,8 @@ const liveWorkspace = createLiveVotingWorkspace({
       if (room?.motion) state.motion = room.motion;
       if (room?.session) state.session = room.session;
       if (room?.agenda) state.agenda = room.agenda;
+      const motions = await api(`/api/assemblies/${assemblyId}/motions`).catch(() => null);
+      if (Array.isArray(motions)) state.motions = motions;
     } catch {
       /* keep local */
     }
@@ -609,6 +613,9 @@ function applyRoleChrome() {
   const studio = qs("#link-studio");
   if (studio) {
     studio.href = `/voting-studio.html?assemblyId=${assemblyId}`;
+    studio.target = "_blank";
+    studio.rel = "noopener noreferrer";
+    studio.title = "Abre el estudio en otra pestaña para no interrumpir la videollamada";
     studio.hidden = !hasPermission(state.user, "motion:create");
   }
 }
@@ -1217,9 +1224,19 @@ function refreshPanels() {
     }
   });
 
-  if (operator && els.vote) {
-    liveWorkspace.mountOperatorChrome(els.vote);
-    liveWorkspace.syncLockBanner(els.vote);
+  if (els.vote) {
+    if (operator) {
+      liveWorkspace.mountOperatorChrome(els.vote);
+      liveWorkspace.syncLockBanner(els.vote);
+    }
+    liveWorkspace.renderQuestionnaire(els.vote, {
+      motions: state.motions || [],
+      activeMotionId: state.motion?.id,
+      session: state.session,
+      canManage:
+        operator &&
+        (hasPermission(state.user, "motion:create") || hasPermission(state.user, "vote:open"))
+    });
   }
 
   const current = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
@@ -1268,6 +1285,12 @@ async function rehydrate() {
     userId: state.user?.userId || state.user?.id
   });
   applyRoomState(room);
+  try {
+    const motions = await api(`/api/assemblies/${assemblyId}/motions`);
+    if (Array.isArray(motions)) state.motions = motions;
+  } catch {
+    /* optional */
+  }
   if (room._fallbackMessage) {
     showToast(room._fallbackMessage, "info");
   }
@@ -1638,11 +1661,16 @@ async function init() {
     onReconnected: async () => {
       showToast(t("connection.restored"), "success");
       await rehydrate();
-      // Governance resync must not require media; re-bootstrap media best-effort.
-      try {
-        await bootstrapMeeting();
-      } catch {
-        /* media optional */
+      // Never tear down LiveKit for governance reconnect.
+      if (!isLiveKitConnected()) {
+        try {
+          await bootstrapMeeting();
+        } catch {
+          /* media optional */
+        }
+      } else {
+        updateMediaConnectionBanner();
+        syncMeetingControlBar();
       }
     },
     onReconnectError: (error) => showToast(error.message, "error"),
@@ -1663,9 +1691,16 @@ async function init() {
       refreshPanels();
       syncPublishForFloor().catch(() => {});
     },
-    motionUpdated: (m) => {
+    motionUpdated: async (m) => {
       state.motion = m;
+      try {
+        const motions = await api(`/api/assemblies/${assemblyId}/motions`);
+        if (Array.isArray(motions)) state.motions = motions;
+      } catch {
+        /* keep */
+      }
       refreshPanels();
+      liveWorkspace.handleRealtime("motionUpdated");
     },
     votingOpened: (s) => {
       state.session = s;

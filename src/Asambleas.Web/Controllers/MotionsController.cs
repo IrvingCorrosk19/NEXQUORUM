@@ -86,4 +86,12 @@ public sealed class MotionsController : ControllerBase
         [FromBody] PresentMotionRequest request,
         CancellationToken cancellationToken) =>
         _motions.PresentMotionAsync(assemblyId, request.MotionId, cancellationToken);
+
+    [HttpPost("reorder")]
+    [Authorize(Policy = Permissions.MotionCreate)]
+    public Task<IReadOnlyList<MotionDto>> Reorder(
+        Guid assemblyId,
+        [FromBody] ReorderMotionsRequest request,
+        CancellationToken cancellationToken) =>
+        _motions.ReorderAsync(assemblyId, request, cancellationToken);
 }

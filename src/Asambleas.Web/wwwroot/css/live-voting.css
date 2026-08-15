@@ -80,3 +80,64 @@
     flex: 1 1 calc(50% - 0.4rem);
   }
 }
+
+.live-questionnaire {
+  margin-bottom: 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--brand-teal-700, #0f5c5c) 6%, #fff);
+  border: 1px solid color-mix(in srgb, var(--brand-teal-700, #0f5c5c) 14%, transparent);
+}
+
+.live-questionnaire-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.92rem;
+}
+
+.live-questionnaire-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.live-questionnaire-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.45rem;
+  align-items: start;
+  padding: 0.35rem 0.4rem;
+  border-radius: 0.4rem;
+  font-size: 0.88rem;
+}
+
+.live-questionnaire-list li.is-active {
+  background: color-mix(in srgb, var(--brand-teal-700, #0f5c5c) 12%, #fff);
+}
+
+.lq-mark {
+  font-weight: 700;
+  color: var(--brand-teal-700, #0f5c5c);
+  min-width: 1rem;
+}
+
+.lq-text small {
+  display: block;
+  font-weight: 400;
+}
+
+.lq-ops {
+  display: inline-flex;
+  gap: 0.1rem;
+}
+
+.btn-xs {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  min-height: 0;
+}

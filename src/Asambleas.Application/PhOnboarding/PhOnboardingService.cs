@@ -514,7 +514,11 @@ public sealed class PhOnboardingService
         unit.Floor = request.Floor;
         unit.UnitType = PhOnboardingSupport.Trim(request.UnitType);
         unit.CoefficientPercent = CoefficientValidator.Normalize(request.CoefficientPercent);
-        unit.IsActive = request.IsActive;
+        // Omit/null must NOT silently deactivate — default keep current; explicit false allowed.
+        if (request.IsActive.HasValue)
+        {
+            unit.IsActive = request.IsActive.Value;
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
         await _audit.WriteAsync(

@@ -82,7 +82,8 @@ public sealed class CommunicationConfigurationService
         await EnsurePhAccessAsync(propertyHorizontalId, cancellationToken);
 
         var profile = await GetOrCreateEntityAsync(propertyHorizontalId, cancellationToken);
-        profile.SandboxMode = false;
+        // Production always keeps Sandbox off. Non-production may enable Mock sandbox for local E2E.
+        profile.SandboxMode = _environment.IsNonProduction && request.SandboxMode;
         profile.TestRecipientOverride = NormalizeOptionalEmail(
             request.TestRecipientOverride,
             "TEST_RECIPIENT_INVALID",
@@ -387,6 +388,8 @@ public sealed class CommunicationConfigurationService
     /// Resolves the PH Email channel provider (SMTP when Sandbox=false and configured).
     /// Shared by Communication Center tests, convocations, and owner invitations.
     /// </summary>
+    public bool AllowsMockInvitations => _environment.IsNonProduction;
+
     public async Task<(IEmailProvider Provider, bool UsedSandbox, string ProviderName)> ResolvePhEmailProviderAsync(
         Guid propertyHorizontalId,
         CancellationToken cancellationToken = default)
@@ -487,12 +490,6 @@ public sealed class CommunicationConfigurationService
 
         if (profile is not null)
         {
-            if (profile.SandboxMode)
-            {
-                profile.SandboxMode = false;
-                await _db.SaveChangesAsync(cancellationToken);
-            }
-
             return profile;
         }
 

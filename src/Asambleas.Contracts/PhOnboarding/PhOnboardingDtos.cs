@@ -92,7 +92,7 @@ public sealed record UpdateUnitRequest(
     int? Floor,
     string? UnitType,
     decimal CoefficientPercent,
-    bool IsActive);
+    bool? IsActive = true);
 
 public sealed record BulkGenerateUnitsRequest(
     string? Tower,

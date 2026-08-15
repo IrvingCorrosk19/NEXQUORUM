@@ -36,6 +36,8 @@ public static class AuditEventType
     public const string MotionCreated = "MOTION_CREATED";
     public const string MotionUpdated = "MOTION_UPDATED";
     public const string MotionPublished = "MOTION_PUBLISHED";
+    public const string MotionArchived = "MOTION_ARCHIVED";
+    public const string MotionReordered = "MOTION_REORDERED";
     public const string VotingOpened = "VOTING_OPENED";
     public const string VoteCast = "VOTE_CAST";
     public const string VoteAccepted = "VOTE_ACCEPTED";

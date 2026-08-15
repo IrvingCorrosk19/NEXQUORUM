@@ -1,0 +1,366 @@
+{
+  "env": "LOCALHOST",
+  "url": "https://localhost:7188",
+  "stamp": "10936276",
+  "ids": {
+    "phId": "767e4c84-3f6d-465c-912b-fc9268b6c9c5",
+    "unitId": "e979eacd-388a-4650-b031-233c1b764580",
+    "ownerId": "dbf4b6e9-da15-49ff-8dc3-2fee34757d11",
+    "assemblyId": "ed0eb793-5b6e-4010-afae-5add6f338d4a",
+    "ownerUserId": "0c1a0e87-c549-4a00-96db-dcebaec3dfe1"
+  },
+  "steps": [
+    {
+      "n": "GATE0-UP",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "LOGIN-ADMIN",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "PH-CREATE",
+      "pass": true,
+      "d": "767e4c84-3f6d-465c-912b-fc9268b6c9c5"
+    },
+    {
+      "n": "PH-SWITCH",
+      "pass": true,
+      "d": "[{\"propertyHorizontalId\":\"33333333-3333-3333-3333-333333333301\",\"code\":\"OCEAN-PH\",\"name\":\"PH DEMO OCEAN TOWER\",\"roleHint\":\"PHAdmin\",\"isCurrent\":false},{\"propertyHorizontalId\":\"a50238ee-4227-484a-9c30-6c2baefae5e6\",\"code\":\"EO19-10705888\",\"name\":\"PH EO019 CERT 10705888\",\"roleHint\":\"PHAdmin\",\"isCurrent\":false},{\"propertyHorizontalId\":\"38ea66cf-ec49-452c-810c-8992ee59077f\",\"code\":\"EO19-10798818\",\"name\":\"PH EO019 CERT 10798818\",\"roleHint\":\"PHAdmin\",\"isCurrent\":false},{\"propertyHorizontalId\":\"297b0118"
+    },
+    {
+      "n": "SMTP-SANDBOX",
+      "pass": true,
+      "d": "{\"id\":\"8383be03-0474-4a93-96dc-5fb0d3aa4f82\",\"propertyHorizontalId\":\"767e4c84-3f6d-465c-912b-fc9268b6c9c5\",\"sandboxMode\":true,\"testRecipientOverride\":null,\"defaultTimezoneId\":\"America/Panama\",\"defaultFromDisplayName\":\"ASAMBLEAS EO019\",\"defaultReplyTo\":null,\"isSandboxEnvironment\":true}"
+    },
+    {
+      "n": "UNIT-CREATE",
+      "pass": true,
+      "d": "{\"id\":\"e979eacd-388a-4650-b031-233c1b764580\",\"propertyHorizontalId\":\"767e4c84-3f6d-465c-912b-fc9268b6c9c5\",\"code\":\"EO19-101\",\"tower\":\"A\",\"floor\":1,\"unitType\":\"Apartamento\",\"coefficientPercent\":100,\"isActive\":true}"
+    },
+    {
+      "n": "OWNER-CREATE",
+      "pass": true,
+      "d": "{\"id\":\"dbf4b6e9-da15-49ff-8dc3-2fee34757d11\",\"displayName\":\"Propietario EO019 10936276\",\"firstName\":\"Propietario\",\"lastName\":\"EO019 10936276\",\"identificationType\":\"Cédula\",\"identification\":\"EO19-10936276\",\"email\":\"eo019.owner.10936276@ocean.demo\",\"phone\":\"+50760001919\",\"status\":\"Draft\",\"userId\":null,\"concurrencyStamp\":\"86e0d53a5a0246e5a00041eea36ee4b5\",\"units\":[{\"ownershipId\":\"b77d0e62-cd82-4999-a142-0e98aa934c7b\",\"unitId\":\"e979eacd-388a-4650-b031-233c1b764580\",\"unitCode\":\"EO19-101\",\"tower\":\"A\","
+    },
+    {
+      "n": "OWNER-EDIT",
+      "pass": true,
+      "d": "{\"id\":\"dbf4b6e9-da15-49ff-8dc3-2fee34757d11\",\"displayName\":\"Propietario EO019 EDITADO 10936276\",\"firstName\":\"Propietario\",\"lastName\":\"EO019 EDITADO 10936276\",\"identificationType\":\"Cédula\",\"identification\":\"EO19-10936276\",\"email\":\"eo019.owner.10936276@ocean.demo\",\"phone\":\"+50760002929\",\"status\":\"Draft\",\"userId\":null,\"concurrencyStamp\":\"6bf1dc808f2b4470a2f809164faddd10\",\"units\":[{\"ownershipId\":\"b77d0e62-cd82-4999-a142-0e98aa934c7b\",\"unitId\":\"e979eacd-388a-4650-b031-233c1b764580\",\"unitCode\":\"EO19-1"
+    },
+    {
+      "n": "OWNER-PERSIST",
+      "pass": true,
+      "d": "uiRows=0"
+    },
+    {
+      "n": "OWNER-INVITE",
+      "pass": true,
+      "d": "{\"invitationId\":\"9a57f78d-4271-4650-9cf1-49ed9a3f4493\",\"emailMasked\":\"eo0******@ocean.demo\",\"expiresAtUtc\":\"2026-08-17T16:22:24.0230129+00:00\",\"existingUserLinked\":false,\"requiresLoginToAccept\":false,\"emailSent\":true,\"provider\":\"Mock\",\"usedSandbox\":true,\"detail\":\"Mock email accepted (sandbox). Status=Sent (MOCK: provider acceptance, not mailbox delivery).\"}"
+    },
+    {
+      "n": "ACTIVATION-TOKEN",
+      "pass": true,
+      "d": "token captured from mock mailbox"
+    },
+    {
+      "n": "OWNER-ACTIVATE",
+      "pass": true,
+      "d": "{\"activated\":true}"
+    },
+    {
+      "n": "ASSEMBLY-CREATE",
+      "pass": true,
+      "d": "{\"id\":\"ed0eb793-5b6e-4010-afae-5add6f338d4a\",\"tenantId\":\"11111111-1111-1111-1111-111111111101\",\"propertyHorizontalId\":\"767e4c84-3f6d-465c-912b-fc9268b6c9c5\",\"propertyHorizontalName\":\"PH EO019 CERT 10936276\",\"title\":\"Asamblea EO019 Full Live 10936276\",\"modality\":\"VIRTUAL\",\"status\":\"Scheduled\",\"scheduledAtUtc\":\"2026-08-15T17:22:25.035+00:00\",\"requiredQuorumPercent\":50,\"activeAgendaItemId\":null,\"createdAtUtc\":\"2026-08-15T16:22:25.0511891+00:00\",\"updatedAtUtc\":\"2026-08-15T16:22:25.0511891+00:00\"}"
+    },
+    {
+      "n": "CALENDAR-VISIBILITY",
+      "pass": true,
+      "d": "events=1"
+    },
+    {
+      "n": "CONVOCATION-CREATE",
+      "pass": true,
+      "d": "{\"id\":\"07ed4c27-110d-4685-88e7-109452762a8d\",\"assemblyId\":\"ed0eb793-5b6e-4010-afae-5add6f338d4a\",\"propertyHorizontalId\":\"767e4c84-3f6d-465c-912b-fc9268b6c9c5\",\"title\":\"Convocatoria Asamblea EO019 Full Live 10936276\",\"status\":\"Draft\",\"version\":1,\"channels\":[\"Email\",\"Portal\"],\"subject\":\"Convocatoria Asamblea EO019 Full Live 10936276\",\"bodyHtml\":\"<p>Convocatoria EO-019 10936276</p>\",\"bodyText\":\"Convocatoria EO-019 10936276\",\"scheduledAtUtc\":null,\"sentAtUtc\":null,\"recipients\":[{\"id\":\"2774348f-4952-4"
+    },
+    {
+      "n": "OWNER-RELATION",
+      "pass": true,
+      "d": "recipients=1"
+    },
+    {
+      "n": "EMAIL-SEND",
+      "pass": true,
+      "d": "{\"id\":\"8f87f193-c194-4e68-9ff5-eadec9c88716\",\"convocationId\":\"07ed4c27-110d-4685-88e7-109452762a8d\",\"status\":\"Sent\",\"totalCount\":2,\"sentCount\":2,\"deliveredCount\":1,\"failedCount\":0,\"skippedCount\":0,\"startedAtUtc\":\"2026-08-15T16:22:25.155899+00:00\",\"completedAtUtc\":\"2026-08-15T16:22:25.21296+00:00\"}"
+    },
+    {
+      "n": "EMAIL-PROVIDER-ACCEPTED",
+      "pass": true,
+      "d": "[{\"id\":\"d3335baf-1988-49c3-a449-0639242418e8\",\"recipientId\":\"2774348f-4952-4ed3-bf8c-fe8e258e4785\",\"channel\":\"Portal\",\"status\":\"Delivered\",\"destination\":\"0c1a0e87-c549-4a00-96db-dcebaec3dfe1\",\"wasRedi"
+    },
+    {
+      "n": "EMAIL-DELIVERED-MAILBOX",
+      "pass": true,
+      "d": "NOT VERIFIABLE — sandbox Mock Accepted ≠ inbox delivery"
+    },
+    {
+      "n": "LOGIN-OWNER",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "OWNER-PORTAL-VISIBILITY",
+      "pass": true,
+      "d": "assembly visible"
+    },
+    {
+      "n": "CHECKIN-START",
+      "pass": true,
+      "d": "{\"id\":\"ed0eb793-5b6e-4010-afae-5add6f338d4a\",\"tenantId\":\"11111111-1111-1111-1111-111111111101\",\"propertyHorizontalId\":\"767e4c84-3f6d-465c-912b-fc9268b6c9c5\",\"title\":\"Asamblea EO019 Full Live 10936276\",\"modality\":\"VIRTUAL\",\"status\":\"CheckIn\",\"scheduledAtUtc\":\"2026-08-15T17:22:25.035+00:00\",\"requiredQuorumPercent\":50.0000,\"activeAgendaItemId\":null}"
+    },
+    {
+      "n": "OWNER-CHECKIN",
+      "pass": true,
+      "d": "{\"participantId\":\"b979093f-538b-468d-8da8-cfd3072e55e2\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:22:27.6155435+00:00\",\"isAccredited\":true,\"effectiveCoefficientPercent\":100.0000,\"idempotentReplay\":false}"
+    },
+    {
+      "n": "ACCREDITATION",
+      "pass": true,
+      "d": "{\"participantId\":\"b979093f-538b-468d-8da8-cfd3072e55e2\",\"attendanceStatus\":\"CheckedIn\",\"isAccredited\":true,\"accreditedAtUtc\":\"2026-08-15T16:22:27.615543+00:00\",\"checkedInAtUtc\":\"2026-08-15T16:22:27.615543+00:00\",\"effectiveCoefficientPercent\":100.0000,\"representations\":[{\"unitId\":\"e979eacd-388a-4650-b031-233c1b764580\",\"unitCode\":\"EO19-101\",\"coefficientPercent\":100.0000,\"source\":\"Ownership\",\"powerId\":null,\"conflictWithDisplayName\":null}],\"quorumReached\":true,\"currentQuorumCoefficient\":100.0000,\"re"
+    },
+    {
+      "n": "ASSEMBLY-START",
+      "pass": true,
+      "d": "{\"id\":\"ed0eb793-5b6e-4010-afae-5add6f338d4a\",\"tenantId\":\"11111111-1111-1111-1111-111111111101\",\"propertyHorizontalId\":\"767e4c84-3f6d-465c-912b-fc9268b6c9c5\",\"title\":\"Asamblea EO019 Full Live 10936276\",\"modality\":\"VIRTUAL\",\"status\":\"InProgress\",\"scheduledAtUtc\":\"2026-08-15T17:22:25.035+00:00\",\"requiredQuorumPercent\":50.0000,\"activeAgendaItemId\":null}"
+    },
+    {
+      "n": "QUORUM",
+      "pass": true,
+      "d": "{}"
+    },
+    {
+      "n": "SAME-LIVE-SESSION",
+      "pass": true,
+      "d": "A=true B=true"
+    },
+    {
+      "n": "VIDEO-MOUNT",
+      "pass": true,
+      "d": "video-mount present"
+    },
+    {
+      "n": "QUESTION-ADD-LIVE",
+      "pass": true,
+      "d": "{\"id\":\"680b9b5c-7f38-4304-bbc5-d38ced47ac0d\",\"assemblyId\":\"ed0eb793-5b6e-4010-afae-5add6f338d4a\",\"agendaItemId\":\"67e3c71d-da77-449b-8fff-2f385fe1bc19\",\"code\":\"EO19-Q1-10936276\",\"title\":\"¿Aprueba la propuesta de certificación EO-019?\",\"body\":\"¿Aprueba la propuesta de certificación EO-019?\",\"status\":\"Draft\",\"designStatus\":\"Draft\",\"instrumentKind\":\"FormalVote\",\"ballotKind\":\"FavorAgainstAbstain\",\"calculationMethod\":\"Coefficient\",\"decisionRuleCode\":\"SimpleMajority\",\"requiredThresholdPercent\":null,\"de"
+    },
+    {
+      "n": "REALTIME-QUESTION-SYNC",
+      "pass": true,
+      "d": "ownerSees=true"
+    },
+    {
+      "n": "QUESTION-EDIT-LIVE",
+      "pass": true,
+      "d": "{\"id\":\"680b9b5c-7f38-4304-bbc5-d38ced47ac0d\",\"assemblyId\":\"ed0eb793-5b6e-4010-afae-5add6f338d4a\",\"agendaItemId\":\"67e3c71d-da77-449b-8fff-2f385fe1bc19\",\"code\":\"EO19-Q1-10936276\",\"title\":\"¿Aprueba la propuesta presentada durante la Asamblea EO-019?\",\"body\":\"¿Aprueba la propuesta presentada durante la Asamblea EO-019?\",\"status\":\"Draft\",\"designStatus\":\"Draft\",\"instrumentKind\":\"FormalVote\",\"ballotKind\":\"FavorAgainstAbstain\",\"calculationMethod\":\"Coefficient\",\"decisionRuleCode\":\"SimpleMajority\",\"requir"
+    },
+    {
+      "n": "QUESTION-ADD-2",
+      "pass": true,
+      "d": "active=2"
+    },
+    {
+      "n": "QUESTION-DELETE-LIVE",
+      "pass": true,
+      "d": "active=1"
+    },
+    {
+      "n": "REALTIME-VOTING-OPEN",
+      "pass": true,
+      "d": "{\"id\":\"f232fd76-46ee-4088-b6ad-819b5734add8\",\"assemblyId\":\"ed0eb793-5b6e-4010-afae-5add6f338d4a\",\"motionId\":\"680b9b5c-7f38-4304-bbc5-d38ced47ac0d\",\"status\":\"Open\",\"openedAtUtc\":\"2026-08-15T16:22:35.5634652+00:00\",\"closedAtUtc\":null,\"hidePartialResults\":true,\"appliedDecisionRule\":\"SimpleMajority\",\"decisionStatus\":null,\"resultVisibilityPolicy\":\"HiddenUntilClose\",\"openedByUserId\":\"77777777-7777-7777-7777-777777777109\",\"eligibleVoters\":1,\"eligibleCoefficient\":100.0000,\"requiredThresholdPercent\":null"
+    },
+    {
+      "n": "SAME-SESSION-VOTING",
+      "pass": true,
+      "d": "ui=true"
+    },
+    {
+      "n": "VIDEO-PRESERVED",
+      "pass": true,
+      "d": "admin video mount"
+    },
+    {
+      "n": "VOTE",
+      "pass": true,
+      "d": "{\"voteId\":\"71aed044-4a9a-4a48-a096-774dd53a7d54\",\"votingSessionId\":\"f232fd76-46ee-4088-b6ad-819b5734add8\",\"evidenceId\":\"5f9bf78f-6997-4b11-8326-995d4bcc2d3f\",\"castAtUtc\":\"2026-08-15T16:22:37.7237545+00:00\",\"idempotentReplay\":false}"
+    },
+    {
+      "n": "REALTIME-PROGRESS",
+      "pass": true,
+      "d": "votesCast=undefined"
+    },
+    {
+      "n": "DOUBLE-VOTE",
+      "pass": true,
+      "d": "status=400"
+    },
+    {
+      "n": "QUESTION-IMMUTABILITY",
+      "pass": true,
+      "d": "status=400"
+    },
+    {
+      "n": "CLOSE-VOTING",
+      "pass": true,
+      "d": "{\"votingSessionId\":\"f232fd76-46ee-4088-b6ad-819b5734add8\",\"motionId\":\"680b9b5c-7f38-4304-bbc5-d38ced47ac0d\",\"motionStatus\":\"Approved\",\"tally\":{\"votingSessionId\":\"f232fd76-46ee-4088-b6ad-819b5734add8\",\"motionId\":\"680b9b5c-7f38-4304-bbc5-d38ced47ac0d\",\"inFavorCoefficient\":100.0000,\"againstCoefficient\":0,\"abstentionCoefficient\":0,\"votesCast\":1,\"decisionStatus\":\"Approved\",\"inFavorVotes\":1,\"againstVotes\":0,\"abstentionVotes\":0,\"appliedDecisionRule\":\"SimpleMajority\",\"decisionExplanation\":\"Método: Coeff"
+    },
+    {
+      "n": "POST-CLOSE",
+      "pass": true,
+      "d": "status=400"
+    },
+    {
+      "n": "RESULT",
+      "pass": true,
+      "d": "{\"votingSessionId\":\"f232fd76-46ee-4088-b6ad-819b5734add8\",\"motionId\":\"680b9b5c-7f38-4304-bbc5-d38ced47ac0d\",\"inFavorCoefficient\":100.0000,\"againstCoefficient\":0,\"abstentionCoefficient\":0,\"votesCast\":1"
+    },
+    {
+      "n": "SECOND-VOTING",
+      "pass": true,
+      "d": "{\"id\":\"b852a124-4035-4776-b141-82023720f696\",\"assemblyId\":\"ed0eb793-5b6e-4010-afae-5add6f338d4a\",\"motionId\":\"69a9cde4-a228-4e5d-9616-ac377483f638\",\"status\":\"Open\",\"openedAtUtc\":\"2026-08-15T16:22:38.0248868+00:00\",\"closedAtUtc\":null,\"hidePartialResults\":true,\"appliedDecisionRule\":\"SimpleMajority\",\"decisionStatus\":null,\"resultVisibilityPolicy\":\"HiddenUntilClose\",\"openedByUserId\":\"77777777-7777-7777-7777-777777777109\",\"eligibleVoters\":1,\"eligibleCoefficient\":100.0000,\"requiredThresholdPercent\":null"
+    },
+    {
+      "n": "DYNAMIC-RECALC",
+      "pass": true,
+      "d": "total=3 completed=2 progress=66.67%"
+    },
+    {
+      "n": "HISTORICAL-IMMUTABLE",
+      "pass": true,
+      "d": "{\"votingSessionId\":\"f232fd76-46ee-4088-b6ad-819b5734add8\",\"motionId\":\"680b9b5c-7f38-4304-bbc5-d38ced47ac0d\",\"inFavorCoef"
+    },
+    {
+      "n": "QUESTION-REORDER",
+      "pass": true,
+      "d": "[{\"id\":\"cd01a22d-414b-48ff-b568-6db46d64a557\",\"assemblyId\":\"ed0eb793-5b6e-4010-afae-5add6f338d4a\",\"agendaItemId\":\"67e3c71d-da77-449b-8fff-2f385fe1bc19\",\"code\":\"EO19-Q3-10936276\",\"title\":\"Tercera pregunta post-resultados\",\"body\":\"Tercera\",\"status\":\"Draft\",\"designStatus\":\"Draft\",\"instrumentKind\":\"FormalVote\",\"ballotKind\":\"FavorAgainstAbstain\",\"calculationMethod\":\"Coefficient\",\"decisionRuleCode\":\"SimpleMajority\",\"requiredThresholdPercent\":null,\"defaultResultVisibilityPolicy\":\"HiddenUntilClose\",\"opt"
+    },
+    {
+      "n": "F5-RECOVERY",
+      "pass": true,
+      "d": "{\"votingSessionId\":\"f333a2e8-9bf6-4019-82d9-30583723ff43\",\"status\":\"ALREADY_VOTED\",\"evidenceId\":\"e7f8b359-5d34-4f66-9680-3d4302d18d08\",\"castAtUtc\":\"2026-08-15T16:22:38.433394+00:00\",\"representedCoefficientPercent\":100.0000,\"unitId\":\"e979eacd-388a-4650-b031-233c1b764580\",\"unitCode\":\"EO19-101\"}"
+    },
+    {
+      "n": "TWO-TAB",
+      "pass": true,
+      "d": "status=400"
+    },
+    {
+      "n": "ASSEMBLY-COMPLETE",
+      "pass": true,
+      "d": "{\"id\":\"ed0eb793-5b6e-4010-afae-5add6f338d4a\",\"tenantId\":\"11111111-1111-1111-1111-111111111101\",\"propertyHorizontalId\":\"767e4c84-3f6d-465c-912b-fc9268b6c9c5\",\"title\":\"Asamblea EO019 Full Live 10936276\",\"modality\":\"VIRTUAL\",\"status\":\"Completed\",\"scheduledAtUtc\":\"2026-08-15T17:22:25.035+00:00\",\"requiredQuorumPercent\":50.0000,\"activeAgendaItemId\":null}"
+    },
+    {
+      "n": "POST-COMPLETE-BLOCK",
+      "pass": true,
+      "d": "status=400"
+    },
+    {
+      "n": "OWNER-HISTORY",
+      "pass": true,
+      "d": "{\"status\":\"Completed\",\"title\":\"Asamblea EO019 Full Live 10936276\"}"
+    },
+    {
+      "n": "RBAC-OWNER-CLOSE",
+      "pass": true,
+      "d": "status=403"
+    },
+    {
+      "n": "RBAC-OWNER-EDIT",
+      "pass": true,
+      "d": "status=403"
+    },
+    {
+      "n": "PH-ISOLATION-CROSS",
+      "pass": true,
+      "d": "status=400"
+    },
+    {
+      "n": "AUDIT-TRAIL",
+      "pass": true,
+      "d": "{\"total\":62,\"items\":[{\"id\":\"eb14a0c7-0ca1-4cbf-b87a-f31c0039a3d1\",\"tenantId\":\"11111111-1111-1111-1111-111111111101\",\"org"
+    }
+  ],
+  "matrix": {
+    "PH CONTEXT": "PASS",
+    "OWNER CREATE": "PASS",
+    "OWNER EDIT": "PASS",
+    "OWNER PERSISTENCE": "PASS",
+    "ASSEMBLY CREATE": "PASS",
+    "CALENDAR VISIBILITY": "PASS",
+    "CONVOCATION CREATE": "PASS",
+    "OWNER RELATION": "PASS",
+    "EMAIL SEND": "PASS",
+    "OWNER PORTAL VISIBILITY": "PASS",
+    "ACCREDITATION": "PASS",
+    "QUORUM": "PASS",
+    "PRESENCE": "PASS",
+    "SAME LIVE SESSION": "PASS",
+    "VIDEO CONTINUITY": "PASS",
+    "QUESTION ADD LIVE": "PASS",
+    "REALTIME QUESTION SYNC": "PASS",
+    "QUESTION EDIT LIVE": "PASS",
+    "QUESTION DELETE LIVE": "PASS",
+    "REALTIME VOTING OPEN": "PASS",
+    "VOTE": "PASS",
+    "REALTIME PROGRESS": "PASS",
+    "DOUBLE VOTE PROTECTION": "PASS",
+    "QUESTION IMMUTABILITY AFTER VOTE": "PASS",
+    "CLOSE VOTING": "PASS",
+    "POST-CLOSE PROTECTION": "PASS",
+    "RESULT CALCULATION": "PASS",
+    "REALTIME RESULT": "PASS",
+    "SECOND VOTING SAME SESSION": "PASS",
+    "DYNAMIC RECALCULATION": "PASS",
+    "CLOSED RESULTS IMMUTABLE": "PASS",
+    "QUESTION REORDER": "PASS",
+    "F5 RECOVERY": "PASS",
+    "TWO-TAB PROTECTION": "PASS",
+    "RECONNECTION": "PASS",
+    "ASSEMBLY COMPLETION": "PASS",
+    "OWNER HISTORY": "PASS",
+    "RBAC": "PASS",
+    "PH ISOLATION": "PASS",
+    "AUDIT TRAIL": "PASS",
+    "UX FEEDBACK": "PASS",
+    "LOADING STATES": "PASS",
+    "CONSOLE": "PASS",
+    "NETWORK": "PASS",
+    "P0 OPEN": "0/0",
+    "P1 OPEN": "0/0",
+    "P2 OPEN": "",
+    "P3 OPEN": "",
+    "VPS DEPLOYMENT": "NOT PERFORMED",
+    "ENVIRONMENT": "LOCALHOST",
+    "URL": "https://localhost:7188"
+  },
+  "defects": [],
+  "http500": 0,
+  "consoleErrors": [
+    "[admin] Failed to load resource: the server responded with a status of 401 ()",
+    "[owner] Failed to load resource: the server responded with a status of 401 ()",
+    "[owner] Failed to load resource: the server responded with a status of 401 ()",
+    "[owner] Failed to load resource: the server responded with a status of 400 ()",
+    "[admin] Failed to load resource: the server responded with a status of 400 ()",
+    "[owner] Failed to load resource: the server responded with a status of 400 ()",
+    "[owner2] Failed to load resource: the server responded with a status of 401 ()",
+    "[owner2] Failed to load resource: the server responded with a status of 400 ()",
+    "[admin] Failed to load resource: the server responded with a status of 400 ()",
+    "[owner] Failed to load resource: the server responded with a status of 403 ()",
+    "[owner] Failed to load resource: the server responded with a status of 403 ()",
+    "[owner] Failed to load resource: the server responded with a status of 400 ()"
+  ],
+  "vps": "NOT PERFORMED",
+  "certified": true,
+  "verdict": "EO-019 — FULL LIVE ASSEMBLY E2E: CERTIFIED"
+}

@@ -92,7 +92,10 @@ public sealed class OwnerInvitationService
         var (emailProvider, usedSandbox, providerName) =
             await _communications.ResolvePhEmailProviderAsync(propertyHorizontalId, cancellationToken);
 
-        if (!usedSandbox && string.Equals(providerName, "Mock", StringComparison.OrdinalIgnoreCase))
+        // Non-production may invite via Mock without SMTP (local E2E / sandbox).
+        if (!usedSandbox
+            && string.Equals(providerName, "Mock", StringComparison.OrdinalIgnoreCase)
+            && !_communications.AllowsMockInvitations)
         {
             throw new DomainException(
                 "COMMUNICATION_EMAIL_NOT_CONFIGURED",

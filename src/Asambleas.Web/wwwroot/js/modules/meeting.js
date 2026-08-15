@@ -349,11 +349,30 @@ export function setMediaViewMode(mode) {
  * Connects to LiveKit when the CDN client is present and credentials were minted.
  * Separates media connection from governance (SignalR).
  */
+/**
+ * True when LiveKit is already connected (do not tear down for governance resync).
+ */
+export function isLiveKitConnected() {
+  return Boolean(liveKitRoom) && mediaConnectionState === "connected";
+}
+
 export async function connectLiveKit(container, joinInfo, options = {}) {
   if (!window.LivekitClient) {
     setMediaState("governance-only");
     renderGovernanceOnly(container, t("lobby.avBlocked"));
     return null;
+  }
+
+  // Preserve A/V across SignalR reconnect / governance rehydrate.
+  // Rebuilding the Room kills peer connections and audio mid-assembly.
+  if (
+    liveKitRoom &&
+    mediaConnectionState === "connected" &&
+    mediaContainer === container &&
+    !options.forceReconnect
+  ) {
+    officialSpeakerIdentity = options.officialSpeakerIdentity || officialSpeakerIdentity;
+    return liveKitRoom;
   }
 
   const { Room, RoomEvent } = window.LivekitClient;

@@ -26,7 +26,10 @@ public sealed record MotionDto(
     Guid ConcurrencyStamp = default,
     string EditMode = "Full",
     int AcceptedBallots = 0,
-    string? EditBlockReason = null);
+    string? EditBlockReason = null,
+    int DisplayOrder = 0);
+
+public sealed record ReorderMotionsRequest(IReadOnlyList<Guid> OrderedMotionIds);
 
 public sealed record CreateMotionRequest(
     Guid AgendaItemId,

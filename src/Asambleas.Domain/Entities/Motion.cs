@@ -12,6 +12,9 @@ public class Motion : Entity, ITenantScoped
 
     public Guid AgendaItemId { get; set; }
 
+    /// <summary>Questionnaire display order within the assembly (1-based preferred).</summary>
+    public int DisplayOrder { get; set; }
+
     public string Code { get; set; } = string.Empty;
 
     public string Title { get; set; } = string.Empty;

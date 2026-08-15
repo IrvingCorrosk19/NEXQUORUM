@@ -509,10 +509,11 @@ public sealed class DemoDataSeeder
 
             if (unitId is Guid uid && ownerId is Guid ownershipOwnerId)
             {
-                var hasOwnership = await _db.Ownerships.IgnoreQueryFilters().AnyAsync(
-                    o => o.UnitId == uid && o.OwnerId == ownershipOwnerId && o.IsActive,
-                    cancellationToken);
-                if (!hasOwnership)
+                var existingOwnership = await _db.Ownerships.IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(
+                        o => o.UnitId == uid && o.OwnerId == ownershipOwnerId,
+                        cancellationToken);
+                if (existingOwnership is null)
                 {
                     _db.Ownerships.Add(new Ownership
                     {
@@ -526,6 +527,13 @@ public sealed class DemoDataSeeder
                         CreatedAtUtc = now,
                         UpdatedAtUtc = now
                     });
+                }
+                else if (!existingOwnership.IsActive)
+                {
+                    // Demo portal recovery: inactive demo ownerships hide units from owner profile.
+                    existingOwnership.IsActive = true;
+                    existingOwnership.EffectiveToUtc = null;
+                    existingOwnership.UpdatedAtUtc = now;
                 }
             }
 

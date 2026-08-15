@@ -45,7 +45,9 @@ public sealed class MotionService
         var motions = await _db.Motions
             .AsNoTracking()
             .Where(m => m.AssemblyId == assemblyId)
-            .OrderBy(m => m.Code)
+            .OrderBy(m => m.DisplayOrder)
+            .ThenBy(m => m.CreatedAtUtc)
+            .ThenBy(m => m.Code)
             .ToListAsync(cancellationToken);
 
         return motions.Select(ToDto).ToList();
@@ -135,11 +137,17 @@ public sealed class MotionService
         }
 
         var design = NormalizeDesign(request);
+        var nextOrder = await _db.Motions
+            .Where(m => m.AssemblyId == assemblyId)
+            .Select(m => (int?)m.DisplayOrder)
+            .MaxAsync(cancellationToken) ?? 0;
+
         var motion = new MotionEntity
         {
             TenantId = assembly.TenantId,
             AssemblyId = assemblyId,
             AgendaItemId = request.AgendaItemId,
+            DisplayOrder = nextOrder + 1,
             Code = code,
             Title = title,
             Body = body,
@@ -165,9 +173,10 @@ public sealed class MotionService
         await _audit.WriteAsync(
             AuditEventType.MotionCreated,
             assemblyId,
-            metadata: new { motion.Id, motion.Code, motion.Title, motion.DecisionRuleCode, motion.RequiredThresholdPercent },
+            metadata: new { motion.Id, motion.Code, motion.Title, motion.DecisionRuleCode, motion.RequiredThresholdPercent, motion.DisplayOrder },
             cancellationToken: cancellationToken);
 
+        await _realtime.PublishMotionAsync(assemblyId, dto, cancellationToken);
         return dto;
     }
 
@@ -330,6 +339,7 @@ public sealed class MotionService
             TenantId = source.TenantId,
             AssemblyId = assemblyId,
             AgendaItemId = source.AgendaItemId,
+            DisplayOrder = source.DisplayOrder,
             Code = code!,
             Title = source.Title,
             Body = source.Body,
@@ -446,10 +456,98 @@ public sealed class MotionService
             throw new DomainException("Cannot archive a motion while voting is open.");
         }
 
+        var sessionIds = await _db.VotingSessions
+            .AsNoTracking()
+            .Where(s => s.MotionId == motion.Id)
+            .Select(s => s.Id)
+            .ToListAsync(cancellationToken);
+        var ballots = sessionIds.Count == 0
+            ? 0
+            : await _db.Votes.CountAsync(v => sessionIds.Contains(v.VotingSessionId), cancellationToken);
+        if (ballots > 0 || motion.Status is MotionStatus.Approved or MotionStatus.Rejected or MotionStatus.Cancelled)
+        {
+            throw new DomainException(
+                "MOTION_HAS_HISTORY",
+                "No se puede eliminar una pregunta con votos o resultado. Anule la votación y cree una nueva versión.");
+        }
+
         motion.DesignStatus = VotingDesignCodes.DesignStatus.Archived;
         motion.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
-        return ToDto(motion);
+
+        var dto = ToDto(motion);
+        await _audit.WriteAsync(
+            AuditEventType.MotionArchived,
+            assemblyId,
+            metadata: new { motion.Id, motion.Code, PreviousState = motion.Status.ToString() },
+            cancellationToken: cancellationToken);
+        await _realtime.PublishMotionAsync(assemblyId, dto, cancellationToken);
+        return dto;
+    }
+
+    public async Task<IReadOnlyList<MotionDto>> ReorderAsync(
+        Guid assemblyId,
+        ReorderMotionsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.OrderedMotionIds is null || request.OrderedMotionIds.Count == 0)
+        {
+            throw new DomainException("OrderedMotionIds is required.");
+        }
+
+        var assembly = await _db.Assemblies
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
+        {
+            throw new DomainException("Cannot reorder motions on a closed assembly.");
+        }
+
+        var motions = await _db.Motions
+            .Where(m => m.AssemblyId == assemblyId && m.DesignStatus != VotingDesignCodes.DesignStatus.Archived)
+            .ToListAsync(cancellationToken);
+
+        var byId = motions.ToDictionary(m => m.Id);
+        if (request.OrderedMotionIds.Any(id => !byId.ContainsKey(id)))
+        {
+            throw new DomainException("One or more motions were not found for this assembly.");
+        }
+
+        if (request.OrderedMotionIds.Count != motions.Count
+            || request.OrderedMotionIds.Distinct().Count() != request.OrderedMotionIds.Count)
+        {
+            throw new DomainException("Reorder must include each active motion exactly once.");
+        }
+
+        for (var i = 0; i < request.OrderedMotionIds.Count; i++)
+        {
+            var motion = byId[request.OrderedMotionIds[i]];
+            motion.DisplayOrder = i + 1;
+            motion.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            motion.ConcurrencyStamp = Guid.NewGuid();
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.WriteAsync(
+            AuditEventType.MotionReordered,
+            assemblyId,
+            metadata: new { OrderedMotionIds = request.OrderedMotionIds },
+            cancellationToken: cancellationToken);
+
+        var ordered = await ListAsync(assemblyId, cancellationToken);
+        if (ordered.Count > 0)
+        {
+            await _realtime.PublishMotionAsync(assemblyId, ordered[0], cancellationToken);
+        }
+
+        return ordered;
     }
 
     public async Task<MotionDto> PresentMotionAsync(
@@ -908,7 +1006,8 @@ public sealed class MotionService
             motion.ConcurrencyStamp,
             mode,
             ballots,
-            message);
+            message,
+            motion.DisplayOrder);
     }
 
     private MotionDto ToDto(MotionEntity motion) =>
@@ -935,7 +1034,8 @@ public sealed class MotionService
             motion.VersionNumber,
             motion.RootMotionId,
             motion.PreviousMotionId,
-            motion.ConcurrencyStamp);
+            motion.ConcurrencyStamp,
+            DisplayOrder: motion.DisplayOrder);
 
     private sealed record DesignNormalized(
         string DesignStatus,

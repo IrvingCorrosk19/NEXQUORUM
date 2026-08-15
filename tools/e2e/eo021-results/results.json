@@ -1,0 +1,1433 @@
+{
+  "env": "LOCALHOST",
+  "url": "https://localhost:7188",
+  "stamp": "12815233",
+  "previousEo": {
+    "eo019": {
+      "certified": true,
+      "p0": "0/0",
+      "p1": "0/0"
+    },
+    "eo020": {
+      "certified": true,
+      "p0": "0/0",
+      "p1": "0/0",
+      "verdict": "EO-020 — MULTI-PARTICIPANT REALTIME ASSEMBLY: CERTIFIED"
+    }
+  },
+  "inventory": {
+    "htmlPages": 20,
+    "jsModules": 46,
+    "controllers": 19,
+    "hub": "/hubs/assembly",
+    "roles": [
+      "PlatformAdmin",
+      "TenantAdmin",
+      "PHAdmin",
+      "AssemblyPresident",
+      "AssemblySecretary",
+      "AssemblyOperator",
+      "Owner",
+      "Auditor"
+    ],
+    "note": "See docs/AUDIT EO-021 inventory section; sourced from codebase explore"
+  },
+  "tests": [
+    {
+      "TestId": "GATE0-PRIOR-EO",
+      "Area": "Gate",
+      "Scenario": "EO-019 and EO-020 certified with P0=0",
+      "Expected": "both certified P0=0",
+      "Actual": "{\"eo019\":{\"certified\":true,\"p0\":\"0/0\",\"p1\":\"0/0\"},\"eo020\":{\"certified\":true,\"p0\":\"0/0\",\"p1\":\"0/0\",\"verdict\":\"EO-020 — MULTI-PARTICIPANT REALTIME ASSEMBLY: CERTIFIED\"}}",
+      "Result": "PASS",
+      "Severity": "P0",
+      "Evidence": "eo019-results/results.json; eo020-results/results.json"
+    },
+    {
+      "TestId": "HEALTH",
+      "Area": "Infra",
+      "Scenario": "localhost up",
+      "Expected": "200",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P0",
+      "Evidence": "https://localhost:7188"
+    },
+    {
+      "TestId": "LOGIN-ADMIN",
+      "Area": "Auth",
+      "Scenario": "PHAdmin login",
+      "Expected": "<300",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "MENU-ADMIN-phhtml",
+      "Area": "MenuWalk",
+      "Scenario": "Open /ph.html",
+      "Expected": "loads, non-blank",
+      "Actual": "status=200 blank=false",
+      "Result": "PASS",
+      "Severity": "P1",
+      "Evidence": "/ph.html"
+    },
+    {
+      "TestId": "MENU-ADMIN-calendarhtml",
+      "Area": "MenuWalk",
+      "Scenario": "Open /calendar.html",
+      "Expected": "loads, non-blank",
+      "Actual": "status=200 blank=false",
+      "Result": "PASS",
+      "Severity": "P1",
+      "Evidence": "/calendar.html"
+    },
+    {
+      "TestId": "MENU-ADMIN-assemblies-historyhtml",
+      "Area": "MenuWalk",
+      "Scenario": "Open /assemblies-history.html",
+      "Expected": "loads, non-blank",
+      "Actual": "status=200 blank=false",
+      "Result": "PASS",
+      "Severity": "P1",
+      "Evidence": "/assemblies-history.html"
+    },
+    {
+      "TestId": "PH-CREATE",
+      "Area": "PH",
+      "Scenario": "Create PH via UI",
+      "Expected": "phId",
+      "Actual": "834367e4-2a6d-4736-8866-c1f30505b9b5",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "COMM-SANDBOX",
+      "Area": "Communication",
+      "Scenario": "Enable sandbox",
+      "Expected": "sandboxMode true",
+      "Actual": "true",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "OWNER-A-CREATE",
+      "Area": "Owners",
+      "Scenario": "Create unit 101 + owner",
+      "Expected": "200 + ids",
+      "Actual": "unit=200 owner=200 coeff=40",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "OWNER-B-CREATE",
+      "Area": "Owners",
+      "Scenario": "Create unit 102 + owner",
+      "Expected": "200 + ids",
+      "Actual": "unit=200 owner=200 coeff=30",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "OWNER-C-CREATE",
+      "Area": "Owners",
+      "Scenario": "Create unit 103 + owner",
+      "Expected": "200 + ids",
+      "Actual": "unit=200 owner=200 coeff=20",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "OWNER-D-CREATE",
+      "Area": "Owners",
+      "Scenario": "Create unit 104 + owner",
+      "Expected": "200 + ids",
+      "Actual": "unit=200 owner=200 coeff=10",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "COEFFICIENT-TOTAL",
+      "Area": "Units",
+      "Scenario": "Sum coefficients",
+      "Expected": "100",
+      "Actual": "100",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "UNIT-EDIT",
+      "Area": "Units",
+      "Scenario": "Edit unit persist",
+      "Expected": "<300",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "OWNER-A-ACTIVATE",
+      "Area": "Owners",
+      "Scenario": "Invite+activate+login",
+      "Expected": "activated+login",
+      "Actual": "inv=200 act=true login=200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "OWNER-B-ACTIVATE",
+      "Area": "Owners",
+      "Scenario": "Invite+activate+login",
+      "Expected": "activated+login",
+      "Actual": "inv=200 act=true login=200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "OWNER-C-ACTIVATE",
+      "Area": "Owners",
+      "Scenario": "Invite+activate+login",
+      "Expected": "activated+login",
+      "Actual": "inv=200 act=true login=200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "OWNER-D-ACTIVATE",
+      "Area": "Owners",
+      "Scenario": "Invite+activate+login",
+      "Expected": "activated+login",
+      "Actual": "inv=200 act=true login=200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "PH-B-CREATE",
+      "Area": "PH Isolation",
+      "Scenario": "Second PH for isolation",
+      "Expected": "phBId",
+      "Actual": "39589b6a-d3e3-424a-b04e-fbac87b6295b",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "GLOBAL-PH-SWITCH",
+      "Area": "PH",
+      "Scenario": "Switch A→B→A without logout",
+      "Expected": "context switches",
+      "Actual": "phB=39589b6a-d3e3-424a-b04e-fbac87b6295b unitsB=0 claim=39589b6a-d3e3-424a-b04e-fbac87b6295b",
+      "Result": "PASS",
+      "Severity": "P0",
+      "Evidence": "ph switch API + ph.html reload"
+    },
+    {
+      "TestId": "ASSEMBLY-CREATE",
+      "Area": "Assembly",
+      "Scenario": "Create EO-021 assembly",
+      "Expected": "id",
+      "Actual": "7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "CALENDAR",
+      "Area": "Calendar",
+      "Scenario": "Assembly visible on calendar",
+      "Expected": ">0 events",
+      "Actual": "events=1",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "CONVOCATION",
+      "Area": "Convocation",
+      "Scenario": "4 recipients send",
+      "Expected": "recipients=4 + send ok",
+      "Actual": "n=4 send=200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "PORTAL-A",
+      "Area": "OwnerPortal",
+      "Scenario": "Mis asambleas visibility",
+      "Expected": "sees assembly",
+      "Actual": "sees=true blank=false",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "PORTAL-B",
+      "Area": "OwnerPortal",
+      "Scenario": "Mis asambleas visibility",
+      "Expected": "sees assembly",
+      "Actual": "sees=true blank=false",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "PORTAL-C",
+      "Area": "OwnerPortal",
+      "Scenario": "Mis asambleas visibility",
+      "Expected": "sees assembly",
+      "Actual": "sees=true blank=false",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "PORTAL-D",
+      "Area": "OwnerPortal",
+      "Scenario": "Mis asambleas visibility",
+      "Expected": "sees assembly",
+      "Actual": "sees=true blank=false",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "CROSS-PH-OWNER-READ",
+      "Area": "PH Isolation",
+      "Scenario": "Owner A reads PH B units",
+      "Expected": "403/404/empty deny",
+      "Actual": "status=403",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "ACCREDIT-A",
+      "Area": "Accreditation",
+      "Scenario": "Check-in A",
+      "Expected": "<300",
+      "Actual": "200 {\"participantId\":\"2639c182-6bff-4c26-a6a6-02f8c60db15c\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "ACCREDIT-B",
+      "Area": "Accreditation",
+      "Scenario": "Check-in B",
+      "Expected": "<300",
+      "Actual": "200 {\"participantId\":\"86a268f6-4af7-4ca1-a747-77e57d43b514\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "ACCREDIT-C",
+      "Area": "Accreditation",
+      "Scenario": "Check-in C",
+      "Expected": "<300",
+      "Actual": "200 {\"participantId\":\"5fb29996-674c-460f-a972-d0302900eeff\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "QUORUM-90",
+      "Area": "Quorum",
+      "Scenario": "A+B+C weighted present",
+      "Expected": "~90",
+      "Actual": "90",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "ASSEMBLY-START",
+      "Area": "Live",
+      "Scenario": "Start assembly",
+      "Expected": "InProgress",
+      "Actual": "200 InProgress",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "LIVE-ROOM",
+      "Area": "Live",
+      "Scenario": "5 sessions + video mount",
+      "Expected": "same assemblyId + video",
+      "Actual": "same=true video=true",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "DYNAMIC-Q-CREATE",
+      "Area": "Questionnaire",
+      "Scenario": "Create Q1-Q3 sync to owner",
+      "Expected": "3 visible",
+      "Actual": "n=3",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "Q-EDIT-DRAFT",
+      "Area": "Questionnaire",
+      "Scenario": "Edit before voting",
+      "Expected": "<300",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "Q-REORDER",
+      "Area": "Questionnaire",
+      "Scenario": "Reorder Q3 to position 2",
+      "Expected": "<300",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "Q-DELETE-DRAFT",
+      "Area": "Questionnaire",
+      "Scenario": "Archive draft without votes (domain: archive, not hard delete)",
+      "Expected": "<300",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "REALTIME-OPEN",
+      "Area": "Voting",
+      "Scenario": "Open Q1",
+      "Expected": "session id",
+      "Actual": "200 52087164-fa80-4bc0-bbcc-3006c836003e",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "D-NOT-ELIGIBLE",
+      "Area": "Voting",
+      "Scenario": "Non-accredited cannot vote",
+      "Expected": ">=400",
+      "Actual": "400",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "CONCURRENT-VOTES",
+      "Area": "Voting",
+      "Scenario": "A/B/C concurrent",
+      "Expected": "all 200",
+      "Actual": "A:200,B:200,C:200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "DOUBLE-VOTE-PROTECTION",
+      "Area": "Integrity",
+      "Scenario": "Duplicate + two-tab",
+      "Expected": "rejects",
+      "Actual": "dup=400 raceAccepted=0",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "QUESTION-IMMUTABILITY",
+      "Area": "Questionnaire",
+      "Scenario": "Edit after votes",
+      "Expected": ">=400",
+      "Actual": "400",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "CLOSE-AND-WEIGHT",
+      "Area": "Voting",
+      "Scenario": "Close V1 weighted 60/30",
+      "Expected": "60/30 + late reject or deterministic",
+      "Actual": "fav=60 ag=30 late=400 close=200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "POST-CLOSE",
+      "Area": "Integrity",
+      "Scenario": "Vote after close",
+      "Expected": ">=400",
+      "Actual": "400",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "ACCREDIT-D-LIVE",
+      "Area": "Quorum",
+      "Scenario": "D accredit → 100%",
+      "Expected": "~100",
+      "Actual": "ci=200 q=100",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "V2-HEADCOUNT-VS-WEIGHT",
+      "Area": "Voting",
+      "Scenario": "4 voters race + weight semantics",
+      "Expected": "deterministic race outcome",
+      "Actual": "c=200 fav=60 ag=40",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "ABSTENTION",
+      "Area": "Voting",
+      "Scenario": "Abstain != Against",
+      "Expected": "abs≈30 ag≈20 votesCast=3",
+      "Actual": "abs=30 ag=20 cast=3",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "NO-VOTE",
+      "Area": "Voting",
+      "Scenario": "D pending != abstention",
+      "Expected": "votesCast=3 not 4",
+      "Actual": "3",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "DYNAMIC-RECALC",
+      "Area": "Questionnaire",
+      "Scenario": "Add Q after completed votes",
+      "Expected": "new motion exists; prior intact",
+      "Actual": "total=5 m4=ebfc27a0-c4fb-4ac6-a0d4-b14d501f47ee",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "VOID-CANCEL",
+      "Area": "Voting",
+      "Scenario": "Cancel session preserves history",
+      "Expected": "cancel ok + history",
+      "Actual": "cancel=200 histCancelled=true",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "RECONNECT-OWNER",
+      "Area": "Resilience",
+      "Scenario": "Owner C reload room",
+      "Expected": "InProgress",
+      "Actual": "InProgress",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "RECONNECT-PRESIDENT",
+      "Area": "Resilience",
+      "Scenario": "President reload",
+      "Expected": "InProgress",
+      "Actual": "InProgress",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "F5-REHYDRATE",
+      "Area": "Resilience",
+      "Scenario": "F5 owner A",
+      "Expected": "InProgress",
+      "Actual": "InProgress",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "CROSS-ASSEMBLY",
+      "Area": "Isolation",
+      "Scenario": "Cast session1 against assembly B",
+      "Expected": ">=400",
+      "Actual": "400",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "RBAC",
+      "Area": "Security",
+      "Scenario": "Owner cannot create/open",
+      "Expected": "403",
+      "Actual": "403/403",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "FINALIZE",
+      "Area": "Finalization",
+      "Scenario": "Complete assembly",
+      "Expected": "Completed",
+      "Actual": "200 Completed",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "FINAL-FREEZE",
+      "Area": "Finalization",
+      "Scenario": "No open/vote/edit after Completed",
+      "Expected": "all >=400",
+      "Actual": "open=400 vote=400 edit=400",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "HISTORY-A",
+      "Area": "History",
+      "Scenario": "Completed remains visible",
+      "Expected": "Completed",
+      "Actual": "Completed",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "HISTORY-B",
+      "Area": "History",
+      "Scenario": "Completed remains visible",
+      "Expected": "Completed",
+      "Actual": "Completed",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "HISTORY-C",
+      "Area": "History",
+      "Scenario": "Completed remains visible",
+      "Expected": "Completed",
+      "Actual": "Completed",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "HISTORY-D",
+      "Area": "History",
+      "Scenario": "Completed remains visible",
+      "Expected": "Completed",
+      "Actual": "Completed",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "AUDIT",
+      "Area": "Audit",
+      "Scenario": "Audit trail present",
+      "Expected": ">10 items",
+      "Actual": "n=95",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "TAB-dashboardhtml",
+      "Area": "MenuWalk",
+      "Scenario": "/dashboard.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Expected": "<400",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "TAB-checkinhtml",
+      "Area": "MenuWalk",
+      "Scenario": "/checkin.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Expected": "<400",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "TAB-votingstudiohtml",
+      "Area": "MenuWalk",
+      "Scenario": "/voting-studio.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Expected": "<400",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "TAB-evidencehtml",
+      "Area": "MenuWalk",
+      "Scenario": "/evidence.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Expected": "<400",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "TAB-minuteshtml",
+      "Area": "MenuWalk",
+      "Scenario": "/minutes.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Expected": "<400",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "TAB-convocationhtml",
+      "Area": "MenuWalk",
+      "Scenario": "/convocation.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Expected": "<400",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "RESPONSIVE",
+      "Area": "UX",
+      "Scenario": "Mobile + tablet load without critical overflow",
+      "Expected": "ok",
+      "Actual": "mobileOverflowOk=true tablet=true",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "A11Y-FOCUS",
+      "Area": "Accessibility",
+      "Scenario": "Tab focuses interactive control",
+      "Expected": "INPUT/BUTTON/A",
+      "Actual": "{\"tag\":\"A\",\"id\":\"\",\"name\":null,\"outline\":\"none\"}",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "LOADING-UX-SPOT",
+      "Area": "UX",
+      "Scenario": "Primary operator pages load without freeze",
+      "Expected": "tabsOk",
+      "Actual": "tabsOk=true",
+      "Result": "PASS",
+      "Severity": "P3"
+    },
+    {
+      "TestId": "OWNER-IDENTITY",
+      "Area": "Identity",
+      "Scenario": "Unique owner emails in dataset",
+      "Expected": "4 unique",
+      "Actual": "4",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "INPUT-VALIDATION",
+      "Area": "Validation",
+      "Scenario": "Reject empty PH",
+      "Expected": ">=400",
+      "Actual": "400",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "RAPID-COMPLETE",
+      "Area": "Integrity",
+      "Scenario": "Double complete after Completed",
+      "Expected": ">=400 or idempotent Completed",
+      "Actual": "400",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "DB-INTEGRITY-SOFT",
+      "Area": "DB",
+      "Scenario": "Motions listable; no 500; post-close rejected earlier",
+      "Expected": "ok",
+      "Actual": "motions=5 http500=0",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "BUILD",
+      "Area": "CI",
+      "Scenario": "dotnet build",
+      "Expected": "ok",
+      "Actual": "true",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "UNIT-TESTS",
+      "Area": "CI",
+      "Scenario": "dotnet test UnitTests",
+      "Expected": "ok",
+      "Actual": "true",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "EF-MODEL",
+      "Area": "CI",
+      "Scenario": "No required pending migrations (best-effort)",
+      "Expected": "no pending",
+      "Actual": "true",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "CONSOLE",
+      "Area": "Quality",
+      "Scenario": "No critical JS errors (excluding expected 4xx noise)",
+      "Expected": "0 critical",
+      "Actual": "critical=0 noise=30",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "NETWORK",
+      "Area": "Quality",
+      "Scenario": "No unexpected 500",
+      "Expected": "0",
+      "Actual": "500=0 page404=0",
+      "Result": "PASS",
+      "Severity": "P0"
+    }
+  ],
+  "steps": [
+    {
+      "n": "GATE0-PRIOR-EO",
+      "pass": true,
+      "d": "{\"eo019\":{\"certified\":true,\"p0\":\"0/0\",\"p1\":\"0/0\"},\"eo020\":{\"certified\":true,\"p0\":\"0/0\",\"p1\":\"0/0\",\"verdict\":\"EO-020 — MULTI-PARTICIPANT REALTIME ASSEMBLY: CERTIFIED\"}}"
+    },
+    {
+      "n": "HEALTH",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "LOGIN-ADMIN",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "MENU-ADMIN-phhtml",
+      "pass": true,
+      "d": "status=200 blank=false"
+    },
+    {
+      "n": "MENU-ADMIN-calendarhtml",
+      "pass": true,
+      "d": "status=200 blank=false"
+    },
+    {
+      "n": "MENU-ADMIN-assemblies-historyhtml",
+      "pass": true,
+      "d": "status=200 blank=false"
+    },
+    {
+      "n": "PH-CREATE",
+      "pass": true,
+      "d": "834367e4-2a6d-4736-8866-c1f30505b9b5"
+    },
+    {
+      "n": "COMM-SANDBOX",
+      "pass": true,
+      "d": "true"
+    },
+    {
+      "n": "OWNER-A-CREATE",
+      "pass": true,
+      "d": "unit=200 owner=200 coeff=40"
+    },
+    {
+      "n": "OWNER-B-CREATE",
+      "pass": true,
+      "d": "unit=200 owner=200 coeff=30"
+    },
+    {
+      "n": "OWNER-C-CREATE",
+      "pass": true,
+      "d": "unit=200 owner=200 coeff=20"
+    },
+    {
+      "n": "OWNER-D-CREATE",
+      "pass": true,
+      "d": "unit=200 owner=200 coeff=10"
+    },
+    {
+      "n": "COEFFICIENT-TOTAL",
+      "pass": true,
+      "d": "100"
+    },
+    {
+      "n": "UNIT-EDIT",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "OWNER-A-ACTIVATE",
+      "pass": true,
+      "d": "inv=200 act=true login=200"
+    },
+    {
+      "n": "OWNER-B-ACTIVATE",
+      "pass": true,
+      "d": "inv=200 act=true login=200"
+    },
+    {
+      "n": "OWNER-C-ACTIVATE",
+      "pass": true,
+      "d": "inv=200 act=true login=200"
+    },
+    {
+      "n": "OWNER-D-ACTIVATE",
+      "pass": true,
+      "d": "inv=200 act=true login=200"
+    },
+    {
+      "n": "PH-B-CREATE",
+      "pass": true,
+      "d": "39589b6a-d3e3-424a-b04e-fbac87b6295b"
+    },
+    {
+      "n": "GLOBAL-PH-SWITCH",
+      "pass": true,
+      "d": "phB=39589b6a-d3e3-424a-b04e-fbac87b6295b unitsB=0 claim=39589b6a-d3e3-424a-b04e-fbac87b6295b"
+    },
+    {
+      "n": "ASSEMBLY-CREATE",
+      "pass": true,
+      "d": "7b0e5b15-f225-4626-a79f-9189d3dafe63"
+    },
+    {
+      "n": "CALENDAR",
+      "pass": true,
+      "d": "events=1"
+    },
+    {
+      "n": "CONVOCATION",
+      "pass": true,
+      "d": "n=4 send=200"
+    },
+    {
+      "n": "PORTAL-A",
+      "pass": true,
+      "d": "sees=true blank=false"
+    },
+    {
+      "n": "PORTAL-B",
+      "pass": true,
+      "d": "sees=true blank=false"
+    },
+    {
+      "n": "PORTAL-C",
+      "pass": true,
+      "d": "sees=true blank=false"
+    },
+    {
+      "n": "PORTAL-D",
+      "pass": true,
+      "d": "sees=true blank=false"
+    },
+    {
+      "n": "CROSS-PH-OWNER-READ",
+      "pass": true,
+      "d": "status=403"
+    },
+    {
+      "n": "ACCREDIT-A",
+      "pass": true,
+      "d": "200 {\"participantId\":\"2639c182-6bff-4c26-a6a6-02f8c60db15c\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5"
+    },
+    {
+      "n": "ACCREDIT-B",
+      "pass": true,
+      "d": "200 {\"participantId\":\"86a268f6-4af7-4ca1-a747-77e57d43b514\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5"
+    },
+    {
+      "n": "ACCREDIT-C",
+      "pass": true,
+      "d": "200 {\"participantId\":\"5fb29996-674c-460f-a972-d0302900eeff\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5"
+    },
+    {
+      "n": "QUORUM-90",
+      "pass": true,
+      "d": "90"
+    },
+    {
+      "n": "ASSEMBLY-START",
+      "pass": true,
+      "d": "200 InProgress"
+    },
+    {
+      "n": "LIVE-ROOM",
+      "pass": true,
+      "d": "same=true video=true"
+    },
+    {
+      "n": "DYNAMIC-Q-CREATE",
+      "pass": true,
+      "d": "n=3"
+    },
+    {
+      "n": "Q-EDIT-DRAFT",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "Q-REORDER",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "Q-DELETE-DRAFT",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "REALTIME-OPEN",
+      "pass": true,
+      "d": "200 52087164-fa80-4bc0-bbcc-3006c836003e"
+    },
+    {
+      "n": "D-NOT-ELIGIBLE",
+      "pass": true,
+      "d": "400"
+    },
+    {
+      "n": "CONCURRENT-VOTES",
+      "pass": true,
+      "d": "A:200,B:200,C:200"
+    },
+    {
+      "n": "DOUBLE-VOTE-PROTECTION",
+      "pass": true,
+      "d": "dup=400 raceAccepted=0"
+    },
+    {
+      "n": "QUESTION-IMMUTABILITY",
+      "pass": true,
+      "d": "400"
+    },
+    {
+      "n": "CLOSE-AND-WEIGHT",
+      "pass": true,
+      "d": "fav=60 ag=30 late=400 close=200"
+    },
+    {
+      "n": "POST-CLOSE",
+      "pass": true,
+      "d": "400"
+    },
+    {
+      "n": "ACCREDIT-D-LIVE",
+      "pass": true,
+      "d": "ci=200 q=100"
+    },
+    {
+      "n": "V2-HEADCOUNT-VS-WEIGHT",
+      "pass": true,
+      "d": "c=200 fav=60 ag=40"
+    },
+    {
+      "n": "ABSTENTION",
+      "pass": true,
+      "d": "abs=30 ag=20 cast=3"
+    },
+    {
+      "n": "NO-VOTE",
+      "pass": true,
+      "d": "3"
+    },
+    {
+      "n": "DYNAMIC-RECALC",
+      "pass": true,
+      "d": "total=5 m4=ebfc27a0-c4fb-4ac6-a0d4-b14d501f47ee"
+    },
+    {
+      "n": "VOID-CANCEL",
+      "pass": true,
+      "d": "cancel=200 histCancelled=true"
+    },
+    {
+      "n": "RECONNECT-OWNER",
+      "pass": true,
+      "d": "InProgress"
+    },
+    {
+      "n": "RECONNECT-PRESIDENT",
+      "pass": true,
+      "d": "InProgress"
+    },
+    {
+      "n": "F5-REHYDRATE",
+      "pass": true,
+      "d": "InProgress"
+    },
+    {
+      "n": "CROSS-ASSEMBLY",
+      "pass": true,
+      "d": "400"
+    },
+    {
+      "n": "RBAC",
+      "pass": true,
+      "d": "403/403"
+    },
+    {
+      "n": "FINALIZE",
+      "pass": true,
+      "d": "200 Completed"
+    },
+    {
+      "n": "FINAL-FREEZE",
+      "pass": true,
+      "d": "open=400 vote=400 edit=400"
+    },
+    {
+      "n": "HISTORY-A",
+      "pass": true,
+      "d": "Completed"
+    },
+    {
+      "n": "HISTORY-B",
+      "pass": true,
+      "d": "Completed"
+    },
+    {
+      "n": "HISTORY-C",
+      "pass": true,
+      "d": "Completed"
+    },
+    {
+      "n": "HISTORY-D",
+      "pass": true,
+      "d": "Completed"
+    },
+    {
+      "n": "AUDIT",
+      "pass": true,
+      "d": "n=95"
+    },
+    {
+      "n": "TAB-dashboardhtml",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "TAB-checkinhtml",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "TAB-votingstudiohtml",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "TAB-evidencehtml",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "TAB-minuteshtml",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "TAB-convocationhtml",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "RESPONSIVE",
+      "pass": true,
+      "d": "mobileOverflowOk=true tablet=true"
+    },
+    {
+      "n": "A11Y-FOCUS",
+      "pass": true,
+      "d": "{\"tag\":\"A\",\"id\":\"\",\"name\":null,\"outline\":\"none\"}"
+    },
+    {
+      "n": "LOADING-UX-SPOT",
+      "pass": true,
+      "d": "tabsOk=true"
+    },
+    {
+      "n": "OWNER-IDENTITY",
+      "pass": true,
+      "d": "4"
+    },
+    {
+      "n": "INPUT-VALIDATION",
+      "pass": true,
+      "d": "400"
+    },
+    {
+      "n": "RAPID-COMPLETE",
+      "pass": true,
+      "d": "400"
+    },
+    {
+      "n": "DB-INTEGRITY-SOFT",
+      "pass": true,
+      "d": "motions=5 http500=0"
+    },
+    {
+      "n": "BUILD",
+      "pass": true,
+      "d": "true"
+    },
+    {
+      "n": "UNIT-TESTS",
+      "pass": true,
+      "d": "true"
+    },
+    {
+      "n": "EF-MODEL",
+      "pass": true,
+      "d": "true"
+    },
+    {
+      "n": "CONSOLE",
+      "pass": true,
+      "d": "critical=0 noise=30"
+    },
+    {
+      "n": "NETWORK",
+      "pass": true,
+      "d": "500=0 page404=0"
+    }
+  ],
+  "matrix": {
+    "MENU WALK ADMIN": "PASS",
+    "UNITS": "PASS",
+    "OWNERS": "PASS",
+    "GLOBAL PH SWITCH": "PASS",
+    "PH MANAGEMENT": "PASS",
+    "ASSEMBLY CREATE": "PASS",
+    "CALENDAR": "PASS",
+    "CONVOCATION": "PASS",
+    "RECIPIENT RELATION": "PASS",
+    "COMMUNICATION": "PASS",
+    "OWNER PORTAL": "PASS",
+    "OWNER ASSEMBLY VISIBILITY": "PASS",
+    "ACCREDITATION": "PASS",
+    "QUORUM": "PASS",
+    "PRESENCE": "PASS",
+    "LIVE ROOM": "PASS",
+    "VIDEO CONTINUITY": "PASS",
+    "DYNAMIC QUESTIONS": "PASS",
+    "REALTIME VOTE": "PASS",
+    "REALTIME OPEN": "PASS",
+    "DOUBLE-VOTE PROTECTION": "PASS",
+    "QUESTION IMMUTABILITY": "PASS",
+    "QUESTION VERSIONING": "PASS",
+    "WEIGHTED VOTING": "PASS",
+    "REALTIME CLOSE": "PASS",
+    "REALTIME PROGRESS": "PASS",
+    "CONCURRENT CLOSE": "PASS",
+    "POST-CLOSE PROTECTION": "PASS",
+    "REALTIME RESULT": "PASS",
+    "ABSTENTION": "PASS",
+    "NO-VOTE": "PASS",
+    "RECONNECTION": "PASS",
+    "STATE REHYDRATION": "PASS",
+    "PH ISOLATION": "PASS",
+    "RBAC": "PASS",
+    "DIRECT API SECURITY": "PASS",
+    "FINALIZATION": "PASS",
+    "FINAL FREEZE": "PASS",
+    "OWNER HISTORY": "PASS",
+    "AUDIT TRAIL": "PASS",
+    "RESPONSIVE": "PASS",
+    "ACCESSIBILITY": "PASS",
+    "LOADING UX": "PASS",
+    "MESSAGING UX": "PASS",
+    "EMPTY STATES": "PASS",
+    "OWNER IDENTITY": "PASS",
+    "DB INTEGRITY": "PASS",
+    "BUILD": "PASS",
+    "AUTOMATED TESTS": "PASS",
+    "EF MODEL": "PASS",
+    "BROWSER E2E": "PASS",
+    "CONSOLE": "PASS",
+    "NETWORK": "PASS",
+    "ASSEMBLY EDIT": "PASS",
+    "P0 OPEN": "0/0",
+    "P1 OPEN": "0/0",
+    "P2 OPEN": "0",
+    "P3 OPEN": "0",
+    "VPS DEPLOYMENT": "NOT PERFORMED",
+    "Environment": "LOCALHOST",
+    "URL": "https://localhost:7188"
+  },
+  "productTruth": [
+    {
+      "Module": "PH Admin",
+      "Browser": "PASS",
+      "Backend": "PASS",
+      "Persistence": "PASS",
+      "PHIsolation": "PASS",
+      "RBAC": "PASS",
+      "UX": "PASS",
+      "Result": "PASS"
+    },
+    {
+      "Module": "Owner Portal",
+      "Browser": "PASS",
+      "Backend": "PASS",
+      "Persistence": "PASS",
+      "PHIsolation": "PASS",
+      "RBAC": "PASS",
+      "UX": "PASS",
+      "Result": "PASS"
+    },
+    {
+      "Module": "Live Room + Voting",
+      "Browser": "PASS",
+      "Backend": "PASS",
+      "Persistence": "PASS",
+      "PHIsolation": "PASS",
+      "RBAC": "PASS",
+      "UX": "PASS",
+      "Result": "PASS"
+    },
+    {
+      "Module": "Calendar / Convocation",
+      "Browser": "PASS",
+      "Backend": "PASS",
+      "Persistence": "PASS",
+      "PHIsolation": "PASS",
+      "RBAC": "PASS",
+      "UX": "PASS",
+      "Result": "PASS"
+    }
+  ],
+  "defects": [],
+  "latencies": {
+    "cast": [
+      52,
+      51.40000009536743,
+      51.5
+    ],
+    "close": [
+      41.10000038146973
+    ],
+    "open": [
+      57.700000286102295
+    ]
+  },
+  "http500": 0,
+  "httpUnexpected404": 0,
+  "consoleCritical": [],
+  "consoleNoise": [
+    "[prez] Failed to load resource: the server responded with a status of 401 ()",
+    "[A] Failed to load resource: the server responded with a status of 401 ()",
+    "[A] Failed to load resource: the server responded with a status of 401 ()",
+    "[B] Failed to load resource: the server responded with a status of 401 ()",
+    "[B] Failed to load resource: the server responded with a status of 401 ()",
+    "[C] Failed to load resource: the server responded with a status of 401 ()",
+    "[C] Failed to load resource: the server responded with a status of 401 ()",
+    "[D] Failed to load resource: the server responded with a status of 401 ()",
+    "[D] Failed to load resource: the server responded with a status of 401 ()",
+    "[A] Failed to load resource: the server responded with a status of 403 ()",
+    "[D] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 400 ()",
+    "[B2] Failed to load resource: the server responded with a status of 401 ()",
+    "[B2] Failed to load resource: the server responded with a status of 400 ()",
+    "[B] Failed to load resource: the server responded with a status of 400 ()",
+    "[prez] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 400 ()",
+    "[B2] Failed to load resource: the server responded with a status of 404 ()",
+    "[prez] Failed to load resource: the server responded with a status of 404 ()",
+    "[A] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 403 ()",
+    "[A] Failed to load resource: the server responded with a status of 403 ()",
+    "[prez] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 400 ()",
+    "[prez] Failed to load resource: the server responded with a status of 400 ()",
+    "[mobile] Failed to load resource: the server responded with a status of 401 ()",
+    "[tablet] Failed to load resource: the server responded with a status of 401 ()",
+    "[prez] Failed to load resource: the server responded with a status of 400 ()",
+    "[prez] Failed to load resource: the server responded with a status of 400 ()"
+  ],
+  "vps": "NOT PERFORMED",
+  "certified": true,
+  "verdict": "ASAMBLEAS CORE — EXCEPTIONAL CANDIDATE",
+  "trustQuestion": {
+    "answer": "NO",
+    "meaning": "No known P0/P1 defect blocks trusting convocatoria→cierre on localhost Development for this certified build.",
+    "evidence": [
+      "GATE0-PRIOR-EO",
+      "HEALTH",
+      "LOGIN-ADMIN",
+      "MENU-ADMIN-phhtml",
+      "MENU-ADMIN-calendarhtml",
+      "MENU-ADMIN-assemblies-historyhtml",
+      "PH-CREATE",
+      "COMM-SANDBOX",
+      "OWNER-A-CREATE",
+      "OWNER-B-CREATE",
+      "OWNER-C-CREATE",
+      "OWNER-D-CREATE",
+      "COEFFICIENT-TOTAL",
+      "UNIT-EDIT",
+      "OWNER-A-ACTIVATE",
+      "OWNER-B-ACTIVATE",
+      "OWNER-C-ACTIVATE",
+      "OWNER-D-ACTIVATE",
+      "PH-B-CREATE",
+      "GLOBAL-PH-SWITCH",
+      "ASSEMBLY-CREATE",
+      "CALENDAR",
+      "CONVOCATION",
+      "PORTAL-A",
+      "PORTAL-B",
+      "PORTAL-C",
+      "PORTAL-D",
+      "CROSS-PH-OWNER-READ",
+      "ACCREDIT-A",
+      "ACCREDIT-B",
+      "ACCREDIT-C",
+      "QUORUM-90",
+      "ASSEMBLY-START",
+      "LIVE-ROOM",
+      "DYNAMIC-Q-CREATE",
+      "Q-EDIT-DRAFT",
+      "Q-REORDER",
+      "Q-DELETE-DRAFT",
+      "REALTIME-OPEN",
+      "D-NOT-ELIGIBLE",
+      "CONCURRENT-VOTES",
+      "DOUBLE-VOTE-PROTECTION",
+      "QUESTION-IMMUTABILITY",
+      "CLOSE-AND-WEIGHT",
+      "POST-CLOSE",
+      "ACCREDIT-D-LIVE",
+      "V2-HEADCOUNT-VS-WEIGHT",
+      "ABSTENTION",
+      "NO-VOTE",
+      "DYNAMIC-RECALC",
+      "VOID-CANCEL",
+      "RECONNECT-OWNER",
+      "RECONNECT-PRESIDENT",
+      "F5-REHYDRATE",
+      "CROSS-ASSEMBLY",
+      "RBAC",
+      "FINALIZE",
+      "FINAL-FREEZE",
+      "HISTORY-A",
+      "HISTORY-B",
+      "HISTORY-C",
+      "HISTORY-D",
+      "AUDIT",
+      "TAB-dashboardhtml",
+      "TAB-checkinhtml",
+      "TAB-votingstudiohtml",
+      "TAB-evidencehtml",
+      "TAB-minuteshtml",
+      "TAB-convocationhtml",
+      "RESPONSIVE",
+      "A11Y-FOCUS",
+      "LOADING-UX-SPOT",
+      "OWNER-IDENTITY",
+      "INPUT-VALIDATION",
+      "RAPID-COMPLETE",
+      "DB-INTEGRITY-SOFT",
+      "BUILD",
+      "UNIT-TESTS",
+      "EF-MODEL",
+      "CONSOLE",
+      "NETWORK"
+    ]
+  },
+  "ids": {
+    "phId": "834367e4-2a6d-4736-8866-c1f30505b9b5",
+    "assemblyId": "7b0e5b15-f225-4626-a79f-9189d3dafe63"
+  },
+  "latencySummary": {
+    "cast_p50": 51.5,
+    "cast_p95": 52,
+    "close_p50": 41.10000038146973,
+    "open_p50": 57.700000286102295
+  }
+}

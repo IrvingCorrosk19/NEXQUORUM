@@ -1,5 +1,6 @@
 namespace Asambleas.Infrastructure.Communications;
 
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Mail;
 using System.Net.Mime;
@@ -13,6 +14,9 @@ using Microsoft.Extensions.Logging;
 
 public sealed class MockEmailProvider : IEmailProvider
 {
+    private static readonly ConcurrentQueue<CapturedMockEmail> Captured = new();
+    private const int MaxCaptured = 50;
+
     private readonly ILogger<MockEmailProvider> _logger;
 
     public MockEmailProvider(ILogger<MockEmailProvider> logger) => _logger = logger;
@@ -21,6 +25,15 @@ public sealed class MockEmailProvider : IEmailProvider
 
     public bool SimulateFailure { get; set; }
 
+    public static IReadOnlyList<CapturedMockEmail> Snapshot() => Captured.ToArray();
+
+    public static void Clear()
+    {
+        while (Captured.TryDequeue(out _))
+        {
+        }
+    }
+
     public Task<ProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
@@ -28,6 +41,17 @@ public sealed class MockEmailProvider : IEmailProvider
             message.To,
             message.Subject,
             SimulateFailure);
+
+        Captured.Enqueue(new CapturedMockEmail(
+            DateTimeOffset.UtcNow,
+            message.To,
+            message.Subject,
+            message.HtmlBody,
+            message.TextBody));
+        while (Captured.Count > MaxCaptured && Captured.TryDequeue(out _))
+        {
+        }
+
         if (SimulateFailure)
         {
             return Task.FromResult(new ProviderSendResult(
@@ -46,6 +70,13 @@ public sealed class MockEmailProvider : IEmailProvider
             UsedSandbox: true));
     }
 }
+
+public sealed record CapturedMockEmail(
+    DateTimeOffset AtUtc,
+    string To,
+    string Subject,
+    string? HtmlBody,
+    string? TextBody);
 
 public sealed class SmtpEmailProvider : IEmailProvider
 {

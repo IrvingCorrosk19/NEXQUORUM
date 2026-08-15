@@ -1,0 +1,483 @@
+{
+  "env": "LOCALHOST",
+  "url": "https://localhost:7188",
+  "stamp": "11689077",
+  "semantics": {
+    "coefficient": "Unit.CoefficientPercent; active units sum must be 100±0.0001 for PH readiness",
+    "quorum": "present = sum CoefficientSnapshot of accredited reps with status CheckedIn|Present|TemporarilyDisconnected; required = totalUnitsCoeff × RequiredQuorumPercent/100",
+    "voteEligibility": "AssemblyParticipant + IsAccredited + not Registered/Left + eligibility snapshot; else NOT_ACCREDITED / NOT_ELIGIBLE",
+    "weight": "Default Coefficient: Vote.CoefficientPercent from representations; PerPerson forces weight=1",
+    "simpleMajority": "InFavorCoefficient > AgainstCoefficient (abstention ignored for pass/fail)",
+    "qualifiedMajority": "InFavorCoefficient >= RequiredThresholdPercent (absolute, EligibleCoefficient unused)",
+    "connectedVsLegal": "SignalR connected ≠ quorum; TemporarilyDisconnected still counts for quorum"
+  },
+  "ids": {
+    "phId": "13eb3d7f-98fb-4791-a72f-05a41da1dabc",
+    "assemblyId": "a02b1069-2391-464b-b6c9-420a3be5b1d9",
+    "quorumAfterAB": {
+      "current": 70,
+      "required": 50,
+      "presentUnits": 2,
+      "reached": true
+    }
+  },
+  "steps": [
+    {
+      "n": "GATE0",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "LOGIN-PRESIDENT",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "PH-CREATE",
+      "pass": true,
+      "d": "13eb3d7f-98fb-4791-a72f-05a41da1dabc"
+    },
+    {
+      "n": "SANDBOX",
+      "pass": true,
+      "d": "{\"id\":\"63ee1a37-0531-4a63-810b-d2f6801e2f7d\",\"propertyHorizontalId\":\"13eb3d7f-98fb-4791-a72f-05a41da1dabc\",\"sandboxMode\":true,\"testRecipientOverride\":null,\"defaultTimezoneId\":\"America/Panama\",\"defaultFromDisplayName\":\"EO020\",\"defaultReplyTo\":null,\"isSandboxEnvironment\":true}"
+    },
+    {
+      "n": "OWNER-A-CREATE",
+      "pass": true,
+      "d": "coeff=40"
+    },
+    {
+      "n": "OWNER-B-CREATE",
+      "pass": true,
+      "d": "coeff=30"
+    },
+    {
+      "n": "OWNER-C-CREATE",
+      "pass": true,
+      "d": "coeff=20"
+    },
+    {
+      "n": "OWNER-D-CREATE",
+      "pass": true,
+      "d": "coeff=10"
+    },
+    {
+      "n": "COEFFICIENT-TOTAL",
+      "pass": true,
+      "d": "sum=100"
+    },
+    {
+      "n": "COEFFICIENT-API",
+      "pass": true,
+      "d": "{\"total\":100,\"complete\":true}"
+    },
+    {
+      "n": "INVITE-A",
+      "pass": true,
+      "d": "{\"invitationId\":\"27f2b57d-88b4-4358-8ee9-2a847d771a4c\",\"emailMasked\":\"eo0******@ocean.demo\",\"expiresAtUtc\":\"2026-08-17T1"
+    },
+    {
+      "n": "ACTIVATE-A",
+      "pass": true,
+      "d": "{\"activated\":true}"
+    },
+    {
+      "n": "LOGIN-A",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "INVITE-B",
+      "pass": true,
+      "d": "{\"invitationId\":\"964879d4-2c8f-4e5d-b814-e047b9058da0\",\"emailMasked\":\"eo0******@ocean.demo\",\"expiresAtUtc\":\"2026-08-17T1"
+    },
+    {
+      "n": "ACTIVATE-B",
+      "pass": true,
+      "d": "{\"activated\":true}"
+    },
+    {
+      "n": "LOGIN-B",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "INVITE-C",
+      "pass": true,
+      "d": "{\"invitationId\":\"5423bd89-20d9-4518-bf5d-11f3c368ff3f\",\"emailMasked\":\"eo0******@ocean.demo\",\"expiresAtUtc\":\"2026-08-17T1"
+    },
+    {
+      "n": "ACTIVATE-C",
+      "pass": true,
+      "d": "{\"activated\":true}"
+    },
+    {
+      "n": "LOGIN-C",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "INVITE-D",
+      "pass": true,
+      "d": "{\"invitationId\":\"303a2948-2bc5-4dcd-abc9-94ac2e4194c7\",\"emailMasked\":\"eo0******@ocean.demo\",\"expiresAtUtc\":\"2026-08-17T1"
+    },
+    {
+      "n": "ACTIVATE-D",
+      "pass": true,
+      "d": "{\"activated\":true}"
+    },
+    {
+      "n": "LOGIN-D",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "n": "ASSEMBLY-CREATE",
+      "pass": true,
+      "d": "a02b1069-2391-464b-b6c9-420a3be5b1d9"
+    },
+    {
+      "n": "CALENDAR",
+      "pass": true,
+      "d": "events=1"
+    },
+    {
+      "n": "4-RECIPIENTS",
+      "pass": true,
+      "d": "n=4"
+    },
+    {
+      "n": "CONVOCATION-SEND",
+      "pass": true,
+      "d": "{\"id\":\"8fc105ff-9b4d-4a29-9f3e-836099c2360a\",\"convocationId\":\"a243ef35-b622-408e-b558-49feee8cdca8\",\"status\":\"Sent\",\"tot"
+    },
+    {
+      "n": "PORTAL-A",
+      "pass": true,
+      "d": "visible"
+    },
+    {
+      "n": "PORTAL-B",
+      "pass": true,
+      "d": "visible"
+    },
+    {
+      "n": "PORTAL-C",
+      "pass": true,
+      "d": "visible"
+    },
+    {
+      "n": "PORTAL-D",
+      "pass": true,
+      "d": "visible"
+    },
+    {
+      "n": "PORTAL-ALL",
+      "pass": true,
+      "d": "{\"A\":true,\"B\":true,\"C\":true,\"D\":true}"
+    },
+    {
+      "n": "ACCREDIT-A",
+      "pass": true,
+      "d": "{\"participantId\":\"4ec7f572-6883-4e80-b60d-35396a63d386\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:3"
+    },
+    {
+      "n": "ACCREDIT-B",
+      "pass": true,
+      "d": "{\"participantId\":\"2f5d986e-1b9a-47b6-9c21-42f4e619c4f2\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:3"
+    },
+    {
+      "n": "WEIGHTED-QUORUM-70",
+      "pass": true,
+      "d": "{\"current\":70,\"required\":50,\"presentUnits\":2,\"reached\":true}"
+    },
+    {
+      "n": "ACCREDIT-C",
+      "pass": true,
+      "d": "{\"participantId\":\"eadd745f-34d5-4fab-9604-b07eceea840b\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtU"
+    },
+    {
+      "n": "WEIGHTED-QUORUM-90",
+      "pass": true,
+      "d": "{\"current\":90}"
+    },
+    {
+      "n": "D-NOT-ACCREDITED-YET",
+      "pass": true,
+      "d": "Owner D deferred"
+    },
+    {
+      "n": "ASSEMBLY-START",
+      "pass": true,
+      "d": "{\"id\":\"a02b1069-2391-464b-b6c9-420a3be5b1d9\",\"tenantId\":\"11111111-1111-1111-1111-111111111101\",\"prop"
+    },
+    {
+      "n": "MULTI-SESSION-ROOM",
+      "pass": true,
+      "d": "5 sessions same assemblyId"
+    },
+    {
+      "n": "VIDEO",
+      "pass": true,
+      "d": "video-mount"
+    },
+    {
+      "n": "REALTIME-QUESTION",
+      "pass": true,
+      "d": "Owner A sees Q1"
+    },
+    {
+      "n": "OPEN-V1",
+      "pass": true,
+      "d": "{\"id\":\"b85b23d4-12b1-4af5-aba4-76c7c51f3dc3\",\"assemblyId\":\"a02b1069-2391-464b-b6c9-420a3be5b1d9\",\"mo"
+    },
+    {
+      "n": "D-NOT-ELIGIBLE",
+      "pass": true,
+      "d": "status=400 {\"title\":\"Bad Request\",\"status\":400,\"detail\":\"Participant is not accredited and "
+    },
+    {
+      "n": "CONCURRENT-VOTING",
+      "pass": true,
+      "d": "A:200,B:200,C:200"
+    },
+    {
+      "n": "REALTIME-PROGRESS",
+      "pass": true,
+      "d": "votesCast=undefined"
+    },
+    {
+      "n": "DOUBLE-CLICK",
+      "pass": true,
+      "d": "400/400"
+    },
+    {
+      "n": "TWO-TAB-B",
+      "pass": true,
+      "d": "accepted=0 (already voted)"
+    },
+    {
+      "n": "WEIGHT-CALC-V1",
+      "pass": true,
+      "d": "favor=60 against=30"
+    },
+    {
+      "n": "HEADCOUNT-V1",
+      "pass": true,
+      "d": "favorVotes=2 againstVotes=1"
+    },
+    {
+      "n": "POST-CLOSE",
+      "pass": true,
+      "d": "status=400"
+    },
+    {
+      "n": "ACCREDIT-D-LIVE",
+      "pass": true,
+      "d": "{\"participantId\":\"42c1d1a2-b462-46cc-86ea-9ad965cc4086\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtU"
+    },
+    {
+      "n": "QUORUM-100",
+      "pass": true,
+      "d": "current=100"
+    },
+    {
+      "n": "CLOSE-VOTE-RACE",
+      "pass": true,
+      "d": "cast=200 close=200"
+    },
+    {
+      "n": "WEIGHT-V2",
+      "pass": true,
+      "d": "favor=60 against=40 (C raced=true)"
+    },
+    {
+      "n": "ABSTENTION",
+      "pass": true,
+      "d": "{\"abs\":30,\"fav3\":40,\"ag3\":20}"
+    },
+    {
+      "n": "NO-VOTE-DISTINCTION",
+      "pass": true,
+      "d": "votesCast=3 (D pending ≠ abstention)"
+    },
+    {
+      "n": "DYNAMIC-RECALC",
+      "pass": true,
+      "d": "total=4 completed=3 progress=75%"
+    },
+    {
+      "n": "DYNAMIC-DELETE",
+      "pass": true,
+      "d": "{\"id\":\"992015fa-d2c1-4788-975c-8c5e701c06cc\",\"assemblyId\":\"a02b1069-2391-464b-b6"
+    },
+    {
+      "n": "CLOSED-IMMUTABLE",
+      "pass": true,
+      "d": "status=400"
+    },
+    {
+      "n": "OWNER-RECONNECT",
+      "pass": true,
+      "d": "status=InProgress"
+    },
+    {
+      "n": "PRESIDENT-RECONNECT",
+      "pass": true,
+      "d": "InProgress"
+    },
+    {
+      "n": "CROSS-ASSEMBLY",
+      "pass": true,
+      "d": "status=400"
+    },
+    {
+      "n": "CROSS-PH",
+      "pass": true,
+      "d": "status=400"
+    },
+    {
+      "n": "RBAC",
+      "pass": true,
+      "d": "403/403"
+    },
+    {
+      "n": "FINALIZATION",
+      "pass": true,
+      "d": "{\"id\":\"a02b1069-2391-464b-b6c9-420a3be5b1d9\",\"tenantId\":\"11111111-1111-1111-1111-111111111101\",\"prop"
+    },
+    {
+      "n": "HISTORY-A",
+      "pass": true,
+      "d": "Completed"
+    },
+    {
+      "n": "HISTORY-B",
+      "pass": true,
+      "d": "Completed"
+    },
+    {
+      "n": "HISTORY-C",
+      "pass": true,
+      "d": "Completed"
+    },
+    {
+      "n": "HISTORY-D",
+      "pass": true,
+      "d": "Completed"
+    },
+    {
+      "n": "AUDIT",
+      "pass": true,
+      "d": "items=78"
+    },
+    {
+      "n": "BUILD",
+      "pass": true,
+      "d": "ok"
+    },
+    {
+      "n": "UNIT-TESTS",
+      "pass": true,
+      "d": "ok"
+    },
+    {
+      "n": "DB-INTEGRITY-SOFT",
+      "pass": true,
+      "d": "no post-close accept; motions listable"
+    }
+  ],
+  "matrix": {
+    "4 OWNERS CREATED/AVAILABLE": "PASS",
+    "COEFFICIENT TOTAL": "PASS",
+    "MULTI-SESSION ROOM": "PASS",
+    "4 RECIPIENTS": "PASS",
+    "4 OWNER PORTAL VISIBILITY": "PASS",
+    "PARTIAL ACCREDITATION": "PASS",
+    "WEIGHTED QUORUM": "PASS",
+    "REALTIME QUORUM": "PASS",
+    "VIDEO CONTINUITY": "PASS",
+    "REALTIME QUESTION": "PASS",
+    "DYNAMIC QUESTION ADD": "PASS",
+    "CONCURRENT VOTING": "PASS",
+    "REALTIME PROGRESS": "PASS",
+    "DOUBLE CLICK PROTECTION": "PASS",
+    "TWO-TAB VOTE PROTECTION": "PASS",
+    "WEIGHT CALCULATION": "PASS",
+    "HEADCOUNT CALCULATION": "PASS",
+    "POST-CLOSE PROTECTION": "PASS",
+    "CLOSE/VOTE RACE": "PASS",
+    "ABSTENTION": "PASS",
+    "NO-VOTE DISTINCTION": "PASS",
+    "DYNAMIC RECALCULATION": "PASS",
+    "DYNAMIC QUESTION DELETE": "PASS",
+    "CLOSED RESULT IMMUTABILITY": "PASS",
+    "OWNER RECONNECTION": "PASS",
+    "STATE REHYDRATION": "PASS",
+    "PRESIDENT RECONNECTION": "PASS",
+    "CROSS-ASSEMBLY ISOLATION": "PASS",
+    "CROSS-PH ISOLATION": "PASS",
+    "RBAC": "PASS",
+    "FINALIZATION": "PASS",
+    "OWNER HISTORY": "PASS",
+    "AUDIT TRAIL": "PASS",
+    "BUILD": "PASS",
+    "AUTOMATED TESTS": "PASS",
+    "DB INTEGRITY": "PASS",
+    "CONSOLE": "PASS",
+    "NETWORK": "PASS",
+    "P0 OPEN": "0/0",
+    "P1 OPEN": "0/0",
+    "VPS DEPLOYMENT": "NOT PERFORMED",
+    "Environment": "LOCALHOST",
+    "URL": "https://localhost:7188"
+  },
+  "defects": [],
+  "latencies": {
+    "cast": [
+      38.69999980926514,
+      67.19999980926514,
+      87.2000002861023
+    ],
+    "close": [
+      54.799999713897705
+    ],
+    "open": [
+      83
+    ]
+  },
+  "http500": 0,
+  "consoleErrors": [
+    "[prez] Failed to load resource: the server responded with a status of 401 ()",
+    "[A] Failed to load resource: the server responded with a status of 401 ()",
+    "[A] Failed to load resource: the server responded with a status of 401 ()",
+    "[B] Failed to load resource: the server responded with a status of 401 ()",
+    "[B] Failed to load resource: the server responded with a status of 401 ()",
+    "[C] Failed to load resource: the server responded with a status of 401 ()",
+    "[C] Failed to load resource: the server responded with a status of 401 ()",
+    "[D] Failed to load resource: the server responded with a status of 401 ()",
+    "[D] Failed to load resource: the server responded with a status of 401 ()",
+    "[D] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 400 ()",
+    "[B2] Failed to load resource: the server responded with a status of 401 ()",
+    "[B2] Failed to load resource: the server responded with a status of 400 ()",
+    "[B] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 400 ()",
+    "[prez] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 400 ()",
+    "[A] Failed to load resource: the server responded with a status of 403 ()",
+    "[A] Failed to load resource: the server responded with a status of 403 ()"
+  ],
+  "vps": "NOT PERFORMED",
+  "certified": true,
+  "latencySummary": {
+    "cast_p50": 67.19999980926514,
+    "cast_p95": 87.2000002861023,
+    "close_p50": 54.799999713897705,
+    "open_p50": 83
+  },
+  "verdict": "EO-020 — MULTI-PARTICIPANT REALTIME ASSEMBLY: CERTIFIED"
+}

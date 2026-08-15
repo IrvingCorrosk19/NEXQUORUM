@@ -9,6 +9,7 @@ using Asambleas.Domain.Entities;
 using Asambleas.Domain.Enums;
 using Asambleas.Domain.Voting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using System.Text.Json;
 
 public sealed class VotingService
@@ -267,6 +268,8 @@ public sealed class VotingService
                 "Votes cannot be cast after the assembly is closed.");
         }
 
+        await using var tx = await BeginExclusiveVotingSessionAsync(votingSessionId, cancellationToken);
+
         var session = await _db.VotingSessions
             .FirstOrDefaultAsync(s => s.Id == votingSessionId && s.AssemblyId == assemblyId, cancellationToken)
             ?? throw new DomainException(
@@ -299,6 +302,7 @@ public sealed class VotingService
                         "Client request id is already bound to another voter.");
                 }
 
+                await tx.CommitAsync(cancellationToken);
                 return ToCastResponse(byKey, idempotentReplay: true);
             }
         }
@@ -335,9 +339,17 @@ public sealed class VotingService
 
         if (!Enum.TryParse<VoteChoice>(request.Choice, ignoreCase: true, out var choice))
         {
-            throw new DomainException(
-                VotingCodes.InvalidChoice,
-                $"Unknown vote choice '{request.Choice}'.");
+            // Accept common UI alias without inventing a separate legal meaning.
+            if (string.Equals(request.Choice, "Abstain", StringComparison.OrdinalIgnoreCase))
+            {
+                choice = VoteChoice.Abstention;
+            }
+            else
+            {
+                throw new DomainException(
+                    VotingCodes.InvalidChoice,
+                    $"Unknown vote choice '{request.Choice}'.");
+            }
         }
 
         var existing = await _db.Votes
@@ -350,6 +362,7 @@ public sealed class VotingService
         {
             if (existing.Choice == choice)
             {
+                await tx.CommitAsync(cancellationToken);
                 return ToCastResponse(existing, idempotentReplay: true);
             }
 
@@ -429,9 +442,11 @@ public sealed class VotingService
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex))
         {
+            await tx.RollbackAsync(cancellationToken);
             var winner = await _db.Votes
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
@@ -771,6 +786,8 @@ public sealed class VotingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
+        await using var tx = await BeginExclusiveVotingSessionAsync(votingSessionId, cancellationToken);
+
         var session = await _db.VotingSessions
             .FirstOrDefaultAsync(s => s.Id == votingSessionId && s.AssemblyId == assemblyId, cancellationToken)
             ?? throw new DomainException(
@@ -788,6 +805,7 @@ public sealed class VotingService
                     session.DecisionStatus,
                     hideTrend: false,
                     cancellationToken);
+                await tx.CommitAsync(cancellationToken);
                 return new CloseVotingSessionResponse(
                     session.Id,
                     session.MotionId,
@@ -838,6 +856,7 @@ public sealed class VotingService
         motion.UpdatedAtUtc = now;
 
         await _db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
 
         await _quorum.RecalculateAndSnapshotAsync(assemblyId, "VotingClose", cancellationToken);
 
@@ -1550,6 +1569,26 @@ public sealed class VotingService
 
     private static CastVoteResponse ToCastResponse(Vote vote, bool idempotentReplay) =>
         new(vote.Id, vote.VotingSessionId, vote.EvidenceId, vote.CastAtUtc, idempotentReplay);
+
+    /// <summary>
+    /// Serializes cast/close on the same voting session (PostgreSQL row lock).
+    /// Prevents accepted votes after ClosedAt with a frozen tally that omits them.
+    /// </summary>
+    private async Task<IDbContextTransaction> BeginExclusiveVotingSessionAsync(
+        Guid votingSessionId,
+        CancellationToken cancellationToken)
+    {
+        if (_db is not DbContext ef)
+        {
+            throw new InvalidOperationException("Voting integrity requires an EF Core DbContext.");
+        }
+
+        var tx = await ef.Database.BeginTransactionAsync(cancellationToken);
+        await ef.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM voting_sessions WHERE "Id" = {votingSessionId} FOR UPDATE""",
+            cancellationToken);
+        return tx;
+    }
 
     private static string? NormalizeClientRequestId(string? value)
     {

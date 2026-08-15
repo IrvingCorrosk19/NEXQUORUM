@@ -190,7 +190,7 @@ function buildOwnerNav(ctx) {
   const current = ctx.current || "";
   const a = ctx.assemblyId ? `assemblyId=${encodeURIComponent(ctx.assemblyId)}` : "";
   return section("Mi portal", [
-    link("/owner.html", "Inicio", { current: current === "owner-home" }),
+    link("/owner.html#home", "Inicio", { current: current === "owner-home" }),
     link("/owner.html#assemblies", "Mis asambleas", { current: current === "owner-assemblies" }),
     link("/owner.html#units", "Mis unidades", { current: current === "owner-units" }),
     link("/owner.html#account", "Mi cuenta", { current: current === "owner-account" }),

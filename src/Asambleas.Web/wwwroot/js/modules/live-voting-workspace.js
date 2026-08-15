@@ -44,7 +44,7 @@ export function createLiveVotingWorkspace({
     bar.setAttribute("data-live-workspace", "1");
     bar.innerHTML = `
       <div class="live-vote-actions">
-        <button type="button" class="btn btn-primary" data-lv="quick">+ Votación rápida</button>
+        <button type="button" class="btn btn-primary" data-lv="quick">+ Agregar pregunta</button>
         <button type="button" class="btn btn-secondary" data-lv="pick">Usar preparada</button>
         <button type="button" class="btn btn-ghost" data-lv="edit">Editar</button>
         <button type="button" class="btn btn-ghost" data-lv="preview">Vista previa</button>
@@ -77,6 +77,113 @@ export function createLiveVotingWorkspace({
         showToast(err.message || "Error", "error");
       }
     });
+  }
+
+  function questionStatusMark(m, activeMotionId, session) {
+    if (m.status === "Approved" || m.status === "Rejected") return "✓";
+    if (m.status === "Cancelled") return "⊘";
+    if (m.status === "Voting" || (session?.status === "Open" && session?.motionId === m.id)) return "●";
+    if (m.id === activeMotionId || m.status === "Presented") return "◐";
+    return "○";
+  }
+
+  function renderQuestionnaire(root, { motions = [], activeMotionId = null, session = null, canManage: manage = false } = {}) {
+    if (!root) return;
+    let host = root.querySelector("[data-lv-questionnaire]");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "live-questionnaire";
+      host.setAttribute("data-lv-questionnaire", "1");
+      const chrome = root.querySelector("[data-live-workspace]");
+      if (chrome) root.insertBefore(host, chrome);
+      else root.prepend(host);
+    }
+
+    const active = (motions || []).filter((m) => m.designStatus !== "Archived");
+    const completed = active.filter((m) => m.status === "Approved" || m.status === "Rejected").length;
+    const total = active.length;
+    const pct = total ? Math.round((completed / total) * 10000) / 100 : 0;
+
+    host.innerHTML = `
+      <div class="live-questionnaire-head">
+        <strong>Cuestionario en vivo</strong>
+        <span class="muted">${completed} / ${total} · ${pct}%</span>
+      </div>
+      <ol class="live-questionnaire-list">
+        ${
+          active.length
+            ? active
+                .map((m, idx) => {
+                  const mark = questionStatusMark(m, activeMotionId, session);
+                  const isActive = m.id === activeMotionId || m.status === "Voting";
+                  return `<li class="${isActive ? "is-active" : ""}" data-motion-id="${m.id}">
+                    <span class="lq-mark" aria-hidden="true">${mark}</span>
+                    <span class="lq-text"><strong>${idx + 1}.</strong> ${escapeHtml(m.questionText || m.title || m.code)}
+                      <small class="muted">${escapeHtml(m.status)}${m.versionNumber > 1 ? ` · v${m.versionNumber}` : ""}</small>
+                    </span>
+                    ${
+                      manage
+                        ? `<span class="lq-ops">
+                            <button type="button" class="btn btn-ghost btn-xs" data-lq="up" data-id="${m.id}" title="Subir" ${idx === 0 ? "disabled" : ""}>↑</button>
+                            <button type="button" class="btn btn-ghost btn-xs" data-lq="down" data-id="${m.id}" title="Bajar" ${idx === active.length - 1 ? "disabled" : ""}>↓</button>
+                            <button type="button" class="btn btn-ghost btn-xs" data-lq="archive" data-id="${m.id}" title="Eliminar" ${m.status === "Draft" || m.status === "Presented" ? "" : "hidden"}>✕</button>
+                          </span>`
+                        : ""
+                    }
+                  </li>`;
+                })
+                .join("")
+            : `<li class="muted">Sin preguntas aún.</li>`
+        }
+      </ol>
+    `;
+
+    if (!manage) return;
+    host.querySelectorAll("[data-lq]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const action = btn.getAttribute("data-lq");
+        const id = btn.getAttribute("data-id");
+        try {
+          if (action === "archive") await archiveMotion(id);
+          if (action === "up" || action === "down") await moveMotion(id, action);
+        } catch (err) {
+          showToast(err.message || "Error", "error");
+        }
+      });
+    });
+  }
+
+  async function archiveMotion(motionId) {
+    const ok = await confirmDialog({
+      title: "Eliminar pregunta",
+      body: "Solo si no tiene votos. Se quitará del cuestionario y se recalculará el progreso.",
+      confirmLabel: "Eliminar",
+      danger: true
+    });
+    if (!ok) return;
+    await api(`/api/assemblies/${getAssemblyId()}/motions/${motionId}/archive`, { method: "POST" });
+    showToast("Pregunta eliminada", "success");
+    await refreshRoom?.();
+    onMotionChanged?.();
+  }
+
+  async function moveMotion(motionId, direction) {
+    const list = (getMotions() || []).filter((m) => m.designStatus !== "Archived");
+    const idx = list.findIndex((m) => m.id === motionId);
+    if (idx < 0) return;
+    const swap = direction === "up" ? idx - 1 : idx + 1;
+    if (swap < 0 || swap >= list.length) return;
+    const ordered = list.map((m) => m.id);
+    const tmp = ordered[idx];
+    ordered[idx] = ordered[swap];
+    ordered[swap] = tmp;
+    await api(`/api/assemblies/${getAssemblyId()}/motions/reorder`, {
+      method: "POST",
+      body: { orderedMotionIds: ordered }
+    });
+    showToast("Orden actualizado", "success");
+    await refreshRoom?.();
+    onMotionChanged?.();
   }
 
   async function syncLockBanner(root) {
@@ -275,12 +382,29 @@ export function createLiveVotingWorkspace({
   async function editCurrent() {
     const motion = getMotion();
     if (!motion) {
-      showToast("No hay moción activa", "error");
+      showToast("No hay moción activa", "info");
       return;
     }
     const policy = await api(`/api/assemblies/${getAssemblyId()}/motions/${motion.id}/edit-policy`);
     if (!policy.canEditCritical) {
-      showToast(policy.message || "No se puede editar ahora", "error");
+      const ui = openDialog(`
+        <header><h3>No se puede editar ahora</h3></header>
+        <p>Esta votación está actualmente en curso o ya tiene actividad.</p>
+        <p class="muted">${escapeHtml(policy.message || "Para cambiar la pregunta debes cerrar o anular esta votación.")}</p>
+        <footer class="live-vote-dialog-actions">
+          <button type="submit" class="btn btn-secondary" value="back">Volver</button>
+          ${policy.editMode === "WithdrawRequired" ? `<button type="submit" class="btn btn-primary" value="withdraw">Retirar apertura</button>` : ""}
+          ${policy.editMode === "CancelRequired" ? `<button type="submit" class="btn btn-danger" value="void">Anular votación</button>` : ""}
+        </footer>
+      `);
+      if (!ui) return;
+      ui.form.addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const v = ev.submitter?.value;
+        ui.dialog.close();
+        if (v === "withdraw") await withdrawOpen();
+        if (v === "void") await cancelOpen();
+      }, { once: true });
       await syncLockBanner(qs("#vote-panel"));
       return;
     }
@@ -511,6 +635,7 @@ export function createLiveVotingWorkspace({
   return {
     mountOperatorChrome,
     syncLockBanner,
+    renderQuestionnaire,
     handleRealtime(name) {
       if (
         name === "votingCancelled" ||
