@@ -73,3 +73,15 @@ La vista previa en **Votaciones → Crear/Editar → Vista previa** era funciona
 ## Resultado
 
 `LOCAL CERTIFIED`
+
+---
+
+## Producción (post-deploy)
+
+- **Commit desplegado:** `bc297347621988b8dc79a9071fadee0dcbe78b94`
+- **Rollback previo:** `0e5d49d0413a60854045651a68923aaed06eaacf`
+- **Assets:** `/css/voting-studio.css?v=vs3` → 200 + contiene `studio-preview__subtitle`
+- **Smoke E2E VPS:** PASS (mismo suite Playwright contra `https://asambleas.164.68.99.83.nip.io`)
+- **ROLLBACK REQUIRED:** NO
+
+`PRODUCTION CERTIFIED`
