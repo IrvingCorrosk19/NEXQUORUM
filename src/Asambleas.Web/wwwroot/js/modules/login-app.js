@@ -19,6 +19,23 @@ const passwordInput = document.querySelector("#password");
 const submitBtn = document.querySelector("#login-submit");
 let defaultAssemblyId = null;
 
+document.querySelectorAll("[data-toggle-password]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const targetId = btn.getAttribute("data-toggle-password");
+    const input = document.getElementById(targetId) || document.querySelector(`input[name="${targetId}"]`);
+    if (!input) return;
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    btn.setAttribute("aria-pressed", String(show));
+    btn.setAttribute("aria-label", show ? "Ocultar contraseña" : "Mostrar contraseña");
+    btn.title = show ? "Ocultar contraseña" : "Mostrar contraseña";
+    const eye = btn.querySelector(".icon-eye");
+    const eyeOff = btn.querySelector(".icon-eye-off");
+    if (eye) eye.hidden = show;
+    if (eyeOff) eyeOff.hidden = !show;
+  });
+});
+
 const loginParams = new URLSearchParams(location.search);
 if (loginParams.get("activated") === "1") {
   AppFeedback.success("Tu cuenta quedó activa. Inicia sesión con tu correo y la contraseña que definiste.", {
