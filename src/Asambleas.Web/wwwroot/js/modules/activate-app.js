@@ -6,6 +6,27 @@ const token = params.get("token");
 const metaEl = document.getElementById("activate-meta");
 const form = document.getElementById("form-activate");
 
+function wirePasswordToggles(root = document) {
+  root.querySelectorAll("[data-toggle-password]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const name = btn.getAttribute("data-toggle-password");
+      const input = root.querySelector(`input[name="${name}"]`);
+      if (!input) return;
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.setAttribute("aria-pressed", String(show));
+      btn.setAttribute("aria-label", show ? "Ocultar contraseña" : "Mostrar contraseña");
+      btn.title = show ? "Ocultar contraseña" : "Mostrar contraseña";
+      const eye = btn.querySelector(".icon-eye");
+      const eyeOff = btn.querySelector(".icon-eye-off");
+      if (eye) eye.hidden = show;
+      if (eyeOff) eyeOff.hidden = !show;
+    });
+  });
+}
+
+wirePasswordToggles(form || document);
+
 function showAlert(message, kind = "error") {
   if (kind === "ok" || kind === "success") {
     AppFeedback.success(message, { title: "Listo" });

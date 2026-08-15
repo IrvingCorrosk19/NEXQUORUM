@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/css/base.css?v=ph1" />
   <link rel="stylesheet" href="/css/components.css?v=ph1" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
-  <link rel="stylesheet" href="/css/ph.css?v=ph1" />
+  <link rel="stylesheet" href="/css/ph.css?v=ph2" />
 </head>
 <body>
   <main class="app-workspace page-main" style="max-width:28rem;margin:4rem auto">
@@ -22,15 +22,45 @@
     <form id="form-activate" class="form-grid panel">
       <label>Nombre para mostrar <input name="displayName" autocomplete="name" /></label>
       <label>Nueva contraseña
-        <input name="password" type="password" required minlength="12" autocomplete="new-password" />
+        <span class="password-field">
+          <input name="password" type="password" required minlength="12" autocomplete="new-password" />
+          <button type="button" class="password-toggle" data-toggle-password="password" aria-label="Mostrar contraseña" aria-pressed="false" title="Mostrar contraseña">
+            <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
+              <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.8 21.8 0 0 1 5.06-5.94"/>
+              <path d="M9.9 4.24A10.94 10.94 0 0 1 12 5c7 0 11 7 11 7a21.8 21.8 0 0 1-2.16 3.19"/>
+              <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+          </button>
+        </span>
       </label>
       <p class="muted" style="margin:-.25rem 0 .5rem;font-size:.875rem">
         Mínimo 12 caracteres, con mayúscula, minúscula, número y símbolo (ej. ! @ # $).
       </p>
-      <label>Confirmar contraseña <input name="confirmPassword" type="password" required minlength="12" autocomplete="new-password" /></label>
+      <label>Confirmar contraseña
+        <span class="password-field">
+          <input name="confirmPassword" type="password" required minlength="12" autocomplete="new-password" />
+          <button type="button" class="password-toggle" data-toggle-password="confirmPassword" aria-label="Mostrar contraseña" aria-pressed="false" title="Mostrar contraseña">
+            <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
+              <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.8 21.8 0 0 1 5.06-5.94"/>
+              <path d="M9.9 4.24A10.94 10.94 0 0 1 12 5c7 0 11 7 11 7a21.8 21.8 0 0 1-2.16 3.19"/>
+              <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+          </button>
+        </span>
+      </label>
       <button type="submit" class="btn btn-primary">Activar cuenta</button>
     </form>
   </main>
-  <script type="module" src="/js/modules/activate-app.js?v=ph4"></script>
+  <script type="module" src="/js/modules/activate-app.js?v=ph5"></script>
 </body>
 </html>

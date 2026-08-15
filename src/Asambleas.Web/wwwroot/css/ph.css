@@ -285,3 +285,44 @@
   background: var(--surface-secondary);
   outline: none;
 }
+
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  width: 100%;
+  padding-right: 2.75rem;
+  box-sizing: border-box;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--text-muted, #666);
+  cursor: pointer;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  color: var(--text-primary, #111);
+  background: var(--surface-secondary, rgba(0, 0, 0, 0.06));
+  outline: none;
+}
+
+.password-toggle[aria-pressed="true"] {
+  color: var(--text-primary, #111);
+}
