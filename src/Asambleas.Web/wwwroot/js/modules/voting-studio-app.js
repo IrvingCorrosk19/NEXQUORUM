@@ -197,6 +197,74 @@ function choicesForBallot(kind, options) {
   return options.filter(Boolean);
 }
 
+/** Labels already used in the studio select — keep preview in the same language surface. */
+function calculationMethodLabel(code) {
+  const map = {
+    Coefficient: "Por coeficiente",
+    PerPerson: "Por persona",
+    PerUnit: "Por unidad"
+  };
+  return map[code] || code || "—";
+}
+
+function previewChoiceTone(label) {
+  const t = String(label || "").trim().toLowerCase();
+  if (t === "a favor" || t === "sí" || t === "si" || t === "yes" || t === "in favor") return "favor";
+  if (t === "en contra" || t === "no" || t === "against") return "against";
+  if (t === "abstención" || t === "abstencion" || t === "abstain" || t === "abstention") return "abstain";
+  return "neutral";
+}
+
+function renderPreviewChoiceButtons(choices) {
+  return choices
+    .map((c) => {
+      const tone = previewChoiceTone(c);
+      const toneClass = tone === "neutral" ? "" : ` preview-choice--${tone}`;
+      return `<button type="button" class="preview-choice${toneClass}" data-preview-choice aria-pressed="false">${escapeHtml(c)}</button>`;
+    })
+    .join("");
+}
+
+function wrapParticipantPreview({ title, methodLabel, methodHint, choicesHtml, choicesCount, bodyHtml }) {
+  const meta = methodLabel
+    ? `<div class="preview-meta">
+        <span class="preview-meta__label">Método de votación</span>
+        <span class="preview-meta__value">${escapeHtml(methodLabel)}</span>
+        ${methodHint ? `<p class="preview-meta__hint">${escapeHtml(methodHint)}</p>` : ""}
+      </div>`
+    : "";
+  const choices =
+    choicesHtml != null
+      ? `<div class="preview-choices" role="group" aria-label="Opciones de votación" data-count="${choicesCount || 0}">${choicesHtml}</div>`
+      : bodyHtml || "";
+  return `
+    <div class="preview-device-chrome">
+      <div class="preview-device-notch" aria-hidden="true"></div>
+      <div class="preview-device-screen">
+        <article class="preview-participant-card">
+          <p class="preview-participant-badge">Vista del participante</p>
+          <h3 class="preview-vote-title">${escapeHtml(title || "Votación")}</h3>
+          ${meta}
+          ${choices}
+        </article>
+      </div>
+    </div>`;
+}
+
+function bindPreviewChoiceInteraction(root) {
+  root.querySelectorAll("[data-preview-choice]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll("[data-preview-choice]").forEach((b) => b.setAttribute("aria-pressed", "false"));
+      btn.setAttribute("aria-pressed", "true");
+    });
+  });
+}
+
+function closePreviewDialog() {
+  const dialog = qs("#preview-dialog");
+  if (dialog?.open) dialog.close();
+}
+
 function renderTabs() {
   document.querySelectorAll(".studio-tab").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -797,34 +865,52 @@ async function publishCurrent() {
 }
 
 function showPreview() {
+  const frame = qs("#preview-frame");
+  if (!frame) return;
+
   if (state.mode === "vote") {
     readVoteDraftFromDom();
     const d = state.draft;
     const choices = choicesForBallot(d.ballotKind, d.options);
-    qs("#preview-frame").innerHTML = `
-      <p class="command-eyebrow">VER COMO PARTICIPANTE</p>
-      <h3>${escapeHtml(d.questionText || d.title)}</h3>
-      <p class="muted">Método: ${escapeHtml(d.calculationMethod)}</p>
-      ${choices.map((c) => `<button type="button" class="choice" disabled>${escapeHtml(c)}</button>`).join("")}
-    `;
+    const methodHint =
+      d.decisionRuleCode === "QualifiedMajority" && d.requiredThresholdPercent != null
+        ? `Umbral requerido: ${d.requiredThresholdPercent}%`
+        : "";
+    frame.innerHTML = wrapParticipantPreview({
+      title: d.questionText || d.title || "Votación",
+      methodLabel: calculationMethodLabel(d.calculationMethod),
+      methodHint,
+      choicesHtml: renderPreviewChoiceButtons(choices),
+      choicesCount: choices.length
+    });
+    bindPreviewChoiceInteraction(frame);
   } else {
     readSurveyDraftFromDom();
     const d = state.draft;
-    qs("#preview-frame").innerHTML = `
-      <h3>${escapeHtml(d.title)}</h3>
-      <p class="muted">${escapeHtml(d.description || "")}</p>
-      ${(d.questions || [])
-        .map(
-          (q, i) => `
-        <div class="studio-card">
-          <p><strong>${i + 1}. ${escapeHtml(q.title)}</strong></p>
-          <p class="muted">${escapeHtml(q.questionType)}</p>
-        </div>`
-        )
-        .join("")}
-    `;
+    const bodyHtml = `
+      ${d.description ? `<p class="preview-survey-desc">${escapeHtml(d.description)}</p>` : ""}
+      <div class="preview-survey-list">
+        ${(d.questions || [])
+          .map(
+            (q, i) => `
+          <div class="preview-survey-item">
+            <strong>${i + 1}. ${escapeHtml(q.title || "Pregunta")}</strong>
+            <span>${escapeHtml(q.questionType || "")}</span>
+          </div>`
+          )
+          .join("")}
+      </div>`;
+    frame.innerHTML = wrapParticipantPreview({
+      title: d.title || "Formulario",
+      methodLabel: null,
+      bodyHtml
+    });
   }
-  qs("#preview-dialog").showModal();
+
+  const dialog = qs("#preview-dialog");
+  if (!dialog) return;
+  dialog.showModal();
+  qs(".preview-devices button.is-active")?.focus();
 }
 
 async function ensureAgendaItem() {
@@ -893,14 +979,26 @@ async function init() {
   qs("#btn-save-draft").onclick = () => saveDraft();
   qs("#btn-publish").onclick = () => publishCurrent();
   qs("#btn-preview").onclick = () => showPreview();
+  qs("#btn-preview-close")?.addEventListener("click", () => closePreviewDialog());
+  qs("#btn-preview-dismiss")?.addEventListener("click", () => closePreviewDialog());
+
+  const previewDialog = qs("#preview-dialog");
+  previewDialog?.addEventListener("click", (e) => {
+    if (e.target === previewDialog) closePreviewDialog();
+  });
 
   document.querySelectorAll(".preview-devices button").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".preview-devices button").forEach((b) => b.classList.remove("is-active"));
+      document.querySelectorAll(".preview-devices button").forEach((b) => {
+        b.classList.remove("is-active");
+        b.setAttribute("aria-pressed", "false");
+      });
       btn.classList.add("is-active");
+      btn.setAttribute("aria-pressed", "true");
       const frame = qs("#preview-frame");
+      if (!frame) return;
       frame.classList.remove("is-desktop", "is-tablet", "is-mobile");
-      frame.classList.add(`is-${btn.dataset.device}`);
+      frame.classList.add(`is-${btn.dataset.device || "desktop"}`);
     });
   });
 

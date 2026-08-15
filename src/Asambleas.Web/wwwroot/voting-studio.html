@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/css/components.css?v=ia3" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <link rel="stylesheet" href="/css/loading.css?v=ia3" />
-  <link rel="stylesheet" href="/css/voting-studio.css?v=vs2" />
+  <link rel="stylesheet" href="/css/voting-studio.css?v=vs3" />
   <link rel="stylesheet" href="/css/ia.css?v=ia3" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
@@ -127,23 +127,31 @@
     </form>
   </dialog>
 
-  <dialog id="preview-dialog" class="studio-preview-dialog">
-    <form method="dialog" class="studio-preview">
-      <header>
-        <h2>Vista previa</h2>
-        <div class="preview-devices" role="group" aria-label="Dispositivo">
-          <button type="button" data-device="desktop" class="is-active">Desktop</button>
-          <button type="button" data-device="tablet">Tablet</button>
-          <button type="button" data-device="mobile">Móvil</button>
+  <dialog id="preview-dialog" class="studio-preview-dialog" aria-labelledby="preview-title" aria-describedby="preview-subtitle">
+    <div class="studio-preview">
+      <header class="studio-preview__header">
+        <div class="studio-preview__heading">
+          <h2 id="preview-title">Vista previa</h2>
+          <p id="preview-subtitle" class="studio-preview__subtitle">Así verá esta votación el participante</p>
+        </div>
+        <button type="button" class="studio-preview__close" id="btn-preview-close" aria-label="Cerrar vista previa">
+          <span aria-hidden="true">×</span>
+        </button>
+        <div class="preview-devices" role="group" aria-label="Dispositivo de vista previa">
+          <button type="button" data-device="desktop" class="is-active" aria-pressed="true">Desktop</button>
+          <button type="button" data-device="tablet" aria-pressed="false">Tablet</button>
+          <button type="button" data-device="mobile" aria-pressed="false">Móvil</button>
         </div>
       </header>
-      <div id="preview-frame" class="preview-frame is-desktop"></div>
-      <footer>
-        <button type="submit" class="btn btn-secondary" value="close">Cerrar</button>
+      <div class="studio-preview__stage" id="preview-stage">
+        <div id="preview-frame" class="preview-frame is-desktop" role="region" aria-label="Marco de dispositivo"></div>
+      </div>
+      <footer class="studio-preview__footer">
+        <button type="button" class="btn btn-ghost" id="btn-preview-dismiss">Cerrar</button>
       </footer>
-    </form>
+    </div>
   </dialog>
 
-  <script type="module" src="/js/modules/voting-studio-app.js?v=ia3"></script>
+  <script type="module" src="/js/modules/voting-studio-app.js?v=vs3"></script>
 </body>
 </html>

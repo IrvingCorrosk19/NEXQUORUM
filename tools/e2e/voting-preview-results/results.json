@@ -1,0 +1,123 @@
+{
+  "env": "LOCALHOST",
+  "url": "https://localhost:7188",
+  "tests": [
+    {
+      "id": "login",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "id": "ph-ready",
+      "pass": true,
+      "detail": "1c8f07b1-2948-40ba-91b2-084309c888ce"
+    },
+    {
+      "id": "assembly-ready",
+      "pass": true,
+      "detail": "e07f9b00-6963-4db1-b386-8bacb17b54d9"
+    },
+    {
+      "id": "studio-loaded",
+      "pass": true,
+      "detail": "https://localhost:7188/voting-studio.html?assemblyId=e07f9b00-6963-4db1-b386-8bacb17b54d9"
+    },
+    {
+      "id": "preview-open",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "title-readable",
+      "pass": true,
+      "detail": "Aprobación extraordinaria del presupuesto anual correspondiente al período fisca"
+    },
+    {
+      "id": "method-es",
+      "pass": true,
+      "detail": "Por coeficiente"
+    },
+    {
+      "id": "options-visible",
+      "pass": true,
+      "detail": "count=3"
+    },
+    {
+      "id": "contrast-title",
+      "pass": true,
+      "detail": "{\"ok\":true,\"color\":\"rgb(11, 18, 32)\",\"bg\":\"rgb(255, 255, 255)\",\"fontSize\":\"24.72px\",\"fontWeight\":\"700\"}"
+    },
+    {
+      "id": "device-desktop",
+      "pass": true,
+      "detail": "w=920"
+    },
+    {
+      "id": "device-tablet",
+      "pass": true,
+      "detail": "w=768"
+    },
+    {
+      "id": "device-mobile",
+      "pass": true,
+      "detail": "w=402 stacked=true"
+    },
+    {
+      "id": "no-reload",
+      "pass": true,
+      "detail": "https://localhost:7188/voting-studio.html?assemblyId=e07f9b00-6963-4db1-b386-8bacb17b54d9"
+    },
+    {
+      "id": "option-select-feedback",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "preview-close",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "preview-reopen",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "preview-close-x",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "preview-escape",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "console-clean",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "network-clean",
+      "pass": true,
+      "detail": "[]"
+    },
+    {
+      "id": "responsive-host-mobile",
+      "pass": true,
+      "detail": "{\"within\":true,\"width\":369,\"vw\":390}"
+    }
+  ],
+  "jsErrors": [
+    "Failed to load resource: the server responded with a status of 401 ()"
+  ],
+  "networkErrors": [
+    {
+      "st": 401,
+      "u": "/api/auth/me",
+      "method": "GET"
+    }
+  ],
+  "certified": true,
+  "verdict": "LOCAL CERTIFIED"
+}
