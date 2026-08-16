@@ -2,12 +2,26 @@
 import { api } from "./api.js";
 
 const ACTIVE = new Set(["CheckIn", "InProgress", "Paused"]);
+/**
+ * Accept any 8-4-4-4-12 hex GUID.
+ * Do NOT require RFC version/variant bits — demo IDs like 4444-…-4444 are valid in ASAMBLEAS.
+ */
+const ASSEMBLY_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True when value is a usable assembly GUID (rejects placeholders like ID_DE_LA_ASAMBLEA). */
+export function isValidAssemblyId(value) {
+  if (typeof value !== "string") return false;
+  const id = value.trim();
+  if (!id) return false;
+  return ASSEMBLY_ID_RE.test(id);
+}
 
 export async function resolveDefaultAssemblyId() {
   try {
     const next = await api("/api/calendar/next");
     const id = next?.next?.assemblyId || next?.assemblyId;
-    if (id) return String(id);
+    if (isValidAssemblyId(id)) return String(id).trim();
   } catch {
     /* fall through */
   }
@@ -16,15 +30,15 @@ export async function resolveDefaultAssemblyId() {
     const list = await api("/api/assemblies");
     if (!Array.isArray(list) || !list.length) return null;
     const active = list.find((a) => ACTIVE.has(String(a.status || "")));
-    if (active?.id) return String(active.id);
+    if (isValidAssemblyId(active?.id)) return String(active.id).trim();
     const open = list
       .filter((a) => !["Completed", "Cancelled"].includes(String(a.status || "")))
       .sort((a, b) => new Date(a.scheduledAtUtc || 0) - new Date(b.scheduledAtUtc || 0));
-    if (open[0]?.id) return String(open[0].id);
+    if (isValidAssemblyId(open[0]?.id)) return String(open[0].id).trim();
     const sorted = [...list].sort(
       (a, b) => new Date(b.scheduledAtUtc || 0) - new Date(a.scheduledAtUtc || 0)
     );
-    return sorted[0]?.id ? String(sorted[0].id) : null;
+    return isValidAssemblyId(sorted[0]?.id) ? String(sorted[0].id).trim() : null;
   } catch {
     return null;
   }
@@ -47,14 +61,18 @@ export function ensureAssemblyIdInUrl(id, { hard = true } = {}) {
   return false;
 }
 
-/** If URL lacks assemblyId, resolve one and redirect to the same page with it. */
+/**
+ * If URL lacks a valid assemblyId (missing or placeholder), resolve one and redirect.
+ * @returns {Promise<string|null>}
+ */
 export async function ensureAssemblyIdOrRedirect() {
   const current = new URLSearchParams(location.search).get("assemblyId");
-  if (current) return current;
+  if (isValidAssemblyId(current)) return current.trim();
   const id = await resolveDefaultAssemblyId();
   if (!id) return null;
-  ensureAssemblyIdInUrl(id, { hard: true });
-  return id;
+  const redirected = ensureAssemblyIdInUrl(id, { hard: true });
+  // When already on the resolved id, keep going; otherwise navigation is in flight.
+  return redirected ? id : id;
 }
 
 export function dashboardHref(assemblyId) {
