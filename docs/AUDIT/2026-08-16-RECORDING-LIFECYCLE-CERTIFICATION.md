@@ -1,7 +1,7 @@
 # ASAMBLEAS — Recording Lifecycle Certification
 
 **Date:** 2026-08-16  
-**Commit:** *(filled after push)*  
+**Commit:** `e1b887045ab21f64cd1633ea88aa22413a1e28df`  
 **Local:** `https://localhost:7188`  
 **VPS:** `https://asambleas.164.68.99.83.nip.io`
 
@@ -51,7 +51,7 @@ Idle → Starting → Recording → Stopping/Processing → Ready
 **Frontend:**
 
 - `room-app.js` — banner/timer/stop controls bound to Starting/Recording/Processing; reload hydrate; toasts by status
-- `assembly.html` — `room-app.js?v=rec4`
+- `assembly.html` — `room-app.js?v=rec4` + recording banner / stop button markup
 
 **Tests:**
 
@@ -94,18 +94,33 @@ Audit: `RecordingStarted` / `RecordingStopped` / `RecordingReady` / `RecordingFa
 | Assembly mismatch download | PASS (400/404/403) |
 | Synthetic no longer Ready-on-start | PASS |
 
-Browser Playwright full suite: API + hydrate path certified; operator should hard-refresh `?v=rec4` for UI.
+Browser Playwright full suite: API + hydrate path certified; UI wired (`recording-banner`, `btn-rec-stop`, timer from `startedAtUtc`).
 
 ---
 
-## 7. Production notes
+## 7. Production smoke (post-deploy)
 
-- Without LiveKit Egress worker, provider is **SyntheticPilotMp4**: real auth/stream/download paths with pilot MP4; lifecycle still Idle→Recording→Stop→Ready for UI.
-- True composite video requires deploying `livekit-egress` and setting `LIVEKIT_EGRESS_URL`.
+**Deploy:** `_deploy_after_push.ps1` → `DEPLOY_DONE` / `public_ready=200`  
+**Image contains:** `room-app.js` with Detener grabación + GRABANDO banner; `assembly.html?v=rec4`
+
+| Check | Result |
+| --- | --- |
+| Login president@ocean.demo | PASS (cookie session) |
+| Start → status `Recording` (SyntheticPilotMp4) | PASS |
+| Double start → same recording id | PASS |
+| List while active shows Recording | PASS |
+| Stop → `Ready` | PASS |
+| Double stop → `Ready` (idempotent) | PASS |
+| Expediente contains recording id | PASS |
+| Play `video/mp4` HTTP 200 | PASS |
+| Cross-tenant assembly start/list | DENIED (HTTP 400) |
+| Unhandled exceptions in deploy window | 0 observed |
+
+**Provider note:** Without LiveKit Egress worker, provider is **SyntheticPilotMp4**. Lifecycle UI/API is Idle→Recording→Stop→Ready. True room composite requires `livekit-egress` + `LIVEKIT_EGRESS_URL`.
 
 ---
 
 ## 8. Final
 
-**LOCAL RECORDING LIFECYCLE CERTIFIED** (API + domain + UI wiring)  
-Production smoke after deploy of this commit.
+**LOCAL RECORDING LIFECYCLE CERTIFIED**  
+**PRODUCTION SMOKE (API + assets + expediente play): CERTIFIED** on commit `e1b8870`
