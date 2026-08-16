@@ -1,0 +1,12 @@
+# LiveKit Egress worker config for ASAMBLEAS.
+# api_key / api_secret are injected at deploy time; do not commit real secrets.
+api_key: ASAMBLEAS_DEVKEY
+api_secret: REPLACE_ME_LIVEKIT_SECRET
+ws_url: ws://asambleas_livekit:7880
+insecure: true
+redis:
+  address: asambleas_redis:6379
+health_port: 9092
+log_level: info
+# Local file outputs use the shared volume mounted at /data/recordings
+# (same path as Recording:StorageRoot / Recording:EgressOutputRoot in asambleas_web).

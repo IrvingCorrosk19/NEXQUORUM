@@ -136,7 +136,7 @@ public sealed class LiveKitMeetingRecordingProvider : IMeetingRecordingProvider
         {
             try
             {
-                var info = await GetEgressInfoAsync(egressId, cancellationToken);
+                var info = await GetEgressInfoAsync(egressId, storageKey, cancellationToken);
                 return info;
             }
             catch (Exception ex)
@@ -145,11 +145,15 @@ public sealed class LiveKitMeetingRecordingProvider : IMeetingRecordingProvider
             }
         }
 
-        if (await _storage.ExistsAsync(storageKey, cancellationToken))
+        if (!string.IsNullOrWhiteSpace(storageKey)
+            && await _storage.ExistsAsync(storageKey, cancellationToken))
         {
             await using var stream = await _storage.OpenReadAsync(storageKey, cancellationToken);
             long? size = stream.CanSeek ? stream.Length : null;
-            return new MeetingRecordingProviderStatus("Ready", null, size, null);
+            if (size is null or > 0)
+            {
+                return new MeetingRecordingProviderStatus("Ready", null, size, null);
+            }
         }
 
         return new MeetingRecordingProviderStatus("Processing", null, null, null);
@@ -215,6 +219,7 @@ public sealed class LiveKitMeetingRecordingProvider : IMeetingRecordingProvider
 
     private async Task<MeetingRecordingProviderStatus> GetEgressInfoAsync(
         string egressId,
+        string storageKey,
         CancellationToken cancellationToken)
     {
         using var req = CreateEgressRequest(HttpMethod.Post, "/twirp/livekit.Egress/ListEgress");
@@ -243,7 +248,19 @@ public sealed class LiveKitMeetingRecordingProvider : IMeetingRecordingProvider
             || status.Contains("Ready", StringComparison.OrdinalIgnoreCase)
             || status == "3")
         {
-            return new MeetingRecordingProviderStatus("Ready", null, null, null);
+            // READY means the file is actually on shared storage — not merely egress COMPLETE.
+            if (!string.IsNullOrWhiteSpace(storageKey)
+                && await _storage.ExistsAsync(storageKey, cancellationToken))
+            {
+                await using var stream = await _storage.OpenReadAsync(storageKey, cancellationToken);
+                long? size = stream.CanSeek ? stream.Length : null;
+                if (size is null or > 0)
+                {
+                    return new MeetingRecordingProviderStatus("Ready", null, size, null);
+                }
+            }
+
+            return new MeetingRecordingProviderStatus("Processing", null, null, null);
         }
 
         if (status.Contains("FAIL", StringComparison.OrdinalIgnoreCase)

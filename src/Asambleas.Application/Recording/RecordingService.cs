@@ -805,6 +805,15 @@ public sealed class RecordingService
 
     private async Task MarkReadyAsync(AssemblyRecording recording, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(recording.StorageKey)
+            || !await _storage.ExistsAsync(recording.StorageKey, cancellationToken))
+        {
+            // Never declare Ready without a readable media object on shared storage.
+            recording.Status = AssemblyRecordingStatus.Processing;
+            await _db.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
         recording.Status = AssemblyRecordingStatus.Ready;
         recording.EndedAtUtc ??= DateTimeOffset.UtcNow;
         if (recording.StartedAtUtc is DateTimeOffset started && recording.EndedAtUtc is DateTimeOffset ended)
@@ -812,34 +821,30 @@ public sealed class RecordingService
             recording.DurationSeconds = (int)Math.Max(0, (ended - started).TotalSeconds);
         }
 
-        if (!string.IsNullOrWhiteSpace(recording.StorageKey)
-            && await _storage.ExistsAsync(recording.StorageKey, cancellationToken))
+        await using var stream = await _storage.OpenReadAsync(recording.StorageKey, cancellationToken);
+        if (stream.CanSeek)
         {
-            await using var stream = await _storage.OpenReadAsync(recording.StorageKey, cancellationToken);
-            if (stream.CanSeek)
-            {
-                recording.FileSizeBytes = stream.Length;
-            }
+            recording.FileSizeBytes = stream.Length;
+        }
 
-            recording.ChecksumSha256 = await ComputeSha256HexAsync(stream, cancellationToken);
-            if (recording.FileSizeBytes is null && stream.CanSeek)
+        recording.ChecksumSha256 = await ComputeSha256HexAsync(stream, cancellationToken);
+        if (recording.FileSizeBytes is null && stream.CanSeek)
+        {
+            recording.FileSizeBytes = stream.Length;
+        }
+        else if (recording.FileSizeBytes is null)
+        {
+            try
             {
-                recording.FileSizeBytes = stream.Length;
+                var meta = await _storage.OpenReadWithMetaAsync(recording.StorageKey, cancellationToken);
+                await using (meta.Stream)
+                {
+                    recording.FileSizeBytes = meta.Length;
+                }
             }
-            else if (recording.FileSizeBytes is null)
+            catch
             {
-                try
-                {
-                    var meta = await _storage.OpenReadWithMetaAsync(recording.StorageKey, cancellationToken);
-                    await using (meta.Stream)
-                    {
-                        recording.FileSizeBytes = meta.Length;
-                    }
-                }
-                catch
-                {
-                    // size optional when provider did not report it
-                }
+                // size optional when provider did not report it
             }
         }
 

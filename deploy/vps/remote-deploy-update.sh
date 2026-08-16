@@ -22,7 +22,28 @@ echo "== Extract source =="
 cd "$APP_ROOT"
 tar -xzf /tmp/asambleas-src.tgz
 
-echo "== LiveKit keys sync =="
+echo "== Ensure egress env keys (idempotent) =="
+python3 - <<'PY'
+from pathlib import Path
+import re
+p = Path("$COMPOSE_DIR/.env")
+text = p.read_text()
+defaults = {
+    "LIVEKIT_EGRESS_URL": "http://asambleas_livekit:7880",
+    "ASAMBLEAS_EGRESS_OUTPUT": "/data/recordings",
+    "ASAMBLEAS_RECORDING_SYNTHETIC": "false",
+}
+for k, v in defaults.items():
+    if not re.search(rf"(?m)^{k}=", text):
+        text += f"\n{k}={v}\n"
+        print(f"env appended {k}")
+    elif k == "ASAMBLEAS_RECORDING_SYNTHETIC":
+        text = re.sub(rf"(?m)^{k}=.*$", f"{k}=false", text, count=1)
+        print("env forced ASAMBLEAS_RECORDING_SYNTHETIC=false")
+p.write_text(text)
+PY
+
+echo "== LiveKit + Egress keys sync =="
 python3 - <<PY
 from pathlib import Path
 import re
@@ -34,12 +55,22 @@ text = p.read_text()
 text = re.sub(r'(?m)^keys:\n(?:  .*\n)*', f'keys:\n  {key}: "{secret}"\n', text, count=1)
 p.write_text(text)
 print('livekit.yaml ok')
+eg = Path("$COMPOSE_DIR/egress.yaml")
+if eg.exists():
+    et = eg.read_text()
+    et = re.sub(r'(?m)^api_key:\s*.*$', f"api_key: {key}", et, count=1)
+    et = re.sub(r'(?m)^api_secret:\s*.*$', f"api_secret: {secret}", et, count=1)
+    if "REPLACE_ME_LIVEKIT_SECRET" in et:
+        et = et.replace("REPLACE_ME_LIVEKIT_SECRET", secret)
+    eg.write_text(et)
+    print('egress.yaml ok')
 PY
 
 echo "== Build & up =="
 cd "$COMPOSE_DIR"
 docker compose -f docker-compose.yml --project-name asambleas build asambleas_web
 docker compose -f docker-compose.yml --project-name asambleas up -d
+docker run --rm -v asambleas_recordings:/data alpine:3.20 sh -c 'mkdir -p /data && chmod 2775 /data' || true
 
 echo "== Wait health =="
 for i in $(seq 1 40); do

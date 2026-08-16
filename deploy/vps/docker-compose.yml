@@ -21,6 +21,22 @@ services:
       timeout: 5s
       retries: 8
 
+  asambleas_redis:
+    image: redis:7-alpine
+    container_name: asambleas_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - asambleas_redis_data:/data
+    networks:
+      - asambleas_net
+    # Redis stays internal — no host port published.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
   asambleas_web:
     build:
       context: ../..
@@ -30,6 +46,8 @@ services:
     depends_on:
       asambleas_postgres:
         condition: service_healthy
+      asambleas_livekit:
+        condition: service_started
     env_file:
       - .env
     environment:
@@ -49,13 +67,18 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
       LIVEKIT_DEFAULT_ROOM_PREFIX: ${LIVEKIT_DEFAULT_ROOM_PREFIX:-assembly-}
+      # Twirp Egress API lives on LiveKit Server; workers register via Redis.
+      LIVEKIT_EGRESS_URL: ${LIVEKIT_EGRESS_URL:-http://asambleas_livekit:7880}
+      LiveKit__EgressUrl: ${LIVEKIT_EGRESS_URL:-http://asambleas_livekit:7880}
       ASAMBLEAS_DISABLE_HTTPS_REDIRECTION: "true"
       ASAMBLEAS_DISABLE_HTTPS_REDIRECT: "true"
-      ASAMBLEAS_RECORDING_SYNTHETIC: ${ASAMBLEAS_RECORDING_SYNTHETIC:-true}
-      Recording__AllowSyntheticFallback: ${ASAMBLEAS_RECORDING_SYNTHETIC:-true}
+      # Production: no silent SyntheticPilotMp4 fallback (dev/tests may still enable).
+      ASAMBLEAS_RECORDING_SYNTHETIC: ${ASAMBLEAS_RECORDING_SYNTHETIC:-false}
+      Recording__AllowSyntheticFallback: ${ASAMBLEAS_RECORDING_SYNTHETIC:-false}
       Recording__StorageRoot: /data/recordings
+      Recording__EgressOutputRoot: ${ASAMBLEAS_EGRESS_OUTPUT:-/data/recordings}
+      ASAMBLEAS_EGRESS_OUTPUT: ${ASAMBLEAS_EGRESS_OUTPUT:-/data/recordings}
       ASAMBLEAS_DP_KEYS_PATH: /root/.aspnet/DataProtection-Keys
-      # Trusted public HTTPS origin for activation links (never trust Host header).
       ASAMBLEAS_PUBLIC_BASE_URL: ${ASAMBLEAS_PUBLIC_BASE_URL:-https://asambleas.164.68.99.83.nip.io}
       App__PublicBaseUrl: ${ASAMBLEAS_PUBLIC_BASE_URL:-https://asambleas.164.68.99.83.nip.io}
     ports:
@@ -76,6 +99,9 @@ services:
     image: livekit/livekit-server:v1.8.4
     container_name: asambleas_livekit
     restart: unless-stopped
+    depends_on:
+      asambleas_redis:
+        condition: service_healthy
     command: ["--config", "/etc/livekit.yaml"]
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
@@ -87,6 +113,30 @@ services:
     networks:
       - asambleas_net
 
+  asambleas_egress:
+    # Pin to same minor line as livekit-server:v1.8.4 (official compatibility).
+    image: livekit/egress:v1.8.4
+    container_name: asambleas_egress
+    restart: unless-stopped
+    depends_on:
+      asambleas_redis:
+        condition: service_healthy
+      asambleas_livekit:
+        condition: service_started
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+      # Shared with asambleas_web — RoomComposite filepath = /data/recordings/{storageKey}
+      - asambleas_recordings:/data/recordings
+    # Chrome (room composite) requires elevated caps + larger shm (LiveKit docs ≥ v1.7.6).
+    cap_add:
+      - SYS_ADMIN
+    shm_size: "1gb"
+    networks:
+      - asambleas_net
+    # No public ports — health_port 9092 stays on docker network only.
+
 volumes:
   asambleas_postgres_data:
     name: asambleas_postgres_data
@@ -94,6 +144,8 @@ volumes:
     name: asambleas_recordings
   asambleas_dp_keys:
     name: asambleas_dp_keys
+  asambleas_redis_data:
+    name: asambleas_redis_data
 
 networks:
   asambleas_net:

@@ -35,6 +35,10 @@ LIVEKIT_DEFAULT_ROOM_PREFIX=assembly-
 LIVEKIT_HTTP_PORT=7880
 LIVEKIT_RTC_TCP_PORT=7881
 LIVEKIT_UDP_PORT_RANGE=7882-7892
+LIVEKIT_EGRESS_URL=http://asambleas_livekit:7880
+ASAMBLEAS_EGRESS_OUTPUT=/data/recordings
+ASAMBLEAS_RECORDING_SYNTHETIC=false
+ASAMBLEAS_PUBLIC_BASE_URL=https://asambleas.164.68.99.83.nip.io
 EOF
   chmod 600 "$APP_ROOT/deploy/vps/.env"
 else
@@ -46,29 +50,40 @@ else
   LK_SECRET="${LIVEKIT_API_SECRET}"
 fi
 
-echo "== Sync LiveKit keys into livekit.yaml =="
+echo "== Sync LiveKit keys into livekit.yaml / egress.yaml =="
 # shellcheck disable=SC1091
 set -a
 source "$APP_ROOT/deploy/vps/.env"
 set +a
 python3 - <<PY
 from pathlib import Path
-p = Path("$APP_ROOT/deploy/vps/livekit.yaml")
-text = p.read_text()
+import re
 secret = """${LIVEKIT_API_SECRET}"""
 key = """${LIVEKIT_API_KEY}"""
-import re
+lk = Path("$APP_ROOT/deploy/vps/livekit.yaml")
+text = lk.read_text()
 text = re.sub(r'(?m)^keys:\n(?:  .*\n)*', f"keys:\n  {key}: \"{secret}\"\n", text, count=1)
 if "REPLACE_ME_LIVEKIT_SECRET" in text:
     text = text.replace("REPLACE_ME_LIVEKIT_SECRET", secret)
-p.write_text(text)
+lk.write_text(text)
 print("livekit.yaml keys updated")
+eg = Path("$APP_ROOT/deploy/vps/egress.yaml")
+if eg.exists():
+    et = eg.read_text()
+    et = re.sub(r'(?m)^api_key:\s*.*$', f"api_key: {key}", et, count=1)
+    et = re.sub(r'(?m)^api_secret:\s*.*$', f"api_secret: {secret}", et, count=1)
+    if "REPLACE_ME_LIVEKIT_SECRET" in et:
+        et = et.replace("REPLACE_ME_LIVEKIT_SECRET", secret)
+    eg.write_text(et)
+    print("egress.yaml keys updated")
 PY
 
 echo "== Docker compose build/up =="
 cd "$APP_ROOT/deploy/vps"
 docker compose -f docker-compose.yml --project-name asambleas build
 docker compose -f docker-compose.yml --project-name asambleas up -d
+# Shared recordings volume: writable by egress non-root + readable by web
+docker run --rm -v asambleas_recordings:/data alpine:3.20 sh -c 'mkdir -p /data && chmod 2775 /data'
 
 echo "== Nginx site =="
 cp "$APP_ROOT/deploy/vps/nginx-asambleas.conf" /etc/nginx/sites-available/asambleas.conf
