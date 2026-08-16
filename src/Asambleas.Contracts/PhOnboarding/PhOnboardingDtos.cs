@@ -310,6 +310,15 @@ public sealed record InviteOwnerResultDto(
     bool UsedSandbox,
     string? Detail);
 
+public sealed record OwnerPasswordResetRequestResultDto(
+    Guid ResetId,
+    string EmailMasked,
+    DateTimeOffset ExpiresAtUtc,
+    bool EmailSent,
+    string Provider,
+    bool UsedSandbox,
+    string? Detail);
+
 public sealed record ActivateInvitationRequest(
     string Token,
     string Password,

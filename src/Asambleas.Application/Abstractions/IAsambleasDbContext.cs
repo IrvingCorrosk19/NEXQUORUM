@@ -20,6 +20,8 @@ public interface IAsambleasDbContext
 
     DbSet<OwnerInvitation> OwnerInvitations { get; }
 
+    DbSet<OwnerPasswordReset> OwnerPasswordResets { get; }
+
     DbSet<UserPropertyMembership> UserPropertyMemberships { get; }
 
     DbSet<Power> Powers { get; }

@@ -42,6 +42,53 @@ if (loginParams.get("activated") === "1") {
     title: "Cuenta activada"
   });
 }
+if (loginParams.get("reset") === "1") {
+  AppFeedback.success("Contraseña actualizada. Inicia sesión con tu correo y la nueva contraseña.", {
+    title: "Contraseña restablecida"
+  });
+}
+
+const loginForm = document.querySelector("#login-form");
+const forgotForm = document.querySelector("#forgot-form");
+const forgotEmail = document.querySelector("#forgot-email");
+const forgotSubmit = document.querySelector("#forgot-submit");
+
+document.querySelector("#btn-forgot-password")?.addEventListener("click", () => {
+  if (loginForm) loginForm.hidden = true;
+  if (forgotForm) forgotForm.hidden = false;
+  if (forgotEmail && emailInput?.value) forgotEmail.value = emailInput.value;
+  forgotEmail?.focus();
+  AppFeedback.banner.clear("#login-error");
+});
+
+document.querySelector("#btn-forgot-cancel")?.addEventListener("click", () => {
+  if (forgotForm) forgotForm.hidden = true;
+  if (loginForm) loginForm.hidden = false;
+  emailInput?.focus();
+});
+
+forgotForm?.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const email = String(forgotEmail?.value || "").trim();
+  if (!email) {
+    AppFeedback.warning("Indica el correo de tu cuenta.", { title: "Correo requerido" });
+    forgotEmail?.focus();
+    return;
+  }
+  try {
+    const result = await AppFeedback.runWithButton(forgotSubmit, "Enviando…", async () =>
+      api("/api/auth/forgot-password", { method: "POST", body: { email } })
+    );
+    AppFeedback.success(result?.detail || "Si existe una cuenta con ese correo, enviamos el enlace.", {
+      title: "Revisa tu correo"
+    });
+    if (forgotForm) forgotForm.hidden = true;
+    if (loginForm) loginForm.hidden = false;
+    if (emailInput) emailInput.value = email;
+  } catch (err) {
+    AppFeedback.fromError(err, "No pudimos procesar la solicitud. Inténtalo de nuevo en unos minutos.");
+  }
+});
 
 function showError(message) {
   AppFeedback.banner.login(message, "error");

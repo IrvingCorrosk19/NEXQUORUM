@@ -18,4 +18,6 @@ public interface IOwnerPortalIdentityService
         CancellationToken cancellationToken = default);
 
     Task LinkOwnerRoleAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    Task ResetPasswordAsync(Guid userId, string newPassword, CancellationToken cancellationToken = default);
 }

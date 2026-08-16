@@ -33,6 +33,8 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
 
     public DbSet<OwnerInvitation> OwnerInvitations => Set<OwnerInvitation>();
 
+    public DbSet<OwnerPasswordReset> OwnerPasswordResets => Set<OwnerPasswordReset>();
+
     public DbSet<UserPropertyMembership> UserPropertyMemberships => Set<UserPropertyMembership>();
 
     public DbSet<Power> Powers => Set<Power>();
@@ -135,6 +137,7 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
         builder.Entity<Owner>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<Ownership>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<OwnerInvitation>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
+        builder.Entity<OwnerPasswordReset>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<UserPropertyMembership>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<Power>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);
         builder.Entity<AssemblyRepresentation>().HasQueryFilter(e => e.TenantId == _currentTenant.TenantId);

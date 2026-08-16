@@ -88,4 +88,31 @@ public sealed class OwnerPortalIdentityService : IOwnerPortalIdentityService
             await _userManager.AddToRoleAsync(user, Roles.Owner);
         }
     }
+
+    public async Task ResetPasswordAsync(Guid userId, string newPassword, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
+            ?? throw new DomainException("OWNER_USER_NOT_FOUND", "No encontramos la cuenta asociada.");
+
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await _userManager.ResetPasswordAsync(user, token, newPassword);
+        if (result.Succeeded)
+        {
+            await _userManager.UpdateSecurityStampAsync(user);
+            return;
+        }
+
+        if (result.Errors.Any(e =>
+                e.Code.StartsWith("Password", StringComparison.OrdinalIgnoreCase)
+                || e.Description.Contains("Passwords must", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new DomainException(
+                "PASSWORD_WEAK",
+                "La contraseña debe tener al menos 12 caracteres, una mayúscula, una minúscula, un número y un símbolo (ej. ! @ # $).");
+        }
+
+        var detail = string.Join("; ", result.Errors.Select(e => e.Description));
+        throw new DomainException("PASSWORD_RESET_FAILED", $"No pudimos actualizar la contraseña: {detail}");
+    }
 }

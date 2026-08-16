@@ -414,6 +414,52 @@ public sealed class CommunicationConfigurationService
         return (provider, forceMock, name);
     }
 
+    /// <summary>
+    /// Resolves PH SMTP for anonymous system emails (e.g. self-serve password reset).
+    /// Does not require an authenticated tenant actor and never creates profiles.
+    /// </summary>
+    public async Task<(IEmailProvider Provider, bool UsedSandbox, string ProviderName)?> TryResolvePhEmailProviderSystemAsync(
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken = default)
+    {
+        var profile = await _db.CommunicationProfiles.IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.PropertyHorizontalId == propertyHorizontalId, cancellationToken);
+
+        var row = await _db.ChannelConfigurations.IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                c => c.PropertyHorizontalId == propertyHorizontalId && c.Channel == CommunicationChannel.Email,
+                cancellationToken);
+
+        if (profile is null && row is null)
+        {
+            if (_environment.IsNonProduction)
+            {
+                return (_mockEmail, true, "Mock");
+            }
+
+            return null;
+        }
+
+        var forceMock = profile?.SandboxMode == true;
+        try
+        {
+            var provider = await ResolveEmailProviderAsync(row, forceMock, cancellationToken);
+            var name = forceMock
+                       || row is null
+                       || row.ProviderType == CommunicationProviderType.Mock
+                       || !row.IsEnabled
+                ? "Mock"
+                : row.ProviderType.ToString();
+            return (provider, forceMock, name);
+        }
+        catch (DomainException)
+        {
+            return null;
+        }
+    }
+
     public async Task<IEmailProvider> ResolveEmailProviderAsync(
         ChannelConfiguration? config,
         bool forceMock,

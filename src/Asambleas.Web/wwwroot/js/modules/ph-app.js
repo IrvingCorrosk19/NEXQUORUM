@@ -1392,7 +1392,9 @@ async function loadOwners() {
               ${
                 action
                   ? `<button type="button" data-invite="${o.id}">${escapeHtml(action)}</button>`
-                  : ""
+                  : access === "Active"
+                    ? `<button type="button" data-reset-password="${o.id}">Enviar restablecimiento</button>`
+                    : ""
               }
               ${
                 inactive
@@ -1429,6 +1431,9 @@ async function loadOwners() {
   });
   tbody.querySelectorAll("[data-invite]").forEach((btn) =>
     btn.addEventListener("click", () => inviteOwner(btn.dataset.invite, btn))
+  );
+  tbody.querySelectorAll("[data-reset-password]").forEach((btn) =>
+    btn.addEventListener("click", () => requestPasswordReset(btn.dataset.resetPassword, btn))
   );
   tbody.querySelectorAll("[data-deactivate-owner-row]").forEach((btn) =>
     btn.addEventListener("click", () => deactivateOwner(btn.dataset.deactivateOwnerRow))
@@ -1810,6 +1815,11 @@ async function showOwner(ownerId) {
     <div class="cta-row">
       ${canInvite ? `<button type="button" class="btn btn-secondary" data-invite-detail="${o.id}">${escapeHtml(inviteLabel)}</button>` : ""}
       ${
+        access === "Active"
+          ? `<button type="button" class="btn btn-secondary" data-reset-password-detail="${o.id}">Enviar restablecimiento</button>`
+          : ""
+      }
+      ${
         inactive
           ? `<button type="button" class="btn btn-secondary" data-reactivate-owner="${o.id}">Reactivar</button>`
           : `<button type="button" class="btn btn-secondary" data-deactivate-owner="${o.id}">Desactivar</button>`
@@ -1836,6 +1846,9 @@ async function showOwner(ownerId) {
   );
   footer.querySelectorAll("[data-invite-detail]").forEach((btn) =>
     btn.addEventListener("click", () => inviteOwner(btn.dataset.inviteDetail, btn))
+  );
+  footer.querySelectorAll("[data-reset-password-detail]").forEach((btn) =>
+    btn.addEventListener("click", () => requestPasswordReset(btn.dataset.resetPasswordDetail, btn))
   );
   body.querySelectorAll("[data-end-own]").forEach((btn) =>
     btn.addEventListener("click", async () => {
@@ -1959,6 +1972,69 @@ async function inviteOwner(ownerId, triggerBtn) {
       actionLabel: "Intentar nuevamente",
       onAction: () => inviteOwner(ownerId)
     });
+  } finally {
+    buttons.forEach((b) => {
+      b.disabled = false;
+      if (b.dataset.prevLabel) {
+        b.textContent = b.dataset.prevLabel;
+        delete b.dataset.prevLabel;
+      }
+    });
+  }
+}
+
+async function requestPasswordReset(ownerId, triggerBtn) {
+  const buttons = [
+    triggerBtn,
+    ...document.querySelectorAll(`[data-reset-password="${ownerId}"]`),
+    ...document.querySelectorAll(`[data-reset-password-detail="${ownerId}"]`)
+  ].filter(Boolean);
+  buttons.forEach((b) => {
+    b.disabled = true;
+    b.dataset.prevLabel = b.textContent;
+    b.textContent = "Enviando…";
+  });
+  try {
+    const result = await api(`/api/ph/${currentPhId}/owners/${ownerId}/password-reset`, { method: "POST" });
+    AppFeedback.success(
+      `Enviamos el enlace de restablecimiento a ${result.emailMasked || "el correo registrado"}. El propietario define su nueva contraseña (no se envía la clave).`,
+      { title: "Restablecimiento enviado" }
+    );
+    await loadOwners();
+    await showOwner(ownerId);
+  } catch (err) {
+    const code = err.code || err.problem?.code || "";
+    if (code === "COMMUNICATION_EMAIL_NOT_CONFIGURED" || code === "SMTP_NOT_CONFIGURED") {
+      const phName = currentPh?.name || "este PH";
+      AppFeedback.error(`Configura el correo electrónico para ${phName} antes de enviar restablecimientos.`, {
+        title: "Correo no configurado",
+        actionLabel: "Configurar correo",
+        onAction: () => {
+          location.href = `/communications.html?phId=${encodeURIComponent(currentPhId)}`;
+        }
+      });
+      return;
+    }
+    if (code === "OWNER_NOT_ACTIVE") {
+      AppFeedback.warning(err.message || "El propietario necesita acceso activo. Envía una invitación primero.", {
+        title: "Sin cuenta activa"
+      });
+      return;
+    }
+    if (code === "OWNER_EMAIL_REQUIRED" || code === "OWNER_EMAIL_INVALID") {
+      AppFeedback.warning("Agrega un correo electrónico válido al propietario antes de continuar.", {
+        title: "Correo requerido"
+      });
+      return;
+    }
+    if (code === "PUBLIC_BASE_URL_MISSING" || code === "PUBLIC_BASE_URL_REQUIRED") {
+      AppFeedback.error(
+        "Falta la URL pública de ASAMBLEAS. En local se usa https://localhost:7188; en producción configura ASAMBLEAS_PUBLIC_BASE_URL.",
+        { title: "No se pudo armar el enlace del correo" }
+      );
+      return;
+    }
+    AppFeedback.fromError(err, "No pudimos enviar el restablecimiento. Inténtalo de nuevo.");
   } finally {
     buttons.forEach((b) => {
       b.disabled = false;

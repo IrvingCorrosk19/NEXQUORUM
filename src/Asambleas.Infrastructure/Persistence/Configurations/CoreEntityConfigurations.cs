@@ -131,6 +131,24 @@ internal sealed class OwnerInvitationConfiguration : IEntityTypeConfiguration<Ow
     }
 }
 
+internal sealed class OwnerPasswordResetConfiguration : IEntityTypeConfiguration<OwnerPasswordReset>
+{
+    public void Configure(EntityTypeBuilder<OwnerPasswordReset> builder)
+    {
+        builder.ToTable("owner_password_resets");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Email).HasMaxLength(256).IsRequired();
+        builder.Property(x => x.TokenHash).HasMaxLength(128).IsRequired();
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.OwnerId);
+        builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => x.TokenHash).IsUnique();
+        builder.HasIndex(x => new { x.PropertyHorizontalId, x.Email });
+        builder.HasOne<Owner>().WithMany().HasForeignKey(x => x.OwnerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<PropertyHorizontal>().WithMany().HasForeignKey(x => x.PropertyHorizontalId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 internal sealed class UserPropertyMembershipConfiguration : IEntityTypeConfiguration<UserPropertyMembership>
 {
     public void Configure(EntityTypeBuilder<UserPropertyMembership> builder)

@@ -406,7 +406,7 @@ function renderAccount() {
     </article>
     <article class="owner-account-card">
       <h3>Seguridad</h3>
-      <p class="owner-meta">Para cambiar tu contraseña o recuperar el acceso, solicita asistencia a la administración de tu PH. El cierre de sesión termina tu sesión actual en este dispositivo.</p>
+      <p class="owner-meta">Si olvidaste tu contraseña, usa «¿Olvidaste tu contraseña?» en la pantalla de acceso. El cierre de sesión termina tu sesión actual en este dispositivo.</p>
       <div class="owner-unit-card__actions">
         <button type="button" class="btn btn-secondary" id="btn-account-logout">Cerrar sesión</button>
       </div>

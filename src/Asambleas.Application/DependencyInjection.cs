@@ -58,6 +58,7 @@ public static class DependencyInjection
         services.AddScoped<PhOnboardingService>();
         services.AddScoped<PhImportService>();
         services.AddScoped<OwnerInvitationService>();
+        services.AddScoped<OwnerPasswordResetService>();
 
         return services;
     }

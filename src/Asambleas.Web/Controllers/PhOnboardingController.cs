@@ -20,6 +20,7 @@ public sealed class PhOnboardingController : ControllerBase
     private readonly PhOnboardingService _ph;
     private readonly PhImportService _import;
     private readonly OwnerInvitationService _invitations;
+    private readonly OwnerPasswordResetService _passwordResets;
     private readonly IPhImportWorkbookService _workbook;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
@@ -28,6 +29,7 @@ public sealed class PhOnboardingController : ControllerBase
         PhOnboardingService ph,
         PhImportService import,
         OwnerInvitationService invitations,
+        OwnerPasswordResetService passwordResets,
         IPhImportWorkbookService workbook,
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager)
@@ -35,6 +37,7 @@ public sealed class PhOnboardingController : ControllerBase
         _ph = ph;
         _import = import;
         _invitations = invitations;
+        _passwordResets = passwordResets;
         _workbook = workbook;
         _userManager = userManager;
         _signInManager = signInManager;
@@ -473,6 +476,14 @@ public sealed class PhOnboardingController : ControllerBase
         Guid ownerId,
         CancellationToken cancellationToken) =>
         _invitations.InviteAsync(propertyHorizontalId, ownerId, cancellationToken);
+
+    [HttpPost("{propertyHorizontalId:guid}/owners/{ownerId:guid}/password-reset")]
+    [Authorize(Policy = Permissions.OwnerInvite)]
+    public Task<OwnerPasswordResetRequestResultDto> RequestOwnerPasswordReset(
+        Guid propertyHorizontalId,
+        Guid ownerId,
+        CancellationToken cancellationToken) =>
+        _passwordResets.RequestByAdminAsync(propertyHorizontalId, ownerId, cancellationToken);
 
     [HttpPost("{propertyHorizontalId:guid}/owners/{ownerId:guid}/invite/revoke")]
     [Authorize(Policy = Permissions.OwnerInvite)]

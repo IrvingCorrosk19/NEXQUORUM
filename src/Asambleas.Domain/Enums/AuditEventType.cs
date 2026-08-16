@@ -95,4 +95,7 @@ public static class AuditEventType
     public const string OwnerUserLinked = "OWNER_USER_LINKED";
     public const string OwnerAccessSuspended = "OWNER_ACCESS_SUSPENDED";
     public const string OwnerAccessRestored = "OWNER_ACCESS_RESTORED";
+
+    public const string OwnerPasswordResetRequested = "OWNER_PASSWORD_RESET_REQUESTED";
+    public const string OwnerPasswordResetCompleted = "OWNER_PASSWORD_RESET_COMPLETED";
 }

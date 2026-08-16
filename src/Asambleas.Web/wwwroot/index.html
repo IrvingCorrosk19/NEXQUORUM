@@ -60,8 +60,23 @@
             </button>
           </span>
         </div>
-        <div style="margin-top:1.25rem; display:flex; gap:0.75rem; flex-wrap:wrap">
+        <div style="margin-top:1.25rem; display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center">
           <button type="submit" class="btn btn-primary" id="login-submit">Entrar</button>
+          <button type="button" class="btn btn-ghost" id="btn-forgot-password">¿Olvidaste tu contraseña?</button>
+        </div>
+      </form>
+
+      <form id="forgot-form" class="form-grid" hidden style="margin-top:1.25rem">
+        <p class="lede" style="margin:0 0 .75rem;font-size:.95rem">
+          Te enviaremos un enlace para definir una contraseña nueva. Nunca enviamos la contraseña por correo.
+        </p>
+        <div class="field">
+          <label for="forgot-email">Correo</label>
+          <input id="forgot-email" type="email" autocomplete="username" inputmode="email" required />
+        </div>
+        <div style="margin-top:1rem; display:flex; gap:0.75rem; flex-wrap:wrap">
+          <button type="submit" class="btn btn-primary" id="forgot-submit">Enviar enlace</button>
+          <button type="button" class="btn btn-ghost" id="btn-forgot-cancel">Volver al acceso</button>
         </div>
       </form>
 
@@ -77,6 +92,6 @@
     </section>
   </main>
 
-  <script type="module" src="/js/modules/login-app.js?v=px4"></script>
+  <script type="module" src="/js/modules/login-app.js?v=px5"></script>
 </body>
 </html>

@@ -23,3 +23,18 @@ public sealed record CurrentUserDto(
     IReadOnlyList<string> Permissions);
 
 public sealed record LogoutResponse(bool Success);
+
+public sealed record ForgotPasswordRequest(string Email);
+
+public sealed record ForgotPasswordResponse(bool Accepted, string Detail);
+
+public sealed record PasswordResetPreviewDto(
+    bool IsValid,
+    string? EmailMasked,
+    string? OwnerDisplayName,
+    string? PropertyHorizontalName,
+    DateTimeOffset? ExpiresAtUtc,
+    string? ErrorCode,
+    string? ErrorMessage);
+
+public sealed record CompletePasswordResetRequest(string Token, string Password);

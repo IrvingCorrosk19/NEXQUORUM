@@ -1,6 +1,7 @@
 namespace Asambleas.Web.Controllers;
 
 using System.Security.Claims;
+using Asambleas.Application.PhOnboarding;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.Auth;
 using Asambleas.Infrastructure.Identity;
@@ -19,13 +20,16 @@ public sealed class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly OwnerPasswordResetService _passwordResets;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
-        SignInManager<ApplicationUser> signInManager)
+        SignInManager<ApplicationUser> signInManager,
+        OwnerPasswordResetService passwordResets)
     {
         _userManager = userManager;
         _signInManager = signInManager;
+        _passwordResets = passwordResets;
     }
 
     [AllowAnonymous]
@@ -152,6 +156,35 @@ public sealed class AuthController : ControllerBase
             requestToken = tokens.RequestToken,
             headerName = "RequestVerificationToken"
         });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("forgot-password")]
+    [EnableRateLimiting("auth-login")]
+    public Task<ForgotPasswordResponse> ForgotPassword(
+        [FromBody] ForgotPasswordRequest request,
+        CancellationToken cancellationToken) =>
+        _passwordResets.RequestByEmailAsync(request.Email, cancellationToken);
+
+    [AllowAnonymous]
+    [HttpGet("password-reset/preview")]
+    [EnableRateLimiting("auth-login")]
+    public Task<PasswordResetPreviewDto> PreviewPasswordReset(
+        [FromQuery] string token,
+        CancellationToken cancellationToken) =>
+        _passwordResets.PreviewAsync(token, cancellationToken);
+
+    [AllowAnonymous]
+    [HttpPost("password-reset/complete")]
+    [EnableRateLimiting("auth-login")]
+    public async Task<IActionResult> CompletePasswordReset(
+        [FromBody] CompletePasswordResetRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _passwordResets.CompleteAsync(request, cancellationToken);
+        // Invalidate any lingering cookie on this browser after a reset.
+        await _signInManager.SignOutAsync();
+        return Ok(new { reset = true });
     }
 
     private static List<Claim> BuildClaims(
