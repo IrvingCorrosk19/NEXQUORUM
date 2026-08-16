@@ -22,12 +22,18 @@ public sealed class PhOnboardingService
     private readonly IAsambleasDbContext _db;
     private readonly ICurrentTenant _currentTenant;
     private readonly IAuditService _audit;
+    private readonly IOwnerPortalIdentityService _identity;
 
-    public PhOnboardingService(IAsambleasDbContext db, ICurrentTenant currentTenant, IAuditService audit)
+    public PhOnboardingService(
+        IAsambleasDbContext db,
+        ICurrentTenant currentTenant,
+        IAuditService audit,
+        IOwnerPortalIdentityService identity)
     {
         _db = db;
         _currentTenant = currentTenant;
         _audit = audit;
+        _identity = identity;
     }
 
     public async Task<IReadOnlyList<PhSummaryDto>> ListPhAsync(CancellationToken cancellationToken = default)
@@ -1001,7 +1007,9 @@ public sealed class PhOnboardingService
         }
 
         var email = request.Email.Trim().ToLowerInvariant();
-        if (!string.Equals(email, owner.Email, StringComparison.Ordinal))
+        var previousEmail = owner.Email;
+        var emailChanged = !string.Equals(email, previousEmail, StringComparison.OrdinalIgnoreCase);
+        if (emailChanged)
         {
             var duplicate = await _db.Owners.AnyAsync(
                 o => o.TenantId == _currentTenant.TenantId && o.Email == email && o.Id != ownerId, cancellationToken);
@@ -1030,12 +1038,53 @@ public sealed class PhOnboardingService
             owner.Status = status;
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
-        await _audit.WriteAsync(
-            AuditEventType.OwnerUpdated,
-            correlationId: owner.Id,
-            metadata: new { propertyHorizontalId, owner.Email, owner.Status },
-            cancellationToken: cancellationToken);
+        if (emailChanged)
+        {
+            var syncedUserId = await _identity.SyncOwnerEmailChangeAsync(
+                owner.UserId,
+                previousEmail,
+                email,
+                owner.DisplayName,
+                cancellationToken);
+
+            var previousUserId = owner.UserId;
+            owner.UserId = syncedUserId;
+
+            if (syncedUserId is Guid loginUserId)
+            {
+                await EnsureActiveMembershipAsync(
+                    owner.TenantId,
+                    loginUserId,
+                    propertyHorizontalId,
+                    "Owner",
+                    cancellationToken);
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            await _audit.WriteAsync(
+                AuditEventType.OwnerUpdated,
+                correlationId: owner.Id,
+                metadata: new
+                {
+                    propertyHorizontalId,
+                    owner.Email,
+                    owner.Status,
+                    emailChanged = true,
+                    previousEmail,
+                    previousUserId,
+                    syncedUserId
+                },
+                cancellationToken: cancellationToken);
+        }
+        else
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            await _audit.WriteAsync(
+                AuditEventType.OwnerUpdated,
+                correlationId: owner.Id,
+                metadata: new { propertyHorizontalId, owner.Email, owner.Status },
+                cancellationToken: cancellationToken);
+        }
 
         var links = await LoadOwnerUnitLinksAsync(propertyHorizontalId, owner.Id, cancellationToken);
         return ToOwnerDetail(owner, links);
@@ -1979,6 +2028,35 @@ public sealed class PhOnboardingService
         {
             throw new DomainException(code, "Otro usuario modificó este registro. Recarga e inténtalo de nuevo.");
         }
+    }
+
+    private async Task EnsureActiveMembershipAsync(
+        Guid tenantId,
+        Guid userId,
+        Guid propertyHorizontalId,
+        string roleHint,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _db.UserPropertyMemberships.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(
+                m => m.UserId == userId && m.PropertyHorizontalId == propertyHorizontalId,
+                cancellationToken);
+        if (existing is null)
+        {
+            _db.UserPropertyMemberships.Add(new UserPropertyMembership
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                PropertyHorizontalId = propertyHorizontalId,
+                RoleHint = roleHint,
+                IsActive = true
+            });
+            return;
+        }
+
+        existing.IsActive = true;
+        existing.RoleHint = roleHint;
+        existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
     private async Task EnsureOwnerInPhAsync(Guid propertyHorizontalId, Guid ownerId, CancellationToken cancellationToken)
