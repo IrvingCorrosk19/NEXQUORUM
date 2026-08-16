@@ -73,7 +73,10 @@ public sealed class CredentialQueryGuardMiddleware
                || value.Equals("/activate", StringComparison.OrdinalIgnoreCase)
                || value.Equals("/join.html", StringComparison.OrdinalIgnoreCase)
                || value.Equals("/join", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/reset-password.html", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/reset-password", StringComparison.OrdinalIgnoreCase)
                || value.Equals("/api/ph/invitations/preview", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/api/auth/password-reset/preview", StringComparison.OrdinalIgnoreCase)
                || value.Equals("/api/join/preview", StringComparison.OrdinalIgnoreCase);
     }
 }
