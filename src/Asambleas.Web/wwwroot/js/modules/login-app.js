@@ -12,8 +12,6 @@ import { AppFeedback } from "/js/modules/app-feedback.js";
 
 scrubCredentialQueryFromLocation();
 
-const errorEl = document.querySelector("#login-error");
-const demoRoot = document.querySelector("#demo-users");
 const emailInput = document.querySelector("#email");
 const passwordInput = document.querySelector("#password");
 const submitBtn = document.querySelector("#login-submit");
@@ -139,30 +137,6 @@ try {
   goHome(session);
 } catch {
   // not authenticated
-}
-
-try {
-  const users = await api("/api/demo/users");
-  defaultAssemblyId = users?.[0]?.assemblyId;
-  demoRoot.innerHTML = users
-    .map(
-      (u) => `
-          <button type="button" data-email="${u.email}">
-            <strong>${u.displayName}</strong><br />
-            <span>${u.email} · ${u.role} · Unidad ${u.unitCode}</span>
-          </button>`
-    )
-    .join("");
-
-  demoRoot.querySelectorAll("button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      emailInput.value = btn.getAttribute("data-email") || "";
-      passwordInput.value = "";
-      passwordInput.focus();
-    });
-  });
-} catch (error) {
-  demoRoot.innerHTML = `<p>${error.message}</p>`;
 }
 
 document.querySelector("#login-form").addEventListener("submit", async (event) => {
