@@ -28,9 +28,11 @@ services:
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
     volumes:
       - asambleas_redis_data:/data
+    ports:
+      # Loopback only — required when egress uses host networking.
+      - "127.0.0.1:6379:6379"
     networks:
       - asambleas_net
-    # Redis stays internal — no host port published.
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -133,9 +135,9 @@ services:
     cap_add:
       - SYS_ADMIN
     shm_size: "1gb"
-    networks:
-      - asambleas_net
-    # No public ports — health_port 9092 stays on docker network only.
+    # Host networking so RoomComposite Chrome/WebRTC reaches LiveKit RTC the same way
+    # browsers do (avoids "Start signal not received" / PLAYING failures on bridge NAT).
+    network_mode: host
 
 volumes:
   asambleas_postgres_data:
