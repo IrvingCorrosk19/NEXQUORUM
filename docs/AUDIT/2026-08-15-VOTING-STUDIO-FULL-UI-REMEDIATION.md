@@ -74,3 +74,15 @@ PASS — `dotnet build src/Asambleas.Web -c Release` → 0 errores
 ## Resultado
 
 `LOCAL CERTIFIED`
+
+---
+
+## Producción
+
+- **Commit:** `14243ae4d6b1c088608c15ac17a717b1f31d67e0`
+- **Rollback:** `a7e3f9556c07589f40b6626c672f5911d75e2dd7`
+- **Assets:** `voting-studio.css?v=vs6` + `studio-field__control` presentes
+- **Smoke E2E VPS:** PASS
+- **ROLLBACK REQUIRED:** NO
+
+`PRODUCTION CERTIFIED`
