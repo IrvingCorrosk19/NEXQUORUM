@@ -117,7 +117,14 @@ export default {
     avBlocked: "Audio/video is not configured. You can enter without A/V.",
     avContinue: "The assembly remains available without camera or microphone.",
     avDenied: "We could not access your camera or microphone. You can continue without video or review browser permissions.",
-    noDevice: "No audio/video device found.",
+    noDevice:
+      "No camera or microphone found. On Lenovo, check the privacy shutter, the Fn camera key, and Lenovo Vantage (Camera Privacy Mode).",
+    deviceBusy:
+      "Camera or microphone is blocked or in use (another app, Windows, or Lenovo Privacy Mode). Close them and try again.",
+    insecureContext:
+      "Camera and microphone only work over HTTPS. Use this link (not the HTTP IP):",
+    openHttps: "Open with HTTPS (camera and microphone)",
+    redirectingHttps: "Redirecting to the secure (HTTPS) site…",
     deviceOn: "On",
     deviceOff: "Off",
     accredited: "Accredited",
@@ -156,10 +163,15 @@ export default {
     leftMedia: "Audio/video disconnected. Governance remains active.",
     fullscreenUnavailable: "Fullscreen is unavailable in this browser",
     permissionDenied: "Camera or microphone blocked by the browser. Check site settings.",
+    deviceBusy:
+      "Camera/microphone blocked or in use (another app or Lenovo Privacy Mode). Close them and try again.",
     connectingMic: "Connecting microphone…",
     activatingCamera: "Turning camera on…",
     deviceSettingsHint: "Changes apply without leaving the meeting.",
-    devicesUpdated: "Devices updated"
+    devicesUpdated: "Devices updated",
+    signalFailed:
+      "Could not connect audio/video (LiveKit signal). Check your network, disable blockers for this site, and tap Retry. The assembly remains available without camera or microphone.",
+    signalRetrying: "Retrying audio/video connection…"
   },
 
   assembly: {

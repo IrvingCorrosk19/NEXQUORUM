@@ -127,7 +127,7 @@ function constraintsFromPrefs({ camera = true, mic = true } = {}) {
   const video = camera
     ? prefs.cameraId
       ? { deviceId: { ideal: prefs.cameraId } }
-      : { facingMode: "user" }
+      : true
     : false;
   const audio = mic
     ? prefs.micId
@@ -137,14 +137,52 @@ function constraintsFromPrefs({ camera = true, mic = true } = {}) {
   return { video, audio };
 }
 
+/** Ordered fallbacks — Lenovo/desktop cams often reject facingMode or stale deviceIds. */
+function constraintAttempts({ camera = true, mic = true } = {}) {
+  const prefs = loadDevicePrefs();
+  const attempts = [];
+  const primary = constraintsFromPrefs({ camera, mic });
+  attempts.push(primary);
+
+  // Drop saved deviceIds (stale after docking / USB / driver swap).
+  if (camera || mic) {
+    attempts.push({
+      video: camera ? true : false,
+      audio: mic ? true : false
+    });
+  }
+  if (camera && mic) {
+    attempts.push({ video: true, audio: false });
+    attempts.push({ video: false, audio: true });
+  }
+  if (camera && prefs.cameraId) {
+    attempts.push({ video: { facingMode: "user" }, audio: mic ? true : false });
+  }
+  return attempts;
+}
+
+function mapGetUserMediaError(error) {
+  const name = String(error?.name || "");
+  if (!window.isSecureContext) return t("lobby.insecureContext");
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") return t("lobby.avDenied");
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") return t("lobby.noDevice");
+  if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError") {
+    return t("lobby.deviceBusy");
+  }
+  if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+    return t("lobby.noDevice");
+  }
+  return t("lobby.avBlocked");
+}
+
 export async function startDevicePreview(videoEl, { camera = true, mic = true } = {}) {
   stopDevicePreview(videoEl);
   stopMicMeter();
 
-  if (!navigator.mediaDevices?.getUserMedia) {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
     return {
       stream: null,
-      error: t("lobby.avBlocked"),
+      error: !window.isSecureContext ? t("lobby.insecureContext") : t("lobby.avBlocked"),
       camera: false,
       mic: false,
       cameraDenied: false,
@@ -152,46 +190,46 @@ export async function startDevicePreview(videoEl, { camera = true, mic = true } 
     };
   }
 
-  try {
-    previewStream = await navigator.mediaDevices.getUserMedia(
-      constraintsFromPrefs({ camera, mic })
-    );
+  let lastError = null;
+  for (const constraints of constraintAttempts({ camera, mic })) {
+    if (!constraints.video && !constraints.audio) continue;
+    try {
+      previewStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-    if (videoEl) {
-      videoEl.srcObject = previewStream;
-      videoEl.muted = true;
-      videoEl.playsInline = true;
-      await videoEl.play().catch(() => {});
+      if (videoEl) {
+        videoEl.srcObject = previewStream;
+        videoEl.muted = true;
+        videoEl.playsInline = true;
+        await videoEl.play().catch(() => {});
+      }
+
+      if (mic && previewStream.getAudioTracks().length) {
+        startMicMeter(previewStream);
+      }
+
+      return {
+        stream: previewStream,
+        error: null,
+        camera: Boolean(camera) && previewStream.getVideoTracks().some((tr) => tr.enabled),
+        mic: Boolean(mic) && previewStream.getAudioTracks().some((tr) => tr.enabled),
+        cameraDenied: false,
+        micDenied: false
+      };
+    } catch (error) {
+      lastError = error;
     }
-
-    if (mic && previewStream.getAudioTracks().length) {
-      startMicMeter(previewStream);
-    }
-
-    return {
-      stream: previewStream,
-      error: null,
-      camera: camera && previewStream.getVideoTracks().some((tr) => tr.enabled),
-      mic: mic && previewStream.getAudioTracks().some((tr) => tr.enabled),
-      cameraDenied: false,
-      micDenied: false
-    };
-  } catch (error) {
-    const denied = error?.name === "NotAllowedError" || error?.name === "PermissionDeniedError";
-    const noDevice = error?.name === "NotFoundError" || error?.name === "DevicesNotFoundError";
-    return {
-      stream: null,
-      error: denied
-        ? t("lobby.avDenied")
-        : noDevice
-          ? t("lobby.noDevice")
-          : t("lobby.avBlocked"),
-      camera: false,
-      mic: false,
-      cameraDenied: denied,
-      micDenied: denied
-    };
   }
+
+  const denied =
+    lastError?.name === "NotAllowedError" || lastError?.name === "PermissionDeniedError";
+  return {
+    stream: null,
+    error: mapGetUserMediaError(lastError),
+    camera: false,
+    mic: false,
+    cameraDenied: denied,
+    micDenied: denied
+  };
 }
 
 export function setPreviewTracks({ camera, mic }) {
@@ -458,6 +496,16 @@ function mapQuality(q) {
   return t("connection.veryUnstable");
 }
 
+function isSignalFetchFailure(error) {
+  const msg = String(error?.message || error || "");
+  return /signal connection/i.test(msg) || /Failed to fetch/i.test(msg);
+}
+
+function friendlyMediaConnectError(error) {
+  if (isSignalFetchFailure(error)) return t("media.signalFailed");
+  return error?.message || t("lobby.avBlocked");
+}
+
 export function setMediaViewMode(mode) {
   viewMode = mode === "focus" ? "focus" : "grid";
   if (mediaContainer) updateGridLayout(mediaContainer);
@@ -493,6 +541,29 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
     return liveKitRoom;
   }
 
+  const attempts = options.retryOnSignalFail === false ? 1 : 2;
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await connectLiveKitOnce(container, joinInfo, options);
+    } catch (error) {
+      lastError = error;
+      const canRetry = attempt < attempts && isSignalFetchFailure(error);
+      if (!canRetry) break;
+      pushIncident("media-reconnect", t("media.signalRetrying"), "warn");
+      await disconnectLiveKit();
+      await new Promise((r) => setTimeout(r, 700 * attempt));
+    }
+  }
+
+  setMediaState("governance-only");
+  const friendly = friendlyMediaConnectError(lastError);
+  pushIncident("media-connect-fail", friendly, "error");
+  renderGovernanceOnly(container, friendly);
+  return null;
+}
+
+async function connectLiveKitOnce(container, joinInfo, options = {}) {
   const { Room, RoomEvent } = window.LivekitClient;
   await disconnectLiveKit();
 
@@ -619,48 +690,43 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
     pushIncident("media-down", t("media.disconnectedGovernanceOk"), "error");
   });
 
-  try {
-    await liveKitRoom.connect(joinInfo.serverUrl, joinInfo.token);
-    setMediaState("connected");
-    clearIncident("media-down");
-    canPublishScreenShare = Boolean(joinInfo.canPublishScreenShare);
+  await liveKitRoom.connect(joinInfo.serverUrl, joinInfo.token);
+  setMediaState("connected");
+  clearIncident("media-down");
+  clearIncident("media-connect-fail");
+  clearIncident("media-reconnect");
+  canPublishScreenShare = Boolean(joinInfo.canPublishScreenShare);
 
-    const local = liveKitRoom.localParticipant;
-    ensureTile(container, local.identity, local.name || t("media.you") || "Tú", {
-      isLocal: true
-    });
+  const local = liveKitRoom.localParticipant;
+  ensureTile(container, local.identity, local.name || t("media.you") || "Tú", {
+    isLocal: true
+  });
 
-    // Attach any already-subscribed remote tracks (race after connect).
-    for (const participant of liveKitRoom.remoteParticipants.values()) {
-      syncParticipantPublications(container, participant);
-    }
-    syncParticipantPublications(container, local);
-
-    const hasRemoteScreen = [...liveKitRoom.remoteParticipants.values()].some((p) =>
-      [...p.trackPublications.values()].some(
-        (pub) => pub.track && pub.kind === "video" && isScreenSharePublication(pub, pub.track)
-      )
-    );
-    if (hasRemoteScreen || localScreenShareActive) setScreenShareLayoutActive(true);
-
-    localPublishIntent = {
-      camera: Boolean(options.enableCamera),
-      mic: Boolean(options.enableMic)
-    };
-    if (joinInfo.canPublish) {
-      await applyLocalPublish(localPublishIntent);
-    } else {
-      pushIncident("no-publish", t("media.publishFailed"), "warn");
-    }
-
-    updateGridLayout(container);
-    return liveKitRoom;
-  } catch (error) {
-    setMediaState("governance-only");
-    pushIncident("media-connect-fail", error?.message || t("lobby.avBlocked"), "error");
-    renderGovernanceOnly(container, error?.message || t("lobby.avBlocked"));
-    return null;
+  // Attach any already-subscribed remote tracks (race after connect).
+  for (const participant of liveKitRoom.remoteParticipants.values()) {
+    syncParticipantPublications(container, participant);
   }
+  syncParticipantPublications(container, local);
+
+  const hasRemoteScreen = [...liveKitRoom.remoteParticipants.values()].some((p) =>
+    [...p.trackPublications.values()].some(
+      (pub) => pub.track && pub.kind === "video" && isScreenSharePublication(pub, pub.track)
+    )
+  );
+  if (hasRemoteScreen || localScreenShareActive) setScreenShareLayoutActive(true);
+
+  localPublishIntent = {
+    camera: Boolean(options.enableCamera),
+    mic: Boolean(options.enableMic)
+  };
+  if (joinInfo.canPublish) {
+    await applyLocalPublish(localPublishIntent);
+  } else {
+    pushIncident("no-publish", t("media.publishFailed"), "warn");
+  }
+
+  updateGridLayout(container);
+  return liveKitRoom;
 }
 
 async function applyLocalPublish({ camera, mic }) {
@@ -687,6 +753,10 @@ async function applyLocalPublish({ camera, mic }) {
     const denied =
       name === "NotAllowedError" ||
       /Permission denied|NotAllowedError|PermissionDenied/i.test(msg);
+    const busy =
+      name === "NotReadableError" ||
+      name === "TrackStartError" ||
+      /Could not start video source|Could not start audio source|NotReadable/i.test(msg);
     if (denied) {
       pushIncident(
         "permission-denied",
@@ -694,6 +764,10 @@ async function applyLocalPublish({ camera, mic }) {
         "error"
       );
       return { ok: false, error, code: "PERMISSION_DENIED" };
+    }
+    if (busy) {
+      pushIncident("publish-fail", t("media.deviceBusy") || t("media.publishFailed"), "error");
+      return { ok: false, error, code: "DEVICE_BUSY" };
     }
     pushIncident("publish-fail", t("media.publishFailed"), "error");
     return { ok: false, error, code: "PUBLISH_FAILED" };

@@ -90,6 +90,8 @@ export async function api(path, options = {}) {
           detail = "No tienes permiso para realizar esta acción.";
         } else if (response.status === 401) {
           detail = "Tu sesión expiró. Vuelve a iniciar sesión.";
+        } else if (response.status === 404) {
+          detail = "No encontramos ese recurso (404). Verifique el enlace o vuelva a Abrir desde el menú.";
         } else {
           detail = `Request failed (${response.status})`;
         }

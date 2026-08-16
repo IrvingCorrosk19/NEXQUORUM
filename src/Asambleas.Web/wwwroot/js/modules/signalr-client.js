@@ -31,8 +31,8 @@ export function createAssemblyConnection(handlers = {}) {
     connection.on(name, (payload) => {
       // Ignore events if we already left / switched away from this assembly.
       if (joinedAssemblyId == null) return;
-      const payloadAsm =
-        payload?.assemblyId || payload?.AssemblyId || payload?.id || payload?.Id || null;
+      // Prefer assemblyId only — never use payload.id (e.g. recording id) as assembly filter.
+      const payloadAsm = payload?.assemblyId || payload?.AssemblyId || null;
       if (payloadAsm && String(payloadAsm) !== String(joinedAssemblyId)) return;
       handlers[name]?.(payload);
       handlers.onAny?.(name, payload);

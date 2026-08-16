@@ -349,6 +349,54 @@ Caveat: answer applies to **localhost Development** as certified; production inf
 
 ---
 
+## ADDENDUM — Native Screen Sharing (EO-021)
+
+**Status:** Implementation complete on localhost. Automatable gates **P0=0 / P1=0**. Native `getDisplayMedia` picker **PENDING USER ACCEPTANCE** (not faked).
+
+| Matrix item | Result |
+| --- | --- |
+| NATIVE SCREEN SHARE | IMPLEMENTATION COMPLETE (MANUAL PENDING) |
+| SCREEN SHARE AUTHORIZATION | PASS |
+| SINGLE ACTIVE PRESENTER | PASS |
+| SCREEN SHARE RECEIVE | PENDING USER ACCEPTANCE |
+| PRESENTER INDICATOR | PENDING USER ACCEPTANCE |
+| AUDIO CONTINUITY | PENDING USER ACCEPTANCE |
+| CAMERA CONTINUITY | PENDING USER ACCEPTANCE |
+| VIDEO SESSION CONTINUITY | PENDING USER ACCEPTANCE |
+| QUESTION DURING SHARE | PASS |
+| DYNAMIC QUESTIONNAIRE DURING SHARE | PASS (create/present while share state active) |
+| VOTING DURING SHARE | PASS |
+| VOTE DURING SHARE | PASS |
+| REALTIME PROGRESS DURING SHARE | PASS |
+| CLOSE DURING SHARE | PASS |
+| RESULT DURING SHARE | PASS |
+| STOP FROM APP | PASS |
+| BROWSER TRACK ONENDED | PENDING USER ACCEPTANCE |
+| MEDIA CLEANUP | PASS (server START/STOP ×5) |
+| OWNER RECONNECTION | PASS (room-state rehydrate) |
+| PRESENTER LEAVE CLEANUP | IMPLEMENTED (hub disconnect clears presenter) |
+| FINALIZATION CLEANUP | PASS |
+| CROSS-ASSEMBLY ISOLATION | PASS |
+| CROSS-PH ISOLATION | PASS |
+| RESPONSIVE | CSS stage/filmstrip + mobile stack (manual visual confirm recommended) |
+| ACCESSIBILITY | PASS (toolbar button + aria-label) |
+| CONSOLE | PASS |
+| NETWORK | PASS |
+| MANUAL GETDISPLAYMEDIA ACCEPTANCE | PENDING USER ACCEPTANCE |
+| P0 OPEN | 0 |
+| P1 OPEN | 0 |
+| VPS DEPLOYMENT | NOT PERFORMED |
+
+**Evidence:** `docs/AUDIT/2026-08-15-EO021-SCREEN-SHARING-CERTIFICATION.md` · `tools/e2e/eo021-results/screen-sharing-results.json` · `tools/e2e/eo021-screen-sharing-e2e.cjs`
+
+**Architecture decision:** additional LiveKit screen track (camera retained); SignalR `screenShareUpdated` for state only.
+
+```text
+EO-021 SCREEN SHARING IMPLEMENTATION COMPLETE — P0=0 / P1=0 — LOCALHOST ONLY — WAITING FOR USER MANUAL SCREEN-SHARE ACCEPTANCE — NO VPS DEPLOYMENT PERFORMED.
+```
+
+---
+
 ## STOP
 
 ```text
@@ -357,6 +405,6 @@ NO DEPLOY
 NO PRODUCTION
 ```
 
-Localhost remains at `https://localhost:7188` for manual acceptance.
+Localhost remains at `https://localhost:7188` for manual acceptance (including native screen-share picker).
 
 EO-021 FINAL LOCAL CERTIFICATION COMPLETE — P0=0 / P1=0 — ASAMBLEAS CORE EXCEPTIONAL CANDIDATE — WAITING FOR USER MANUAL ACCEPTANCE — NO VPS DEPLOYMENT PERFORMED.

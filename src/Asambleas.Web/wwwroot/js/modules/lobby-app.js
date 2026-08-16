@@ -17,6 +17,7 @@ import {
   stopDevicePreview
 } from "./meeting.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
+import { redirectToHttpsForMedia, mediaHttpsUrl } from "./secure-context.js";
 
 let assemblyId = assemblyIdFromUrl();
 const device = { camera: true, mic: true };
@@ -149,7 +150,13 @@ async function setupPreview() {
   } else {
     video.hidden = true;
     fallback.hidden = false;
-    fallback.textContent = result.error || t("lobby.avDenied");
+    const httpsUrl = mediaHttpsUrl();
+    if (httpsUrl && !window.isSecureContext) {
+      fallback.innerHTML = `${escapeHtml(t("lobby.insecureContext"))}
+        <p style="margin-top:0.75rem"><a class="btn btn-primary" href="${escapeHtml(httpsUrl)}">${escapeHtml(t("lobby.openHttps"))}</a></p>`;
+    } else {
+      fallback.textContent = result.error || t("lobby.avDenied");
+    }
   }
   updateToggleLabels();
 }
@@ -206,6 +213,16 @@ async function enterAssembly() {
 
 async function init() {
   await initI18n();
+
+  // Camera/mic require HTTPS — leave http://IP:8092 immediately.
+  if (redirectToHttpsForMedia()) {
+    const fallback = qs("#preview-fallback");
+    if (fallback) {
+      fallback.hidden = false;
+      fallback.textContent = t("lobby.redirectingHttps");
+    }
+    return;
+  }
 
   qs("#lobby-title").textContent = t("lobby.title");
   qs("#label-camera").textContent = t("lobby.camera");

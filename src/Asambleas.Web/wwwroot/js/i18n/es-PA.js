@@ -117,7 +117,13 @@ export default {
     avBlocked: "Audio/video no configurado. Puede entrar sin A/V.",
     avContinue: "La asamblea continúa disponible sin cámara ni micrófono.",
     avDenied: "No pudimos acceder a tu cámara o micrófono. Puedes continuar sin video o revisar los permisos del navegador.",
-    noDevice: "No se encontró dispositivo de audio/video.",
+    noDevice: "No se encontró cámara o micrófono. En Lenovo revise el shutter físico, la tecla Fn de cámara y Lenovo Vantage (Camera Privacy Mode).",
+    deviceBusy:
+      "La cámara o el micrófono están bloqueados o en uso (otro programa, Windows o Lenovo Privacy Mode). Ciérrelos e intente de nuevo.",
+    insecureContext:
+      "Cámara y micrófono solo funcionan por HTTPS. Use este enlace (no la IP por HTTP):",
+    openHttps: "Abrir con HTTPS (cámara y micrófono)",
+    redirectingHttps: "Redirigiendo a la versión segura (HTTPS)…",
     deviceOn: "Activado",
     deviceOff: "Desactivado",
     accredited: "Acreditado",
@@ -156,10 +162,15 @@ export default {
     leftMedia: "Audio/video desconectado. La gobernanza sigue activa.",
     fullscreenUnavailable: "Pantalla completa no disponible en este navegador",
     permissionDenied: "Cámara o micrófono bloqueados por el navegador. Revise la configuración del sitio.",
+    deviceBusy:
+      "Cámara/micrófono bloqueados o en uso (otro programa o Lenovo Privacy Mode). Ciérrelos y pulse de nuevo.",
     connectingMic: "Conectando micrófono…",
     activatingCamera: "Activando cámara…",
     deviceSettingsHint: "Los cambios se aplican sin salir de la reunión.",
-    devicesUpdated: "Dispositivos actualizados"
+    devicesUpdated: "Dispositivos actualizados",
+    signalFailed:
+      "No se pudo conectar el audio/video (señal LiveKit). Compruebe su red, desactive bloqueadores del sitio y pulse Reintentar. La asamblea sigue disponible sin cámara ni micrófono.",
+    signalRetrying: "Reintentando conexión de audio/video…"
   },
 
   assembly: {
