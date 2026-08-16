@@ -1,5 +1,6 @@
 # LiveKit self-hosted config for ASAMBLEAS.
 # API keys are injected at deploy time via server-side rewrite; do not commit real secrets.
+# LiveKit runs with network_mode: host alongside egress for reliable RoomComposite WebRTC.
 port: 7880
 bind_addresses:
   - "0.0.0.0"
@@ -8,9 +9,8 @@ rtc:
   port_range_start: 7882
   port_range_end: 7892
   use_external_ip: true
-  # node_ip can be set by deploy script if auto-detect fails
 redis:
-  address: asambleas_redis:6379
+  address: 127.0.0.1:6379
 keys:
   ASAMBLEAS_DEVKEY: "REPLACE_ME_LIVEKIT_SECRET"
 logging:

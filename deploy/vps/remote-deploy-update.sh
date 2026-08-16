@@ -29,7 +29,7 @@ import re
 p = Path("$COMPOSE_DIR/.env")
 text = p.read_text()
 defaults = {
-    "LIVEKIT_EGRESS_URL": "http://asambleas_livekit:7880",
+    "LIVEKIT_EGRESS_URL": "http://host.docker.internal:7880",
     "ASAMBLEAS_EGRESS_OUTPUT": "/data/recordings",
     "ASAMBLEAS_RECORDING_SYNTHETIC": "false",
 }
@@ -37,9 +37,9 @@ for k, v in defaults.items():
     if not re.search(rf"(?m)^{k}=", text):
         text += f"\n{k}={v}\n"
         print(f"env appended {k}")
-    elif k == "ASAMBLEAS_RECORDING_SYNTHETIC":
-        text = re.sub(rf"(?m)^{k}=.*$", f"{k}=false", text, count=1)
-        print("env forced ASAMBLEAS_RECORDING_SYNTHETIC=false")
+    elif k in ("ASAMBLEAS_RECORDING_SYNTHETIC", "LIVEKIT_EGRESS_URL"):
+        text = re.sub(rf"(?m)^{k}=.*$", f"{k}={v}", text, count=1)
+        print(f"env forced {k}={v}")
 p.write_text(text)
 PY
 

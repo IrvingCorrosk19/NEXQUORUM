@@ -48,8 +48,10 @@ services:
     depends_on:
       asambleas_postgres:
         condition: service_healthy
-      asambleas_livekit:
-        condition: service_started
+      asambleas_redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     environment:
@@ -69,9 +71,9 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
       LIVEKIT_DEFAULT_ROOM_PREFIX: ${LIVEKIT_DEFAULT_ROOM_PREFIX:-assembly-}
-      # Twirp Egress API lives on LiveKit Server; workers register via Redis.
-      LIVEKIT_EGRESS_URL: ${LIVEKIT_EGRESS_URL:-http://asambleas_livekit:7880}
-      LiveKit__EgressUrl: ${LIVEKIT_EGRESS_URL:-http://asambleas_livekit:7880}
+      # LiveKit server runs on host network; Twirp API reached via docker host gateway.
+      LIVEKIT_EGRESS_URL: ${LIVEKIT_EGRESS_URL:-http://host.docker.internal:7880}
+      LiveKit__EgressUrl: ${LIVEKIT_EGRESS_URL:-http://host.docker.internal:7880}
       ASAMBLEAS_DISABLE_HTTPS_REDIRECTION: "true"
       ASAMBLEAS_DISABLE_HTTPS_REDIRECT: "true"
       # Production: no silent SyntheticPilotMp4 fallback (dev/tests may still enable).
@@ -107,13 +109,8 @@ services:
     command: ["--config", "/etc/livekit.yaml"]
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
-    ports:
-      # Signaling stays loopback; browsers reach it via Nginx WSS.
-      - "127.0.0.1:${LIVEKIT_HTTP_PORT:-7880}:7880"
-      - "${LIVEKIT_RTC_TCP_PORT:-7881}:7881"
-      - "${LIVEKIT_UDP_PORT_RANGE:-7882-7892}:7882-7892/udp"
-    networks:
-      - asambleas_net
+    # Same host network as egress so RoomComposite Chrome WebRTC is local.
+    network_mode: host
 
   asambleas_egress:
     # Pin to same minor line as livekit-server:v1.8.4 (official compatibility).
@@ -123,8 +120,6 @@ services:
     depends_on:
       asambleas_redis:
         condition: service_healthy
-      asambleas_livekit:
-        condition: service_started
     environment:
       EGRESS_CONFIG_FILE: /etc/egress.yaml
     volumes:
@@ -135,8 +130,6 @@ services:
     cap_add:
       - SYS_ADMIN
     shm_size: "1gb"
-    # Host networking so RoomComposite Chrome/WebRTC reaches LiveKit RTC the same way
-    # browsers do (avoids "Start signal not received" / PLAYING failures on bridge NAT).
     network_mode: host
 
 volumes:
