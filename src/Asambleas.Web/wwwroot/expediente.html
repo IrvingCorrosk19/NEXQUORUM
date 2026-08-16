@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/css/ia.css?v=ia2" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
+  <link rel="stylesheet" href="/css/expediente.css?v=doc1" />
 </head>
 <body>
     <div class="app-shell">
@@ -37,9 +38,10 @@
     <main id="main" class="app-workspace page-main">
       <div id="ia-breadcrumbs"></div>
       <div id="page-alert" class="inline-alert inline-alert-error" hidden></div>
-      <section class="page-hero">
+      <section class="page-hero exp-hero">
         <h1 id="page-title">Expediente digital</h1>
         <p class="muted" id="page-sub"></p>
+        <p class="exp-lifecycle" id="doc-lifecycle" hidden></p>
       </section>
 
     <section class="panel" id="policy-panel" hidden>
@@ -48,8 +50,30 @@
       <button type="button" id="btn-ack-notice" class="btn btn-primary">Entendido</button>
     </section>
 
-    <section class="panel">
-      <h2>Grabaciones</h2>
+    <section class="panel exp-section">
+      <div class="exp-section__head">
+        <h2>Documentos oficiales</h2>
+        <p class="muted">PDF premium para lectura, impresión y archivo. TXT UTF-8 como evidencia portable.</p>
+      </div>
+      <div id="official-docs" class="exp-grid"></div>
+      <div class="exp-package-bar">
+        <button type="button" class="btn btn-primary" data-dl="package">Descargar expediente completo (ZIP)</button>
+      </div>
+    </section>
+
+    <section class="panel exp-section">
+      <div class="exp-section__head">
+        <h2>Evidencia</h2>
+        <p class="muted">Integridad, auditoría técnica y grabaciones de la sesión.</p>
+      </div>
+      <div id="evidence-docs" class="exp-grid"></div>
+    </section>
+
+    <section class="panel exp-section">
+      <div class="exp-section__head">
+        <h2>Grabaciones</h2>
+        <p class="muted">El video se descarga por separado y no se incluye en el ZIP.</p>
+      </div>
       <div id="recordings-list" class="stack"></div>
     </section>
 
@@ -59,16 +83,26 @@
       <video id="player" controls playsinline style="width:100%;max-height:70vh;background:#000;border-radius:8px"></video>
     </section>
 
-    <section class="panel">
-      <h2>Descargas del expediente</h2>
-      <p class="muted">La grabación de video se descarga por separado (no se incluye en el ZIP).</p>
-      <div class="stack" style="gap:0.75rem">
-        <button type="button" class="btn btn-secondary" data-dl="package">↓ Descargar expediente completo (ZIP)</button>
-      </div>
-      <ul id="timeline" class="stack" style="margin-top:1.25rem"></ul>
+    <section class="panel exp-section">
+      <h2>Línea de tiempo</h2>
+      <ul id="timeline" class="stack" style="margin-top:0.75rem"></ul>
     </section>
   </main>
   </div>
-  <script type="module" src="/js/modules/expediente-app.js?v=ia3"></script>
+
+  <div id="pdf-preview-modal" class="exp-modal" hidden>
+    <div class="exp-modal__backdrop" data-close-preview></div>
+    <div class="exp-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="pdf-preview-title">
+      <header class="exp-modal__header">
+        <h2 id="pdf-preview-title">Vista previa</h2>
+        <button type="button" class="btn btn-ghost" data-close-preview aria-label="Cerrar">Cerrar</button>
+      </header>
+      <div class="exp-modal__body">
+        <iframe id="pdf-preview-frame" title="Vista previa del documento"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/modules/expediente-app.js?v=doc1"></script>
 </body>
 </html>

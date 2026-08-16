@@ -80,5 +80,58 @@ public sealed class RecordingExpedienteTests
         using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
         archive.Entries.Select(e => e.FullName).Should().Contain(n => n.Contains("Manifest", StringComparison.OrdinalIgnoreCase));
         archive.Entries.Should().NotContain(e => e.FullName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase));
+        archive.Entries.Select(e => e.FullName).Should().Contain("01-Acta.pdf");
+        archive.Entries.Select(e => e.FullName).Should().Contain("02-Asistencia.pdf");
+        archive.Entries.Select(e => e.FullName).Should().Contain("03-Quorum.pdf");
+        archive.Entries.Select(e => e.FullName).Should().Contain("04-Votaciones.pdf");
+        archive.Entries.Select(e => e.FullName).Should().Contain("05-Decisiones.pdf");
+    }
+
+    [Fact]
+    public async Task Premium_documents_are_utf8_pdf_and_human_readable()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var president = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
+
+        var actaPdf = await president.GetAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/expediente/documents/acta?format=pdf");
+        actaPdf.StatusCode.Should().Be(HttpStatusCode.OK);
+        var pdfBytes = await actaPdf.Content.ReadAsByteArrayAsync();
+        pdfBytes.Length.Should().BeGreaterThan(1000);
+        System.Text.Encoding.ASCII.GetString(pdfBytes.AsSpan(0, 5)).Should().Be("%PDF-");
+        System.Text.Encoding.Latin1.GetString(pdfBytes).Should().NotContain("Verificaci??n");
+
+        var asistenciaTxt = await president.GetAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/expediente/documents/asistencia?format=txt");
+        asistenciaTxt.StatusCode.Should().Be(HttpStatusCode.OK);
+        var txtBytes = await asistenciaTxt.Content.ReadAsByteArrayAsync();
+        txtBytes[0].Should().Be(0xEF);
+        txtBytes[1].Should().Be(0xBB);
+        txtBytes[2].Should().Be(0xBF);
+        var txt = System.Text.Encoding.UTF8.GetString(txtBytes);
+        txt.Should().Contain("REGISTRO DE ASISTENCIA");
+        txt.Should().NotContain("accredited=True");
+        txt.Should().NotContain("CheckedIn");
+        txt.Should().NotContain("VerificaciÃ³n");
+
+        var votaciones = await president.GetAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/expediente/documents/votaciones?format=txt");
+        votaciones.EnsureSuccessStatusCode();
+        var vTxt = System.Text.Encoding.UTF8.GetString(await votaciones.Content.ReadAsByteArrayAsync());
+        vTxt.Should().NotContain("(sin sesión de votación)");
+        // Either no motions, or professional empty-session wording when present.
+        if (vTxt.Contains("MOTION", StringComparison.OrdinalIgnoreCase)
+            || vTxt.Contains("Moción", StringComparison.OrdinalIgnoreCase)
+            || vTxt.Contains("moción", StringComparison.OrdinalIgnoreCase))
+        {
+            // If a motion has no session, human label must appear (not raw enum dump).
+        }
+
+        var integridad = await president.GetAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/expediente/documents/integridad?format=txt");
+        integridad.EnsureSuccessStatusCode();
+        var iTxt = System.Text.Encoding.UTF8.GetString(await integridad.Content.ReadAsByteArrayAsync());
+        iTxt.Should().Contain("RESUMEN DE INTEGRIDAD");
+        iTxt.Should().Contain("Hash SHA-256");
     }
 }

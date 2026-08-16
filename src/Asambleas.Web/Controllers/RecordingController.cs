@@ -88,6 +88,30 @@ public sealed class RecordingController : ControllerBase
         return File(stream, "application/zip", fileName);
     }
 
+    /// <summary>
+    /// Premium document download. format=pdf|txt. preview=1 returns inline PDF for browser preview.
+    /// documentKey: acta|asistencia|quorum|votaciones|decisiones|integridad|auditoria
+    /// </summary>
+    [HttpGet("expediente/documents/{documentKey}")]
+    [Authorize(Policy = Permissions.ExpedienteDownload)]
+    public async Task<IActionResult> DownloadDocument(
+        Guid assemblyId,
+        string documentKey,
+        [FromQuery] string format = "pdf",
+        [FromQuery] bool preview = false,
+        CancellationToken cancellationToken = default)
+    {
+        var doc = await _export.BuildDocumentAsync(assemblyId, documentKey, format, cancellationToken);
+        if (preview && doc.ContentType.StartsWith("application/pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            Response.Headers[HeaderNames.ContentDisposition] =
+                new ContentDispositionHeaderValue("inline") { FileName = doc.FileName }.ToString();
+            return File(doc.Bytes, doc.ContentType);
+        }
+
+        return File(doc.Bytes, doc.ContentType, doc.FileName);
+    }
+
     [HttpGet("recording/{recordingId:guid}/play")]
     [Authorize(Policy = Permissions.RecordingView)]
     public Task<IActionResult> Play(

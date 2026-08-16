@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Common;
+using Asambleas.Application.Documents;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.Evidence;
 using Asambleas.Domain.Common;
@@ -36,61 +37,19 @@ public sealed class EvidencePackageExportService
         _evidence = evidence;
     }
 
+    public sealed record DocumentFile(string FileName, string ContentType, byte[] Bytes);
+
     /// <summary>
-    /// Builds a ZIP expediente of text/PDF reports only. Never embeds video recordings.
+    /// Builds a ZIP expediente of premium PDF/TXT reports. Never embeds video recordings.
+    /// Integrity note: sealed minutes ContentHash hashes verified JSON facts (not PDF bytes).
+    /// Manifest.json stores SHA-256 of each exported file bytes.
     /// </summary>
     public async Task<(MemoryStream Stream, string FileName)> BuildZipAsync(
         Guid assemblyId,
         CancellationToken cancellationToken = default)
     {
-        TenantGuard.EnsureAuthenticated(_currentTenant);
-        if (!HasPermission(Permissions.ExpedienteDownload) && !HasPermission(Permissions.ExpedienteView))
-        {
-            throw new DomainException($"Missing permission '{Permissions.ExpedienteDownload}'.");
-        }
-
-        var assembly = await _db.Assemblies
-            .AsNoTracking()
-            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
-            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
-        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
-
-        var package = await _evidence.GetEvidencePackageAsync(assemblyId, cancellationToken);
-        var minutes = await _evidence.GetMinutesDocumentAsync(assemblyId, cancellationToken);
-
-        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-
-        var actaLines = BuildActaLines(minutes);
-        files["01-Acta.txt"] = Encoding.UTF8.GetBytes(string.Join(Environment.NewLine, actaLines));
-        files["01-Acta.pdf"] = SimplePdf.WriteTextDocument($"Acta — {minutes.Title}", actaLines);
-
-        files["02-Asistencia.txt"] = Encoding.UTF8.GetBytes(BuildAttendanceText(package));
-        files["03-Quorum.txt"] = Encoding.UTF8.GetBytes(BuildQuorumText(package));
-        files["04-Votaciones.txt"] = Encoding.UTF8.GetBytes(await BuildVotingTextAsync(assemblyId, package, cancellationToken));
-        files["05-Decisiones.txt"] = Encoding.UTF8.GetBytes(BuildDecisionsText(package));
-        files["06-Evidencias/audit-summary.txt"] = Encoding.UTF8.GetBytes(BuildAuditSummary(package));
-
-        var manifestEntries = new List<object>();
-        foreach (var (path, bytes) in files.OrderBy(kv => kv.Key, StringComparer.Ordinal))
-        {
-            var sha = Convert.ToHexString(SHA256.HashData(bytes));
-            manifestEntries.Add(new
-            {
-                path,
-                sizeBytes = bytes.Length,
-                sha256 = sha
-            });
-        }
-
-        var manifest = new
-        {
-            assemblyId,
-            title = package.Title,
-            generatedAtUtc = DateTimeOffset.UtcNow,
-            note = "Expediente documental — las grabaciones de video NO se incluyen en este ZIP.",
-            files = manifestEntries
-        };
-        files["Manifest.json"] = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest, ManifestJson));
+        EnsureCanDownload();
+        var files = await BuildAllFilesAsync(assemblyId, cancellationToken);
 
         var zipStream = new MemoryStream();
         using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: true))
@@ -108,217 +67,162 @@ public sealed class EvidencePackageExportService
         await _audit.WriteAsync(
             AuditEventType.EvidencePackageGenerated,
             assemblyId,
-            metadata: new { fileCount = files.Count, bytes = zipStream.Length },
+            metadata: new { fileCount = files.Count, bytes = zipStream.Length, format = "premium-v1" },
             cancellationToken: cancellationToken);
 
         var fileName = $"expediente-{assemblyId:N}-{DateTime.UtcNow:yyyyMMddHHmmss}.zip";
         return (zipStream, fileName);
     }
 
-    private async Task<string> BuildVotingTextAsync(
+    /// <summary>Single document download / inline preview.</summary>
+    public async Task<DocumentFile> BuildDocumentAsync(
         Guid assemblyId,
-        AssemblyEvidencePackageDto package,
+        string documentKey,
+        string format,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanDownload();
+        var key = (documentKey ?? "").Trim().ToLowerInvariant();
+        var fmt = (format ?? "pdf").Trim().ToLowerInvariant();
+        if (fmt is not ("pdf" or "txt"))
+            throw new DomainException("FORMAT_UNSUPPORTED", "Use format=pdf or format=txt.");
+
+        var bundle = await LoadBundleAsync(assemblyId, cancellationToken);
+        var ctx = bundle.Context;
+
+        return (key, fmt) switch
+        {
+            ("acta", "pdf") => new DocumentFile("01-Acta.pdf", "application/pdf", PremiumPdfDocuments.Acta(bundle.Minutes, ctx)),
+            ("acta", "txt") => new DocumentFile("01-Acta.txt", "text/plain; charset=utf-8", PremiumTextDocuments.Acta(bundle.Minutes, ctx)),
+            ("asistencia", "pdf") => new DocumentFile("02-Asistencia.pdf", "application/pdf", PremiumPdfDocuments.Attendance(bundle.Package, ctx)),
+            ("asistencia", "txt") => new DocumentFile("02-Asistencia.txt", "text/plain; charset=utf-8", PremiumTextDocuments.Attendance(bundle.Package, ctx)),
+            ("quorum", "pdf") => new DocumentFile("03-Quorum.pdf", "application/pdf", PremiumPdfDocuments.Quorum(bundle.Package, ctx)),
+            ("quorum", "txt") => new DocumentFile("03-Quorum.txt", "text/plain; charset=utf-8", PremiumTextDocuments.Quorum(bundle.Package, ctx)),
+            ("votaciones", "pdf") => new DocumentFile("04-Votaciones.pdf", "application/pdf", PremiumPdfDocuments.Voting(bundle.Package, ctx)),
+            ("votaciones", "txt") => new DocumentFile("04-Votaciones.txt", "text/plain; charset=utf-8", PremiumTextDocuments.Voting(bundle.Package, ctx)),
+            ("decisiones", "pdf") => new DocumentFile("05-Decisiones.pdf", "application/pdf", PremiumPdfDocuments.Decisions(bundle.Package, ctx)),
+            ("decisiones", "txt") => new DocumentFile("05-Decisiones.txt", "text/plain; charset=utf-8", PremiumTextDocuments.Decisions(bundle.Package, ctx)),
+            ("integridad", "pdf") => new DocumentFile("06-Integridad.pdf", "application/pdf", PremiumPdfDocuments.Integrity(bundle.Package, ctx, bundle.RecordingCount)),
+            ("integridad", "txt") => new DocumentFile(
+                "06-Evidencias/integridad-resumen.txt",
+                "text/plain; charset=utf-8",
+                PremiumTextDocuments.IntegritySummary(bundle.Package, ctx, bundle.RecordingCount)),
+            ("auditoria", "txt") => new DocumentFile(
+                "06-Evidencias/auditoria-tecnica.txt",
+                "text/plain; charset=utf-8",
+                PremiumTextDocuments.TechnicalAudit(bundle.Package, ctx)),
+            _ => throw new DomainException(
+                "DOCUMENT_UNKNOWN",
+                "Documento no reconocido. Use acta|asistencia|quorum|votaciones|decisiones|integridad|auditoria.")
+        };
+    }
+
+    private async Task<Dictionary<string, byte[]>> BuildAllFilesAsync(
+        Guid assemblyId,
         CancellationToken cancellationToken)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine($"Votaciones — {package.Title}");
-        sb.AppendLine($"Generado: {DateTimeOffset.UtcNow:O}");
-        sb.AppendLine();
+        var bundle = await LoadBundleAsync(assemblyId, cancellationToken);
+        var ctx = bundle.Context;
+        var package = bundle.Package;
+        var minutes = bundle.Minutes;
 
-        foreach (var entry in package.Voting)
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal)
         {
-            var session = entry.ClosedSession;
-            var results = entry.Results;
-            sb.AppendLine($"Moción: {entry.Motion.Code} — {entry.Motion.Title}");
-            if (session is null)
-            {
-                sb.AppendLine("  (sin sesión de votación)");
-                sb.AppendLine();
-                continue;
-            }
-
-            sb.AppendLine($"  Sesión: {session.Id}");
-            sb.AppendLine($"  Estado: {session.Status}");
-            sb.AppendLine($"  Regla: {session.AppliedDecisionRule ?? results?.AppliedDecisionRule ?? "—"}");
-            sb.AppendLine($"  Visibilidad: {session.ResultVisibilityPolicy}");
-            sb.AppendLine($"  Secreta/HidePartial: {session.HidePartialResults}");
-
-            if (results is not null)
-            {
-                sb.AppendLine(
-                    $"  Totales: a favor {results.InFavorCoefficient:0.####}% ({results.InFavorVotes}) | " +
-                    $"en contra {results.AgainstCoefficient:0.####}% ({results.AgainstVotes}) | " +
-                    $"abstención {results.AbstentionCoefficient:0.####}% ({results.AbstentionVotes}) | " +
-                    $"emitidos {results.VotesCast}");
-            }
-
-            // Never export owner→choice for secret / hide-partial ballots.
-            if (session.HidePartialResults)
-            {
-                sb.AppendLine("  Detalle individual: OMITIDO (voto secreto / HidePartialResults).");
-            }
-            else
-            {
-                var votes = await _db.Votes
-                    .AsNoTracking()
-                    .Where(v => v.VotingSessionId == session.Id && v.AssemblyId == assemblyId)
-                    .OrderBy(v => v.CastAtUtc)
-                    .ToListAsync(cancellationToken);
-
-                if (votes.Count == 0)
-                {
-                    sb.AppendLine("  Sin votos individuales registrados.");
-                }
-                else
-                {
-                    var names = package.Attendance.ToDictionary(p => p.UserId, p => p.DisplayName);
-                    foreach (var vote in votes)
-                    {
-                        var name = names.GetValueOrDefault(vote.UserId, vote.UserId.ToString("N"));
-                        sb.AppendLine(
-                            $"  - {name}: {vote.Choice} ({vote.CoefficientPercent:0.####}%) @ {vote.CastAtUtc:O}");
-                    }
-                }
-            }
-
-            sb.AppendLine();
-        }
-
-        return sb.ToString();
-    }
-
-    private static IReadOnlyList<string> BuildActaLines(AssemblyMinutesDocumentDto minutes)
-    {
-        var lines = new List<string>
-        {
-            $"Documento: {minutes.DocumentId}",
-            $"Asamblea: {minutes.Title}",
-            $"PH: {minutes.PropertyHorizontalName}",
-            $"Estado: {minutes.Status} | Modalidad: {minutes.Modality}",
-            $"Programada: {minutes.ScheduledAtUtc:O}",
-            $"Generado: {minutes.GeneratedAtUtc:O}",
-            $"Hash: {minutes.ContentHash}",
-            string.Empty,
-            "Asistentes acreditados:"
+            ["01-Acta.pdf"] = PremiumPdfDocuments.Acta(minutes, ctx),
+            ["01-Acta.txt"] = PremiumTextDocuments.Acta(minutes, ctx),
+            ["02-Asistencia.pdf"] = PremiumPdfDocuments.Attendance(package, ctx),
+            ["02-Asistencia.txt"] = PremiumTextDocuments.Attendance(package, ctx),
+            ["03-Quorum.pdf"] = PremiumPdfDocuments.Quorum(package, ctx),
+            ["03-Quorum.txt"] = PremiumTextDocuments.Quorum(package, ctx),
+            ["04-Votaciones.pdf"] = PremiumPdfDocuments.Voting(package, ctx),
+            ["04-Votaciones.txt"] = PremiumTextDocuments.Voting(package, ctx),
+            ["05-Decisiones.pdf"] = PremiumPdfDocuments.Decisions(package, ctx),
+            ["05-Decisiones.txt"] = PremiumTextDocuments.Decisions(package, ctx),
+            ["06-Integridad.pdf"] = PremiumPdfDocuments.Integrity(package, ctx, bundle.RecordingCount),
+            ["06-Evidencias/integridad-resumen.txt"] =
+                PremiumTextDocuments.IntegritySummary(package, ctx, bundle.RecordingCount),
+            ["06-Evidencias/auditoria-tecnica.txt"] = PremiumTextDocuments.TechnicalAudit(package, ctx)
         };
 
-        foreach (var p in minutes.Attendance)
+        // Keep legacy path for tooling that still looks for audit-summary.txt (points to integrity summary).
+        files["06-Evidencias/audit-summary.txt"] = files["06-Evidencias/integridad-resumen.txt"];
+
+        var manifestEntries = new List<object>();
+        foreach (var (path, bytes) in files.OrderBy(kv => kv.Key, StringComparer.Ordinal))
         {
-            lines.Add($"  - {p.DisplayName} ({p.RoleCode}) coef={p.EffectiveCoefficientPercent:0.####}%");
+            manifestEntries.Add(new
+            {
+                path,
+                sizeBytes = bytes.Length,
+                sha256 = Convert.ToHexString(SHA256.HashData(bytes))
+            });
         }
 
-        lines.Add(string.Empty);
-        lines.Add("Agenda:");
-        foreach (var a in minutes.Agenda)
+        var manifest = new
         {
-            lines.Add($"  - [{a.Code}] {a.Title}");
-        }
-
-        lines.Add(string.Empty);
-        lines.Add("Decisiones:");
-        foreach (var d in minutes.Decisions)
-        {
-            lines.Add($"  - {d.DecisionNumber}: {d.MotionTitle} → {d.DecisionStatus}");
-            lines.Add($"    {d.Explanation}");
-        }
-
-        lines.Add(string.Empty);
-        lines.Add(minutes.Disclaimer);
-        return lines;
+            assemblyId,
+            title = package.Title,
+            propertyHorizontalName = package.PropertyHorizontalName,
+            generatedAtUtc = DateTimeOffset.UtcNow,
+            documentSystem = "asambleas-premium-v1",
+            integrity = new
+            {
+                minutesDocumentId = minutes.DocumentId,
+                minutesContentHash = minutes.ContentHash,
+                minutesHashScope =
+                    "SHA-256 of verified JSON facts (attendance, quorum, agenda, closed voting, decisions). Not PDF bytes.",
+                packageFileHashes = "Each ZIP entry SHA-256 is listed below."
+            },
+            note = "Expediente documental — las grabaciones de video NO se incluyen en este ZIP.",
+            files = manifestEntries
+        };
+        files["Manifest.json"] = DocumentDesign.Utf8Text(JsonSerializer.Serialize(manifest, ManifestJson));
+        return files;
     }
 
-    private static string BuildAttendanceText(AssemblyEvidencePackageDto package)
+    private sealed record Bundle(
+        AssemblyEvidencePackageDto Package,
+        AssemblyMinutesDocumentDto Minutes,
+        DocumentExportContext Context,
+        int RecordingCount);
+
+    private async Task<Bundle> LoadBundleAsync(Guid assemblyId, CancellationToken cancellationToken)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine($"Asistencia — {package.Title}");
-        sb.AppendLine($"Generado: {package.GeneratedAtUtc:O}");
-        sb.AppendLine();
-        foreach (var p in package.Attendance.OrderBy(x => x.DisplayName))
-        {
-            sb.AppendLine(
-                $"{p.DisplayName}\t{p.RoleCode}\t{p.AttendanceStatus}\taccredited={p.IsAccredited}\tcoef={p.EffectiveCoefficientPercent:0.####}%\tunit={p.UnitCode ?? "—"}");
-        }
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var assembly = await _db.Assemblies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
-        sb.AppendLine();
-        sb.AppendLine("Representaciones activas:");
-        foreach (var r in package.Representations.Where(x => x.IsActive))
-        {
-            sb.AppendLine(
-                $"  unidad {r.UnitCode} → {r.RepresentativeDisplayName} ({r.Source}) coef={r.CoefficientSnapshot:0.####}%");
-        }
+        var package = await _evidence.GetEvidencePackageAsync(assemblyId, cancellationToken);
+        var minutes = await _evidence.GetMinutesDocumentAsync(assemblyId, cancellationToken);
+        var recordingCount = await _db.AssemblyRecordings
+            .AsNoTracking()
+            .CountAsync(r => r.AssemblyId == assemblyId, cancellationToken);
 
-        return sb.ToString();
+        var ctx = new DocumentExportContext(
+            package.AssemblyId,
+            package.Title,
+            package.PropertyHorizontalName,
+            package.Status,
+            package.Modality,
+            package.ScheduledAtUtc,
+            package.GeneratedAtUtc,
+            minutes.DocumentId,
+            minutes.ContentHash,
+            minutes.IsSealed);
+
+        return new Bundle(package, minutes, ctx, recordingCount);
     }
 
-    private static string BuildQuorumText(AssemblyEvidencePackageDto package)
+    private void EnsureCanDownload()
     {
-        var sb = new StringBuilder();
-        sb.AppendLine($"Quórum — {package.Title}");
-        sb.AppendLine($"Generado: {package.GeneratedAtUtc:O}");
-        sb.AppendLine();
-        if (package.LatestQuorum is not null)
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        if (!HasPermission(Permissions.ExpedienteDownload) && !HasPermission(Permissions.ExpedienteView))
         {
-            var q = package.LatestQuorum;
-            sb.AppendLine(
-                $"Último: reached={q.QuorumReached} present={q.CurrentCoefficient:0.####}% required={q.RequiredCoefficient:0.####}% ({q.RequiredPercent:0.####}%)");
+            throw new DomainException($"Missing permission '{Permissions.ExpedienteDownload}'.");
         }
-
-        sb.AppendLine();
-        sb.AppendLine("Snapshots:");
-        foreach (var s in package.QuorumSnapshots)
-        {
-            sb.AppendLine(
-                $"  {s.TimestampUtc:O}\t{s.Status}\tpresent={s.PresentCoefficient:0.####}%\trequired={s.RequiredCoefficient:0.####}%\t{s.Reason}");
-        }
-
-        return sb.ToString();
-    }
-
-    private static string BuildDecisionsText(AssemblyEvidencePackageDto package)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine($"Decisiones — {package.Title}");
-        sb.AppendLine($"Generado: {package.GeneratedAtUtc:O}");
-        sb.AppendLine();
-        if (package.Decisions.Count == 0)
-        {
-            sb.AppendLine("(sin decisiones cerradas)");
-            return sb.ToString();
-        }
-
-        foreach (var d in package.Decisions)
-        {
-            sb.AppendLine($"{d.DecisionNumber}");
-            sb.AppendLine($"  Moción: {d.MotionCode} — {d.MotionTitle}");
-            sb.AppendLine($"  Estado: {d.DecisionStatus} | Regla: {d.AppliedDecisionRule}");
-            sb.AppendLine(
-                $"  Coef: a favor {d.InFavorCoefficient:0.####}% / en contra {d.AgainstCoefficient:0.####}% / abstención {d.AbstentionCoefficient:0.####}%");
-            sb.AppendLine($"  Votos: {d.VotesCast} | Secreta: {d.SecretBallot} | Cierre: {d.DecidedAtUtc:O}");
-            sb.AppendLine($"  {d.Explanation}");
-            sb.AppendLine();
-        }
-
-        return sb.ToString();
-    }
-
-    private static string BuildAuditSummary(AssemblyEvidencePackageDto package)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine($"Resumen de evidencias / auditoría — {package.Title}");
-        sb.AppendLine($"Completitud: {package.Completeness.Status}");
-        foreach (var note in package.Completeness.Notes)
-        {
-            sb.AppendLine($"  - {note}");
-        }
-
-        sb.AppendLine();
-        sb.AppendLine("Eventos (máx. listados en paquete):");
-        foreach (var e in package.Timeline)
-        {
-            sb.AppendLine($"{e.OccurredAtUtc:O}\t{e.EventType}\tuser={e.UserId}");
-        }
-
-        return sb.ToString();
     }
 
     private bool HasPermission(string permission) =>
