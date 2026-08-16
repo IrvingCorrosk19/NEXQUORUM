@@ -750,7 +750,14 @@
 
 @media (min-width: 1100px) {
   .ia-voting-layout.has-editor {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.95fr);
+    grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1.58fr);
+    align-items: start;
+  }
+}
+
+@media (min-width: 1360px) {
+  .ia-voting-layout.has-editor {
+    grid-template-columns: minmax(260px, 0.38fr) minmax(0, 1.62fr);
   }
 }
 

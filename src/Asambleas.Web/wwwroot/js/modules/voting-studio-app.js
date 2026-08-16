@@ -576,61 +576,103 @@ function renderVoteEditor() {
   const agendaOptions = state.agenda
     .map((a) => `<option value="${a.id}" ${a.id === d.agendaItemId ? "selected" : ""}>${escapeHtml(a.code)} — ${escapeHtml(a.title)}</option>`)
     .join("");
+  const thresholdApplies = d.decisionRuleCode === "QualifiedMajority";
 
   qs("#editor-canvas").innerHTML = `
-    <label for="v-question">Pregunta</label>
-    <textarea id="v-question" rows="3">${escapeHtml(d.questionText || "")}</textarea>
-    <label for="v-title">Título corto</label>
-    <input id="v-title" value="${escapeHtml(d.title || "")}" />
-    <label for="v-instructions">Instrucciones</label>
-    <textarea id="v-instructions" rows="2">${escapeHtml(d.instructions || "")}</textarea>
-    <label>Opciones</label>
-    <div id="v-options">${(d.options || [])
-      .map(
-        (o, i) => `
-      <div class="option-row">
-        <input data-opt="${i}" value="${escapeHtml(o)}" />
-        <button type="button" class="btn btn-ghost" data-remove-opt="${i}" aria-label="Eliminar">✕</button>
-      </div>`
-      )
-      .join("")}</div>
-    <button type="button" class="btn btn-secondary" id="btn-add-opt">+ Agregar opción</button>
-    <div class="ballot-preview" id="ballot-live"></div>
+    <p class="studio-section-title">Contenido</p>
+    <div class="studio-field studio-field--dominant">
+      <div class="studio-field__label"><label for="v-question">Pregunta</label></div>
+      <textarea id="v-question" class="studio-field__control" rows="3" placeholder="Ej. ¿Se aprueba el presupuesto de gastos comunes 2026?">${escapeHtml(d.questionText || "")}</textarea>
+    </div>
+    <div class="studio-field">
+      <div class="studio-field__label"><label for="v-title">Título corto</label></div>
+      <input id="v-title" class="studio-field__control" value="${escapeHtml(d.title || "")}" placeholder="Nombre breve" />
+      <p class="studio-field__hint">Se utiliza en listados y resultados.</p>
+    </div>
+    <div class="studio-field">
+      <div class="studio-field__label">
+        <label for="v-instructions">Instrucciones</label>
+        <span class="optional">Opcional</span>
+      </div>
+      <textarea id="v-instructions" class="studio-field__control" rows="2" placeholder="Indicaciones para el participante">${escapeHtml(d.instructions || "")}</textarea>
+    </div>
+    <div class="studio-field">
+      <div class="studio-field__label"><span>Opciones de respuesta</span></div>
+      <div class="option-editor" id="v-options">${(d.options || [])
+        .map(
+          (o, i) => `
+        <div class="option-row">
+          <input class="option-row__input" data-opt="${i}" value="${escapeHtml(o)}" aria-label="Opción ${i + 1}" />
+          <button type="button" class="option-row__remove" data-remove-opt="${i}" title="Eliminar opción" aria-label="Eliminar opción ${i + 1}">×</button>
+        </div>`
+        )
+        .join("")}</div>
+      <button type="button" class="btn btn-ghost studio-add-opt" id="btn-add-opt">+ Agregar opción</button>
+    </div>
+    <div class="ballot-preview" id="ballot-live" aria-live="polite"></div>
   `;
 
   qs("#editor-config").innerHTML = `
-    <label for="v-agenda">Punto de agenda</label>
-    <select id="v-agenda">${agendaOptions || '<option value="">Sin agenda — cree un punto primero</option>'}</select>
-    <label for="v-code">Código</label>
-    <input id="v-code" value="${escapeHtml(d.code || "")}" />
-    <label for="v-ballot">Tipo de respuesta</label>
-    <select id="v-ballot">
-      <option value="FavorAgainstAbstain">A favor / En contra / Abstención</option>
-      <option value="YesNo">Sí / No</option>
-      <option value="YesNoAbstain">Sí / No / Abstención</option>
-      <option value="SingleChoice">Opción única</option>
-      <option value="MultiCandidate">Elección de candidatos</option>
-    </select>
-    <label for="v-calc">Método</label>
-    <select id="v-calc">
-      <option value="Coefficient">Por coeficiente</option>
-      <option value="PerPerson">Por persona</option>
-      <option value="PerUnit">Por unidad</option>
-    </select>
-    <label for="v-rule">Mayoría</label>
-    <select id="v-rule">
-      <option value="SimpleMajority">Mayoría simple</option>
-      <option value="QualifiedMajority">Porcentaje requerido</option>
-    </select>
-    <label for="v-threshold">Umbral %</label>
-    <input id="v-threshold" type="number" min="0" max="100" step="0.01" value="${escapeHtml(String(d.requiredThresholdPercent ?? ""))}" />
-    <label for="v-vis">Resultado</label>
-    <select id="v-vis">
-      <option value="HiddenUntilClose">Oculto hasta cierre</option>
-      <option value="PresidentOnlyLive">Solo mesa en vivo</option>
-      <option value="LiveResults">Resultados en vivo</option>
-    </select>
-    <label><input type="checkbox" id="v-secret" ${d.isSecret ? "checked" : ""} /> Voto secreto (operacional)</label>
+    <p class="studio-section-title">Configuración</p>
+    <div class="studio-config-group">
+      <h3 class="studio-config-group__title">Contexto</h3>
+      <div class="studio-field">
+        <div class="studio-field__label"><label for="v-agenda">Punto de agenda</label></div>
+        <select id="v-agenda" class="studio-field__control" data-control="select">${agendaOptions || '<option value="">Sin agenda — cree un punto primero</option>'}</select>
+      </div>
+      <div class="studio-field">
+        <div class="studio-field__label"><label for="v-code">Código</label></div>
+        <input id="v-code" class="studio-field__control" value="${escapeHtml(d.code || "")}" placeholder="Ej. V-01" />
+      </div>
+    </div>
+    <div class="studio-config-group">
+      <h3 class="studio-config-group__title">Votación</h3>
+      <div class="studio-field">
+        <div class="studio-field__label"><label for="v-ballot">Tipo de respuesta</label></div>
+        <select id="v-ballot" class="studio-field__control" data-control="select">
+          <option value="FavorAgainstAbstain">A favor / En contra / Abstención</option>
+          <option value="YesNo">Sí / No</option>
+          <option value="YesNoAbstain">Sí / No / Abstención</option>
+          <option value="SingleChoice">Opción única</option>
+          <option value="MultiCandidate">Elección de candidatos</option>
+        </select>
+      </div>
+      <div class="studio-field">
+        <div class="studio-field__label"><label for="v-calc">Método</label></div>
+        <select id="v-calc" class="studio-field__control" data-control="select">
+          <option value="Coefficient">Por coeficiente</option>
+          <option value="PerPerson">Por persona</option>
+          <option value="PerUnit">Por unidad</option>
+        </select>
+      </div>
+    </div>
+    <div class="studio-config-group">
+      <h3 class="studio-config-group__title">Decisión</h3>
+      <div class="studio-field">
+        <div class="studio-field__label"><label for="v-rule">Mayoría</label></div>
+        <select id="v-rule" class="studio-field__control" data-control="select">
+          <option value="SimpleMajority">Mayoría simple</option>
+          <option value="QualifiedMajority">Porcentaje requerido</option>
+        </select>
+      </div>
+      <div class="studio-field ${thresholdApplies ? "" : "is-disabled-visual"}" id="v-threshold-field">
+        <div class="studio-field__label"><label for="v-threshold">Umbral %</label></div>
+        <input id="v-threshold" class="studio-field__control" type="number" min="0" max="100" step="0.01" value="${escapeHtml(String(d.requiredThresholdPercent ?? ""))}" ${thresholdApplies ? "" : "disabled"} />
+        ${thresholdApplies ? "" : `<p class="studio-field__hint">Aplica solo con mayoría por porcentaje requerido.</p>`}
+      </div>
+    </div>
+    <div class="studio-config-group">
+      <h3 class="studio-config-group__title">Resultados</h3>
+      <div class="studio-field">
+        <div class="studio-field__label"><label for="v-vis">Visibilidad del resultado</label></div>
+        <select id="v-vis" class="studio-field__control" data-control="select">
+          <option value="HiddenUntilClose">Oculto hasta cierre</option>
+          <option value="PresidentOnlyLive">Solo mesa en vivo</option>
+          <option value="LiveResults">Resultados en vivo</option>
+        </select>
+      </div>
+      <label class="studio-check"><input type="checkbox" id="v-secret" ${d.isSecret ? "checked" : ""} /> Voto secreto (operacional)</label>
+    </div>
   `;
 
   qs("#v-ballot").value = d.ballotKind;
@@ -640,17 +682,36 @@ function renderVoteEditor() {
 
   const sync = () => {
     readVoteDraftFromDom();
+    const rule = qs("#v-rule")?.value;
+    const thField = qs("#v-threshold-field");
+    const thInput = qs("#v-threshold");
+    const applies = rule === "QualifiedMajority";
+    if (thInput) thInput.disabled = !applies;
+    if (thField) {
+      thField.classList.toggle("is-disabled-visual", !applies);
+      const hint = thField.querySelector(".studio-field__hint");
+      if (!applies && !hint) {
+        const p = document.createElement("p");
+        p.className = "studio-field__hint";
+        p.textContent = "Aplica solo con mayoría por porcentaje requerido.";
+        thField.appendChild(p);
+      } else if (applies && hint) {
+        hint.remove();
+      }
+    }
     updateBallotLive();
   };
   qs("#editor-canvas").oninput = sync;
   qs("#editor-config").onchange = sync;
   qs("#btn-add-opt").onclick = () => {
+    readVoteDraftFromDom();
     state.draft.options.push("Nueva opción");
     renderVoteEditor();
   };
   qs("#editor-canvas").onclick = (e) => {
     const t = e.target;
     if (t instanceof HTMLElement && t.dataset.removeOpt != null) {
+      readVoteDraftFromDom();
       state.draft.options.splice(Number(t.dataset.removeOpt), 1);
       renderVoteEditor();
     }
@@ -684,7 +745,7 @@ function updateBallotLive() {
   live.innerHTML = `
     <p class="command-eyebrow">Vista participante</p>
     <p><strong>${escapeHtml(d.questionText || d.title || "Pregunta")}</strong></p>
-    <p class="muted">Método: ${escapeHtml(d.calculationMethod)}${
+    <p class="muted">Método: ${escapeHtml(calculationMethodLabel(d.calculationMethod))}${
       d.decisionRuleCode === "QualifiedMajority" && d.requiredThresholdPercent != null
         ? ` · Umbral ${escapeHtml(String(d.requiredThresholdPercent))}%`
         : ""
@@ -700,37 +761,57 @@ function renderSurveyEditor() {
     .join("");
 
   qs("#editor-canvas").innerHTML = `
-    <label for="s-title">Título</label>
-    <input id="s-title" value="${escapeHtml(d.title || "")}" />
-    <label for="s-desc">Descripción</label>
-    <textarea id="s-desc" rows="2">${escapeHtml(d.description || "")}</textarea>
+    <p class="studio-section-title">Contenido</p>
+    <div class="studio-field">
+      <div class="studio-field__label"><label for="s-title">Título</label></div>
+      <input id="s-title" class="studio-field__control" value="${escapeHtml(d.title || "")}" />
+    </div>
+    <div class="studio-field">
+      <div class="studio-field__label">
+        <label for="s-desc">Descripción</label>
+        <span class="optional">Opcional</span>
+      </div>
+      <textarea id="s-desc" class="studio-field__control" rows="2">${escapeHtml(d.description || "")}</textarea>
+    </div>
     <div id="s-questions">${(d.questions || [])
       .map(
         (q, i) => `
       <div class="studio-card" data-q="${i}">
-        <label>Pregunta ${i + 1}</label>
-        <input data-q-title="${i}" value="${escapeHtml(q.title || "")}" />
-        <label>Tipo</label>
-        <select data-q-type="${i}">
-          <option value="SingleChoice">Opción única</option>
-          <option value="MultipleChoice">Selección múltiple</option>
-          <option value="Scale">Escala</option>
-          <option value="OpenText">Texto abierto</option>
-        </select>
-        <label>Opciones (JSON array)</label>
-        <input data-q-opts="${i}" value="${escapeHtml(q.optionsJson || "[]")}" />
-        <label><input type="checkbox" data-q-req="${i}" ${q.isRequired !== false ? "checked" : ""} /> Obligatoria</label>
-        <button type="button" class="btn btn-ghost" data-q-remove="${i}">Eliminar pregunta</button>
+        <div class="studio-field">
+          <div class="studio-field__label"><label>Pregunta ${i + 1}</label></div>
+          <input class="studio-field__control" data-q-title="${i}" value="${escapeHtml(q.title || "")}" />
+        </div>
+        <div class="studio-field">
+          <div class="studio-field__label"><label>Tipo</label></div>
+          <select class="studio-field__control" data-control="select" data-q-type="${i}">
+            <option value="SingleChoice">Opción única</option>
+            <option value="MultipleChoice">Selección múltiple</option>
+            <option value="Scale">Escala</option>
+            <option value="OpenText">Texto abierto</option>
+          </select>
+        </div>
+        <div class="studio-field">
+          <div class="studio-field__label"><label>Opciones (JSON array)</label></div>
+          <input class="studio-field__control" data-q-opts="${i}" value="${escapeHtml(q.optionsJson || "[]")}" />
+        </div>
+        <label class="studio-check"><input type="checkbox" data-q-req="${i}" ${q.isRequired !== false ? "checked" : ""} /> Obligatoria</label>
+        <button type="button" class="btn btn-ghost studio-add-opt" data-q-remove="${i}">Eliminar pregunta</button>
       </div>`
       )
       .join("")}</div>
-    <button type="button" class="btn btn-secondary" id="btn-add-q">+ Pregunta</button>
+    <button type="button" class="btn btn-ghost studio-add-opt" id="btn-add-q">+ Pregunta</button>
   `;
 
   qs("#editor-config").innerHTML = `
-    <label for="s-agenda">Punto de agenda (opcional)</label>
-    <select id="s-agenda"><option value="">—</option>${agendaOptions}</select>
-    <p class="muted">Las encuestas no generan Decision formal ni usan Voting Rule Engine.</p>
+    <p class="studio-section-title">Configuración</p>
+    <div class="studio-config-group">
+      <h3 class="studio-config-group__title">Contexto</h3>
+      <div class="studio-field">
+        <div class="studio-field__label"><label for="s-agenda">Punto de agenda</label><span class="optional">Opcional</span></div>
+        <select id="s-agenda" class="studio-field__control" data-control="select"><option value="">—</option>${agendaOptions}</select>
+      </div>
+      <p class="studio-field__hint">Las encuestas no generan Decision formal ni usan Voting Rule Engine.</p>
+    </div>
   `;
 
   (d.questions || []).forEach((q, i) => {

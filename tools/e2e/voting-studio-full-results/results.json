@@ -1,0 +1,132 @@
+{
+  "env": "LOCALHOST",
+  "url": "https://localhost:7188",
+  "tests": [
+    {
+      "id": "login",
+      "pass": true,
+      "detail": "200"
+    },
+    {
+      "id": "ph",
+      "pass": true,
+      "detail": "83e99ee9-13cd-4a1c-b7c4-35abdfe23b59"
+    },
+    {
+      "id": "assembly",
+      "pass": true,
+      "detail": "c5a1071a-d231-4d6d-9756-f16065c9c815"
+    },
+    {
+      "id": "contrast-inputs",
+      "pass": true,
+      "detail": "{\"q\":{\"color\":\"rgb(232, 238, 248)\",\"bg\":\"rgb(13, 21, 36)\",\"fill\":\"rgb(232, 238, 248)\",\"fontSize\":\"15.2px\"},\"agenda\":{\"color\":\"rgb(232, 238, 248)\",\"bg\":\"rgb(13, 21, 36)\",\"fill\":\"rgb(232, 238, 248)\",\"fontSize\":\"15.2px\"},\"title\":{\"color\":\"rgb(232, 238, 248)\",\"bg\":\"rgb(13, 21, 36)\",\"fill\":\"rgb(232, 238, 248)\",\"fontSize\":\"15.2px\"}}"
+    },
+    {
+      "id": "create-fill-question",
+      "pass": true,
+      "detail": "Aprobación extraordinaria del presupuesto anual correspondie"
+    },
+    {
+      "id": "option-add",
+      "pass": true,
+      "detail": "3->4"
+    },
+    {
+      "id": "option-remove",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "threshold-enabled-qualified",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "threshold-disabled-simple",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "create-save",
+      "pass": true,
+      "detail": "motions=1"
+    },
+    {
+      "id": "edit-load-readable",
+      "pass": true,
+      "detail": "{\"loaded\":\"Aprobación extraordinaria del presupuest\",\"loadedTitle\":\"Presupuesto 2026\",\"loadedCalc\":\"PerPerson\"}"
+    },
+    {
+      "id": "preview-open",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "preview-tablet",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "preview-mobile",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "preview-no-loss",
+      "pass": true,
+      "detail": "Presupuesto 2026 (editado)"
+    },
+    {
+      "id": "responsive-desktop-1366",
+      "pass": true,
+      "detail": "overflow=false"
+    },
+    {
+      "id": "responsive-tablet-768",
+      "pass": true,
+      "detail": "overflow=false"
+    },
+    {
+      "id": "responsive-mobile-390",
+      "pass": true,
+      "detail": "overflow=false"
+    },
+    {
+      "id": "console-clean",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "network-clean",
+      "pass": true,
+      "detail": "[]"
+    },
+    {
+      "id": "has-config-groups",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "has-option-editor",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "has-sticky-actions",
+      "pass": true,
+      "detail": ""
+    }
+  ],
+  "jsErrors": [
+    "Failed to load resource: the server responded with a status of 401 ()"
+  ],
+  "networkErrors": [
+    {
+      "st": 401,
+      "u": "/api/auth/me"
+    }
+  ],
+  "certified": true,
+  "verdict": "LOCAL CERTIFIED"
+}
