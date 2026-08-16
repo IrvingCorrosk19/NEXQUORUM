@@ -42,8 +42,12 @@ try
         .AddAuthentication(IdentityConstants.ApplicationScheme)
         .AddIdentityCookies();
 
-    var cookieSecure = builder.Environment.IsDevelopment()
+    var allowInsecureCookies = builder.Environment.IsDevelopment()
         || string.Equals(builder.Environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase)
+        || builder.Configuration.GetValue("ASAMBLEAS_ALLOW_INSECURE_LOGIN", false);
+
+    // SameAsRequest keeps Secure cookies on HTTPS and still works on the HTTP :8092 IP pilot.
+    var cookieSecure = allowInsecureCookies
         ? CookieSecurePolicy.SameAsRequest
         : CookieSecurePolicy.Always;
 

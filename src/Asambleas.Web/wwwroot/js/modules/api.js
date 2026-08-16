@@ -13,7 +13,7 @@ export async function ensureAntiforgery() {
   });
 
   if (!response.ok) {
-    throw new Error("Unable to obtain antiforgery token.");
+    throw new Error("No pudimos preparar la sesión segura. Recarga la página e inténtalo de nuevo.");
   }
 
   const data = await response.json();
