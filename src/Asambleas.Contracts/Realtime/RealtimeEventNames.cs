@@ -19,4 +19,5 @@ public static class RealtimeEventNames
     public const string VotingVersionCreated = "votingVersionCreated";
     public const string AuditAppended = "auditAppended";
     public const string RecordingUpdated = "recordingUpdated";
+    public const string ScreenShareUpdated = "screenShareUpdated";
 }

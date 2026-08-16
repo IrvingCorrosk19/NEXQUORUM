@@ -2,6 +2,7 @@ namespace Asambleas.Application.Abstractions;
 
 using Asambleas.Contracts.Agenda;
 using Asambleas.Contracts.Assemblies;
+using Asambleas.Contracts.Meetings;
 using Asambleas.Contracts.Motions;
 using Asambleas.Contracts.Quorum;
 using Asambleas.Contracts.Recordings;
@@ -35,4 +36,6 @@ public interface IAssemblyRealtimePublisher
     Task PublishVotingVersionCreatedAsync(Guid assemblyId, MotionDto motion, CancellationToken cancellationToken = default);
 
     Task PublishRecordingUpdatedAsync(Guid assemblyId, AssemblyRecordingDto recording, CancellationToken cancellationToken = default);
+
+    Task PublishScreenShareUpdatedAsync(Guid assemblyId, ScreenShareStateDto state, CancellationToken cancellationToken = default);
 }

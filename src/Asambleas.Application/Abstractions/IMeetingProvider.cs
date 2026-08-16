@@ -16,6 +16,7 @@ public sealed record MeetingJoinRequest(
     string RoomName,
     bool CanPublish,
     bool CanSubscribe,
+    bool CanPublishScreenShare = false,
     TimeSpan? Ttl = null);
 
 public sealed record MeetingRoomInfo(

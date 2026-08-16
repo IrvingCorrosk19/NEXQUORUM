@@ -3,6 +3,7 @@ namespace Asambleas.Web.Realtime;
 using Asambleas.Application.Abstractions;
 using Asambleas.Contracts.Agenda;
 using Asambleas.Contracts.Assemblies;
+using Asambleas.Contracts.Meetings;
 using Asambleas.Contracts.Motions;
 using Asambleas.Contracts.Quorum;
 using Asambleas.Contracts.Realtime;
@@ -59,6 +60,9 @@ public sealed class SignalRAssemblyRealtimePublisher : IAssemblyRealtimePublishe
 
     public Task PublishRecordingUpdatedAsync(Guid assemblyId, AssemblyRecordingDto recording, CancellationToken cancellationToken = default) =>
         SendAsync(assemblyId, RealtimeEventNames.RecordingUpdated, recording, cancellationToken);
+
+    public Task PublishScreenShareUpdatedAsync(Guid assemblyId, ScreenShareStateDto state, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.ScreenShareUpdated, state, cancellationToken);
 
     private Task SendAsync<T>(Guid assemblyId, string eventName, T payload, CancellationToken cancellationToken) =>
         _hub.Clients.Group(AssemblyHub.GroupName(assemblyId))

@@ -11,7 +11,8 @@ const EVENT_NAMES = [
   "votingCancelled",
   "votingVersionCreated",
   "recordingUpdated",
-  "assemblyScheduleChanged"
+  "assemblyScheduleChanged",
+  "screenShareUpdated"
 ];
 
 export function createAssemblyConnection(handlers = {}) {

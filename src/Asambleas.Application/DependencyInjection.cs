@@ -45,6 +45,7 @@ public static class DependencyInjection
         services.AddScoped<MotionService>();
         services.AddScoped<VotingService>();
         services.AddScoped<SurveyFormService>();
+        services.AddSingleton<IScreenShareCoordinator, InMemoryScreenShareCoordinator>();
         services.AddScoped<MeetingService>();
         services.AddScoped<AssemblyEvidenceService>();
         services.AddScoped<EvidencePackageExportService>();

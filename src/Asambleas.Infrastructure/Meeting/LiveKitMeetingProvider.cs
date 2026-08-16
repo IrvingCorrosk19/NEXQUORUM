@@ -70,6 +70,7 @@ public sealed class LiveKitMeetingProvider : IMeetingProvider
             request.RoomName,
             request.CanPublish,
             request.CanSubscribe,
+            request.CanPublishScreenShare,
             ttl,
             out var expiresAtUtc);
 

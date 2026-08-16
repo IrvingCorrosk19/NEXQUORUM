@@ -15,6 +15,10 @@ let localPublishIntent = { camera: false, mic: false };
 let mediaContainer = null;
 let officialSpeakerIdentity = null;
 let viewMode = "grid"; // grid | focus
+let screenShareLayoutActive = false;
+let localScreenShareActive = false;
+let onLocalScreenShareEnded = null;
+let canPublishScreenShare = false;
 
 export function getMediaConnectionState() {
   return mediaConnectionState;
@@ -71,6 +75,35 @@ export async function fetchJoinToken(assemblyId) {
 
 export async function fetchRoomInfo(assemblyId) {
   return api(`/api/assemblies/${assemblyId}/meeting/room`);
+}
+
+export async function fetchScreenShareState(assemblyId) {
+  return api(`/api/assemblies/${assemblyId}/meeting/screen-share`);
+}
+
+export async function claimScreenShare(assemblyId) {
+  return api(`/api/assemblies/${assemblyId}/meeting/screen-share/start`, { method: "POST" });
+}
+
+export async function releaseScreenShare(assemblyId, { force = false } = {}) {
+  const q = force ? "?force=true" : "";
+  return api(`/api/assemblies/${assemblyId}/meeting/screen-share/stop${q}`, { method: "POST" });
+}
+
+export function supportsDisplayMedia() {
+  return Boolean(navigator.mediaDevices?.getDisplayMedia);
+}
+
+export function isLocalScreenShareActive() {
+  return localScreenShareActive;
+}
+
+export function setLocalScreenShareEndedHandler(handler) {
+  onLocalScreenShareEnded = typeof handler === "function" ? handler : null;
+}
+
+export function getCanPublishScreenShare() {
+  return canPublishScreenShare;
 }
 
 export async function enumerateMediaDevices() {
@@ -224,11 +257,12 @@ function updateGridLayout(container) {
   container.classList.toggle("is-quad", n >= 3 && n <= 4);
   container.classList.toggle("is-oct", n >= 5 && n <= 8);
   container.classList.toggle("is-crowd", n > 8);
-  container.classList.toggle("view-focus", viewMode === "focus");
-  container.classList.toggle("view-grid", viewMode === "grid");
+  container.classList.toggle("view-focus", viewMode === "focus" && !screenShareLayoutActive);
+  container.classList.toggle("view-grid", viewMode === "grid" || screenShareLayoutActive);
+  container.classList.toggle("screen-share-layout", screenShareLayoutActive);
 
   let empty = container.querySelector(".media-empty-hint");
-  if (n <= 1) {
+  if (n <= 1 && !screenShareLayoutActive) {
     if (!empty) {
       empty = document.createElement("p");
       empty.className = "media-empty-hint";
@@ -244,12 +278,30 @@ function updateGridLayout(container) {
   }
 }
 
-function ensureTile(container, identity, label, { isLocal = false } = {}) {
-  let tile = container.querySelector(`[data-identity="${CSS.escape(identity)}"]`);
+function isScreenSharePublication(pub, track) {
+  const src = pub?.source ?? track?.source;
+  const TrackSource = window.LivekitClient?.Track?.Source;
+  if (TrackSource != null && src === TrackSource.ScreenShare) return true;
+  if (typeof src === "string" && /screen/i.test(src)) return true;
+  // LiveKit numeric enum: Camera=1, Microphone=2, ScreenShare=3, ScreenShareAudio=4
+  if (src === 3 || src === "screen_share") return true;
+  return false;
+}
+
+function tileSelector(identity, isScreen) {
+  const key = isScreen ? `${identity}:screen` : identity;
+  return `[data-tile-key="${CSS.escape(key)}"]`;
+}
+
+function ensureTile(container, identity, label, { isLocal = false, isScreen = false } = {}) {
+  const key = isScreen ? `${identity}:screen` : identity;
+  let tile = container.querySelector(tileSelector(identity, isScreen));
   if (!tile) {
     tile = document.createElement("article");
     tile.className = "media-tile";
     tile.dataset.identity = identity;
+    tile.dataset.tileKey = key;
+    tile.dataset.source = isScreen ? "screen" : "camera";
     tile.innerHTML = `
       <div class="media-tile-video"></div>
       <div class="media-tile-avatar" aria-hidden="true"></div>
@@ -260,20 +312,28 @@ function ensureTile(container, identity, label, { isLocal = false } = {}) {
     container.appendChild(tile);
   }
   tile.classList.toggle("is-local", isLocal);
+  tile.classList.toggle("is-screen-share", isScreen);
+  tile.classList.toggle("is-stage", isScreen && screenShareLayoutActive);
   const labelEl = tile.querySelector(".media-tile-label");
-  const display =
-    (isLocal ? `${t("media.you") || "Tú"} · ` : "") + (label || identity.slice(0, 8));
+  const baseLabel = label || identity.slice(0, 8);
+  const display = isScreen
+    ? `🖥 ${baseLabel}`
+    : (isLocal ? `${t("media.you") || "Tú"} · ` : "") + baseLabel;
   if (labelEl) labelEl.textContent = display;
   const avatar = tile.querySelector(".media-tile-avatar");
   if (avatar) {
-    const initials = (label || "?")
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() || "")
-      .join("");
-    avatar.textContent = initials || "?";
+    if (isScreen) {
+      avatar.textContent = "🖥";
+    } else {
+      const initials = (label || "?")
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((w) => w[0]?.toUpperCase() || "")
+        .join("");
+      avatar.textContent = initials || "?";
+    }
   }
-  if (officialSpeakerIdentity && identity === officialSpeakerIdentity) {
+  if (!isScreen && officialSpeakerIdentity && identity === officialSpeakerIdentity) {
     tile.classList.add("official-speaker");
   }
   updateGridLayout(container);
@@ -308,28 +368,86 @@ function detachTrack(track) {
 }
 
 function syncParticipantPublications(container, participant) {
-  const tile = ensureTile(
-    container,
-    participant.identity,
-    participant.name || participant.identity,
-    { isLocal: participant.isLocal }
-  );
   for (const pub of participant.trackPublications.values()) {
     if (!pub.track) continue;
     if (!participant.isLocal && pub.isSubscribed === false) continue;
-    attachTrackToTile(tile, pub.track, { mirror: participant.isLocal && pub.kind === "video" });
+    const isScreen = isScreenSharePublication(pub, pub.track);
+    if (pub.kind === "audio" && isScreen) {
+      // Screen-share audio attaches alongside the screen video tile.
+      const tile = ensureTile(
+        container,
+        participant.identity,
+        participant.name || participant.identity,
+        { isLocal: participant.isLocal, isScreen: true }
+      );
+      attachTrackToTile(tile, pub.track);
+      continue;
+    }
+    if (pub.kind === "audio" && !isScreen) {
+      const tile = ensureTile(
+        container,
+        participant.identity,
+        participant.name || participant.identity,
+        { isLocal: participant.isLocal, isScreen: false }
+      );
+      attachTrackToTile(tile, pub.track);
+      continue;
+    }
+    if (pub.kind !== "video") continue;
+    const tile = ensureTile(
+      container,
+      participant.identity,
+      participant.name || participant.identity,
+      { isLocal: participant.isLocal, isScreen }
+    );
+    attachTrackToTile(tile, pub.track, {
+      mirror: participant.isLocal && !isScreen
+    });
   }
-  const camOff = ![...participant.trackPublications.values()].some(
-    (p) => p.kind === "video" && p.track && !p.isMuted
+
+  const camTile = container.querySelector(tileSelector(participant.identity, false));
+  if (camTile) {
+    const camOff = ![...participant.trackPublications.values()].some(
+      (p) =>
+        p.kind === "video" &&
+        p.track &&
+        !p.isMuted &&
+        !isScreenSharePublication(p, p.track)
+    );
+    camTile.classList.toggle("camera-off", camOff);
+    camTile.classList.toggle("has-video", !camOff);
+    camTile.classList.toggle(
+      "mic-muted",
+      ![...participant.trackPublications.values()].some(
+        (p) =>
+          p.kind === "audio" &&
+          p.track &&
+          !p.isMuted &&
+          !isScreenSharePublication(p, p.track)
+      )
+    );
+  }
+
+  const hasScreen = [...participant.trackPublications.values()].some(
+    (p) => p.kind === "video" && p.track && isScreenSharePublication(p, p.track)
   );
-  tile.classList.toggle("camera-off", camOff);
-  tile.classList.toggle("has-video", !camOff);
-  tile.classList.toggle(
-    "mic-muted",
-    ![...participant.trackPublications.values()].some(
-      (p) => p.kind === "audio" && p.track && !p.isMuted
-    )
-  );
+  if (!hasScreen) {
+    container.querySelector(tileSelector(participant.identity, true))?.remove();
+  }
+}
+
+export function setScreenShareLayoutActive(active) {
+  screenShareLayoutActive = Boolean(active);
+  if (mediaContainer) {
+    mediaContainer.querySelectorAll(".media-tile.is-screen-share").forEach((tile) => {
+      tile.classList.toggle("is-stage", screenShareLayoutActive);
+    });
+    updateGridLayout(mediaContainer);
+  }
+}
+
+export function isScreenShareLayoutActive() {
+  return screenShareLayoutActive;
 }
 
 function mapQuality(q) {
@@ -390,18 +508,30 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
   container.classList.add("media-stage-grid", "view-grid");
   updateGridLayout(container);
 
-  liveKitRoom.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
+  liveKitRoom.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+    const isScreen = isScreenSharePublication(pub, track);
+    if (isScreen && track.kind === "video") {
+      setScreenShareLayoutActive(true);
+    }
     const tile = ensureTile(
       container,
       participant.identity,
-      participant.name || participant.identity
+      participant.name || participant.identity,
+      { isScreen }
     );
-    attachTrackToTile(tile, track);
+    attachTrackToTile(tile, track, { mirror: false });
   });
 
-  liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => {
+  liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
     detachTrack(track);
-    const tile = container.querySelector(`[data-identity="${CSS.escape(participant.identity)}"]`);
+    const isScreen = isScreenSharePublication(pub, track);
+    if (isScreen) {
+      container.querySelector(tileSelector(participant.identity, true))?.remove();
+      const stillScreen = Boolean(container.querySelector(".media-tile.is-screen-share"));
+      if (!stillScreen) setScreenShareLayoutActive(false);
+      return;
+    }
+    const tile = container.querySelector(tileSelector(participant.identity, false));
     if (tile && track.kind === "video") {
       tile.classList.remove("has-video");
       tile.classList.add("camera-off");
@@ -410,17 +540,31 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
 
   liveKitRoom.on(RoomEvent.LocalTrackPublished, (pub, participant) => {
     if (!pub.track) return;
+    const isScreen = isScreenSharePublication(pub, pub.track);
+    if (isScreen && pub.kind === "video") {
+      localScreenShareActive = true;
+      setScreenShareLayoutActive(true);
+      bindLocalScreenTrackEnded(pub.track);
+    }
     const tile = ensureTile(
       container,
       participant.identity,
       participant.name || t("media.you") || "Tú",
-      { isLocal: true }
+      { isLocal: true, isScreen }
     );
-    attachTrackToTile(tile, pub.track, { mirror: pub.kind === "video" });
+    attachTrackToTile(tile, pub.track, { mirror: pub.kind === "video" && !isScreen });
   });
 
   liveKitRoom.on(RoomEvent.LocalTrackUnpublished, (pub) => {
+    const isScreen = isScreenSharePublication(pub, pub.track);
     if (pub.track) detachTrack(pub.track);
+    if (isScreen) {
+      localScreenShareActive = false;
+      const id = liveKitRoom?.localParticipant?.identity;
+      if (id) mediaContainer?.querySelector(tileSelector(id, true))?.remove();
+      const stillScreen = Boolean(mediaContainer?.querySelector(".media-tile.is-screen-share"));
+      if (!stillScreen) setScreenShareLayoutActive(false);
+    }
   });
 
   liveKitRoom.on(RoomEvent.ParticipantConnected, (participant) => {
@@ -429,7 +573,11 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
   });
 
   liveKitRoom.on(RoomEvent.ParticipantDisconnected, (participant) => {
-    container.querySelector(`[data-identity="${CSS.escape(participant.identity)}"]`)?.remove();
+    container
+      .querySelectorAll(`[data-identity="${CSS.escape(participant.identity)}"]`)
+      .forEach((el) => el.remove());
+    const stillScreen = Boolean(container.querySelector(".media-tile.is-screen-share"));
+    if (!stillScreen) setScreenShareLayoutActive(false);
     updateGridLayout(container);
     pushIncident(
       `media-disconnect-${participant.identity}`,
@@ -440,14 +588,14 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
 
   liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
     const ids = new Set(speakers.map((s) => s.identity));
-    container.querySelectorAll(".media-tile").forEach((tile) => {
+    container.querySelectorAll(".media-tile:not(.is-screen-share)").forEach((tile) => {
       tile.classList.toggle("is-speaking", ids.has(tile.dataset.identity));
     });
   });
 
   liveKitRoom.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
     if (!participant) return;
-    const tile = container.querySelector(`[data-identity="${CSS.escape(participant.identity)}"]`);
+    const tile = container.querySelector(tileSelector(participant.identity, false));
     const ind = tile?.querySelector(".media-tile-indicators");
     if (ind) ind.textContent = mapQuality(quality);
     if (participant.isLocal) {
@@ -475,6 +623,7 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
     await liveKitRoom.connect(joinInfo.serverUrl, joinInfo.token);
     setMediaState("connected");
     clearIncident("media-down");
+    canPublishScreenShare = Boolean(joinInfo.canPublishScreenShare);
 
     const local = liveKitRoom.localParticipant;
     ensureTile(container, local.identity, local.name || t("media.you") || "Tú", {
@@ -486,6 +635,13 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
       syncParticipantPublications(container, participant);
     }
     syncParticipantPublications(container, local);
+
+    const hasRemoteScreen = [...liveKitRoom.remoteParticipants.values()].some((p) =>
+      [...p.trackPublications.values()].some(
+        (pub) => pub.track && pub.kind === "video" && isScreenSharePublication(pub, pub.track)
+      )
+    );
+    if (hasRemoteScreen || localScreenShareActive) setScreenShareLayoutActive(true);
 
     localPublishIntent = {
       camera: Boolean(options.enableCamera),
@@ -552,6 +708,60 @@ export async function setLocalCameraEnabled(enabled) {
 export async function setLocalMicrophoneEnabled(enabled) {
   localPublishIntent.mic = Boolean(enabled);
   return applyLocalPublish(localPublishIntent);
+}
+
+function bindLocalScreenTrackEnded(track) {
+  const mst = track?.mediaStreamTrack;
+  if (!mst) return;
+  mst.onended = () => {
+    localScreenShareActive = false;
+    onLocalScreenShareEnded?.();
+  };
+}
+
+/**
+ * Publish an additional LiveKit screen-share track (camera stays).
+ * Relies on browser getDisplayMedia via LiveKit setScreenShareEnabled.
+ */
+export async function setLocalScreenShareEnabled(enabled) {
+  if (!liveKitRoom) return { ok: false, code: "NO_ROOM" };
+  if (enabled && !supportsDisplayMedia()) {
+    return { ok: false, code: "UNSUPPORTED" };
+  }
+  if (enabled && !canPublishScreenShare) {
+    return { ok: false, code: "FORBIDDEN" };
+  }
+  try {
+    await liveKitRoom.localParticipant.setScreenShareEnabled(Boolean(enabled), {
+      audio: true,
+      selfBrowserSurface: "include"
+    });
+    localScreenShareActive = Boolean(enabled);
+    if (enabled) {
+      setScreenShareLayoutActive(true);
+      const pubs = [...liveKitRoom.localParticipant.trackPublications.values()];
+      const screenPub = pubs.find((p) => p.track && isScreenSharePublication(p, p.track));
+      if (screenPub?.track) bindLocalScreenTrackEnded(screenPub.track);
+    } else {
+      const stillScreen = Boolean(mediaContainer?.querySelector(".media-tile.is-screen-share"));
+      if (!stillScreen) setScreenShareLayoutActive(false);
+    }
+    return { ok: true };
+  } catch (error) {
+    localScreenShareActive = false;
+    const name = error?.name || "";
+    const msg = String(error?.message || "");
+    const denied =
+      name === "NotAllowedError" ||
+      name === "PermissionDeniedError" ||
+      /Permission denied|NotAllowedError|PermissionDenied|AbortError|cancelled|canceled/i.test(
+        msg
+      );
+    if (denied || name === "AbortError") {
+      return { ok: false, code: "CANCELLED", error };
+    }
+    return { ok: false, code: "FAILED", error };
+  }
 }
 
 export function getLocalPublishIntent() {
@@ -627,12 +837,18 @@ export function highlightOfficialSpeaker(container, identity) {
 export async function disconnectLiveKit() {
   if (liveKitRoom) {
     try {
+      if (localScreenShareActive) {
+        await liveKitRoom.localParticipant.setScreenShareEnabled(false).catch(() => {});
+      }
       await liveKitRoom.disconnect();
     } catch {
       /* ignore */
     }
     liveKitRoom = null;
   }
+  localScreenShareActive = false;
+  screenShareLayoutActive = false;
+  canPublishScreenShare = false;
   mediaContainer = null;
   setMediaState("idle");
 }

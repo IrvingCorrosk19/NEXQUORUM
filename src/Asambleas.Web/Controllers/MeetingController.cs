@@ -30,4 +30,26 @@ public sealed class MeetingController : ControllerBase
     [Authorize(Policy = Permissions.MeetingJoin)]
     public Task<MeetingRoomInfoDto> Room(Guid assemblyId, CancellationToken cancellationToken) =>
         _meetings.GetRoomInfoAsync(assemblyId, cancellationToken);
+
+    [HttpGet("screen-share")]
+    [Authorize(Policy = Permissions.MeetingJoin)]
+    public Task<ScreenShareStateDto> ScreenShare(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default) =>
+        _meetings.GetScreenShareStateAsync(assemblyId, cancellationToken);
+
+    [HttpPost("screen-share/start")]
+    [Authorize(Policy = Permissions.MeetingJoin)]
+    public Task<StartScreenShareResponse> StartScreenShare(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default) =>
+        _meetings.StartScreenShareAsync(assemblyId, cancellationToken);
+
+    [HttpPost("screen-share/stop")]
+    [Authorize(Policy = Permissions.MeetingJoin)]
+    public Task<StopScreenShareResponse> StopScreenShare(
+        Guid assemblyId,
+        [FromQuery] bool force = false,
+        CancellationToken cancellationToken = default) =>
+        _meetings.StopScreenShareAsync(assemblyId, force, cancellationToken);
 }

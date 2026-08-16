@@ -30,6 +30,8 @@ public static class Permissions
 
     public const string MeetingJoin = "meeting:join";
     public const string MeetingModerate = "meeting:moderate";
+    /// <summary>Start native screen share in the live room (President / moderators by default).</summary>
+    public const string MeetingScreenShare = "meeting:screenshare";
 
     public const string AuditView = "audit:view";
 
@@ -88,6 +90,7 @@ public static class Permissions
         VoteResults,
         MeetingJoin,
         MeetingModerate,
+        MeetingScreenShare,
         AuditView,
         RecordingControl,
         RecordingView,

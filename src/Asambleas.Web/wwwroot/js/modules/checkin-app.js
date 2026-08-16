@@ -251,6 +251,12 @@ async function openOwnerModal(targetUserId, { accreditMode }) {
   showError("");
   const dialog = qs("#owner-dialog");
   const accreditBtn = qs("#btn-dialog-accredit");
+  // Clear any stale loading lock from a previous accreditation attempt.
+  if (accreditBtn) {
+    accreditBtn.classList.remove("is-loading");
+    accreditBtn.removeAttribute("aria-busy");
+    delete accreditBtn.dataset.labelBackup;
+  }
   try {
     const preview = await api(
       `/api/assemblies/${assemblyId}/attendance/participants/${targetUserId}/preview`
@@ -294,6 +300,16 @@ async function openOwnerModal(targetUserId, { accreditMode }) {
 
 function closeOwnerModal() {
   const dialog = qs("#owner-dialog");
+  const accreditBtn = qs("#btn-dialog-accredit");
+  if (accreditBtn) {
+    accreditBtn.classList.remove("is-loading");
+    accreditBtn.disabled = false;
+    accreditBtn.removeAttribute("aria-busy");
+    if (accreditBtn.dataset.labelBackup) {
+      accreditBtn.textContent = accreditBtn.dataset.labelBackup;
+      delete accreditBtn.dataset.labelBackup;
+    }
+  }
   if (dialog?.open) dialog.close();
   else dialog?.removeAttribute("open");
   pendingPreview = null;
@@ -379,6 +395,7 @@ async function confirmAccredit() {
   } catch (error) {
     showError(errorMessage(error));
     announce(errorMessage(error));
+  } finally {
     setButtonLoading(btn, false);
   }
 }

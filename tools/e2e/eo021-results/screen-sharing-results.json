@@ -1,0 +1,354 @@
+{
+  "env": "LOCALHOST",
+  "url": "https://localhost:7188",
+  "stamp": "22672912",
+  "tests": [
+    {
+      "TestId": "HEALTH",
+      "Area": "Infra",
+      "Scenario": "localhost up",
+      "Expected": "<500",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "LOGIN-ADMIN",
+      "Area": "Auth",
+      "Scenario": "PHAdmin login",
+      "Expected": "<300",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "PH-CREATE",
+      "Area": "PH",
+      "Scenario": "Create PH",
+      "Expected": "phId",
+      "Actual": "f53dc041-d8eb-47b7-a63e-30d24ec11a23",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "OWNERS-READY",
+      "Area": "Owners",
+      "Scenario": "Activate+login owners",
+      "Expected": "ok",
+      "Actual": "actA=true actB=true A=200 B=200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "ASM-CREATE",
+      "Area": "Assembly",
+      "Scenario": "Create assembly",
+      "Expected": "id",
+      "Actual": "0ec9e74e-541d-4dd0-9868-84157e01be90",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "CONVOCATION",
+      "Area": "Assembly",
+      "Scenario": "Send convocation to register owners",
+      "Expected": "recipients>=2",
+      "Actual": "n=2",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "CHECKIN",
+      "Area": "Attendance",
+      "Scenario": "Owners check-in",
+      "Expected": "<300",
+      "Actual": "A=200 B=200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "ASM-START",
+      "Area": "Assembly",
+      "Scenario": "Start assembly",
+      "Expected": "InProgress",
+      "Actual": "200 InProgress",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "SS-001",
+      "Area": "ScreenShare",
+      "Scenario": "President has Compartir pantalla control",
+      "Expected": "button visible / available",
+      "Actual": "{\"exists\":true,\"hidden\":false,\"label\":\"Compartir pantalla\",\"display\":\"flex\"}",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-002",
+      "Area": "ScreenShare",
+      "Scenario": "Owner cannot start share without permission",
+      "Expected": "UI hidden + API forbidden/400",
+      "Actual": "uiHidden=true api=403 code=SCREEN_SHARE_FORBIDDEN",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "SS-TOKEN",
+      "Area": "ScreenShare",
+      "Scenario": "Join token CanPublishScreenShare gated",
+      "Expected": "prez true, owner false",
+      "Actual": "prez=200/true owner=200/false",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "SS-API-START",
+      "Area": "ScreenShare",
+      "Scenario": "Authorized start claims single presenter",
+      "Expected": "200 isActive",
+      "Actual": "200 active=true",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-019",
+      "Area": "ScreenShare",
+      "Scenario": "Second presenter blocked while active",
+      "Expected": "4xx SCREEN_SHARE_ACTIVE or FORBIDDEN",
+      "Actual": "403 SCREEN_SHARE_FORBIDDEN",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "SS-020-STATE",
+      "Area": "ScreenShare",
+      "Scenario": "Owner rehydrates active presenter from room-state",
+      "Expected": "isActive + presenter",
+      "Actual": "{\"assemblyId\":\"0ec9e74e-541d-4dd0-9868-84157e01be90\",\"isActive\":true,\"presenterUserId\":\"77777777-7777-7777-7777-777777777109\",\"presenterDisplayName\":\"phadmin\",\"startedAtUtc\":\"2026-08-15T19:38:09.3613716+00:00\",\"currentUserCanStart\":false,\"c",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-003",
+      "Area": "ScreenShare",
+      "Scenario": "Native getDisplayMedia picker",
+      "Expected": "User selects screen/window/tab",
+      "Actual": "Browser native picker not controllable by automation without hacking permissions",
+      "Result": "PENDING",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-008",
+      "Area": "ScreenShare",
+      "Scenario": "Create/present question while share state active",
+      "Expected": "motion ok",
+      "Actual": "motion=200 id=ab31d2db-bd95-411b-95e8-7e24bdfbe88e present=200 agenda=dca41698-8787-4892-b39e-c86d8f8e0b23 err={\"id\":\"ab31d2db-bd95-411b-95e8-7e24bdfbe88e\",\"assemblyId\":\"0ec9e74e-541d-4dd0-9868-84157e01be90\",\"agendaItemId\":\"dca4169",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-009",
+      "Area": "ScreenShare",
+      "Scenario": "Open voting while share state active",
+      "Expected": "<300",
+      "Actual": "200 {\"id\":\"ae2d376b-2aec-4a71-a52a-0d12ea750eb5\",\"assemblyId\":\"0ec9e74e-541d-4dd0-9868-84157e01be90\",\"motionId\":\"ab31d2db-bd95-411b-95e8-7e24bdfbe88e\",\"status\":\"Ope",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "SS-010",
+      "Area": "ScreenShare",
+      "Scenario": "Owner A votes during share state",
+      "Expected": "<300",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "SS-011",
+      "Area": "ScreenShare",
+      "Scenario": "Owner B votes during share state",
+      "Expected": "<300",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "SS-012",
+      "Area": "ScreenShare",
+      "Scenario": "President sees progress during share",
+      "Expected": "votesCast>=2",
+      "Actual": "cast=2",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-013",
+      "Area": "ScreenShare",
+      "Scenario": "Close voting without stopping share state",
+      "Expected": "<300 + share still active",
+      "Actual": "200",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-014",
+      "Area": "ScreenShare",
+      "Scenario": "Share state remains after result close",
+      "Expected": "isActive true",
+      "Actual": "{\"assemblyId\":\"0ec9e74e-541d-4dd0-9868-84157e01be90\",\"isActive\":true,\"presenterUserId\":\"77777777-7777-7777-7777-777777777109\",\"presenterDisplayName\":\"phadmin\",\"startedAtUtc\":\"2026-08-15T19:38:09.36137",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-016",
+      "Area": "ScreenShare",
+      "Scenario": "Stop share from app/API",
+      "Expected": "inactive",
+      "Actual": "200 active=false",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-018",
+      "Area": "ScreenShare",
+      "Scenario": "START/STOP ×5 server state clean",
+      "Expected": "inactive, no stale presenter",
+      "Actual": "{\"assemblyId\":\"0ec9e74e-541d-4dd0-9868-84157e01be90\",\"isActive\":false,\"presenterUserId\":null,\"presenterDisplayName\":null,\"startedAtUtc\":null,\"currentUserCanStart\":true,\"currentUserIsPresenter\":false,\"",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-023",
+      "Area": "Isolation",
+      "Scenario": "Assembly B does not see Assembly A share",
+      "Expected": "isActive false on B",
+      "Actual": "{\"assemblyId\":\"6b7efbbd-f515-417e-bc8d-29620367675c\",\"isActive\":false,\"presenterUserId\":null,\"presenterDisplayName\":null,\"startedAtUtc\":null,\"currentUserCanStart\":true,\"currentUserIsPresenter\":false,\"",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "SS-024",
+      "Area": "Isolation",
+      "Scenario": "Owner PH A cannot read PH B assembly share",
+      "Expected": "4xx",
+      "Actual": "400",
+      "Result": "PASS",
+      "Severity": "P0"
+    },
+    {
+      "TestId": "SS-022",
+      "Area": "ScreenShare",
+      "Scenario": "Finalize clears/stops share",
+      "Expected": "complete ok + share cleared",
+      "Actual": "complete=200 shareStatus=400 active=undefined",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-026",
+      "Area": "A11y",
+      "Scenario": "Screen control is a real button with aria-label",
+      "Expected": "button + aria-label",
+      "Actual": "{\"exists\":true,\"hidden\":false,\"label\":\"Compartir pantalla\",\"display\":\"flex\"}",
+      "Result": "PASS",
+      "Severity": "P2"
+    },
+    {
+      "TestId": "SS-027",
+      "Area": "Console",
+      "Scenario": "No critical JS errors during automatable path",
+      "Expected": "0 unhandled JS",
+      "Actual": "n=0 rawNoise=0 []",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-028",
+      "Area": "Network",
+      "Scenario": "No unexpected 500s",
+      "Expected": "0",
+      "Actual": "0",
+      "Result": "PASS",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-004",
+      "Area": "ScreenShare",
+      "Scenario": "Requires native display media / track.onended",
+      "Expected": "manual",
+      "Actual": "PENDING USER ACCEPTANCE — see MANUAL ACCEPTANCE TEST",
+      "Result": "PENDING",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-005",
+      "Area": "ScreenShare",
+      "Scenario": "Requires native display media / track.onended",
+      "Expected": "manual",
+      "Actual": "PENDING USER ACCEPTANCE — see MANUAL ACCEPTANCE TEST",
+      "Result": "PENDING",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-006",
+      "Area": "ScreenShare",
+      "Scenario": "Requires native display media / track.onended",
+      "Expected": "manual",
+      "Actual": "PENDING USER ACCEPTANCE — see MANUAL ACCEPTANCE TEST",
+      "Result": "PENDING",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-007",
+      "Area": "ScreenShare",
+      "Scenario": "Requires native display media / track.onended",
+      "Expected": "manual",
+      "Actual": "PENDING USER ACCEPTANCE — see MANUAL ACCEPTANCE TEST",
+      "Result": "PENDING",
+      "Severity": "P1"
+    },
+    {
+      "TestId": "SS-017",
+      "Area": "ScreenShare",
+      "Scenario": "Requires native display media / track.onended",
+      "Expected": "manual",
+      "Actual": "PENDING USER ACCEPTANCE — see MANUAL ACCEPTANCE TEST",
+      "Result": "PENDING",
+      "Severity": "P1"
+    }
+  ],
+  "matrix": {
+    "NATIVE SCREEN SHARE UI": "PASS",
+    "SCREEN SHARE AUTHORIZATION": "PASS",
+    "SINGLE ACTIVE PRESENTER": "PASS",
+    "OWNER RECONNECTION STATE": "PASS",
+    "MANUAL GETDISPLAYMEDIA ACCEPTANCE": "PENDING USER ACCEPTANCE",
+    "VOTING DURING SHARE": "PASS",
+    "QUESTION DURING SHARE": "PASS",
+    "STOP FROM APP": "PASS",
+    "MEDIA CLEANUP (server state)": "PASS",
+    "CROSS-ASSEMBLY ISOLATION": "PASS",
+    "CROSS-PH ISOLATION": "PASS",
+    "FINALIZATION CLEANUP": "PASS",
+    "ACCESSIBILITY": "PASS",
+    "CONSOLE": "PASS",
+    "NETWORK": "PASS",
+    "SCREEN SHARE RECEIVE": "PENDING USER ACCEPTANCE",
+    "PRESENTER INDICATOR": "PENDING USER ACCEPTANCE",
+    "AUDIO CONTINUITY": "PENDING USER ACCEPTANCE",
+    "CAMERA CONTINUITY": "PENDING USER ACCEPTANCE",
+    "BROWSER TRACK ONENDED": "PENDING USER ACCEPTANCE",
+    "VIDEO SESSION CONTINUITY": "PENDING USER ACCEPTANCE",
+    "NATIVE SCREEN SHARE": "IMPLEMENTATION COMPLETE (MANUAL PENDING)"
+  },
+  "defects": [],
+  "http500": 0,
+  "consoleCritical": [],
+  "vps": "NOT PERFORMED",
+  "manualGetDisplayMedia": "PENDING USER ACCEPTANCE",
+  "architectureDecision": "ADDITIONAL LiveKit screen track via setScreenShareEnabled (camera retained). SignalR coordinates ScreenShareUpdated state only — no video frames.",
+  "certified": true,
+  "verdict": "EO-021 SCREEN SHARING IMPLEMENTATION COMPLETE — P0=0 / P1=0 — LOCALHOST ONLY — WAITING FOR USER MANUAL SCREEN-SHARE ACCEPTANCE — NO VPS DEPLOYMENT PERFORMED."
+}

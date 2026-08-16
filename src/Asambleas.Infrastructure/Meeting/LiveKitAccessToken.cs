@@ -17,17 +17,27 @@ internal static class LiveKitAccessToken
         string roomName,
         bool canPublish,
         bool canSubscribe,
+        bool canPublishScreenShare,
         TimeSpan ttl,
         out DateTimeOffset expiresAtUtc)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(roomName);
+        // LiveKit source allowlist: owners may publish camera/mic; screen share only when authorized.
+        var sources = new List<string> { "camera", "microphone" };
+        if (canPublishScreenShare)
+        {
+            sources.Add("screen_share");
+            sources.Add("screen_share_audio");
+        }
+
         var videoGrant = new Dictionary<string, object>
         {
             ["roomJoin"] = true,
             ["room"] = roomName,
             ["canPublish"] = canPublish,
             ["canSubscribe"] = canSubscribe,
-            ["canPublishData"] = canPublish
+            ["canPublishData"] = canPublish,
+            ["canPublishSources"] = sources
         };
 
         return Write(apiKey, apiSecret, identity, name, videoGrant, ttl, out expiresAtUtc);

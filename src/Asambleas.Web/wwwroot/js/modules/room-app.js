@@ -17,23 +17,31 @@ import {
 } from "./speakers.js";
 import { renderAgenda, setActiveAgendaItem } from "./agenda.js";
 import {
+  claimScreenShare,
   connectLiveKit,
   disconnectLiveKit,
   enumerateMediaDevices,
   fetchJoinToken,
   fetchRoomInfo,
+  getCanPublishScreenShare,
   getLiveKitParticipantCounts,
   getLocalPublishIntent,
   getMediaConnectionState,
   highlightOfficialSpeaker,
   isLiveKitConnected,
+  isLocalScreenShareActive,
   listIncidents,
   loadDevicePrefs,
+  releaseScreenShare,
   renderAvBlocked,
   setIncidentHandler,
   setLocalCameraEnabled,
   setLocalMicrophoneEnabled,
+  setLocalScreenShareEnabled,
+  setLocalScreenShareEndedHandler,
   setMediaViewMode,
+  setScreenShareLayoutActive,
+  supportsDisplayMedia,
   switchLocalDevices,
   syncHandRaisedIndicators,
   unlockRemoteAudio
@@ -96,7 +104,9 @@ const state = {
   hub: null,
   intentionalDisconnect: false,
   recording: null,
-  recordingStartedAt: null
+  recordingStartedAt: null,
+  screenShare: null,
+  screenShareBusy: false
 };
 
 let durationTimer = null;
@@ -287,6 +297,8 @@ function syncMeetingControlBar() {
     );
   }
 
+  syncScreenShareUi();
+
   const votingChip = qs("#voting-open-chip");
   if (votingChip) votingChip.hidden = state.session?.status !== "Open";
 
@@ -317,6 +329,278 @@ function syncGovernanceSpeakerChip() {
     <span class="gsc-eyebrow">${escapeHtml(t("assembly.hasFloor") || "TIENE LA PALABRA")}</span>
     <strong>${escapeHtml(current.displayName)}</strong>
     <span class="gsc-meta">${escapeHtml(participant?.unitCode || "")}</span>`;
+}
+
+function normalizeScreenShare(payload) {
+  if (!payload) return null;
+  const inner = payload.state || payload.State || payload;
+  return {
+    assemblyId: inner.assemblyId || inner.AssemblyId || null,
+    isActive: Boolean(inner.isActive ?? inner.IsActive),
+    presenterUserId: inner.presenterUserId || inner.PresenterUserId || null,
+    presenterDisplayName: inner.presenterDisplayName || inner.PresenterDisplayName || null,
+    startedAtUtc: inner.startedAtUtc || inner.StartedAtUtc || null,
+    currentUserCanStart: Boolean(inner.currentUserCanStart ?? inner.CurrentUserCanStart),
+    currentUserIsPresenter: Boolean(inner.currentUserIsPresenter ?? inner.CurrentUserIsPresenter),
+    currentUserCanForceStop: Boolean(inner.currentUserCanForceStop ?? inner.CurrentUserCanForceStop)
+  };
+}
+
+function applyScreenShareState(payload, { toast = false } = {}) {
+  const next = normalizeScreenShare(payload);
+  const prevActive = Boolean(state.screenShare?.isActive);
+  state.screenShare = next;
+  setScreenShareLayoutActive(Boolean(next?.isActive));
+  syncScreenShareUi();
+  if (toast && next?.isActive && !prevActive) {
+    const name = next.presenterDisplayName || "Alguien";
+    showToast(
+      next.currentUserIsPresenter
+        ? "● Estás compartiendo tu pantalla"
+        : `🖥 ${name} está compartiendo pantalla`,
+      "info"
+    );
+  } else if (toast && prevActive && !next?.isActive) {
+    showToast("Presentación finalizada", "info");
+  }
+}
+
+function syncScreenShareUi() {
+  const btn = qs("#btn-screen");
+  const banner = qs("#screen-share-banner");
+  const share = state.screenShare;
+  const canPerm =
+    hasPermission(state.user, "meeting:screenshare") ||
+    hasPermission(state.user, "meeting:moderate");
+  const canStart =
+    Boolean(share?.currentUserCanStart) ||
+    (canPerm && !share?.isActive && getCanPublishScreenShare());
+  const isPresenter = Boolean(share?.currentUserIsPresenter) || isLocalScreenShareActive();
+  const canForce = Boolean(share?.currentUserCanForceStop);
+  const active = Boolean(share?.isActive);
+
+  if (btn) {
+    const showBtn = canPerm || isPresenter || (active && canForce);
+    btn.hidden = !showBtn;
+    btn.disabled = Boolean(state.screenShareBusy) || (!supportsDisplayMedia() && !isPresenter);
+    btn.classList.toggle("is-active", isPresenter || active);
+    btn.classList.toggle("is-sharing", isPresenter);
+    const label = btn.querySelector(".mcb-label");
+    if (isPresenter) {
+      btn.setAttribute("aria-pressed", "true");
+      btn.setAttribute("aria-label", "Detener presentación");
+      btn.title = "Detener presentación";
+      if (label) label.textContent = "Detener";
+    } else if (active && canForce) {
+      btn.setAttribute("aria-pressed", "false");
+      btn.setAttribute("aria-label", "Detener presentación actual");
+      btn.title = "Detener presentación actual";
+      if (label) label.textContent = "Detener";
+    } else {
+      btn.setAttribute("aria-pressed", "false");
+      btn.setAttribute("aria-label", "Compartir pantalla");
+      btn.title = supportsDisplayMedia()
+        ? "Compartir pantalla"
+        : "Compartir pantalla no está disponible en este navegador";
+      if (label) label.textContent = "Pantalla";
+    }
+  }
+
+  if (banner) {
+    if (!active) {
+      banner.hidden = true;
+      banner.innerHTML = "";
+      banner.classList.remove("is-presenter");
+    } else if (isPresenter) {
+      banner.hidden = false;
+      banner.classList.add("is-presenter");
+      banner.innerHTML = `
+        <span class="ssb-dot" aria-hidden="true"></span>
+        <strong>Estás compartiendo tu pantalla</strong>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-stop-screen-banner">Detener presentación</button>`;
+      qs("#btn-stop-screen-banner")?.addEventListener(
+        "click",
+        () => {
+          stopLocalScreenShare({ reason: "app" }).catch(() => {});
+        },
+        { once: true }
+      );
+    } else {
+      banner.hidden = false;
+      banner.classList.remove("is-presenter");
+      const name = share?.presenterDisplayName || "Participante";
+      banner.innerHTML = `
+        <span class="ssb-icon" aria-hidden="true">🖥</span>
+        <strong>${escapeHtml(name)} está compartiendo pantalla</strong>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-screen-fullscreen">Pantalla completa</button>
+        ${
+          canForce
+            ? `<button type="button" class="btn btn-ghost btn-sm" id="btn-force-stop-screen">Detener presentación actual</button>`
+            : ""
+        }`;
+      qs("#btn-screen-fullscreen")?.addEventListener(
+        "click",
+        async () => {
+          const stage = qs(".video-stage");
+          try {
+            if (stage && !document.fullscreenElement) await stage.requestFullscreen();
+          } catch {
+            showToast("No se pudo activar pantalla completa.", "warn");
+          }
+        },
+        { once: true }
+      );
+      qs("#btn-force-stop-screen")?.addEventListener(
+        "click",
+        () => {
+          forceStopRemoteScreenShare().catch(() => {});
+        },
+        { once: true }
+      );
+    }
+  }
+
+  document.documentElement.classList.toggle("screen-share-active", active);
+  qs(".room")?.classList.toggle("has-screen-share", active);
+}
+
+async function startLocalScreenShare() {
+  if (state.screenShareBusy) return;
+  if (!supportsDisplayMedia()) {
+    showToast("Compartir pantalla no está disponible en este navegador.", "warn");
+    return;
+  }
+  if (state.screenShare?.isActive && !state.screenShare?.currentUserIsPresenter) {
+    showToast(
+      `Hay una presentación activa${
+        state.screenShare.presenterDisplayName
+          ? ` de ${state.screenShare.presenterDisplayName}`
+          : ""
+      }.`,
+      "warn"
+    );
+    return;
+  }
+
+  state.screenShareBusy = true;
+  setMediaBusy("Iniciando presentación…");
+  syncScreenShareUi();
+  try {
+    const claimed = await claimScreenShare(assemblyId);
+    applyScreenShareState(claimed, { toast: false });
+    const media = await setLocalScreenShareEnabled(true);
+    if (!media.ok) {
+      try {
+        await releaseScreenShare(assemblyId);
+      } catch {
+        /* ignore */
+      }
+      applyScreenShareState(
+        {
+          isActive: false,
+          currentUserCanStart: true,
+          currentUserIsPresenter: false,
+          currentUserCanForceStop: true
+        },
+        { toast: false }
+      );
+      if (media.code === "CANCELLED") {
+        showToast("No se inició la presentación. Puedes intentarlo nuevamente cuando quieras.", "info");
+      } else if (media.code === "FORBIDDEN") {
+        showToast("No tienes permiso para compartir pantalla.", "warn");
+      } else if (media.code === "UNSUPPORTED") {
+        showToast("Compartir pantalla no está disponible en este navegador.", "warn");
+      } else {
+        showToast("No se inició la presentación. Elige una pantalla, ventana o pestaña para compartir.", "info");
+      }
+      return;
+    }
+    applyScreenShareState(
+      {
+        ...(state.screenShare || {}),
+        isActive: true,
+        currentUserIsPresenter: true,
+        presenterDisplayName: state.user?.displayName || "Tú"
+      },
+      { toast: true }
+    );
+  } catch (error) {
+    const code = error?.code || error?.errorCode || "";
+    const msg = String(error?.message || "");
+    if (code === "SCREEN_SHARE_ACTIVE" || /presentación activa/i.test(msg)) {
+      showToast(msg || "Hay una presentación activa.", "warn");
+      try {
+        const fresh = await api(`/api/assemblies/${assemblyId}/meeting/screen-share`);
+        applyScreenShareState(fresh, { toast: false });
+      } catch {
+        /* ignore */
+      }
+    } else if (code === "SCREEN_SHARE_FORBIDDEN" || /permiso/i.test(msg)) {
+      showToast("No tienes permiso para compartir pantalla.", "warn");
+    } else {
+      showToast(msg || "No se inició la presentación.", "info");
+    }
+  } finally {
+    state.screenShareBusy = false;
+    setMediaBusy("");
+    syncScreenShareUi();
+  }
+}
+
+async function stopLocalScreenShare({ reason = "app" } = {}) {
+  if (state.screenShareBusy) return;
+  state.screenShareBusy = true;
+  setMediaBusy(reason === "browser" ? "" : "Finalizando presentación…");
+  syncScreenShareUi();
+  try {
+    await setLocalScreenShareEnabled(false);
+    const stopped = await releaseScreenShare(assemblyId);
+    applyScreenShareState(stopped, { toast: reason !== "browser" });
+    if (reason === "browser") {
+      showToast("Presentación finalizada", "info");
+    }
+  } catch (error) {
+    applyScreenShareState(
+      {
+        isActive: false,
+        currentUserCanStart: true,
+        currentUserIsPresenter: false
+      },
+      { toast: true }
+    );
+    if (error?.message) showToast(error.message, "warn");
+  } finally {
+    state.screenShareBusy = false;
+    setMediaBusy("");
+    syncScreenShareUi();
+  }
+}
+
+async function forceStopRemoteScreenShare() {
+  if (state.screenShareBusy) return;
+  state.screenShareBusy = true;
+  try {
+    const stopped = await releaseScreenShare(assemblyId, { force: true });
+    applyScreenShareState(stopped, { toast: true });
+  } catch (error) {
+    showToast(error?.message || "No se pudo detener la presentación.", "warn");
+  } finally {
+    state.screenShareBusy = false;
+    syncScreenShareUi();
+  }
+}
+
+async function toggleScreenShareFromButton() {
+  const share = state.screenShare;
+  if (isLocalScreenShareActive() || share?.currentUserIsPresenter) {
+    await stopLocalScreenShare({ reason: "app" });
+    return;
+  }
+  if (share?.isActive && share?.currentUserCanForceStop) {
+    await forceStopRemoteScreenShare();
+    return;
+  }
+  await startLocalScreenShare();
 }
 
 function syncHandTiles() {
@@ -1265,6 +1549,9 @@ function applyRoomState(room) {
   state.myVote = room.myVote;
   state.myVoteStatus = room.myVoteStatus || state.myVoteStatus || null;
   state.startedAtUtc = room.startedAtUtc || state.startedAtUtc;
+  if (room.screenShare !== undefined) {
+    applyScreenShareState(room.screenShare, { toast: false });
+  }
   if (room.viewerRole) {
     state.viewerRole = room.viewerRole;
   } else {
@@ -1357,9 +1644,13 @@ async function bootstrapMeeting() {
   const prefs = loadDevicePrefs();
   const micBtn = qs("#btn-mic");
   const camBtn = qs("#btn-cam");
+  const screenBtn = qs("#btn-screen");
   if (!mediaControlsWired) {
     mediaControlsWired = true;
     wireMeetingDrawers();
+    setLocalScreenShareEndedHandler(() => {
+      stopLocalScreenShare({ reason: "browser" }).catch(() => {});
+    });
     if (micBtn) {
       micBtn.addEventListener("click", async () => {
         const next = micBtn.getAttribute("aria-pressed") !== "true";
@@ -1410,6 +1701,11 @@ async function bootstrapMeeting() {
           setMediaBusy("");
           syncMeetingControlBar();
         }
+      });
+    }
+    if (screenBtn) {
+      screenBtn.addEventListener("click", async () => {
+        await toggleScreenShareFromButton();
       });
     }
     qs("#btn-view-grid")?.addEventListener("click", () => {
@@ -1783,6 +2079,9 @@ async function init() {
     recordingUpdated: (rec) => {
       state.recording = rec;
       syncRecordingBanner();
+    },
+    screenShareUpdated: (payload) => {
+      applyScreenShareState(payload, { toast: true });
     }
   });
 

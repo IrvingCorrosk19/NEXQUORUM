@@ -200,7 +200,8 @@ public sealed record AssemblyRoomStateDto(
     MeetingRoomInfoDto? Meeting,
     string ViewerRole,
     DateTimeOffset? AssemblyStartedAtUtc,
-    AssemblyParticipantDto? Self = null);
+    AssemblyParticipantDto? Self = null,
+    ScreenShareStateDto? ScreenShare = null);
 
 public sealed record AssemblyMinutesMotionEntryDto(
     MotionDto Motion,

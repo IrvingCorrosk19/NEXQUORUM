@@ -10,7 +10,8 @@ public sealed record MeetingJoinTokenResponse(
     string ServerUrl,
     DateTimeOffset ExpiresAtUtc,
     bool CanPublish = false,
-    string? Identity = null);
+    string? Identity = null,
+    bool CanPublishScreenShare = false);
 
 public sealed record MeetingRoomInfoDto(
     Guid AssemblyId,

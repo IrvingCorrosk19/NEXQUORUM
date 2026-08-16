@@ -193,6 +193,7 @@ export function normalizeRoomState(raw, userIdHint = null) {
       assembly?.assemblyStartedAtUtc ||
       null,
     votingOpenedAtUtc: session?.openedAtUtc || raw.votingOpenedAtUtc || null,
+    screenShare: raw.screenShare || raw.ScreenShare || null,
     _fallback: Boolean(raw._fallback),
     _fallbackMessage: raw._fallbackMessage || null
   };
@@ -213,6 +214,7 @@ function emptyRoomState() {
     myVote: null,
     startedAtUtc: null,
     votingOpenedAtUtc: null,
+    screenShare: null,
     _fallback: true,
     _fallbackMessage: null
   };

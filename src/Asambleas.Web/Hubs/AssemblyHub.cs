@@ -3,6 +3,7 @@ namespace Asambleas.Web.Hubs;
 using System.Security.Claims;
 using Asambleas.Application.Assembly;
 using Asambleas.Application.Attendance;
+using Asambleas.Application.Meeting;
 using Asambleas.Domain.Common;
 using Asambleas.Infrastructure.Tenancy;
 using Asambleas.Web.Security;
@@ -17,17 +18,20 @@ public sealed class AssemblyHub : Hub
 
     private readonly AttendanceService _attendance;
     private readonly AssemblyAccessService _access;
+    private readonly MeetingService _meetings;
     private readonly CurrentTenant _currentTenant;
     private readonly ILogger<AssemblyHub> _logger;
 
     public AssemblyHub(
         AttendanceService attendance,
         AssemblyAccessService access,
+        MeetingService meetings,
         CurrentTenant currentTenant,
         ILogger<AssemblyHub> logger)
     {
         _attendance = attendance;
         _access = access;
+        _meetings = meetings;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -114,6 +118,7 @@ public sealed class AssemblyHub : Hub
             }
 
             await _attendance.MarkDisconnectedAsync(assemblyId, userId, Context.ConnectionAborted);
+            await _meetings.ClearIfPresenterLeftAsync(assemblyId, userId, Context.ConnectionAborted);
         }
         catch (Exception ex)
         {
@@ -146,6 +151,7 @@ public sealed class AssemblyHub : Hub
                 if (AssemblyAccessService.AllowsPresenceMutation(status))
                 {
                     await _attendance.MarkDisconnectedAsync(assemblyId, userId, CancellationToken.None);
+                    await _meetings.ClearIfPresenterLeftAsync(assemblyId, userId, CancellationToken.None);
                 }
             }
             catch (Exception ex)

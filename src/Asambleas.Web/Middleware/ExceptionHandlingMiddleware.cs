@@ -87,7 +87,9 @@ public sealed class ExceptionHandlingMiddleware
     private static int MapDomainStatus(DomainException domainException)
     {
         if (string.Equals(domainException.Code, "FORBIDDEN", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(domainException.Code, "PH_ACCESS_DENIED", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(domainException.Code, "PH_ACCESS_DENIED", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(domainException.Code, "SCREEN_SHARE_FORBIDDEN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(domainException.Code, "ASSEMBLY_ACCESS_DENIED", StringComparison.OrdinalIgnoreCase))
         {
             return StatusCodes.Status403Forbidden;
         }

@@ -17,19 +17,22 @@ public sealed class AssemblyService
     private readonly IAuditService _audit;
     private readonly IAssemblyRealtimePublisher _realtime;
     private readonly Quorum.QuorumService _quorum;
+    private readonly IScreenShareCoordinator _screenShare;
 
     public AssemblyService(
         IAsambleasDbContext db,
         ICurrentTenant currentTenant,
         IAuditService audit,
         IAssemblyRealtimePublisher realtime,
-        Quorum.QuorumService quorum)
+        Quorum.QuorumService quorum,
+        IScreenShareCoordinator screenShare)
     {
         _db = db;
         _currentTenant = currentTenant;
         _audit = audit;
         _realtime = realtime;
         _quorum = quorum;
+        _screenShare = screenShare;
     }
 
     public async Task<IReadOnlyList<AssemblySummaryDto>> ListForCurrentUserAsync(
@@ -162,6 +165,25 @@ public sealed class AssemblyService
 
             // Freeze quorum WHILE still operational (AssemblyEnd), then seal status.
             await _quorum.RecalculateAndSnapshotAsync(assemblyId, Quorum.QuorumService.AssemblyEndReason, cancellationToken);
+
+            // Clear any active screen share so media/UI cannot linger past completion.
+            var hadShare = _screenShare.TryGet(assemblyId) is { IsActive: true };
+            _screenShare.Clear(assemblyId);
+            if (hadShare)
+            {
+                await _realtime.PublishScreenShareUpdatedAsync(
+                    assemblyId,
+                    new Contracts.Meetings.ScreenShareStateDto(
+                        assemblyId,
+                        IsActive: false,
+                        PresenterUserId: null,
+                        PresenterDisplayName: null,
+                        StartedAtUtc: null,
+                        CurrentUserCanStart: false,
+                        CurrentUserIsPresenter: false,
+                        CurrentUserCanForceStop: false),
+                    cancellationToken);
+            }
         }
 
         assembly.Status = target;

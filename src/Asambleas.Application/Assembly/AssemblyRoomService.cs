@@ -139,6 +139,8 @@ public sealed class AssemblyRoomService
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
+        var screenShare = await _meetings.GetScreenShareStateAsync(assemblyId, cancellationToken);
+
         return new AssemblyRoomStateDto(
             detail,
             readiness,
@@ -154,7 +156,8 @@ public sealed class AssemblyRoomService
             meeting,
             AssemblyRoomRules.ResolveViewerRole(roleCode),
             assemblyStartedAtUtc,
-            self);
+            self,
+            screenShare);
     }
 
     public async Task<AssemblyReadinessDto> GetReadinessAsync(

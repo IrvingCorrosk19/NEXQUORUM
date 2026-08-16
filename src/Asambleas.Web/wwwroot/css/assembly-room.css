@@ -882,6 +882,90 @@
   grid-column: 1 / -1;
   min-height: 18rem;
 }
+
+/* Native screen share: main stage + camera filmstrip */
+.media-stage-grid.screen-share-layout {
+  max-width: none;
+  grid-template-columns: minmax(0, 1fr) 9.5rem;
+  grid-template-rows: minmax(14rem, 1fr);
+  gap: 0.65rem;
+  align-items: stretch;
+}
+.media-stage-grid.screen-share-layout .media-tile.is-screen-share {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 16rem;
+  border: 1px solid color-mix(in srgb, var(--accent, #3d8bfd) 45%, transparent);
+}
+.media-stage-grid.screen-share-layout .media-tile:not(.is-screen-share) {
+  grid-column: 2;
+  min-height: 4.5rem;
+  max-height: 6.5rem;
+}
+.media-stage-grid.screen-share-layout .media-tile.is-screen-share .media-tile-label {
+  font-weight: 600;
+}
+.screen-share-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+  margin: 0.35rem 0 0.65rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, #0f1c24 88%, #1d6f4a);
+  color: #e8f6ef;
+  font-size: 0.92rem;
+}
+.screen-share-banner.is-presenter {
+  background: color-mix(in srgb, #1a1520 70%, #8a3a12);
+}
+.screen-share-banner .ssb-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #ff5a5a;
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, #ff5a5a 35%, transparent);
+}
+.mcb-btn--screen.is-sharing,
+.mcb-btn--screen.is-active {
+  color: #ffd7a8;
+}
+.mcb-btn--screen.is-sharing .mcb-icon {
+  color: #ffb35c;
+}
+.room.has-screen-share[data-voting="open"] .video-stage {
+  /* Keep presentation visible while voting panel takes priority action space */
+  min-height: 10rem;
+}
+@media (max-width: 767px) {
+  .media-stage-grid.screen-share-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(12rem, 1fr) auto;
+  }
+  .media-stage-grid.screen-share-layout .media-tile.is-screen-share {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .media-stage-grid.screen-share-layout .media-tile:not(.is-screen-share) {
+    grid-column: 1;
+    grid-row: 2;
+    max-height: none;
+    min-height: 4rem;
+  }
+  .media-stage-grid.screen-share-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .media-stage-grid.screen-share-layout .media-tile:not(.is-screen-share) {
+    display: none;
+  }
+  .media-stage-grid.screen-share-layout .media-tile.is-local:not(.is-screen-share),
+  .media-stage-grid.screen-share-layout .media-tile.official-speaker:not(.is-screen-share) {
+    display: block;
+  }
+}
+
 .media-empty-hint {
   grid-column: 1 / -1;
   text-align: center;
