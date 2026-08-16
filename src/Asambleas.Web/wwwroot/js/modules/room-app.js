@@ -60,6 +60,7 @@ import { AppFeedback } from "./app-feedback.js";
 import { hydrateRoomState, resumeAssembly } from "./room-state.js";
 import { isOperator, resolveViewerRole } from "./roles.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
+import { redirectToHttpsForMedia } from "./secure-context.js";
 
 let assemblyId = assemblyIdFromUrl();
 
@@ -904,21 +905,66 @@ function applyRoleChrome() {
   }
 }
 
+function normalizeRecording(rec) {
+  if (!rec || typeof rec !== "object") return null;
+  return {
+    ...rec,
+    id: rec.id || rec.Id,
+    assemblyId: rec.assemblyId || rec.AssemblyId,
+    status: String(rec.status || rec.Status || ""),
+    startedAtUtc: rec.startedAtUtc || rec.StartedAtUtc || null,
+    endedAtUtc: rec.endedAtUtc || rec.EndedAtUtc || null
+  };
+}
+
+function isRecordingActive(rec) {
+  const status = normalizeRecording(rec)?.status;
+  return ["Recording", "Starting"].includes(status);
+}
+
 function syncRecordingBanner() {
   const banner = qs("#recording-banner");
   const timer = qs("#recording-timer");
-  const active =
-    state.recording &&
-    ["Recording", "Starting", "Processing"].includes(state.recording.status);
-  if (banner) banner.hidden = !active;
-  qs("#btn-rec-start") && (qs("#btn-rec-start").hidden = Boolean(active));
-  qs("#btn-rec-stop") && (qs("#btn-rec-stop").hidden = !active || state.recording?.status === "Processing");
+  const startBtn = qs("#btn-rec-start");
+  const stopBtn = qs("#btn-rec-stop");
+  const rec = normalizeRecording(state.recording);
+  const status = rec?.status || "";
+  const active = isRecordingActive(rec);
+  const processing = status === "Processing";
+  const pending = active && (!rec?.id || rec.id === "pending");
+
+  if (banner) {
+    banner.hidden = !(active || processing);
+    const label = qs("#recording-banner-label");
+    if (label && rec) {
+      if (status === "Starting" || pending) label.textContent = "INICIANDO GRABACIÓN";
+      else if (status === "Processing") label.textContent = "PROCESANDO GRABACIÓN";
+      else label.textContent = "GRABANDO";
+    }
+  }
+
+  if (startBtn) startBtn.hidden = active || processing;
+  if (stopBtn) {
+    // Visible while recording / starting (including optimistic pending).
+    stopBtn.hidden = !(active || processing);
+    if (processing) {
+      stopBtn.disabled = true;
+      stopBtn.textContent = "Procesando…";
+    } else if (pending) {
+      stopBtn.disabled = true;
+      stopBtn.textContent = "Iniciando…";
+    } else {
+      stopBtn.disabled = false;
+      stopBtn.textContent = "Detener grabación";
+    }
+  }
+
   if (recordingTimer) {
     clearInterval(recordingTimer);
     recordingTimer = null;
   }
-  if (active && state.recording?.startedAtUtc) {
-    const started = new Date(state.recording.startedAtUtc).getTime();
+  if (active && rec?.startedAtUtc) {
+    const started = new Date(rec.startedAtUtc).getTime();
     const tick = () => {
       const sec = Math.max(0, Math.floor((Date.now() - started) / 1000));
       const h = String(Math.floor(sec / 3600)).padStart(2, "0");
@@ -931,14 +977,31 @@ function syncRecordingBanner() {
   } else if (timer) {
     timer.textContent = "";
   }
+  ensureRecordingPoll(pending || status === "Starting");
+}
+
+let recordingPollTimer = null;
+function ensureRecordingPoll(needed) {
+  if (!needed) {
+    if (recordingPollTimer) {
+      clearInterval(recordingPollTimer);
+      recordingPollTimer = null;
+    }
+    return;
+  }
+  if (recordingPollTimer) return;
+  recordingPollTimer = window.setInterval(() => {
+    hydrateRecording().catch(() => {});
+  }, 4000);
 }
 
 async function hydrateRecording() {
   try {
     const list = await api(`/api/assemblies/${assemblyId}/recordings`);
+    const rows = (list || []).map(normalizeRecording);
     state.recording =
-      (list || []).find((r) => ["Recording", "Starting", "Processing"].includes(r.status)) ||
-      (list || [])[0] ||
+      rows.find((r) => isRecordingActive(r)) ||
+      rows[0] ||
       null;
     syncRecordingBanner();
   } catch {
@@ -1578,6 +1641,7 @@ async function rehydrate() {
   } catch {
     /* optional */
   }
+  await hydrateRecording();
   if (room._fallbackMessage) {
     showToast(room._fallbackMessage, "info");
   }
@@ -1777,7 +1841,12 @@ async function bootstrapMeeting() {
     if (identity) setMediaViewMode("focus");
     syncHandTiles();
   } catch (error) {
-    renderAvBlocked(els.video, error.message || t("lobby.avBlocked"));
+    const msg = String(error?.message || "");
+    const friendly =
+      /Failed to fetch|NetworkError|signal connection/i.test(msg)
+        ? t("media.signalFailed")
+        : msg || t("lobby.avBlocked");
+    renderAvBlocked(els.video, friendly);
   }
   updateMediaConnectionBanner();
   renderMediaCockpit();
@@ -1881,16 +1950,69 @@ ${t("assembly.endPrecheck", {
   });
 
   qs("#btn-rec-start")?.addEventListener("click", async () => {
+    const btn = qs("#btn-rec-start");
     try {
-      state.recording = await api(`/api/assemblies/${assemblyId}/recording/start`, { method: "POST" });
+      if (btn) btn.disabled = true;
+      // Optimistic: show banner before provider finishes starting.
+      state.recording = {
+        id: "pending",
+        assemblyId,
+        status: "Starting",
+        startedAtUtc: new Date().toISOString()
+      };
       syncRecordingBanner();
-      showToast("Grabación iniciada", "success");
+      showToast("Iniciando grabación…", "info");
+      const started = normalizeRecording(
+        await api(`/api/assemblies/${assemblyId}/recording/start`, { method: "POST" })
+      );
+      state.recording = started;
+      syncRecordingBanner();
+      const status = started?.status || "";
+      const provider = String(started?.provider || "");
+      if (status === "Ready") {
+        showToast({
+          title: "Evidencia de grabación lista",
+          message:
+            provider === "SyntheticPilotMp4"
+              ? "Se generó un archivo piloto (sin worker LiveKit Egress). Revíselo en Expediente."
+              : "El archivo quedó listo. Revíselo en Expediente.",
+          variant: "success"
+        });
+      } else if (status === "Recording" || status === "Starting") {
+        showToast("Grabación en curso — use Detener grabación para finalizar", "success");
+      } else if (status === "Failed") {
+        showToast({
+          title: "No se pudo grabar",
+          message: started?.failureReason || "Error al iniciar la grabación.",
+          variant: "error"
+        });
+      } else {
+        showToast(`Grabación: ${status || "actualizada"}`, "info");
+      }
     } catch (error) {
+      await hydrateRecording();
       showError(error.message);
+      showToast({ title: "Grabación no iniciada", message: error.message, variant: "error" });
+    } finally {
+      if (btn) btn.disabled = false;
     }
   });
   qs("#btn-rec-stop")?.addEventListener("click", async () => {
-    if (!state.recording?.id) return;
+    const stopBtn = qs("#btn-rec-stop");
+    if (stopBtn?.disabled) return;
+    // If optimistic pending, refresh once to obtain the real recording id.
+    if (!state.recording?.id || state.recording.id === "pending") {
+      await hydrateRecording();
+    }
+    if (!state.recording?.id || state.recording.id === "pending") {
+      showToast("La grabación aún se está iniciando. Espere un momento.", "info");
+      return;
+    }
+    if (!isRecordingActive(state.recording)) {
+      showToast("No hay una grabación activa para detener.", "info");
+      syncRecordingBanner();
+      return;
+    }
     const ok = await confirmDialog({
       title: "Detener grabación",
       body: "¿Detener la grabación de esta sesión?",
@@ -1899,14 +2021,25 @@ ${t("assembly.endPrecheck", {
     });
     if (!ok) return;
     try {
-      state.recording = await api(
-        `/api/assemblies/${assemblyId}/recording/${state.recording.id}/stop`,
-        { method: "POST" }
+      if (stopBtn) stopBtn.disabled = true;
+      state.recording = normalizeRecording({
+        ...state.recording,
+        status: "Processing"
+      });
+      syncRecordingBanner();
+      state.recording = normalizeRecording(
+        await api(`/api/assemblies/${assemblyId}/recording/${state.recording.id}/stop`, {
+          method: "POST"
+        })
       );
       syncRecordingBanner();
       showToast("Grabación detenida / procesando", "info");
     } catch (error) {
+      await hydrateRecording();
       showError(error.message);
+    } finally {
+      if (stopBtn) stopBtn.disabled = false;
+      syncRecordingBanner();
     }
   });
 }
@@ -1929,6 +2062,11 @@ function localizeChrome() {
 async function init() {
   await initI18n();
   localizeChrome();
+
+  if (redirectToHttpsForMedia()) {
+    showError(t("lobby.redirectingHttps"));
+    return;
+  }
 
   if (!assemblyId) {
     assemblyId = await ensureAssemblyIdOrRedirect();
@@ -2077,7 +2215,7 @@ async function init() {
       refreshPanels();
     },
     recordingUpdated: (rec) => {
-      state.recording = rec;
+      state.recording = normalizeRecording(rec);
       syncRecordingBanner();
     },
     screenShareUpdated: (payload) => {

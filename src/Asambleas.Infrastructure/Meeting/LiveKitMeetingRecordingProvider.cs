@@ -40,11 +40,12 @@ public sealed class LiveKitMeetingRecordingProvider : IMeetingRecordingProvider
             ?? Environment.GetEnvironmentVariable("ASAMBLEAS_RECORDING_SYNTHETIC"),
             "true",
             StringComparison.OrdinalIgnoreCase);
+        // Only call LiveKit Egress when an egress endpoint is explicitly configured.
+        // Falling back to the LiveKit signaling URL causes a long 503 timeout when no
+        // livekit-egress worker is running ("no response from servers").
         _egressHttpBase = FirstNonEmpty(
             Environment.GetEnvironmentVariable("LIVEKIT_EGRESS_URL"),
-            configuration["LiveKit:EgressUrl"],
-            // Same host as LiveKit HTTP API when egress shares process/network.
-            NormalizeHttpBase(_liveKit.Url));
+            configuration["LiveKit:EgressUrl"]);
         _fileOutputRoot = configuration["Recording:EgressOutputRoot"]
                           ?? Environment.GetEnvironmentVariable("ASAMBLEAS_EGRESS_OUTPUT")
                           ?? "/out";
