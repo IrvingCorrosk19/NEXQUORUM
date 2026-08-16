@@ -64,6 +64,22 @@ public sealed class OwnerPasswordResetService
         TenantGuard.EnsureTenantMatch(_currentTenant, owner.TenantId);
         await EnsureOwnerBelongsToPhAsync(propertyHorizontalId, ownerId, cancellationToken);
 
+        if (string.IsNullOrWhiteSpace(owner.Email))
+        {
+            throw new DomainException("OWNER_EMAIL_REQUIRED", "El propietario necesita un correo para restablecer la contraseña.");
+        }
+
+        var email = owner.Email.Trim().ToLowerInvariant();
+
+        // Heal stale Owner.UserId when the login account for this email differs from the linked seed user.
+        var loginUserId = await _identity.FindUserIdByEmailAsync(email, cancellationToken);
+        if (loginUserId is Guid linkedLoginId && owner.UserId != linkedLoginId)
+        {
+            owner.UserId = linkedLoginId;
+            owner.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
         if (owner.UserId is not Guid userId)
         {
             throw new DomainException(
@@ -83,12 +99,6 @@ public sealed class OwnerPasswordResetService
                 "Este propietario no tiene acceso activo en este PH.");
         }
 
-        if (string.IsNullOrWhiteSpace(owner.Email))
-        {
-            throw new DomainException("OWNER_EMAIL_REQUIRED", "El propietario necesita un correo para restablecer la contraseña.");
-        }
-
-        var email = owner.Email.Trim().ToLowerInvariant();
         var (emailProvider, usedSandbox, providerName) =
             await _communications.ResolvePhEmailProviderAsync(propertyHorizontalId, cancellationToken);
 
@@ -184,15 +194,27 @@ public sealed class OwnerPasswordResetService
                 return response;
             }
 
+            // Prefer owner linked to this login user; fall back by email (heals stale UserId links).
             var owner = await _db.Owners.IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(o => o.UserId == userId && o.Email != null && o.Email.ToLower() == normalized)
-                .OrderByDescending(o => o.UpdatedAtUtc)
-                .FirstOrDefaultAsync(cancellationToken);
+                .FirstOrDefaultAsync(o => o.UserId == userId, cancellationToken);
+            if (owner is null)
+            {
+                owner = await _db.Owners.IgnoreQueryFilters()
+                    .Where(o => o.Email != null && o.Email.ToLower() == normalized)
+                    .OrderByDescending(o => o.UpdatedAtUtc)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
 
             if (owner is null)
             {
                 return response;
+            }
+
+            if (owner.UserId != userId)
+            {
+                owner.UserId = userId;
+                owner.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
             }
 
             var membership = await _db.UserPropertyMemberships.IgnoreQueryFilters()
@@ -267,6 +289,27 @@ public sealed class OwnerPasswordResetService
                         provider = providerName,
                         usedSandbox,
                         providerMessageId = sendResult.ProviderMessageId,
+                        source = "self_serve"
+                    },
+                    cancellationToken: cancellationToken);
+            }
+            else
+            {
+                await _audit.WriteSystemAsync(
+                    ph.TenantId,
+                    AuditEventType.OwnerPasswordResetRequested,
+                    propertyHorizontalId: membership.PropertyHorizontalId,
+                    correlationId: reset.Entity.Id,
+                    userId: userId,
+                    metadata: new
+                    {
+                        ownerId = owner.Id,
+                        userId,
+                        emailMasked = MaskEmail(normalized),
+                        provider = providerName,
+                        usedSandbox,
+                        emailSent = false,
+                        detail = sendResult.Detail,
                         source = "self_serve"
                     },
                     cancellationToken: cancellationToken);
