@@ -222,6 +222,17 @@ try
     app.MapHub<AssemblyHub>("/hubs/assembly");
     app.MapControllers();
 
+    // Email-safe short entry for password reset (avoids opening /reset-password.html without ?token=).
+    app.MapGet("/go/reset-password/{token}", (string token) =>
+    {
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 256)
+        {
+            return Results.Redirect("/reset-password.html");
+        }
+
+        return Results.Redirect($"/reset-password.html?token={Uri.EscapeDataString(token)}");
+    }).AllowAnonymous();
+
     var applyMigrations = app.Environment.IsDevelopment()
         || app.Configuration.GetValue("ASAMBLEAS_APPLY_MIGRATIONS", false);
     var demoOptions = app.Configuration.GetSection(DemoOptions.SectionName).Get<DemoOptions>()

@@ -120,7 +120,7 @@ public sealed class OwnerPasswordResetService
             actorId,
             cancellationToken);
 
-        var resetPath = $"/reset-password.html?token={Uri.EscapeDataString(reset.RawToken)}";
+        var resetPath = $"/go/reset-password/{Uri.EscapeDataString(reset.RawToken)}";
         var resetUrl = _publicBaseUrl.BuildAbsoluteUrl(resetPath);
 
         ProviderSendResult sendResult;
@@ -261,7 +261,7 @@ public sealed class OwnerPasswordResetService
                 createdByUserId: null,
                 cancellationToken);
 
-            var resetPath = $"/reset-password.html?token={Uri.EscapeDataString(reset.RawToken)}";
+            var resetPath = $"/go/reset-password/{Uri.EscapeDataString(reset.RawToken)}";
             var resetUrl = _publicBaseUrl.BuildAbsoluteUrl(resetPath);
 
             var sendResult = await SendResetEmailAsync(
@@ -520,7 +520,8 @@ public sealed class OwnerPasswordResetService
 
         var text =
             $"Hola {ownerName},\n\nRecibimos una solicitud para restablecer tu contraseña de ASAMBLEAS ({phName}).\n" +
-            $"Abre este enlace (un solo uso):\n{resetUrl}\n\n" +
+            $"Abre este enlace completo (un solo uso):\n{resetUrl}\n\n" +
+            $"Importante: el enlace debe incluir el código después de /go/reset-password/\n" +
             $"Vence: {expiresLabel}\n\nSi no solicitaste este cambio, ignora este mensaje.\n" +
             "Nunca enviamos tu contraseña por correo: tú defines una nueva al abrir el enlace.";
 
@@ -537,6 +538,10 @@ public sealed class OwnerPasswordResetService
                    style="display:inline-block;background:#0f3d2e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:600">
                   Definir nueva contraseña
                 </a>
+              </p>
+              <p style="font-size:13px;color:#555;word-break:break-all">
+                Si el botón no abre bien, copia y pega este enlace completo:<br />
+                <a href="{safeUrl}" style="color:#0f3d2e">{safeUrl}</a>
               </p>
               <p style="font-size:13px;color:#555">Vence: {System.Net.WebUtility.HtmlEncode(expiresLabel)}</p>
               <p style="font-size:12px;color:#777">Si no solicitaste este cambio, puedes ignorar este mensaje. Nunca enviamos tu contraseña por correo.</p>

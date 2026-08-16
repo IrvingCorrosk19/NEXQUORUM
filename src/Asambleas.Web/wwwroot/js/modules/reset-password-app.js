@@ -2,9 +2,10 @@ import { api } from "./api.js";
 import { AppFeedback } from "./app-feedback.js";
 
 const params = new URLSearchParams(location.search);
-const token = params.get("token");
+let token = params.get("token");
 const metaEl = document.getElementById("reset-meta");
 const form = document.getElementById("form-reset");
+const pasteForm = document.getElementById("form-paste-link");
 
 function wirePasswordToggles(root = document) {
   root.querySelectorAll("[data-toggle-password]").forEach((btn) => {
@@ -45,15 +46,55 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-if (!token) {
-  showAlert("Enlace inválido. Solicita un nuevo restablecimiento desde el inicio de sesión.");
+function extractTokenFromLink(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return null;
+  try {
+    const url = new URL(value, location.origin);
+    const fromQuery = url.searchParams.get("token");
+    if (fromQuery) return fromQuery;
+    const pathMatch = url.pathname.match(/\/go\/reset-password\/([^/?#]+)/i);
+    if (pathMatch?.[1]) return decodeURIComponent(pathMatch[1]);
+  } catch {
+    /* fall through */
+  }
+  const loose = value.match(/[?&]token=([^&\s#]+)/i);
+  if (loose?.[1]) return decodeURIComponent(loose[1]);
+  const pathLoose = value.match(/\/go\/reset-password\/([^/?#\s]+)/i);
+  if (pathLoose?.[1]) return decodeURIComponent(pathLoose[1]);
+  return null;
+}
+
+function showMissingTokenUi() {
+  showAlert(
+    "El enlace llegó incompleto (falta el código). Usa el botón del correo o pega el enlace completo aquí."
+  );
   if (form) form.hidden = true;
+  if (pasteForm) pasteForm.hidden = false;
+}
+
+pasteForm?.addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const extracted = extractTokenFromLink(String(fd.get("pastedLink") || ""));
+  if (!extracted) {
+    AppFeedback.warning("No encontramos el código en ese texto. Copia el enlace completo del correo.", {
+      title: "Enlace incompleto"
+    });
+    return;
+  }
+  location.assign(`/reset-password.html?token=${encodeURIComponent(extracted)}`);
+});
+
+if (!token) {
+  showMissingTokenUi();
 } else {
   api(`/api/auth/password-reset/preview?token=${encodeURIComponent(token)}`)
     .then((preview) => {
       if (!preview.isValid || preview.errorCode) {
         showAlert(preview.errorMessage || "Este enlace no es válido.");
         if (form) form.hidden = true;
+        if (pasteForm) pasteForm.hidden = false;
         return;
       }
 
@@ -69,6 +110,7 @@ if (!token) {
     .catch(() => {
       showAlert("No pudimos validar el enlace. Solicita un nuevo restablecimiento.");
       if (form) form.hidden = true;
+      if (pasteForm) pasteForm.hidden = false;
     });
 
   form?.addEventListener("submit", async (ev) => {
