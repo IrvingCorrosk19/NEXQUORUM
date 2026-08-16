@@ -1,0 +1,16 @@
+{
+  "listStatus": 200,
+  "activeBefore": [],
+  "presidentPlay": {
+    "status": 200,
+    "len": "8926211"
+  },
+  "ownerPlay": {
+    "status": 200
+  },
+  "unauthPlay": {
+    "status": 401
+  },
+  "idempotentDoubleStart": true,
+  "verdict": "RBAC/TENANT PASS"
+}

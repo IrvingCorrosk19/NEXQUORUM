@@ -1,0 +1,84 @@
+{
+  "base": "https://asambleas.164.68.99.83.nip.io",
+  "assemblyId": "44444444-4444-4444-4444-444444444401",
+  "provider": "LiveKitEgress",
+  "egressId": null,
+  "recordingId": "68bcaa32-0dc5-441b-a984-25b0774325bb",
+  "statusTimeline": [
+    {
+      "at": "start",
+      "http": 200,
+      "body": {
+        "id": "68bcaa32-0dc5-441b-a984-25b0774325bb",
+        "assemblyId": "44444444-4444-4444-4444-444444444401",
+        "status": "Recording",
+        "startedAtUtc": "2026-08-16T14:33:09.6877863+00:00",
+        "endedAtUtc": null,
+        "durationSeconds": null,
+        "fileSizeBytes": null,
+        "fileSizeLabel": null,
+        "mimeType": "video/mp4",
+        "displayFileName": "Asamblea-44444444444444444444444444444401-68bcaa320dc5441ba98425b0774325bb.mp4",
+        "provider": "LiveKitEgress",
+        "failureReason": null,
+        "canPlay": false,
+        "canDownload": false
+      }
+    },
+    {
+      "at": "stop",
+      "http": 200,
+      "body": {
+        "id": "68bcaa32-0dc5-441b-a984-25b0774325bb",
+        "assemblyId": "44444444-4444-4444-4444-444444444401",
+        "status": "Processing",
+        "startedAtUtc": "2026-08-16T14:33:09.687786+00:00",
+        "endedAtUtc": "2026-08-16T14:33:36.6014017+00:00",
+        "durationSeconds": 26,
+        "fileSizeBytes": null,
+        "fileSizeLabel": null,
+        "mimeType": "video/mp4",
+        "displayFileName": "Asamblea-44444444444444444444444444444401-68bcaa320dc5441ba98425b0774325bb.mp4",
+        "provider": "LiveKitEgress",
+        "failureReason": null,
+        "canPlay": false,
+        "canDownload": false
+      }
+    },
+    {
+      "at": "refresh-0",
+      "status": "Ready",
+      "bytes": 8926211
+    }
+  ],
+  "fileSize": 8926211,
+  "playStatus": {
+    "status": 200,
+    "type": "video/mp4",
+    "len": "8926211"
+  },
+  "downloadStatus": {
+    "status": 200,
+    "type": "video/mp4",
+    "bytes": 8926211
+  },
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 ()"
+  ],
+  "networkErrors": [
+    {
+      "status": 401,
+      "url": "https://asambleas.164.68.99.83.nip.io/api/auth/me"
+    }
+  ],
+  "screenshots": [
+    "01-room.png",
+    "02-recording.png",
+    "03-after-stop.png",
+    "04-expediente.png"
+  ],
+  "verdict": "LIVEKIT REAL EGRESS — PRODUCTION CERTIFIED",
+  "notes": [
+    "roomConnectedHint=true"
+  ]
+}
