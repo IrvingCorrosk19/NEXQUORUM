@@ -111,4 +111,20 @@ PH name and assembly title taken from package DTO (`PropertyHorizontalName`, `Ti
 
 ## 12. Production gate
 
-After commit/push/deploy: regenerate expediente on VPS, open PDFs, confirm UTF-8/fonts on Linux match local.
+**Deploy:** `90cd285` via `git archive` → VPS rebuild `asambleas_web` (`DEPLOY_DONE`, health 200).
+
+**Production smoke (`https://asambleas.164.68.99.83.nip.io`):**
+
+| Check | Result |
+| --- | --- |
+| Login president@ocean.demo | 200 |
+| Acta PDF | 200 · `%PDF-` · 4 pages · watermark lifecycle OK |
+| Asistencia TXT | UTF-8 BOM · no `accredited=True` / `CheckedIn` · human labels |
+| Quórum PDF | 200 |
+| expediente.html | Documentos oficiales + `expediente.css` |
+| Linux fonts / UTF-8 | No `??` / `Ã³` in extracted PDF text |
+
+Render: `docs/AUDIT/premium-doc-renders/vps-acta-p1.png`
+
+**FINAL:** PREMIUM DOCUMENT SYSTEM — PRODUCTION CERTIFIED
+
