@@ -152,15 +152,18 @@ public sealed class RecordingService
             throw new DomainException("Recording provider is not available.");
         }
 
-        var activeExists = await _db.AssemblyRecordings.AnyAsync(
-            r => r.AssemblyId == assemblyId
-                 && (r.Status == AssemblyRecordingStatus.Starting
-                     || r.Status == AssemblyRecordingStatus.Recording
-                     || r.Status == AssemblyRecordingStatus.Processing),
-            cancellationToken);
-        if (activeExists)
+        var active = await _db.AssemblyRecordings
+            .AsNoTracking()
+            .Where(r => r.AssemblyId == assemblyId
+                        && (r.Status == AssemblyRecordingStatus.Starting
+                            || r.Status == AssemblyRecordingStatus.Recording
+                            || r.Status == AssemblyRecordingStatus.Processing))
+            .OrderByDescending(r => r.StartedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (active is not null)
         {
-            throw new DomainException("Another recording is already in progress for this assembly.");
+            // Idempotent start: return the in-flight recording instead of creating a second one.
+            return await ToDtoAsync(active, cancellationToken);
         }
 
         var recordingId = Guid.NewGuid();
@@ -185,6 +188,10 @@ public sealed class RecordingService
         _db.AssemblyRecordings.Add(recording);
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Notify room immediately so clients see REC without waiting for egress start.
+        var startingDto = await ToDtoAsync(recording, cancellationToken);
+        await _realtime.PublishRecordingUpdatedAsync(assemblyId, startingDto, cancellationToken);
+
         try
         {
             var start = await _provider.StartAsync(
@@ -201,18 +208,11 @@ public sealed class RecordingService
             recording.MimeType = start.MimeType;
             recording.DisplayFileName = start.DisplayFileName;
 
-            var isSyntheticReady = string.Equals(start.Provider, "SyntheticPilotMp4", StringComparison.OrdinalIgnoreCase)
-                                   && await _storage.ExistsAsync(start.StorageKey, cancellationToken);
-
-            if (isSyntheticReady)
-            {
-                await MarkReadyAsync(recording, cancellationToken);
-            }
-            else
-            {
-                recording.Status = AssemblyRecordingStatus.Recording;
-                await _db.SaveChangesAsync(cancellationToken);
-            }
+            // Lifecycle: always enter RECORDING after a successful provider start.
+            // Synthetic may already have bytes on disk, but Ready is reserved for Stop/finalize
+            // so the room UI can show GRABANDO → Detener until the operator stops.
+            recording.Status = AssemblyRecordingStatus.Recording;
+            await _db.SaveChangesAsync(cancellationToken);
 
             await _audit.WriteAsync(
                 AuditEventType.RecordingStarted,
@@ -220,16 +220,6 @@ public sealed class RecordingService
                 correlationId: recordingId,
                 metadata: new { recordingId, provider = recording.Provider, egressId = recording.ProviderEgressId },
                 cancellationToken: cancellationToken);
-
-            if (recording.Status == AssemblyRecordingStatus.Ready)
-            {
-                await _audit.WriteAsync(
-                    AuditEventType.RecordingReady,
-                    assemblyId,
-                    correlationId: recordingId,
-                    metadata: new { recordingId, recording.ChecksumSha256, recording.FileSizeBytes },
-                    cancellationToken: cancellationToken);
-            }
         }
         catch (Exception ex)
         {
@@ -266,6 +256,12 @@ public sealed class RecordingService
         var recording = await LoadRecordingAsync(assemblyId, recordingId, cancellationToken);
         TenantGuard.EnsureTenantMatch(_currentTenant, recording.TenantId);
 
+        // Idempotent stop: already finalizing / ready → return current state.
+        if (recording.Status is AssemblyRecordingStatus.Processing or AssemblyRecordingStatus.Ready)
+        {
+            return await ToDtoAsync(recording, cancellationToken);
+        }
+
         if (recording.Status is not (AssemblyRecordingStatus.Recording or AssemblyRecordingStatus.Starting))
         {
             throw new DomainException($"Cannot stop recording in status '{recording.Status}'.");
@@ -273,6 +269,19 @@ public sealed class RecordingService
 
         var storageKey = recording.StorageKey
                          ?? throw new DomainException("Recording storage key is missing.");
+
+        // Show "Processing" in the room immediately while egress stop runs.
+        recording.Status = AssemblyRecordingStatus.Processing;
+        recording.EndedAtUtc = DateTimeOffset.UtcNow;
+        if (recording.StartedAtUtc is DateTimeOffset startedEarly)
+        {
+            recording.DurationSeconds = (int)Math.Max(0, (recording.EndedAtUtc.Value - startedEarly).TotalSeconds);
+        }
+        await _db.SaveChangesAsync(cancellationToken);
+        await _realtime.PublishRecordingUpdatedAsync(
+            assemblyId,
+            await ToDtoAsync(recording, cancellationToken),
+            cancellationToken);
 
         try
         {
@@ -332,6 +341,135 @@ public sealed class RecordingService
         var dto = await ToDtoAsync(recording, cancellationToken);
         await _realtime.PublishRecordingUpdatedAsync(assemblyId, dto, cancellationToken);
         return dto;
+    }
+
+    /// <summary>
+    /// Stops any in-flight recording before assembly completion so segments are not orphaned.
+    /// Safe/no-op when none are active. Does not require RecordingControl (system finalize).
+    /// </summary>
+    public async Task FinalizeActiveRecordingsAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var assembly = await LoadAssemblyAsync(assemblyId, tracking: false, cancellationToken);
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        var activeIds = await _db.AssemblyRecordings
+            .Where(r => r.AssemblyId == assemblyId
+                        && (r.Status == AssemblyRecordingStatus.Starting
+                            || r.Status == AssemblyRecordingStatus.Recording
+                            || r.Status == AssemblyRecordingStatus.Processing))
+            .Select(r => r.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var id in activeIds)
+        {
+            var row = await _db.AssemblyRecordings
+                .FirstOrDefaultAsync(r => r.Id == id && r.AssemblyId == assemblyId, cancellationToken);
+            if (row is null)
+            {
+                continue;
+            }
+
+            if (row.Status is AssemblyRecordingStatus.Processing)
+            {
+                // Already stopping — wait for provider then seal Ready if possible.
+                try
+                {
+                    var storageKey = row.StorageKey ?? string.Empty;
+                    var stop = await _provider.StopAsync(row.ProviderEgressId, storageKey, cancellationToken);
+                    if (!stop.ProcessingAsync)
+                    {
+                        await MarkReadyAsync(row, cancellationToken);
+                    }
+                }
+                catch
+                {
+                    row.Status = AssemblyRecordingStatus.Failed;
+                    row.FailureReason = Truncate("Failed to finalize recording on assembly complete.", 2000);
+                    row.EndedAtUtc ??= DateTimeOffset.UtcNow;
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+
+                continue;
+            }
+
+            if (row.Status is not (AssemblyRecordingStatus.Recording or AssemblyRecordingStatus.Starting))
+            {
+                continue;
+            }
+
+            var storage = row.StorageKey
+                          ?? throw new DomainException("Recording storage key is missing.");
+            row.Status = AssemblyRecordingStatus.Processing;
+            row.EndedAtUtc = DateTimeOffset.UtcNow;
+            if (row.StartedAtUtc is DateTimeOffset startedEarly)
+            {
+                row.DurationSeconds = (int)Math.Max(0, (row.EndedAtUtc.Value - startedEarly).TotalSeconds);
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            await _realtime.PublishRecordingUpdatedAsync(
+                assemblyId,
+                await ToDtoAsync(row, cancellationToken),
+                cancellationToken);
+
+            try
+            {
+                var stop = await _provider.StopAsync(row.ProviderEgressId, storage, cancellationToken);
+                row.EndedAtUtc = DateTimeOffset.UtcNow;
+                if (row.StartedAtUtc is DateTimeOffset started)
+                {
+                    row.DurationSeconds = (int)Math.Max(0, (row.EndedAtUtc.Value - started).TotalSeconds);
+                }
+
+                if (stop.ProcessingAsync)
+                {
+                    row.Status = AssemblyRecordingStatus.Processing;
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+                else
+                {
+                    await MarkReadyAsync(row, cancellationToken);
+                }
+
+                await _audit.WriteAsync(
+                    AuditEventType.RecordingStopped,
+                    assemblyId,
+                    correlationId: id,
+                    metadata: new { recordingId = id, reason = "AssemblyCompleted" },
+                    cancellationToken: cancellationToken);
+
+                if (row.Status == AssemblyRecordingStatus.Ready)
+                {
+                    await _audit.WriteAsync(
+                        AuditEventType.RecordingReady,
+                        assemblyId,
+                        correlationId: id,
+                        metadata: new { recordingId = id, row.ChecksumSha256, row.FileSizeBytes },
+                        cancellationToken: cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                row.Status = AssemblyRecordingStatus.Failed;
+                row.FailureReason = Truncate(ex.Message, 2000);
+                row.EndedAtUtc ??= DateTimeOffset.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                await _audit.WriteAsync(
+                    AuditEventType.RecordingFailed,
+                    assemblyId,
+                    correlationId: id,
+                    metadata: new { recordingId = id, reason = row.FailureReason, onComplete = true },
+                    cancellationToken: cancellationToken);
+            }
+
+            await _realtime.PublishRecordingUpdatedAsync(
+                assemblyId,
+                await ToDtoAsync(row, cancellationToken),
+                cancellationToken);
+        }
     }
 
     public async Task<AssemblyRecordingDto> RefreshStatusAsync(
@@ -594,6 +732,7 @@ public sealed class RecordingService
     }
 
     public async Task<(Stream Stream, long Length, string ContentType, string FileName)> OpenRecordingStreamAsync(
+        Guid assemblyId,
         Guid recordingId,
         bool forDownload = false,
         CancellationToken cancellationToken = default)
@@ -605,6 +744,13 @@ public sealed class RecordingService
             .FirstOrDefaultAsync(r => r.Id == recordingId, cancellationToken)
             ?? throw new DomainException($"Recording '{recordingId}' was not found.");
 
+        if (recording.AssemblyId != assemblyId)
+        {
+            throw new DomainException("RECORDING_ASSEMBLY_MISMATCH", "Recording does not belong to this assembly.");
+        }
+
+        TenantGuard.EnsureTenantMatch(_currentTenant, recording.TenantId);
+
         if (string.IsNullOrWhiteSpace(recording.StorageKey))
         {
             throw new DomainException("Recording file is not available.");
@@ -613,6 +759,14 @@ public sealed class RecordingService
         var (stream, length, contentType) = await _storage.OpenReadWithMetaAsync(
             recording.StorageKey,
             cancellationToken);
+
+        if (length <= 0)
+        {
+            await stream.DisposeAsync();
+            throw new DomainException(
+                "RECORDING_FILE_EMPTY",
+                "El archivo de grabación está vacío o aún no se guardó en el servidor.");
+        }
 
         var fileName = string.IsNullOrWhiteSpace(recording.DisplayFileName)
             ? $"recording-{recordingId:N}.mp4"
@@ -722,8 +876,12 @@ public sealed class RecordingService
         CancellationToken cancellationToken)
     {
         var canAccess = await TryAuthorizeAsync(recording, forDownload: false, cancellationToken);
-        var canDownload = canAccess && await TryAuthorizeAsync(recording, forDownload: true, cancellationToken);
+        var canDownloadAuth = canAccess && await TryAuthorizeAsync(recording, forDownload: true, cancellationToken);
         var ready = recording.Status == AssemblyRecordingStatus.Ready;
+        var filePresent = ready
+            && !string.IsNullOrWhiteSpace(recording.StorageKey)
+            && recording.FileSizeBytes is not 0
+            && await _storage.ExistsAsync(recording.StorageKey!, cancellationToken);
 
         return new AssemblyRecordingDto(
             recording.Id,
@@ -738,8 +896,8 @@ public sealed class RecordingService
             recording.DisplayFileName,
             recording.Provider,
             recording.FailureReason,
-            CanPlay: ready && canAccess,
-            CanDownload: ready && canDownload);
+            CanPlay: ready && canAccess && filePresent,
+            CanDownload: ready && canDownloadAuth && filePresent);
     }
 
     private async Task<bool> TryAuthorizeAsync(

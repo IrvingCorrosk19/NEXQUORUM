@@ -40,23 +40,40 @@ public sealed class RecordingExpedienteTests
         var start = await president.PostAsync(
             $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/recording/start");
         start.StatusCode.Should().Be(HttpStatusCode.OK);
-        var recording = await start.Content.ReadFromJsonAsync<AssemblyRecordingDto>();
+        var recording = await start.Content.ReadFromJsonAsync<AssemblyRecordingDto>(
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         recording.Should().NotBeNull();
+        // Lifecycle: start must enter Recording (not jump to Ready) so UI can show Detener.
+        recording!.Status.Should().Be("Recording");
+        recording.Id.Should().NotBe(Guid.Empty);
 
-        if (recording!.Status is "Recording" or "Starting")
-        {
-            var stop = await president.PostAsync(
-                $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/recording/{recording.Id}/stop");
-            stop.EnsureSuccessStatusCode();
-            recording = await stop.Content.ReadFromJsonAsync<AssemblyRecordingDto>();
-        }
+        // Idempotent double-start returns the same active recording.
+        var start2 = await president.PostAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/recording/start");
+        start2.StatusCode.Should().Be(HttpStatusCode.OK);
+        var again = await start2.Content.ReadFromJsonAsync<AssemblyRecordingDto>(
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        again!.Id.Should().Be(recording.Id);
+        again.Status.Should().BeOneOf("Recording", "Starting", "Processing");
+
+        var stop = await president.PostAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/recording/{recording.Id}/stop");
+        stop.EnsureSuccessStatusCode();
+        recording = await stop.Content.ReadFromJsonAsync<AssemblyRecordingDto>(
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        // Idempotent double-stop
+        var stop2 = await president.PostAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/recording/{recording!.Id}/stop");
+        stop2.EnsureSuccessStatusCode();
 
         if (recording!.Status is not "Ready")
         {
             var refreshed = await president.PostAsync(
                 $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/recording/{recording.Id}/refresh");
             refreshed.EnsureSuccessStatusCode();
-            recording = await refreshed.Content.ReadFromJsonAsync<AssemblyRecordingDto>();
+            recording = await refreshed.Content.ReadFromJsonAsync<AssemblyRecordingDto>(
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         }
 
         recording!.Status.Should().Be("Ready");
@@ -72,6 +89,11 @@ public sealed class RecordingExpedienteTests
         var anonGet = await anon.GetAsync(
             $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/recording/{recording.Id}/download");
         anonGet.StatusCode.Should().BeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Redirect, HttpStatusCode.Found);
+
+        // Cross-assembly / tenant: Ocean recording cannot be fetched under OTHER assembly id.
+        var cross = await president.GetAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOtherId}/recording/{recording.Id}/download");
+        cross.StatusCode.Should().BeOneOf(HttpStatusCode.Forbidden, HttpStatusCode.NotFound, HttpStatusCode.BadRequest);
 
         var zip = await president.GetAsync(
             $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/expediente/package");

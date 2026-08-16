@@ -943,19 +943,25 @@ function syncRecordingBanner() {
     }
   }
 
-  if (startBtn) startBtn.hidden = active || processing;
+  if (startBtn) {
+    startBtn.hidden = active || processing;
+    startBtn.setAttribute("aria-label", "Iniciar grabación");
+  }
   if (stopBtn) {
-    // Visible while recording / starting (including optimistic pending).
+    // Visible while recording / starting / processing (including optimistic pending).
     stopBtn.hidden = !(active || processing);
     if (processing) {
       stopBtn.disabled = true;
       stopBtn.textContent = "Procesando…";
+      stopBtn.setAttribute("aria-label", "Procesando grabación");
     } else if (pending) {
       stopBtn.disabled = true;
       stopBtn.textContent = "Iniciando…";
+      stopBtn.setAttribute("aria-label", "Iniciando grabación");
     } else {
       stopBtn.disabled = false;
       stopBtn.textContent = "Detener grabación";
+      stopBtn.setAttribute("aria-label", "Detener grabación");
     }
   }
 
@@ -1968,24 +1974,26 @@ ${t("assembly.endPrecheck", {
       state.recording = started;
       syncRecordingBanner();
       const status = started?.status || "";
-      const provider = String(started?.provider || "");
-      if (status === "Ready") {
+      if (status === "Recording" || status === "Starting") {
         showToast({
-          title: "Evidencia de grabación lista",
-          message:
-            provider === "SyntheticPilotMp4"
-              ? "Se generó un archivo piloto (sin worker LiveKit Egress). Revíselo en Expediente."
-              : "El archivo quedó listo. Revíselo en Expediente.",
+          title: "Grabación iniciada",
+          message: "La sesión se está grabando. Use Detener grabación para finalizar.",
           variant: "success"
         });
-      } else if (status === "Recording" || status === "Starting") {
-        showToast("Grabación en curso — use Detener grabación para finalizar", "success");
+      } else if (status === "Ready") {
+        showToast({
+          title: "Grabación guardada",
+          message: "Disponible en Expediente.",
+          variant: "success"
+        });
       } else if (status === "Failed") {
         showToast({
-          title: "No se pudo grabar",
-          message: started?.failureReason || "Error al iniciar la grabación.",
+          title: "No fue posible iniciar la grabación",
+          message: started?.failureReason || "Inténtalo nuevamente.",
           variant: "error"
         });
+      } else if (status === "Processing") {
+        showToast("Procesando grabación…", "info");
       } else {
         showToast(`Grabación: ${status || "actualizada"}`, "info");
       }
@@ -2033,7 +2041,18 @@ ${t("assembly.endPrecheck", {
         })
       );
       syncRecordingBanner();
-      showToast("Grabación detenida / procesando", "info");
+      const finalStatus = state.recording?.status || "";
+      if (finalStatus === "Ready") {
+        showToast({
+          title: "Grabación detenida",
+          message: "Disponible en Expediente.",
+          variant: "success"
+        });
+      } else if (finalStatus === "Processing") {
+        showToast("Grabación detenida — procesando archivo…", "info");
+      } else {
+        showToast("Grabación detenida / procesando", "info");
+      }
     } catch (error) {
       await hydrateRecording();
       showError(error.message);

@@ -134,9 +134,8 @@ public sealed class RecordingController : ControllerBase
         bool download,
         CancellationToken cancellationToken)
     {
-        _ = assemblyId;
         var (stream, length, contentType, fileName) =
-            await _recordings.OpenRecordingStreamAsync(recordingId, download, cancellationToken);
+            await _recordings.OpenRecordingStreamAsync(assemblyId, recordingId, download, cancellationToken);
 
         Response.Headers.AcceptRanges = "bytes";
         _ = length;

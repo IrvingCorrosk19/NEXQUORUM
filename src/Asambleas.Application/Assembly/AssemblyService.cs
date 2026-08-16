@@ -18,6 +18,7 @@ public sealed class AssemblyService
     private readonly IAssemblyRealtimePublisher _realtime;
     private readonly Quorum.QuorumService _quorum;
     private readonly IScreenShareCoordinator _screenShare;
+    private readonly Recording.RecordingService _recordings;
 
     public AssemblyService(
         IAsambleasDbContext db,
@@ -25,7 +26,8 @@ public sealed class AssemblyService
         IAuditService audit,
         IAssemblyRealtimePublisher realtime,
         Quorum.QuorumService quorum,
-        IScreenShareCoordinator screenShare)
+        IScreenShareCoordinator screenShare,
+        Recording.RecordingService recordings)
     {
         _db = db;
         _currentTenant = currentTenant;
@@ -33,6 +35,7 @@ public sealed class AssemblyService
         _realtime = realtime;
         _quorum = quorum;
         _screenShare = screenShare;
+        _recordings = recordings;
     }
 
     public async Task<IReadOnlyList<AssemblySummaryDto>> ListForCurrentUserAsync(
@@ -184,6 +187,9 @@ public sealed class AssemblyService
                         CurrentUserCanForceStop: false),
                     cancellationToken);
             }
+
+            // Finalize in-flight recordings so Complete never leaves orphan Starting/Recording rows.
+            await _recordings.FinalizeActiveRecordingsAsync(assemblyId, cancellationToken);
         }
 
         assembly.Status = target;
