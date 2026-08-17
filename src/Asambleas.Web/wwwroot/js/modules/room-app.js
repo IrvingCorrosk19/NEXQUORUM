@@ -8,12 +8,15 @@ import { createLiveVotingWorkspace } from "./live-voting-workspace.js";
 import {
   completeFloor,
   cancelOwnFloor,
+  completeOwnFloor,
   getQueue,
   grantFloor,
   rejectFloor,
   renderSpeakerQueue,
   requestFloor,
-  skipFloor
+  skipFloor,
+  activeSpeakerQueue,
+  queuePositionFor
 } from "./speakers.js";
 import { renderAgenda, setActiveAgendaItem } from "./agenda.js";
 import {
@@ -114,6 +117,11 @@ let durationTimer = null;
 let mediaControlsWired = false;
 let recordingTimer = null;
 let controlBarIdleTimer = null;
+/** Mutex for raise-hand / cancel / complete-own — prevents double-submit races. */
+let handActionBusy = false;
+/** Transient UX phase: idle | requesting | cancelling | completing */
+let handPhase = "idle";
+let lastFloorToastId = null;
 
 const liveWorkspace = createLiveVotingWorkspace({
   getAssemblyId: () => assemblyId,
@@ -174,6 +182,63 @@ function myGrantedFloor() {
     return current;
   }
   return null;
+}
+
+function myQueuePosition() {
+  const mine = mySpeakerRequest();
+  if (!mine) return null;
+  return queuePositionFor(state.queue, mine.id || mine.Id);
+}
+
+function mapSpeakerError(error) {
+  const raw = String(error?.message || error || "");
+  const lower = raw.toLowerCase();
+  const code = String(error?.code || error?.payload?.extensions?.code || "").toUpperCase();
+
+  if (
+    code === "SPEAKER_NO_ACTIVE_REQUEST" ||
+    lower.includes("no active speaker request") ||
+    lower.includes("no request found") ||
+    (lower.includes("speaker request") && lower.includes("not found"))
+  ) {
+    return { kind: "hydrate", message: null };
+  }
+  if (lower.includes("already have the floor")) {
+    return { kind: "hydrate", message: null };
+  }
+  if (error?.status === 403 || code.includes("FORBIDDEN") || lower.includes("forbidden")) {
+    return { kind: "auth", message: t("assembly.speakerForbidden") || "No tienes permiso para esta acción." };
+  }
+  if (error?.status === 0 || lower.includes("failed to fetch") || lower.includes("network")) {
+    return {
+      kind: "network",
+      message: t("assembly.speakerNetworkError") || "No pudimos actualizar tu solicitud. Intenta nuevamente."
+    };
+  }
+  if (error?.status >= 500) {
+    return {
+      kind: "server",
+      message: t("assembly.speakerServerError") || "No pudimos completar la acción. Intenta nuevamente."
+    };
+  }
+  if (/^[A-Za-z][A-Za-z0-9 .,'"_:-]{8,}$/.test(raw) && !/[áéíóúñ¿¡]/i.test(raw)) {
+    return {
+      kind: "generic",
+      message: t("assembly.speakerGenericError") || "No pudimos actualizar tu solicitud de palabra."
+    };
+  }
+  return { kind: "user", message: raw };
+}
+
+async function hydrateSpeakerQueue() {
+  try {
+    state.queue = await getQueue(assemblyId);
+  } catch {
+    /* keep last known */
+  }
+  refreshPanels();
+  syncMeetingControlBar();
+  syncFloorBanner();
 }
 
 function requestedHands() {
@@ -251,28 +316,63 @@ function syncMeetingControlBar() {
     camBtn.title = camOn ? t("lobby.turnCameraOff") : t("lobby.turnCameraOn");
   }
   if (handBtn) {
-    const pressed = handUp || hasFloor;
-    // Always clear disabled when only hand-up (allow lower); keep disabled with floor.
-    handBtn.disabled = Boolean(hasFloor);
-    handBtn.setAttribute("aria-pressed", String(pressed));
+    const busy =
+      handActionBusy ||
+      handPhase === "requesting" ||
+      handPhase === "cancelling" ||
+      handPhase === "completing";
+    const pos = myQueuePosition();
+    handBtn.disabled = Boolean(busy);
+    // Floor holder must always be able to end their turn once not mid-flight.
+    if (hasFloor && handPhase === "idle" && !handActionBusy) {
+      handBtn.disabled = false;
+    }
+    handBtn.setAttribute("aria-busy", String(busy));
+    handBtn.setAttribute("aria-pressed", String(handUp || hasFloor));
     handBtn.classList.toggle("is-active", handUp && !hasFloor);
     handBtn.classList.toggle("has-floor", hasFloor);
-    const handLabel = hasFloor
-      ? t("assembly.youHaveFloor")
-      : handUp
-        ? t("assembly.lowerHand")
-        : t("assembly.raiseHand");
+
+    let handLabel;
+    let shortLabel;
+    let handState;
+    if (handPhase === "requesting") {
+      handLabel = t("assembly.requestingFloor") || "Enviando solicitud…";
+      shortLabel = t("assembly.requestingFloorShort") || "Enviando…";
+      handState = "requesting";
+    } else if (handPhase === "cancelling") {
+      handLabel = t("assembly.cancellingFloor") || "Cancelando…";
+      shortLabel = t("assembly.cancellingFloorShort") || "Cancelando…";
+      handState = "cancelling";
+    } else if (handPhase === "completing") {
+      handLabel = t("assembly.completingFloor") || "Finalizando…";
+      shortLabel = t("assembly.completingFloorShort") || "Finalizando…";
+      handState = "completing";
+    } else if (hasFloor) {
+      handLabel = t("assembly.completeOwnFloor") || "Finalizar intervención";
+      shortLabel = t("assembly.completeOwnFloorShort") || "Finalizar";
+      handState = "floor";
+      // Never leave the governance "you have the floor" copy on the action button.
+    } else if (handUp) {
+      handLabel =
+        pos != null
+          ? t("assembly.queuedCancel", { n: pos }) || `En cola · #${pos} · Cancelar`
+          : t("assembly.cancelSpeakRequest") || "Cancelar solicitud";
+      shortLabel =
+        pos != null
+          ? t("assembly.queuedShort", { n: pos }) || `#${pos}`
+          : t("assembly.lowerHandShort") || "Bajar";
+      handState = "raised";
+    } else {
+      handLabel = t("assembly.requestSpeak") || "Pedir palabra";
+      shortLabel = t("assembly.raiseHandShort") || "Palabra";
+      handState = "idle";
+    }
+
     handBtn.setAttribute("aria-label", handLabel);
     handBtn.title = handLabel;
     const label = handBtn.querySelector(".mcb-label");
-    if (label) {
-      label.textContent = hasFloor
-        ? t("assembly.floorShort") || "Palabra"
-        : handUp
-          ? t("assembly.lowerHandShort") || "Bajar"
-          : t("assembly.raiseHandShort") || "Palabra";
-    }
-    handBtn.dataset.handState = hasFloor ? "floor" : handUp ? "raised" : "idle";
+    if (label) label.textContent = shortLabel;
+    handBtn.dataset.handState = handState;
   }
   if (queueBtn) {
     const canMod = hasPermission(state.user, "meeting:moderate");
@@ -656,12 +756,7 @@ function renderQueueDrawer() {
   const root = qs("#speaker-queue-drawer-list");
   if (!root) return;
   const canModerate = hasPermission(state.user, "meeting:moderate");
-  const active = {
-    ...state.queue,
-    queue: (state.queue?.queue || []).filter(
-      (s) => s.status === "Requested" || s.status === "Granted"
-    )
-  };
+  const active = activeSpeakerQueue(state.queue);
   renderSpeakerQueue(root, active, {
     canModerate,
     onGrant: async (id) => {
@@ -672,7 +767,10 @@ function renderQueueDrawer() {
         renderQueueDrawer();
         syncMeetingControlBar();
       } catch (error) {
-        showError(error.message);
+        const mapped = mapSpeakerError(error);
+        showToast(mapped.message || t("assembly.speakerGenericError"), "error");
+        showError("");
+        await hydrateSpeakerQueue();
       }
     },
     onComplete: async (id) => {
@@ -683,7 +781,10 @@ function renderQueueDrawer() {
         renderQueueDrawer();
         syncMeetingControlBar();
       } catch (error) {
-        showError(error.message);
+        const mapped = mapSpeakerError(error);
+        showToast(mapped.message || t("assembly.speakerGenericError"), "error");
+        showError("");
+        await hydrateSpeakerQueue();
       }
     },
     onReject: async (id) => {
@@ -694,7 +795,10 @@ function renderQueueDrawer() {
         renderQueueDrawer();
         syncMeetingControlBar();
       } catch (error) {
-        showError(error.message);
+        const mapped = mapSpeakerError(error);
+        showToast(mapped.message || t("assembly.speakerGenericError"), "error");
+        showError("");
+        await hydrateSpeakerQueue();
       }
     },
     onSkip: async (id) => {
@@ -705,7 +809,10 @@ function renderQueueDrawer() {
         renderQueueDrawer();
         syncMeetingControlBar();
       } catch (error) {
-        showError(error.message);
+        const mapped = mapSpeakerError(error);
+        showToast(mapped.message || t("assembly.speakerGenericError"), "error");
+        showError("");
+        await hydrateSpeakerQueue();
       }
     }
   });
@@ -731,24 +838,60 @@ function wireMeetingDrawers() {
   });
   qs("#btn-more")?.addEventListener("click", () => openMeetingDrawer("#more-menu-drawer"));
   qs("#btn-hand")?.addEventListener("click", async () => {
-    if (myGrantedFloor()) return;
-    const btn = qs("#btn-hand");
-    if (btn) btn.disabled = true;
+    if (handActionBusy) return;
+    handActionBusy = true;
+    const hadFloor = Boolean(myGrantedFloor());
+    const hadRequest = Boolean(mySpeakerRequest());
     try {
-      if (mySpeakerRequest()) {
-        await cancelOwnFloor(assemblyId);
-      } else {
-        await requestFloor(assemblyId, state.user.displayName);
-      }
-      state.queue = await getQueue(assemblyId);
-      refreshPanels();
-      syncMeetingControlBar();
       showError("");
-    } catch (error) {
-      showError(error.message);
+      if (hadFloor) {
+        handPhase = "completing";
+        syncMeetingControlBar();
+        await completeOwnFloor(assemblyId);
+        await hydrateSpeakerQueue();
+        handPhase = "idle";
+        showToast(t("assembly.floorCompletedToast") || "Tu intervención ha finalizado.", "info");
+        return;
+      }
+      if (hadRequest) {
+        handPhase = "cancelling";
+        syncMeetingControlBar();
+        await cancelOwnFloor(assemblyId);
+        await hydrateSpeakerQueue();
+        handPhase = "idle";
+        showToast(t("assembly.requestCancelledToast") || "Solicitud cancelada.", "info");
+        return;
+      }
+      handPhase = "requesting";
       syncMeetingControlBar();
+      await requestFloor(assemblyId, state.user.displayName);
+      await hydrateSpeakerQueue();
+      handPhase = "idle";
+      const pos = myQueuePosition();
+      showToast(t("assembly.requestSentToast") || "Solicitud de palabra enviada.", "success");
+      if (pos != null) {
+        showToast(
+          t("assembly.queuedToast", { n: pos }) || `Estás en la cola de oradores · Posición ${pos}`,
+          "info"
+        );
+      }
+    } catch (error) {
+      const mapped = mapSpeakerError(error);
+      await hydrateSpeakerQueue();
+      handPhase = "idle";
+      if (mapped.kind === "hydrate") {
+        // Desired state already reached (idempotent cancel / race) — no error panel.
+        showError("");
+        return;
+      }
+      if (mapped.message) {
+        showToast(mapped.message, "error");
+        showError(""); // never dump raw backend English into the giant room alert
+      }
     } finally {
-      if (btn && !myGrantedFloor()) btn.disabled = false;
+      handActionBusy = false;
+      handPhase = "idle";
+      syncMeetingControlBar();
     }
   });
   qs("#btn-leave")?.addEventListener("click", async () => {
@@ -1239,23 +1382,31 @@ function syncFloorBanner() {
   const current = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
   const isMine = Boolean(myGrantedFloor());
   const myRequest = mySpeakerRequest();
+  const floorKey = isMine ? String(myGrantedFloor()?.id || "floor") : myRequest ? String(myRequest.id) : null;
 
   if (isMine) {
     banner.hidden = false;
     banner.innerHTML = `<strong>${escapeHtml(t("assembly.youHaveFloor"))}</strong>
       <span class="muted">${escapeHtml(t("assembly.floorVsMic") || "Gobernanza · distinto del micrófono")}</span>`;
     banner.classList.add("is-active");
+    if (lastFloorToastId !== floorKey) {
+      lastFloorToastId = floorKey;
+      showToast(t("assembly.floorGrantedToast") || "El presidente te ha concedido la palabra.", "success");
+    }
   } else if (myRequest) {
     banner.hidden = false;
-    const pos = myRequest.queueOrder ?? myRequest.QueueOrder ?? "—";
-    banner.innerHTML = `<strong>${escapeHtml(t("assembly.handRaised") || "Mano levantada")}</strong>
-      <span>${escapeHtml(t("assembly.queuePosition", { n: pos }))}</span>`;
+    const pos = myQueuePosition() ?? "—";
+    banner.innerHTML = `<strong>${escapeHtml(t("assembly.requestSent") || "Solicitud enviada")}</strong>
+      <span>${escapeHtml(t("assembly.queuePosition", { n: pos }) || `Posición ${pos}`)}</span>`;
     banner.classList.remove("is-active");
+    lastFloorToastId = floorKey;
   } else if (current && state.viewerRole === "Operator") {
     banner.hidden = true;
+    lastFloorToastId = null;
   } else {
     banner.hidden = true;
     banner.classList.remove("is-active");
+    lastFloorToastId = null;
   }
   syncMeetingControlBar();
 }
@@ -1454,17 +1605,31 @@ function refreshPanels() {
   });
 
   if (operator) {
-    renderSpeakerQueue(els.speakers, state.queue, {
+    renderSpeakerQueue(els.speakers, activeSpeakerQueue(state.queue), {
       canModerate: hasPermission(state.user, "meeting:moderate"),
       onGrant: async (id) => {
-        await grantFloor(assemblyId, id);
-        state.queue = await getQueue(assemblyId);
-        refreshPanels();
+        try {
+          await grantFloor(assemblyId, id);
+          state.queue = await getQueue(assemblyId);
+          refreshPanels();
+        } catch (error) {
+          const mapped = mapSpeakerError(error);
+          showToast(mapped.message || t("assembly.speakerGenericError"), "error");
+          showError("");
+          await hydrateSpeakerQueue();
+        }
       },
       onComplete: async (id) => {
-        await completeFloor(assemblyId, id);
-        state.queue = await getQueue(assemblyId);
-        refreshPanels();
+        try {
+          await completeFloor(assemblyId, id);
+          state.queue = await getQueue(assemblyId);
+          refreshPanels();
+        } catch (error) {
+          const mapped = mapSpeakerError(error);
+          showToast(mapped.message || t("assembly.speakerGenericError"), "error");
+          showError("");
+          await hydrateSpeakerQueue();
+        }
       },
       onReject: async (id) => {
         try {
@@ -1472,7 +1637,10 @@ function refreshPanels() {
           state.queue = await getQueue(assemblyId);
           refreshPanels();
         } catch (error) {
-          showError(error.message || t("apiUnavailable", { status: error.status || 404 }));
+          const mapped = mapSpeakerError(error);
+          showToast(mapped.message || t("assembly.speakerGenericError"), "error");
+          showError("");
+          await hydrateSpeakerQueue();
         }
       },
       onSkip: async (id) => {
@@ -1481,7 +1649,10 @@ function refreshPanels() {
           state.queue = await getQueue(assemblyId);
           refreshPanels();
         } catch (error) {
-          showError(error.message || t("apiUnavailable", { status: error.status || 404 }));
+          const mapped = mapSpeakerError(error);
+          showToast(mapped.message || t("assembly.speakerGenericError"), "error");
+          showError("");
+          await hydrateSpeakerQueue();
         }
       }
     });
@@ -2148,6 +2319,8 @@ async function init() {
     },
     speakerQueueUpdated: (q) => {
       state.queue = q;
+      // Realtime updates must not leave transient request phases stuck.
+      if (!handActionBusy) handPhase = "idle";
       refreshPanels();
       syncPublishForFloor().catch(() => {});
     },

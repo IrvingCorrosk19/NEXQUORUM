@@ -77,13 +77,16 @@ public sealed class SpeakerService
             return ToDto(existing);
         }
 
-        if (await _db.SpeakerRequests.AnyAsync(
+        var granted = await _db.SpeakerRequests
+            .FirstOrDefaultAsync(
                 s => s.AssemblyId == assemblyId
                      && s.UserId == userId
                      && s.Status == SpeakerRequestStatus.Granted,
-                cancellationToken))
+                cancellationToken);
+        if (granted is not null)
         {
-            throw new DomainException("You already have the floor.");
+            // Idempotent: already speaking — return current floor grant.
+            return ToDto(granted);
         }
 
         var maxOrder = await _db.SpeakerRequests
@@ -118,6 +121,8 @@ public sealed class SpeakerService
 
     /// <summary>
     /// Participant lowers their own raised hand (cancels Requested only).
+    /// Idempotent: if nothing is Requested, returns the latest own request (or a cancelled stub)
+    /// so multi-tab / double-cancel races do not surface as user-facing errors.
     /// </summary>
     public async Task<SpeakerRequestDto> CancelOwnAsync(
         Guid assemblyId,
@@ -134,8 +139,33 @@ public sealed class SpeakerService
                         && s.UserId == userId
                         && s.Status == SpeakerRequestStatus.Requested)
             .OrderByDescending(s => s.QueueOrder)
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new DomainException("No active speaker request to cancel.");
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (entity is null)
+        {
+            // Desired end-state already reached (double cancel, other tab, president skip/reject).
+            await PublishQueueAsync(assemblyId, cancellationToken);
+            var prior = await _db.SpeakerRequests
+                .AsNoTracking()
+                .Where(s => s.AssemblyId == assemblyId && s.UserId == userId)
+                .OrderByDescending(s => s.RequestedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (prior is not null)
+            {
+                return ToDto(prior);
+            }
+
+            return new SpeakerRequestDto(
+                Guid.Empty,
+                assemblyId,
+                userId,
+                string.Empty,
+                SpeakerRequestStatus.Cancelled.ToString(),
+                DateTimeOffset.UtcNow,
+                null,
+                null,
+                0);
+        }
 
         entity.Status = SpeakerRequestStatus.Cancelled;
         entity.UpdatedAtUtc = DateTimeOffset.UtcNow;
@@ -148,6 +178,63 @@ public sealed class SpeakerService
             metadata: new { entity.Id, entity.UserId },
             cancellationToken: cancellationToken);
 
+        await PublishQueueAsync(assemblyId, cancellationToken);
+
+        return ToDto(entity);
+    }
+
+    /// <summary>
+    /// Participant ends their own Granted floor (owner self-complete). Idempotent when already done.
+    /// </summary>
+    public async Task<SpeakerRequestDto> CompleteOwnAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+
+        var assembly = await RequireAssemblyAsync(assemblyId, cancellationToken);
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+        EnsureOperational(assembly);
+
+        var entity = await _db.SpeakerRequests
+            .Where(s => s.AssemblyId == assemblyId
+                        && s.UserId == userId
+                        && s.Status == SpeakerRequestStatus.Granted)
+            .OrderByDescending(s => s.GrantedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (entity is null)
+        {
+            await PublishQueueAsync(assemblyId, cancellationToken);
+            var prior = await _db.SpeakerRequests
+                .AsNoTracking()
+                .Where(s => s.AssemblyId == assemblyId && s.UserId == userId)
+                .OrderByDescending(s => s.RequestedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (prior is not null)
+            {
+                return ToDto(prior);
+            }
+
+            return new SpeakerRequestDto(
+                Guid.Empty,
+                assemblyId,
+                userId,
+                string.Empty,
+                SpeakerRequestStatus.Completed.ToString(),
+                DateTimeOffset.UtcNow,
+                null,
+                DateTimeOffset.UtcNow,
+                0);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        entity.Status = SpeakerRequestStatus.Completed;
+        entity.CompletedAtUtc = now;
+        entity.UpdatedAtUtc = now;
+
+        await _db.SaveChangesAsync(cancellationToken);
         await PublishQueueAsync(assemblyId, cancellationToken);
 
         return ToDto(entity);

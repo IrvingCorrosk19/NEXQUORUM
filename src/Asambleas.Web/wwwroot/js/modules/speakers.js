@@ -5,14 +5,45 @@ import { escapeHtml } from "./ui.js";
 export async function requestFloor(assemblyId, displayName = null) {
   return api(`/api/assemblies/${assemblyId}/speakers/request`, {
     method: "POST",
-    body: { displayName }
+    body: { displayName },
+    dedupeKey: `speakers-request:${assemblyId}`
   });
 }
 
-/** Lower own raised hand (cancel Requested). */
+/** Active queue only (Requested + Granted) for operator / owner UX. */
+export function activeSpeakerQueue(queue) {
+  if (!queue) return { assemblyId: null, currentSpeakerRequestId: null, queue: [] };
+  return {
+    ...queue,
+    queue: (queue.queue || []).filter((s) => {
+      const st = String(s.status || s.Status || "").toLowerCase();
+      return st === "requested" || st === "granted";
+    })
+  };
+}
+
+/** 1-based position among Requested items for this request id. */
+export function queuePositionFor(queue, requestId) {
+  const requested = (queue?.queue || [])
+    .filter((s) => String(s.status || s.Status || "").toLowerCase() === "requested")
+    .sort((a, b) => (a.queueOrder ?? a.QueueOrder ?? 0) - (b.queueOrder ?? b.QueueOrder ?? 0));
+  const idx = requested.findIndex((s) => String(s.id || s.Id) === String(requestId));
+  return idx >= 0 ? idx + 1 : null;
+}
+
+/** Lower own raised hand (cancel Requested). Idempotent on server. */
 export async function cancelOwnFloor(assemblyId) {
   return api(`/api/assemblies/${assemblyId}/speakers/cancel`, {
-    method: "POST"
+    method: "POST",
+    dedupeKey: `speakers-cancel:${assemblyId}`
+  });
+}
+
+/** End own Granted floor. Idempotent on server. */
+export async function completeOwnFloor(assemblyId) {
+  return api(`/api/assemblies/${assemblyId}/speakers/complete-own`, {
+    method: "POST",
+    dedupeKey: `speakers-complete-own:${assemblyId}`
   });
 }
 
