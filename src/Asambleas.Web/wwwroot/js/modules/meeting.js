@@ -4,6 +4,25 @@ import { escapeHtml } from "./ui.js";
 
 const DEVICE_PREFS_KEY = "asambleas.media.devicePrefs";
 
+/**
+ * Single capture policy for mic → LiveKit (and lobby preview).
+ * Progressive: browsers ignore unsupported constraint keys.
+ * LiveKit client 2.9.1 maps these via Room.audioCaptureDefaults / setMicrophoneEnabled.
+ */
+export const ASAMBLEAS_AUDIO_CAPTURE_DEFAULTS = Object.freeze({
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true
+});
+
+function micAudioConstraints(deviceIdIdeal) {
+  const audio = { ...ASAMBLEAS_AUDIO_CAPTURE_DEFAULTS };
+  if (deviceIdIdeal) {
+    audio.deviceId = { ideal: deviceIdIdeal };
+  }
+  return audio;
+}
+
 let liveKitRoom = null;
 let previewStream = null;
 let micAnalyser = null;
@@ -129,11 +148,7 @@ function constraintsFromPrefs({ camera = true, mic = true } = {}) {
       ? { deviceId: { ideal: prefs.cameraId } }
       : true
     : false;
-  const audio = mic
-    ? prefs.micId
-      ? { deviceId: { ideal: prefs.micId } }
-      : true
-    : false;
+  const audio = mic ? micAudioConstraints(prefs.micId || null) : false;
   return { video, audio };
 }
 
@@ -148,15 +163,18 @@ function constraintAttempts({ camera = true, mic = true } = {}) {
   if (camera || mic) {
     attempts.push({
       video: camera ? true : false,
-      audio: mic ? true : false
+      audio: mic ? micAudioConstraints(null) : false
     });
   }
   if (camera && mic) {
     attempts.push({ video: true, audio: false });
-    attempts.push({ video: false, audio: true });
+    attempts.push({ video: false, audio: micAudioConstraints(null) });
   }
   if (camera && prefs.cameraId) {
-    attempts.push({ video: { facingMode: "user" }, audio: mic ? true : false });
+    attempts.push({
+      video: { facingMode: "user" },
+      audio: mic ? micAudioConstraints(null) : false
+    });
   }
   return attempts;
 }
@@ -378,9 +396,13 @@ function ensureTile(container, identity, label, { isLocal = false, isScreen = fa
   return tile;
 }
 
-function attachTrackToTile(tile, track, { mirror = false } = {}) {
+function attachTrackToTile(tile, track, { mirror = false, isLocal = false } = {}) {
   const mount = tile.querySelector(".media-tile-video");
   if (!mount) return;
+  // P0: never play local mic (or local screen-share audio) through speakers — causes self-echo.
+  if (track.kind === "audio" && isLocal) {
+    return;
+  }
   const el = track.attach();
   el.classList.add("media-track");
   el.playsInline = true;
@@ -392,8 +414,11 @@ function attachTrackToTile(tile, track, { mirror = false } = {}) {
     tile.classList.remove("camera-off");
     el.play?.().catch(() => {});
   } else if (track.kind === "audio") {
+    // One remote TrackSid → one <audio> in this tile (replace any prior).
     mount.querySelectorAll("audio").forEach((a) => a.remove());
     el.autoplay = true;
+    el.dataset.trackSid = track.sid || "";
+    el.dataset.participant = tile.dataset.identity || "";
     mount.appendChild(el);
     el.play?.().catch(() => {
       pushIncident("audio-autoplay", t("media.tapToEnableAudio") || "Toca para habilitar audio", "warn");
@@ -410,6 +435,10 @@ function syncParticipantPublications(container, participant) {
     if (!pub.track) continue;
     if (!participant.isLocal && pub.isSubscribed === false) continue;
     const isScreen = isScreenSharePublication(pub, pub.track);
+    // Local microphone / local screen audio: publish only — never attach for playback.
+    if (pub.kind === "audio" && participant.isLocal) {
+      continue;
+    }
     if (pub.kind === "audio" && isScreen) {
       // Screen-share audio attaches alongside the screen video tile.
       const tile = ensureTile(
@@ -418,7 +447,7 @@ function syncParticipantPublications(container, participant) {
         participant.name || participant.identity,
         { isLocal: participant.isLocal, isScreen: true }
       );
-      attachTrackToTile(tile, pub.track);
+      attachTrackToTile(tile, pub.track, { isLocal: false });
       continue;
     }
     if (pub.kind === "audio" && !isScreen) {
@@ -428,7 +457,7 @@ function syncParticipantPublications(container, participant) {
         participant.name || participant.identity,
         { isLocal: participant.isLocal, isScreen: false }
       );
-      attachTrackToTile(tile, pub.track);
+      attachTrackToTile(tile, pub.track, { isLocal: false });
       continue;
     }
     if (pub.kind !== "video") continue;
@@ -439,7 +468,8 @@ function syncParticipantPublications(container, participant) {
       { isLocal: participant.isLocal, isScreen }
     );
     attachTrackToTile(tile, pub.track, {
-      mirror: participant.isLocal && !isScreen
+      mirror: participant.isLocal && !isScreen,
+      isLocal: participant.isLocal
     });
   }
 
@@ -571,7 +601,8 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
   officialSpeakerIdentity = options.officialSpeakerIdentity || null;
   liveKitRoom = new Room({
     adaptiveStream: true,
-    dynacast: true
+    dynacast: true,
+    audioCaptureDefaults: { ...ASAMBLEAS_AUDIO_CAPTURE_DEFAULTS }
   });
 
   setMediaState("connecting");
@@ -590,7 +621,7 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
       participant.name || participant.identity,
       { isScreen }
     );
-    attachTrackToTile(tile, track, { mirror: false });
+    attachTrackToTile(tile, track, { mirror: false, isLocal: false });
   });
 
   liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
@@ -617,13 +648,20 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
       setScreenShareLayoutActive(true);
       bindLocalScreenTrackEnded(pub.track);
     }
+    // Local audio: publish to LiveKit only — never attach for speaker playback.
+    if (pub.kind === "audio") {
+      return;
+    }
     const tile = ensureTile(
       container,
       participant.identity,
       participant.name || t("media.you") || "Tú",
       { isLocal: true, isScreen }
     );
-    attachTrackToTile(tile, pub.track, { mirror: pub.kind === "video" && !isScreen });
+    attachTrackToTile(tile, pub.track, {
+      mirror: pub.kind === "video" && !isScreen,
+      isLocal: true
+    });
   });
 
   liveKitRoom.on(RoomEvent.LocalTrackUnpublished, (pub) => {
@@ -732,8 +770,14 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
 async function applyLocalPublish({ camera, mic }) {
   if (!liveKitRoom) return { ok: false, error: "no-room", code: "NO_ROOM" };
   try {
-    await liveKitRoom.localParticipant.setCameraEnabled(Boolean(camera));
-    await liveKitRoom.localParticipant.setMicrophoneEnabled(Boolean(mic));
+    const prefs = loadDevicePrefs();
+    const audioOpts = {
+      ...ASAMBLEAS_AUDIO_CAPTURE_DEFAULTS,
+      ...(prefs.micId ? { deviceId: prefs.micId } : {})
+    };
+    const videoOpts = prefs.cameraId ? { deviceId: prefs.cameraId } : undefined;
+    await liveKitRoom.localParticipant.setCameraEnabled(Boolean(camera), videoOpts);
+    await liveKitRoom.localParticipant.setMicrophoneEnabled(Boolean(mic), audioOpts);
     const tile = mediaContainer?.querySelector(
       `[data-identity="${CSS.escape(liveKitRoom.localParticipant.identity)}"]`
     );
@@ -808,7 +852,8 @@ export async function setLocalScreenShareEnabled(enabled) {
   try {
     await liveKitRoom.localParticipant.setScreenShareEnabled(Boolean(enabled), {
       audio: true,
-      selfBrowserSurface: "include"
+      // Prefer excluding this tab's surface to reduce tab-audio loop into the meeting.
+      selfBrowserSurface: "exclude"
     });
     localScreenShareActive = Boolean(enabled);
     if (enabled) {
@@ -844,6 +889,68 @@ export function getLocalPublishIntent() {
 
 export function getLiveKitRoom() {
   return liveKitRoom;
+}
+
+/**
+ * Diagnostic snapshot for echo / duplicate-attach audits (no tokens).
+ * Used by e2e / console checks — not shown to end users.
+ */
+export function auditRealtimeAudioTopology() {
+  const room = liveKitRoom;
+  const audioEls = [...(mediaContainer?.querySelectorAll("audio") || [])];
+  const localAudioPubs = [];
+  const remoteAudioAttachments = [];
+  if (room?.localParticipant) {
+    for (const pub of room.localParticipant.trackPublications.values()) {
+      if (pub.kind === "audio" && pub.track) {
+        const attached = pub.track.attachedElements?.length ?? 0;
+        localAudioPubs.push({
+          sid: pub.trackSid || pub.track.sid,
+          source: String(pub.source ?? ""),
+          attachedElements: attached
+        });
+      }
+    }
+  }
+  if (room) {
+    for (const p of room.remoteParticipants.values()) {
+      for (const pub of p.trackPublications.values()) {
+        if (pub.kind === "audio" && pub.track) {
+          remoteAudioAttachments.push({
+            identity: p.identity,
+            sid: pub.trackSid || pub.track.sid,
+            attachedElements: pub.track.attachedElements?.length ?? 0
+          });
+        }
+      }
+    }
+  }
+  let micSettings = null;
+  try {
+    const micPub = [...(room?.localParticipant?.trackPublications.values() || [])].find(
+      (p) => p.kind === "audio" && p.track && !isScreenSharePublication(p, p.track)
+    );
+    const mst = micPub?.track?.mediaStreamTrack;
+    if (mst?.getSettings) micSettings = mst.getSettings();
+  } catch {
+    micSettings = null;
+  }
+  return {
+    livekitClient: "2.9.1",
+    captureDefaults: { ...ASAMBLEAS_AUDIO_CAPTURE_DEFAULTS },
+    localAudioPublications: localAudioPubs,
+    localSelfPlaybackAttachments: localAudioPubs.reduce((n, x) => n + (x.attachedElements || 0), 0),
+    remoteAudioAttachments,
+    duplicateRemoteSid: remoteAudioAttachments.filter((x) => x.attachedElements > 1).length,
+    domAudioElements: audioEls.length,
+    micSettings: micSettings
+      ? {
+          echoCancellation: micSettings.echoCancellation,
+          noiseSuppression: micSettings.noiseSuppression,
+          autoGainControl: micSettings.autoGainControl
+        }
+      : null
+  };
 }
 
 /** Mark tiles whose LiveKit identity matches raised-hand user ids (dashless GUID). */
