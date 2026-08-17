@@ -325,11 +325,20 @@
   background: var(--surface-elevated);
 }
 
-/* Context priority rail */
+/*
+ * Context priority: de-emphasize idle sections WITHOUT clipping.
+ * Legacy .is-collapsed used max-height + overflow:hidden which cut
+ * Moción / Votación empty states while headings remained visible.
+ */
+.sidebar section.is-idle {
+  opacity: 0.9;
+}
+
 .sidebar section.is-collapsed {
-  max-height: 3.25rem;
-  overflow: hidden;
-  opacity: 0.72;
+  /* Compatibility alias — never clip operational content */
+  opacity: 0.9;
+  max-height: none;
+  overflow: visible;
 }
 
 .sidebar section.is-primary {
@@ -340,6 +349,15 @@
   box-shadow: inset 3px 0 0 var(--color-teal-700);
 }
 
+/* Keep active voting reachable when agenda is long (soft cap, not clip-to-heading) */
+.room[data-priority="voting"] .sidebar #agenda-panel {
+  max-height: min(22vh, 10.5rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
 .room[data-priority="voting"] .sidebar section:has(#vote-panel) {
   order: -1;
   border: 1px solid var(--assembly-voting, var(--color-gold-500));
@@ -347,6 +365,18 @@
   padding: var(--space-3);
   background: color-mix(in srgb, var(--color-gold-100, #f5ecd2) 70%, var(--color-surface-elevated));
   box-shadow: inset 3px 0 0 var(--assembly-voting, var(--color-gold-500));
+  /* Do NOT set overflow on the grid item — it collapses min-height to 0 */
+  overflow: visible;
+  max-height: none;
+  align-self: start;
+}
+
+.room[data-priority="voting"] .sidebar #vote-panel {
+  max-height: min(42vh, 18rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
 }
 
 .room[data-priority="motion"] .sidebar section:has(#motion-panel) {
@@ -356,6 +386,17 @@
   padding: var(--space-3);
   background: color-mix(in srgb, var(--color-teal-100) 65%, var(--color-surface-elevated));
   box-shadow: inset 3px 0 0 var(--color-teal-700);
+  overflow: visible;
+  max-height: none;
+  align-self: start;
+}
+
+.room[data-priority="motion"] .sidebar #motion-panel {
+  max-height: min(40vh, 16rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
 }
 
 .room[data-priority="speaker"] .sidebar section:has(#speaker-panel) {
@@ -484,11 +525,50 @@
   background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
   padding: var(--space-4);
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-content: start;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   min-width: 0;
   max-width: 100%;
+  min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-teal-500, #14b8a6) 45%, #64748b) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-teal-500, #14b8a6) 40%, #64748b);
+  border-radius: 999px;
+}
+
+.sidebar section {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sidebar .empty-state,
+.sidebar .panel-compact-empty {
+  padding: 0.55rem 0.75rem;
+  gap: 0.2rem;
+  justify-items: start;
+  text-align: start;
+  min-height: 0;
+}
+
+.sidebar .empty-state-why,
+.sidebar .empty-state-next {
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.sidebar .vote-prepare.panel-compact-empty .vote-meta-grid {
+  margin-top: 0.35rem;
 }
 
 .sidebar h2,
@@ -617,6 +697,7 @@
   border-style: dashed;
   color: var(--text-muted);
   font-size: var(--text-body-sm);
+  min-height: 0;
 }
 
 /* ——— Focused LIVE mode ——— */
@@ -749,6 +830,38 @@
   padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
 }
 
+/* Meeting UX: sticky vote collides with fixed control bar — use rail order + panel scroll */
+.room--meeting-ux[data-role="owner"][data-voting="open"] #vote-panel {
+  position: static;
+  bottom: auto;
+  z-index: auto;
+  margin: 0;
+  padding: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-top: 2px solid var(--assembly-voting);
+  box-shadow: none;
+  border-radius: var(--radius-md);
+}
+
+/* Questionnaire can grow unbounded (many motions) — soft-cap inside the rail */
+.room--meeting-ux .sidebar .live-questionnaire-list {
+  max-height: min(28vh, 11rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+
+.room--meeting-ux .sidebar #vote-panel,
+.room--meeting-ux .sidebar #motion-panel,
+.room--meeting-ux .sidebar #agenda-panel,
+.room--meeting-ux .sidebar #speaker-panel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .room[data-role="owner"][data-voting="open"] .video-stage {
   max-height: 28vh;
 }
@@ -815,6 +928,17 @@
   .sidebar {
     border-left: 0;
     border-top: 1px solid var(--border-default);
+  }
+
+  .room--meeting-ux .room-body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    align-content: start;
+  }
+
+  .room--meeting-ux .sidebar {
+    height: auto;
+    max-height: none;
   }
 
   .room[data-role="owner"] .sidebar {
@@ -1153,10 +1277,32 @@
 
 /* ——— Meeting UX 2.0: control bar + drawers ——— */
 .room--meeting-ux {
-  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  /* Clear fixed meeting-control-bar (≈4.5–5.5rem) + breathing room for zoom */
+  padding-bottom: calc(6.75rem + env(safe-area-inset-bottom, 0px));
+  grid-template-rows: auto minmax(0, 1fr);
 }
 .room--meeting-ux .room-body {
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.room--meeting-ux[data-role="owner"] .room-body {
+  /* Override owner min-height:100dvh which blew past the toolbar inset */
+  min-height: 0;
+}
+.room--meeting-ux .stage-column {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.room--meeting-ux .sidebar {
+  min-height: 0;
+  max-height: 100%;
+  height: 100%;
+  align-self: stretch;
 }
 .voting-open-chip {
   display: inline-flex;

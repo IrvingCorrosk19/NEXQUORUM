@@ -1211,20 +1211,21 @@ function syncContextPriority() {
   const speakerSection = els.speakers?.closest("section");
 
   [agendaSection, motionSection, voteSection, speakerSection].forEach((s) => {
-    s?.classList.remove("is-primary", "is-collapsed", "is-emphasis", "is-compact");
+    s?.classList.remove("is-primary", "is-collapsed", "is-emphasis", "is-compact", "is-idle");
   });
 
+  // Priority is visual order + emphasis only — never clip section bodies.
   if (votingOpen) {
     voteSection?.classList.add("is-primary", "is-emphasis");
     motionSection?.classList.add("is-emphasis");
-    agendaSection?.classList.add("is-collapsed");
+    agendaSection?.classList.add("is-idle");
   } else if (hasMotion) {
     motionSection?.classList.add("is-primary", "is-emphasis");
-    voteSection?.classList.add("is-collapsed");
+    voteSection?.classList.add("is-idle");
   } else {
     agendaSection?.classList.add("is-primary");
-    voteSection?.classList.add("is-collapsed");
-    if (!hasMotion) motionSection?.classList.add("is-compact", "is-collapsed");
+    voteSection?.classList.add("is-idle");
+    if (!hasMotion) motionSection?.classList.add("is-compact", "is-idle");
   }
 
   if (speakerActive) {
@@ -1439,6 +1440,8 @@ function tickDuration() {
 }
 
 function refreshPanels() {
+  const sidebar = els.room?.querySelector(".sidebar");
+  const preservedScrollTop = sidebar?.scrollTop ?? 0;
   const operator = state.viewerRole === "Operator";
   renderQuorum(els.quorum, state.quorum, { compact: true });
   renderAgenda(els.agenda, state.agenda, {
@@ -1605,6 +1608,10 @@ function refreshPanels() {
   updateLiveHeader();
   renderParticipants();
   syncOperationalPriority();
+  if (sidebar) {
+    // Realtime re-renders must not yank the operator's reading position.
+    sidebar.scrollTop = preservedScrollTop;
+  }
 }
 
 function applyRoomState(room) {
