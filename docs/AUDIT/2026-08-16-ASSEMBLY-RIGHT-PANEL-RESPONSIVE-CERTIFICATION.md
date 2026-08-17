@@ -121,4 +121,18 @@ Camera / Mic / Screen share / Recording / Voting / Quorum / Presence: not rework
 
 ## COMMIT / PUSH / VPS
 
-Documented in final response after git + deploy steps.
+| Step | Result |
+|------|--------|
+| COMMIT | `d32444f` — `fix(assembly): prevent operational panel clipping` |
+| PUSH | PASS → `origin/master` |
+| VPS DEPLOY | PASS — image rebuilt from `d32444f` archive; `assembly-room.css?v=panel6` + `.is-idle` present in container |
+| PRODUCTION | PASS — assembly `0f004785-58f1-47f5-bda3-c022fdabece4`; clipped=0; all four sections reachable; evidence `tools/e2e/right-panel-results/production-final-1366.png` |
+
+**Operational note (not a backend code change):** after Ocean assembly wipe, demo seeder crashed on missing `powers.AssemblyId` FK. VPS `docker-compose.yml` was set to `Demo__SeedUsers: "false"` so the web container could boot with the already-built frontend image. Demo password login remains available.
+
+---
+
+## FINAL STATUS
+
+**ASSEMBLY OPERATIONAL PANEL — PRODUCTION CERTIFIED**
+
