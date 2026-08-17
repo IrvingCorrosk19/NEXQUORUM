@@ -140,7 +140,8 @@ async function assertNoRawEnglish(page, label) {
     await openRoom(owner, assemblyId);
     await openRoom(ownerB, assemblyId);
 
-    // Clear any prior request via API (idempotent cancel)
+    // Clear any prior request / floor via API (idempotent)
+    await api(owner, "POST", `/api/assemblies/${assemblyId}/speakers/complete-own`, {});
     const c0 = await api(owner, "POST", `/api/assemblies/${assemblyId}/speakers/cancel`, {});
     step(
       "IDEMPOTENT-CANCEL-API-COLD",

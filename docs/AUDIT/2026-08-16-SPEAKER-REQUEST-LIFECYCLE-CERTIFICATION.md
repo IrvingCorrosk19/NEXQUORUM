@@ -58,4 +58,16 @@ Evidence: `tools/e2e/speaker-lifecycle-results/`
 
 ## COMMIT / PUSH / VPS / PRODUCTION
 
-Filled after deploy steps in the same change set.
+| Step | Result |
+|------|--------|
+| COMMIT | `15143a9` — `fix(speaker): synchronize raise-hand request lifecycle` |
+| PUSH | PASS |
+| VPS DEPLOY | PASS — image rebuilt; `complete-own` + Spanish UX live |
+| PRODUCTION E2E | PASS — `ASAMBLEAS_BASE_URL=https://asambleas.164.68.99.83.nip.io` |
+
+---
+
+## FINAL STATUS
+
+**SPEAKER REQUEST LIFECYCLE — PRODUCTION CERTIFIED**
+
