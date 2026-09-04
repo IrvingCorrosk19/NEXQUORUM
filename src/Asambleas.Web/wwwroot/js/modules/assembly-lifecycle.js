@@ -21,22 +21,19 @@ export function historicalOverviewUrl(assemblyId, status) {
   return `/dashboard.html?assemblyId=${id}&mode=historical`;
 }
 
+/** Inner markup only — host element already has `.ia-historical-banner`. */
 export function renderHistoricalBanner(status, { cancelReason } = {}) {
   if (status === "Completed") {
-    return `<div class="ia-historical-banner" role="status" data-testid="historical-banner">
-      <strong>ASAMBLEA FINALIZADA</strong>
-      <p>Esta asamblea ha finalizado. La información se encuentra en modo consulta.</p>
-    </div>`;
+    return `<strong>ASAMBLEA FINALIZADA</strong>
+      <p>Esta asamblea ha finalizado. La información se encuentra en modo consulta.</p>`;
   }
   if (status === "Cancelled") {
     const reason = cancelReason
       ? `<p class="muted">Motivo: ${cancelReason}</p>`
       : "";
-    return `<div class="ia-historical-banner ia-historical-banner--cancelled" role="status" data-testid="historical-banner">
-      <strong>ASAMBLEA CANCELADA</strong>
+    return `<strong>ASAMBLEA CANCELADA</strong>
       <p>Esta asamblea fue cancelada. Solo consulta de historial e información disponible.</p>
-      ${reason}
-    </div>`;
+      ${reason}`;
   }
   return "";
 }

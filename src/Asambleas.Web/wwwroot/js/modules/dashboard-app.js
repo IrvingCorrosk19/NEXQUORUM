@@ -71,12 +71,15 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
   const bannerHost = qs("#historical-banner") || qs("#page-alert");
   if (bannerHost && isTerminalStatus(assembly.status)) {
     bannerHost.hidden = false;
+    bannerHost.classList.toggle("ia-historical-banner--cancelled", assembly.status === "Cancelled");
+    bannerHost.setAttribute("data-testid", "historical-banner");
     bannerHost.innerHTML = renderHistoricalBanner(assembly.status, {
       cancelReason: assembly.cancelReason ? escapeHtml(assembly.cancelReason) : ""
     });
     document.body.dataset.assemblyMode = "historical";
   } else if (bannerHost) {
     bannerHost.hidden = true;
+    bannerHost.classList.remove("ia-historical-banner--cancelled");
     bannerHost.innerHTML = "";
   }
 

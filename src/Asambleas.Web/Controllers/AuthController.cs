@@ -1,9 +1,11 @@
 namespace Asambleas.Web.Controllers;
 
 using System.Security.Claims;
+using Asambleas.Application.Abstractions;
 using Asambleas.Application.PhOnboarding;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.Auth;
+using Asambleas.Domain.Enums;
 using Asambleas.Infrastructure.Identity;
 using Asambleas.Infrastructure.Seed;
 using Asambleas.Web.Middleware;
@@ -12,6 +14,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 
 [ApiController]
@@ -21,15 +24,18 @@ public sealed class AuthController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly OwnerPasswordResetService _passwordResets;
+    private readonly IAsambleasDbContext _db;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
-        OwnerPasswordResetService passwordResets)
+        OwnerPasswordResetService passwordResets,
+        IAsambleasDbContext db)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _passwordResets = passwordResets;
+        _db = db;
     }
 
     [AllowAnonymous]
@@ -84,6 +90,15 @@ public sealed class AuthController : ControllerBase
             roles.Add(user.DemoRole);
         }
 
+        // Presidente/mesa que también es propietario: unión de permisos de sesión (conserva vote:cast).
+        // Solo en claims de esta sesión — no persistir rol Owner en Identity (evita elevación permanente).
+        var isLinkedOwner = await _db.Owners.IgnoreQueryFilters()
+            .AnyAsync(o => o.UserId == user.Id && o.Status != OwnerLifecycleStatus.Inactive);
+        if (isLinkedOwner && !roles.Contains(Roles.Owner, StringComparer.OrdinalIgnoreCase))
+        {
+            roles.Add(Roles.Owner);
+        }
+
         var existingClaims = await _userManager.GetClaimsAsync(user);
         var permissions = RolePermissionMap.GetPermissions(roles).ToList();
         var extraClaims = BuildClaims(user, roles, permissions, existingClaims);
@@ -129,6 +144,13 @@ public sealed class AuthController : ControllerBase
             {
                 roles = [user.DemoRole];
             }
+        }
+
+        var isLinkedOwner = await _db.Owners.IgnoreQueryFilters()
+            .AnyAsync(o => o.UserId == user.Id && o.Status != OwnerLifecycleStatus.Inactive);
+        if (isLinkedOwner && !roles.Contains(Roles.Owner, StringComparer.OrdinalIgnoreCase))
+        {
+            roles.Add(Roles.Owner);
         }
 
         // Always derive from RolePermissionMap — never trust stale cookie/DB permission claims.

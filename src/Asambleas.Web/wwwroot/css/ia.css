@@ -34,25 +34,32 @@
 .ia-historical-banner {
   margin: 0 0 1rem;
   padding: 0.85rem 1rem;
-  border: 1px solid var(--border-subtle, #d0d5dd);
+  border: 1px solid var(--border-default, rgba(148, 175, 210, 0.18));
   border-radius: 4px;
-  background: var(--surface-muted, #f4f6f8);
-  color: var(--text-primary, #1a1a1a);
+  background: var(--status-info-bg, rgba(56, 189, 248, 0.14));
+  color: var(--text-primary, #e8eef8);
 }
 
 .ia-historical-banner strong {
   display: block;
   font-size: 0.95rem;
   margin-bottom: 0.25rem;
+  color: var(--status-info, #38bdf8);
 }
 
 .ia-historical-banner p {
   margin: 0;
   font-size: 0.875rem;
+  color: var(--text-secondary, #a8b4c8);
 }
 
 .ia-historical-banner--cancelled {
-  border-color: var(--danger-border, #c45c5c);
+  border-color: color-mix(in srgb, var(--status-danger, #f87171) 45%, transparent);
+  background: var(--status-danger-bg, rgba(248, 113, 113, 0.14));
+}
+
+.ia-historical-banner--cancelled strong {
+  color: var(--status-danger, #f87171);
 }
 
 .ia-breadcrumbs [aria-current="page"] span {

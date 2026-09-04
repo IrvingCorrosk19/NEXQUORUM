@@ -36,8 +36,10 @@ export function createLiveVotingWorkspace({
   }
 
   function mountOperatorChrome(root) {
-    if (!root || !canManage()) return;
-    if (root.querySelector("[data-live-workspace]")) return;
+    if (!canManage()) return;
+    const host = document.querySelector("#questionnaire-panel") || root;
+    if (!host) return;
+    if (host.querySelector("[data-live-workspace]")) return;
 
     const bar = document.createElement("div");
     bar.className = "live-vote-workspace";
@@ -58,7 +60,7 @@ export function createLiveVotingWorkspace({
         <form method="dialog" class="live-vote-form" data-lv-form></form>
       </dialog>
     `;
-    root.prepend(bar);
+    host.prepend(bar);
 
     bar.addEventListener("click", async (e) => {
       const btn = e.target.closest("[data-lv]");
@@ -88,15 +90,25 @@ export function createLiveVotingWorkspace({
   }
 
   function renderQuestionnaire(root, { motions = [], activeMotionId = null, session = null, canManage: manage = false } = {}) {
-    if (!root) return;
-    let host = root.querySelector("[data-lv-questionnaire]");
+    // Dedicated host — never prepend into #vote-panel (hides cast UI under fold).
+    const hostRoot = document.querySelector("#questionnaire-panel") || root;
+    if (!hostRoot) return;
+    let host = hostRoot.querySelector("[data-lv-questionnaire]");
     if (!host) {
       host = document.createElement("div");
       host.className = "live-questionnaire";
       host.setAttribute("data-lv-questionnaire", "1");
-      const chrome = root.querySelector("[data-live-workspace]");
-      if (chrome) root.insertBefore(host, chrome);
-      else root.prepend(host);
+      const chrome = hostRoot.querySelector("[data-live-workspace]");
+      if (chrome) hostRoot.insertBefore(host, chrome.nextSibling);
+      else hostRoot.prepend(host);
+    }
+
+    const wrap = document.querySelector("#questionnaire-wrap");
+    if (wrap) {
+      wrap.hidden = false;
+      wrap.open = Boolean(manage);
+      const summary = wrap.querySelector("summary");
+      if (summary) summary.textContent = manage ? "Cuestionario en vivo" : "Ver otras preguntas";
     }
 
     const active = (motions || []).filter((m) => m.designStatus !== "Archived");
@@ -228,7 +240,7 @@ export function createLiveVotingWorkspace({
   }
 
   function openDialog(html) {
-    const root = qs("#vote-panel");
+    const root = document.querySelector("#questionnaire-panel") || qs("#vote-panel");
     const dialog = root?.querySelector("[data-lv-dialog]");
     const form = root?.querySelector("[data-lv-form]");
     if (!dialog || !form) return null;
@@ -405,7 +417,7 @@ export function createLiveVotingWorkspace({
         if (v === "withdraw") await withdrawOpen();
         if (v === "void") await cancelOpen();
       }, { once: true });
-      await syncLockBanner(qs("#vote-panel"));
+      await syncLockBanner(document.querySelector("#questionnaire-panel"));
       return;
     }
     concurrencyStamp = policy.concurrencyStamp;
@@ -509,7 +521,7 @@ export function createLiveVotingWorkspace({
       </footer>
     `)?.form.addEventListener("submit", (e) => {
       e.preventDefault();
-      qs("#vote-panel [data-lv-dialog]")?.close();
+      qs("#questionnaire-panel [data-lv-dialog]")?.close();
     }, { once: true });
   }
 
@@ -628,7 +640,7 @@ export function createLiveVotingWorkspace({
       </footer>
     `)?.form.addEventListener("submit", (e) => {
       e.preventDefault();
-      qs("#vote-panel [data-lv-dialog]")?.close();
+      qs("#questionnaire-panel [data-lv-dialog]")?.close();
     }, { once: true });
   }
 
@@ -644,7 +656,7 @@ export function createLiveVotingWorkspace({
         name === "votingClosed" ||
         name === "motionUpdated"
       ) {
-        syncLockBanner(qs("#vote-panel"));
+        syncLockBanner(document.querySelector("#questionnaire-panel"));
       }
     }
   };

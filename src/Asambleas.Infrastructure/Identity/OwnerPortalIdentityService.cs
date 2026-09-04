@@ -78,6 +78,17 @@ public sealed class OwnerPortalIdentityService : IOwnerPortalIdentityService
         return user.Id;
     }
 
+    public Task<Guid> EnsureOwnerUserPasswordlessAsync(
+        Guid tenantId,
+        Guid? organizationId,
+        string email,
+        string displayName,
+        CancellationToken cancellationToken = default)
+    {
+        var password = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)) + "Aa1!";
+        return EnsureOwnerUserAsync(tenantId, organizationId, email, displayName, password, cancellationToken);
+    }
+
     public async Task LinkOwnerRoleAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)

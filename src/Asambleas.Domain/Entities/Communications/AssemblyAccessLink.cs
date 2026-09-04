@@ -33,5 +33,10 @@ public class AssemblyAccessLink : Entity, ITenantScoped, IPropertyHorizontalScop
 
     public DateTimeOffset? LastUsedAtUtc { get; set; }
 
+    /// <summary>Successful passwordless redemptions (reload/re-entry allowed while valid).</summary>
+    public int RedeemCount { get; set; }
+
+    public DateTimeOffset? FirstRedeemedAtUtc { get; set; }
+
     public string Purpose { get; set; } = "ConvocationJoin";
 }

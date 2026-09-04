@@ -62,10 +62,38 @@ public sealed class AssemblyAccessLinkService
         _db.AssemblyAccessLinks.Add(link);
         await _db.SaveChangesAsync(cancellationToken);
 
-        var url = _publicBaseUrl.BuildAbsoluteUrl($"/join.html?token={Uri.EscapeDataString(raw)}");
+        var url = _publicBaseUrl.BuildAbsoluteUrl($"/ingresar/{Uri.EscapeDataString(raw)}");
         return (raw, url, link);
     }
 
+    /// <summary>Lookup without mutating LastUsed (safe for preview / email scanners).</summary>
+    public async Task<AssemblyAccessLink?> PeekValidAsync(string rawToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(rawToken))
+        {
+            return null;
+        }
+
+        var hash = HashToken(rawToken.Trim());
+        var link = await _db.AssemblyAccessLinks
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.TokenHash == hash, cancellationToken);
+        if (link is null)
+        {
+            return null;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (link.RevokedAtUtc is not null || link.ExpiresAtUtc <= now)
+        {
+            return null;
+        }
+
+        return link;
+    }
+
+    /// <summary>Lookup that records LastUsedAtUtc (authenticated claim / redeem).</summary>
     public async Task<AssemblyAccessLink?> ResolveValidAsync(string rawToken, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(rawToken))
@@ -93,12 +121,232 @@ public sealed class AssemblyAccessLinkService
         return link;
     }
 
+    public async Task MarkRedeemedAsync(Guid linkId, CancellationToken cancellationToken = default)
+    {
+        var link = await _db.AssemblyAccessLinks.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(l => l.Id == linkId, cancellationToken);
+        if (link is null)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        link.LastUsedAtUtc = now;
+        link.FirstRedeemedAtUtc ??= now;
+        link.RedeemCount += 1;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task RevokeAsync(Guid linkId, CancellationToken cancellationToken = default)
     {
         var link = await _db.AssemblyAccessLinks.FirstOrDefaultAsync(l => l.Id == linkId, cancellationToken)
             ?? throw new DomainException("ACCESS_LINK_NOT_FOUND", "Enlace de acceso no encontrado.");
         link.RevokedAtUtc = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Authenticated redeem of a convocation join link: binds the user to the recipient/owner
+    /// and enrolls them as an <see cref="AssemblyParticipant"/> so portal/lobby/room authorize.
+    /// </summary>
+    public async Task<(Guid AssemblyId, string RedirectPath)> ClaimAsync(
+        string rawToken,
+        Guid userId,
+        string? userEmail,
+        CancellationToken cancellationToken = default)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new DomainException("AUTH_REQUIRED", "Debes iniciar sesión para canjear el acceso.");
+        }
+
+        var link = await ResolveValidAsync(rawToken, cancellationToken)
+            ?? throw new DomainException(
+                "INVALID_OR_EXPIRED",
+                "Este enlace expiró o fue revocado. Solicita un reenvío de la convocatoria.");
+
+        var recipient = await _db.ConvocationRecipients.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(r => r.Id == link.RecipientId, cancellationToken)
+            ?? throw new DomainException("RECIPIENT_NOT_FOUND", "Destinatario de convocatoria no encontrado.");
+
+        Owner? owner = null;
+        if (link.OwnerId is Guid ownerId)
+        {
+            owner = await _db.Owners.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(o => o.Id == ownerId, cancellationToken);
+        }
+
+        var emailOk = !string.IsNullOrWhiteSpace(userEmail)
+                      && (
+                          (!string.IsNullOrWhiteSpace(recipient.Email)
+                           && string.Equals(recipient.Email.Trim(), userEmail.Trim(), StringComparison.OrdinalIgnoreCase))
+                          || (owner is not null
+                              && string.Equals(owner.Email.Trim(), userEmail.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+        var userIdOk = (link.UserId is Guid linkUser && linkUser == userId)
+                       || (recipient.UserId is Guid recipientUser && recipientUser == userId)
+                       || (owner?.UserId is Guid ownerUser && ownerUser == userId);
+
+        if (!emailOk && !userIdOk)
+        {
+            throw new DomainException(
+                "JOIN_EMAIL_MISMATCH",
+                "La sesión actual no corresponde al destinatario de esta convocatoria.");
+        }
+
+        recipient.UserId = userId;
+        if (owner is not null)
+        {
+            owner.UserId ??= userId;
+            if (owner.Status == OwnerLifecycleStatus.Invited)
+            {
+                owner.Status = OwnerLifecycleStatus.Active;
+            }
+        }
+
+        link.UserId = userId;
+        link.LastUsedAtUtc = DateTimeOffset.UtcNow;
+
+        await EnsureMembershipAsync(link.TenantId, userId, link.PropertyHorizontalId, cancellationToken);
+        await EnsureParticipantAsync(
+            link.TenantId,
+            link.AssemblyId,
+            link.PropertyHorizontalId,
+            userId,
+            recipient.DisplayName,
+            owner?.Id,
+            cancellationToken);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var status = await _db.Assemblies.IgnoreQueryFilters().AsNoTracking()
+            .Where(a => a.Id == link.AssemblyId)
+            .Select(a => a.Status)
+            .FirstAsync(cancellationToken);
+
+        var redirect = status is AssemblyStatus.InProgress or AssemblyStatus.Paused or AssemblyStatus.CheckIn
+            ? $"/lobby.html?assemblyId={link.AssemblyId:D}"
+            : $"/owner.html?assemblyId={link.AssemblyId:D}";
+
+        return (link.AssemblyId, redirect);
+    }
+
+    /// <summary>
+    /// After an owner account is linked, enroll them into open assemblies where they are a convocation recipient.
+    /// </summary>
+    public async Task EnrollOwnerIntoOpenConvocationsAsync(
+        Guid ownerId,
+        Guid userId,
+        string displayName,
+        CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var rows = await (
+            from r in _db.ConvocationRecipients.IgnoreQueryFilters()
+            join c in _db.Convocations.IgnoreQueryFilters() on r.ConvocationId equals c.Id
+            join a in _db.Assemblies.IgnoreQueryFilters() on c.AssemblyId equals a.Id
+            where r.OwnerId == ownerId
+                  && r.IsValid
+                  && c.Status == ConvocationStatus.Sent
+                  && a.Status != AssemblyStatus.Completed
+                  && a.Status != AssemblyStatus.Cancelled
+            select new { Recipient = r, Assembly = a })
+            .ToListAsync(cancellationToken);
+
+        foreach (var row in rows)
+        {
+            row.Recipient.UserId = userId;
+            await EnsureMembershipAsync(row.Assembly.TenantId, userId, row.Assembly.PropertyHorizontalId, cancellationToken);
+            await EnsureParticipantAsync(
+                row.Assembly.TenantId,
+                row.Assembly.Id,
+                row.Assembly.PropertyHorizontalId,
+                userId,
+                string.IsNullOrWhiteSpace(displayName) ? row.Recipient.DisplayName : displayName,
+                ownerId,
+                cancellationToken);
+        }
+
+        if (rows.Count > 0)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private async Task EnsureMembershipAsync(
+        Guid tenantId,
+        Guid userId,
+        Guid propertyHorizontalId,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _db.UserPropertyMemberships.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(
+                m => m.UserId == userId && m.PropertyHorizontalId == propertyHorizontalId,
+                cancellationToken);
+        if (existing is null)
+        {
+            _db.UserPropertyMemberships.Add(new UserPropertyMembership
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                PropertyHorizontalId = propertyHorizontalId,
+                RoleHint = Security.Roles.Owner,
+                IsActive = true,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            });
+        }
+        else if (!existing.IsActive)
+        {
+            existing.IsActive = true;
+            existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        }
+    }
+
+    private async Task EnsureParticipantAsync(
+        Guid tenantId,
+        Guid assemblyId,
+        Guid propertyHorizontalId,
+        Guid userId,
+        string displayName,
+        Guid? ownerId,
+        CancellationToken cancellationToken)
+    {
+        var exists = await _db.AssemblyParticipants.IgnoreQueryFilters()
+            .AnyAsync(p => p.AssemblyId == assemblyId && p.UserId == userId, cancellationToken);
+        if (exists)
+        {
+            return;
+        }
+
+        Guid? unitId = null;
+        if (ownerId is Guid oid)
+        {
+            unitId = await (
+                from own in _db.Ownerships.AsNoTracking()
+                join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
+                where own.OwnerId == oid
+                      && own.IsActive
+                      && u.PropertyHorizontalId == propertyHorizontalId
+                orderby own.SharePercent descending
+                select (Guid?)own.UnitId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        _db.AssemblyParticipants.Add(new AssemblyParticipant
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            AssemblyId = assemblyId,
+            UserId = userId,
+            UnitId = unitId,
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? "Propietario" : displayName.Trim(),
+            RoleCode = Security.Roles.Owner,
+            AttendanceStatus = AttendanceStatus.Registered,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
     }
 
     public static string HashToken(string rawToken)
@@ -245,7 +493,7 @@ public static class ConvocationEmailComposer
                   </table>
                   <p style="margin:0 0 22px">
                     <a href="{access}" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:8px;font-weight:700;font-size:15px">
-                      Acceder a la asamblea
+                      Ingresar a la asamblea
                     </a>
                   </p>
                   <p style="margin:0 0 8px;font-size:12px;color:#6b7280">Si el botón no funciona, copie y pegue este enlace en su navegador:</p>
@@ -285,7 +533,7 @@ public static class ConvocationEmailComposer
         {(string.IsNullOrWhiteSpace(input.UnitCode) ? "" : $"Unidad: {input.UnitCode}\n")}
         {(input.CoefficientPercent is decimal coef ? $"Coeficiente: {coef.ToString("0.####", EsPa)}%\n" : "")}
 
-        Acceder a la asamblea:
+        Ingresar a la asamblea:
         {input.AccessUrl}
 
         Agenda

@@ -50,6 +50,13 @@ public sealed class CalendarSchedulingService
         var userId = TenantGuard.RequireUserId(_currentTenant);
         var canManage = RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage);
 
+        // Never dump assemblies from every PH. Scope to an authorized PH (query or active claim).
+        var scopedPh = await ResolveListPropertyHorizontalIdAsync(propertyHorizontalId, cancellationToken);
+        if (scopedPh is null)
+        {
+            return new CalendarListResponse([], fromUtc, toUtc);
+        }
+
         // Clamp padding so extreme/default DateTimeOffset values cannot overflow AddDays.
         static DateTimeOffset PadStart(DateTimeOffset value)
         {
@@ -66,12 +73,8 @@ public sealed class CalendarSchedulingService
         var rangeStart = PadStart(fromUtc);
         var rangeEnd = PadEnd(toUtc);
         var query = ScopedAssembliesQuery(userId, canManage)
+            .Where(a => a.PropertyHorizontalId == scopedPh.Value)
             .Where(a => a.ScheduledAtUtc >= rangeStart && a.ScheduledAtUtc <= rangeEnd);
-
-        if (propertyHorizontalId is Guid ph)
-        {
-            query = query.Where(a => a.PropertyHorizontalId == ph);
-        }
 
         if (!string.IsNullOrWhiteSpace(status) &&
             Enum.TryParse<AssemblyStatus>(status, true, out var st))
@@ -101,9 +104,16 @@ public sealed class CalendarSchedulingService
         var canManage = RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage);
         var now = DateTimeOffset.UtcNow;
 
-        var upcoming = await ScopedAssembliesQuery(userId, canManage)
+        var upcomingQuery = ScopedAssembliesQuery(userId, canManage)
             .Where(a => a.Status != AssemblyStatus.Cancelled && a.Status != AssemblyStatus.Completed)
-            .Where(a => a.ScheduledAtUtc >= now.AddHours(-6) || a.Status == AssemblyStatus.InProgress || a.Status == AssemblyStatus.Paused || a.Status == AssemblyStatus.CheckIn)
+            .Where(a => a.ScheduledAtUtc >= now.AddHours(-6) || a.Status == AssemblyStatus.InProgress || a.Status == AssemblyStatus.Paused || a.Status == AssemblyStatus.CheckIn);
+
+        if (_currentTenant.PropertyHorizontalId is Guid activePh && activePh != Guid.Empty)
+        {
+            upcomingQuery = upcomingQuery.Where(a => a.PropertyHorizontalId == activePh);
+        }
+
+        var upcoming = await upcomingQuery
             .OrderBy(a => a.ScheduledAtUtc)
             .Take(20)
             .ToListAsync(cancellationToken);
@@ -151,8 +161,11 @@ public sealed class CalendarSchedulingService
             throw new DomainException("ASSEMBLY_IN_PAST", "No se puede programar una asamblea en el pasado.");
         }
 
+        // Active PH claim is the source of truth; do not trust a mismatched client PHId.
+        var targetPhId = ResolveCreatePropertyHorizontalId(request.PropertyHorizontalId);
+
         var ph = await _db.PropertyHorizontals
-            .FirstOrDefaultAsync(p => p.Id == request.PropertyHorizontalId, cancellationToken)
+            .FirstOrDefaultAsync(p => p.Id == targetPhId, cancellationToken)
             ?? throw new DomainException("PH_NOT_FOUND", "No encontramos esa propiedad horizontal.");
 
         TenantGuard.EnsureTenantMatch(_currentTenant, ph.TenantId);
@@ -567,6 +580,16 @@ public sealed class CalendarSchedulingService
         assembly.CancelledByUserId = userId;
         assembly.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
+        // Revoke outstanding magic links so redeem cannot race status checks.
+        var now = DateTimeOffset.UtcNow;
+        var openLinks = await _db.AssemblyAccessLinks
+            .Where(l => l.AssemblyId == assembly.Id && l.RevokedAtUtc == null)
+            .ToListAsync(cancellationToken);
+        foreach (var link in openLinks)
+        {
+            link.RevokedAtUtc = now;
+        }
+
         await CancelPendingRemindersAsync(assembly.Id, "Assembly cancelled", cancellationToken);
         await NotifyPortalAsync(
             assembly,
@@ -633,9 +656,10 @@ public sealed class CalendarSchedulingService
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
         var dtStart = assembly.ScheduledAtUtc.UtcDateTime.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
         var dtEnd = end.UtcDateTime.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
-        var joinPath = $"/lobby.html?assemblyId={assembly.Id:D}";
         var description = EscapeIcs(
-            $"{assembly.Title}\\nPH: {ph.Name}\\nModalidad: {assembly.Modality}\\nEntrada segura: use el portal ASAMBLEAS {joinPath}\\n(No incluye contraseñas ni tokens.)");
+            $"{assembly.Title}\\nPH: {ph.Name}\\nModalidad: {assembly.Modality}\\n" +
+            "Ingresa con el enlace personal de tu correo de convocatoria en ASAMBLEAS.\\n" +
+            "(No incluye contraseñas ni tokens compartidos. No uses este calendario como acceso.)");
         var location = EscapeIcs(assembly.LocationText ?? (assembly.Modality.Contains("VIRTUAL", StringComparison.OrdinalIgnoreCase) ? "Virtual — ASAMBLEAS" : ph.Name));
 
         var sb = new StringBuilder();
@@ -666,7 +690,7 @@ public sealed class CalendarSchedulingService
         var assembly = await RequireScopedAssemblyAsync(assemblyId, track: false, cancellationToken);
         var end = assembly.ResolveEstimatedEndAtUtc();
         var title = Uri.EscapeDataString(assembly.Title);
-        var details = Uri.EscapeDataString($"Entrar vía portal ASAMBLEAS (sin tokens): {publicOrigin}/lobby.html?assemblyId={assembly.Id:D}");
+        var details = Uri.EscapeDataString($"Ingresa con el enlace personal de tu correo de convocatoria. Portal: {publicOrigin}/join.html");
         var location = Uri.EscapeDataString(assembly.LocationText ?? "Virtual");
         var gStart = assembly.ScheduledAtUtc.UtcDateTime.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
         var gEnd = end.UtcDateTime.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
@@ -682,7 +706,8 @@ public sealed class CalendarSchedulingService
 
     private IQueryable<AssemblyEntity> ScopedAssembliesQuery(Guid userId, bool canManageAllInTenant)
     {
-        // Owners: participation scope. Managers: all assemblies in tenant (filter applies).
+        // Managers still need an explicit PH filter at call sites; this only limits tenant leakage
+        // for participation-scoped users. Callers that manage must filter by PropertyHorizontalId.
         if (canManageAllInTenant &&
             RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage))
         {
@@ -708,44 +733,162 @@ public sealed class CalendarSchedulingService
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
         var userId = TenantGuard.RequireUserId(_currentTenant);
-        var canManage = RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage);
 
         var query = track ? _db.Assemblies.AsQueryable() : _db.Assemblies.AsNoTracking();
         var assembly = await query.FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
             ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
-
-        if (!canManage)
-        {
-            var participant = await _db.AssemblyParticipants.AsNoTracking()
-                .AnyAsync(p => p.AssemblyId == assemblyId && p.UserId == userId, cancellationToken);
-            if (!participant)
-            {
-                throw new DomainException($"Assembly '{assemblyId}' was not found.");
-            }
-        }
-
+        await EnsureAssemblyAccessibleInPhContextAsync(assembly, userId, cancellationToken);
         return assembly;
     }
+
+    private Guid ResolveCreatePropertyHorizontalId(Guid requestedPropertyHorizontalId)
+    {
+        if (_currentTenant.PropertyHorizontalId is Guid activePh && activePh != Guid.Empty)
+        {
+            if (requestedPropertyHorizontalId != Guid.Empty
+                && requestedPropertyHorizontalId != activePh
+                && !IsTenantWideAdmin())
+            {
+                throw new DomainException(
+                    "PH_CONTEXT_MISMATCH",
+                    "La asamblea debe crearse en el PH activo. Cambia de PH e inténtalo de nuevo.");
+            }
+
+            return activePh;
+        }
+
+        if (requestedPropertyHorizontalId == Guid.Empty)
+        {
+            throw new DomainException(
+                "PH_REQUIRED",
+                "Selecciona un PH para crear la asamblea.");
+        }
+
+        return requestedPropertyHorizontalId;
+    }
+
+    private async Task<Guid?> ResolveListPropertyHorizontalIdAsync(
+        Guid? requestedPropertyHorizontalId,
+        CancellationToken cancellationToken)
+    {
+        var claim = _currentTenant.PropertyHorizontalId is Guid c && c != Guid.Empty ? c : (Guid?)null;
+        Guid? target = requestedPropertyHorizontalId is Guid ph && ph != Guid.Empty ? ph : claim;
+
+        if (target is null)
+        {
+            return null;
+        }
+
+        // Non-tenant-admins must list against the active PH claim (no silent cross-PH via query).
+        if (!IsTenantWideAdmin()
+            && claim is Guid active
+            && requestedPropertyHorizontalId is Guid requested
+            && requested != Guid.Empty
+            && requested != active)
+        {
+            throw new DomainException(
+                "PH_CONTEXT_MISMATCH",
+                "El listado corresponde al PH activo. Cambia de PH para ver otra propiedad.");
+        }
+
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+        await EnsureCanAccessPhAsync(target.Value, userId, cancellationToken);
+        return target;
+    }
+
+    private async Task EnsureAssemblyAccessibleInPhContextAsync(
+        AssemblyEntity assembly,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        if (IsTenantWideAdmin())
+        {
+            return;
+        }
+
+        var isParticipant = await _db.AssemblyParticipants.AsNoTracking()
+            .AnyAsync(p => p.AssemblyId == assembly.Id && p.UserId == userId, cancellationToken);
+        if (isParticipant)
+        {
+            return;
+        }
+
+        var hasMembership = await _db.UserPropertyMemberships.AsNoTracking().AnyAsync(
+            m => m.UserId == userId && m.PropertyHorizontalId == assembly.PropertyHorizontalId && m.IsActive,
+            cancellationToken);
+
+        var activeMatches = _currentTenant.PropertyHorizontalId == assembly.PropertyHorizontalId;
+        var canManage =
+            RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage)
+            || _currentTenant.Permissions.Contains(Permissions.AssemblyManage, StringComparer.Ordinal)
+            || RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.PhManage)
+            || _currentTenant.Permissions.Contains(Permissions.PhManage, StringComparer.Ordinal);
+
+        // Mesa/president: only the active PH (must switch claim before opening another PH).
+        if (canManage && activeMatches)
+        {
+            return;
+        }
+
+        // Non-managers (owners / operators) may read via PH membership + ph:view.
+        if (!canManage
+            && hasMembership
+            && _currentTenant.Permissions.Contains(Permissions.PhView, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        throw new DomainException($"Assembly '{assembly.Id}' was not found.");
+    }
+
+    private async Task EnsureCanAccessPhAsync(
+        Guid propertyHorizontalId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var ph = await _db.PropertyHorizontals.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == propertyHorizontalId, cancellationToken)
+            ?? throw new DomainException("PH_NOT_FOUND", "No encontramos esa propiedad horizontal.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, ph.TenantId);
+
+        if (IsTenantWideAdmin()
+            || _currentTenant.Permissions.Contains(Permissions.PhManage, StringComparer.Ordinal)
+            || RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.PhManage))
+        {
+            return;
+        }
+
+        var membership = await _db.UserPropertyMemberships.AsNoTracking().AnyAsync(
+            m => m.UserId == userId && m.PropertyHorizontalId == propertyHorizontalId && m.IsActive,
+            cancellationToken);
+        if (!membership)
+        {
+            throw new DomainException(
+                "PH_ACCESS_DENIED",
+                "No tienes acceso a las asambleas de esta propiedad horizontal.");
+        }
+    }
+
+    private bool IsTenantWideAdmin() =>
+        _currentTenant.Roles.Contains(Roles.PlatformAdmin, StringComparer.OrdinalIgnoreCase)
+        || _currentTenant.Roles.Contains(Roles.TenantAdmin, StringComparer.OrdinalIgnoreCase);
 
     private async Task EnsureCanScheduleOnPhAsync(
         Guid propertyHorizontalId,
         Guid userId,
         CancellationToken cancellationToken)
     {
-        if (RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage)
-            || _currentTenant.Roles.Contains(Roles.PlatformAdmin, StringComparer.Ordinal)
-            || _currentTenant.Roles.Contains(Roles.TenantAdmin, StringComparer.Ordinal)
-            || _currentTenant.Roles.Contains(Roles.PHAdmin, StringComparer.Ordinal)
-            || _currentTenant.Roles.Contains(Roles.AssemblyPresident, StringComparer.Ordinal))
+        // Align with SwitchActivePhContext / ph-context: PhManage (and AssemblyManage) can
+        // operate on any PH in the tenant without a membership row when that PH is the active
+        // context (create binds to the claim). Membership still authorizes local presidents.
+        if (IsTenantWideAdmin()
+            || _currentTenant.Permissions.Contains(Permissions.PhManage, StringComparer.Ordinal)
+            || RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.PhManage)
+            || RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage))
         {
-            // Still require membership for non-platform unless they have manage on tenant scope.
-            if (_currentTenant.Roles.Contains(Roles.PlatformAdmin, StringComparer.Ordinal)
-                || _currentTenant.Roles.Contains(Roles.TenantAdmin, StringComparer.Ordinal))
-            {
-                return;
-            }
+            return;
         }
 
         var membership = await _db.UserPropertyMemberships.AsNoTracking().AnyAsync(

@@ -862,9 +862,10 @@ function showScheduleSuccess(created, ph, fallbackEndIso) {
     .filter(Boolean)
     .join(" · ");
   const id = created.id || created.Id || created.assemblyId;
-  qs("#success-view").href = `/lobby.html?assemblyId=${id}`;
-  qs("#success-agenda").href = `/assembly.html?assemblyId=${id}`;
+  qs("#success-view").href = `/ph.html?phId=${encodeURIComponent(ph?.id || created.propertyHorizontalId || "")}#assemblies`;
+  qs("#success-agenda").href = `/dashboard.html?assemblyId=${id}`;
   qs("#success-convocation").href = `/convocation.html?assemblyId=${id}`;
+  if (qs("#success-view")) qs("#success-view").textContent = "Ver en listado del PH";
   openDialog("schedule-success-dialog");
 }
 

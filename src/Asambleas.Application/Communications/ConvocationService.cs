@@ -642,6 +642,32 @@ public sealed class ConvocationService
         var enrollable = recipients
             .Where(r => r.IsValid && r.UserId is Guid userId && userId != Guid.Empty)
             .ToList();
+
+        // Recipients created before the owner activated still have null UserId — sync from Owner.
+        var needsUserSync = recipients
+            .Where(r => r.IsValid && r.OwnerId is Guid && (r.UserId is null || r.UserId == Guid.Empty))
+            .ToList();
+        if (needsUserSync.Count > 0)
+        {
+            var ownerIdsForSync = needsUserSync.Select(r => r.OwnerId!.Value).Distinct().ToList();
+            var ownerUsers = await _db.Owners.AsNoTracking()
+                .Where(o => ownerIdsForSync.Contains(o.Id) && o.UserId != null)
+                .Select(o => new { o.Id, o.UserId })
+                .ToListAsync(cancellationToken);
+            var byOwner = ownerUsers.ToDictionary(x => x.Id, x => x.UserId!.Value);
+            foreach (var recipient in needsUserSync)
+            {
+                if (byOwner.TryGetValue(recipient.OwnerId!.Value, out var uid))
+                {
+                    recipient.UserId = uid;
+                    if (!enrollable.Contains(recipient))
+                    {
+                        enrollable.Add(recipient);
+                    }
+                }
+            }
+        }
+
         if (enrollable.Count == 0)
         {
             return;

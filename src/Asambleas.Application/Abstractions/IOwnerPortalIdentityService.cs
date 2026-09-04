@@ -19,6 +19,17 @@ public interface IOwnerPortalIdentityService
 
     Task LinkOwnerRoleAsync(Guid userId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates or returns an Owner user without requiring the recipient to choose a password.
+    /// Uses a high-entropy random password that is never shown to the user (magic-link auth).
+    /// </summary>
+    Task<Guid> EnsureOwnerUserPasswordlessAsync(
+        Guid tenantId,
+        Guid? organizationId,
+        string email,
+        string displayName,
+        CancellationToken cancellationToken = default);
+
     Task ResetPasswordAsync(Guid userId, string newPassword, CancellationToken cancellationToken = default);
 
     /// <summary>

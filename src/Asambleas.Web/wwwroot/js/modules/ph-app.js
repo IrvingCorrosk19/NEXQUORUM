@@ -1,7 +1,7 @@
 import { api, ensureAntiforgery } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
 import { mountIaShell, phHref } from "./ia-nav.js";
-import { assemblyListBucket, statusLabelEs } from "./ia-actions.js";
+import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
 import { formatDateTime, confirmDialog, notify } from "./ui.js";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
@@ -91,6 +91,28 @@ async function init() {
   wireUi();
   await refreshSwitcher();
   await loadList();
+
+  try {
+    const { subscribePhContext } = await import("./ph-context.js");
+    subscribePhContext((ctx) => {
+      const next = ctx?.phId ? String(ctx.phId) : null;
+      if (!next) return;
+      if (String(currentPhId || "") === next) {
+        if ($("#view-detail") && !$("#view-detail").hidden) {
+          const panel = document.querySelector('[data-panel="assemblies"]');
+          if (panel && !panel.hidden) loadAssemblies();
+        }
+        return;
+      }
+      // Global PH switch while on this page: clear stale list then reopen.
+      phAssemblies = [];
+      const host = $("#ph-assemblies-list");
+      if (host) host.innerHTML = `<div class="skeleton" style="height:4rem">Cambiando de PH…</div>`;
+      openPh(next, (location.hash || "").replace("#", "") || "assemblies").catch(() => {});
+    });
+  } catch {
+    /* optional */
+  }
 
   const urlPh = new URLSearchParams(location.search).get("phId");
   if (urlPh) {
@@ -575,6 +597,15 @@ async function openPh(id, preferredTab = null) {
     newAsm.href = `/calendar.html?phId=${encodeURIComponent(id)}`;
   }
 
+  const asmTitle = $("#ph-assemblies-title");
+  if (asmTitle) {
+    asmTitle.textContent = `Asambleas — ${ph.name || "PH"}`;
+  }
+  const asmLede = $("#ph-assemblies-lede");
+  if (asmLede) {
+    asmLede.textContent = `Solo se muestran las asambleas de ${ph.name || "este PH"}.`;
+  }
+
   mountIaShell(
     {
       level: "ph",
@@ -796,21 +827,36 @@ async function renderAttentionAndPrep(ph) {
 }
 
 async function loadAssemblies() {
-  if (!currentPhId) return;
+  if (!currentPhId) {
+    const host = $("#ph-assemblies-list");
+    if (host) {
+      host.innerHTML = `<div class="ia-empty-state"><p>Selecciona un PH para ver sus asambleas.</p></div>`;
+    }
+    phAssemblies = [];
+    return;
+  }
   const host = $("#ph-assemblies-list");
   if (!host) return;
-  host.innerHTML = `<div class="skeleton" style="height:4rem"></div>`;
+  const requestPh = String(currentPhId);
+  host.innerHTML = `<div class="skeleton" style="height:4rem" aria-busy="true">Cargando asambleas…</div>`;
   try {
     const from = new Date();
     from.setMonth(from.getMonth() - 6);
     const to = new Date();
     to.setMonth(to.getMonth() + 12);
     const data = await api(
-      `/api/calendar/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&propertyHorizontalId=${encodeURIComponent(currentPhId)}`
+      `/api/calendar/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&propertyHorizontalId=${encodeURIComponent(requestPh)}`
     );
+    // Drop stale responses after a PH switch.
+    if (String(currentPhId) !== requestPh) return;
     phAssemblies = Array.isArray(data?.events) ? data.events : Array.isArray(data) ? data : [];
+    // Defense in depth: never render another PH's rows even if API misbehaves.
+    phAssemblies = phAssemblies.filter(
+      (e) => String(e.propertyHorizontalId || "") === requestPh
+    );
     renderAssembliesList();
   } catch (err) {
+    if (String(currentPhId) !== requestPh) return;
     host.innerHTML = `<div class="empty-state">${escapeHtml(err.message || "No se pudieron cargar las asambleas.")}</div>`;
   }
 }
@@ -819,15 +865,24 @@ function renderAssembliesList() {
   const host = $("#ph-assemblies-list");
   if (!host) return;
 
+  if (!currentPhId) {
+    host.innerHTML = `<div class="ia-empty-state"><p>Selecciona un PH para ver sus asambleas.</p></div>`;
+    return;
+  }
+
   const rows =
     asmFilter === "all"
       ? phAssemblies
       : phAssemblies.filter((e) => assemblyListBucket(e.status) === asmFilter);
 
   if (!rows.length) {
+    const emptyCopy =
+      asmFilter === "all" || !phAssemblies.length
+        ? "Este PH todavía no tiene asambleas. Puedes crear la primera cuando estés listo."
+        : "No hay asambleas en este filtro.";
     host.innerHTML = `
       <div class="ia-empty-state">
-        <p>No hay asambleas en este filtro.</p>
+        <p>${escapeHtml(emptyCopy)}</p>
         <a class="btn btn-primary" href="/calendar.html?phId=${encodeURIComponent(currentPhId)}">+ Nueva asamblea</a>
       </div>`;
     return;
@@ -850,18 +905,23 @@ function renderAssembliesList() {
         });
     const id = encodeURIComponent(e.assemblyId);
     const bucket = assemblyListBucket(e.status);
-    const primaryLabel =
+    const primary = resolvePrimaryAction(e, { assemblyId: e.assemblyId });
+    const primaryLabel = primary.label || (
       bucket === "done"
         ? "Ver resultados"
         : bucket === "live"
-          ? "Entrar a sala"
-          : "Ver asamblea";
-    const primaryHref =
+          ? "Entrar a la sala"
+          : bucket === "cancelled"
+            ? "Ver detalle"
+            : "Ver asamblea"
+    );
+    const primaryHref = primary.href || (
       bucket === "live"
         ? `/lobby.html?assemblyId=${id}`
         : bucket === "done"
           ? `/minutes.html?assemblyId=${id}`
-          : `/dashboard.html?assemblyId=${id}`;
+          : `/dashboard.html?assemblyId=${id}`
+    );
     const secondary =
       bucket === "done"
         ? `<a class="btn btn-ghost btn-sm" href="/minutes.html?assemblyId=${id}">Acta</a>`
@@ -891,14 +951,14 @@ function renderAssembliesList() {
       </details>`;
 
     return `
-      <div class="ia-asm-row">
+      <div class="ia-asm-row" data-assembly-id="${escapeHtml(String(e.assemblyId))}" data-ph-id="${escapeHtml(String(e.propertyHorizontalId || currentPhId))}" data-status="${escapeHtml(String(e.status || ""))}">
         <div>
           <strong>${escapeHtml(e.title)}</strong>
-          <p class="ia-asm-row__meta">${escapeHtml(when)} · ${escapeHtml(e.modality || "—")}${compact ? "" : ` · Convocados ${e.participantCount ?? 0}`}</p>
+          <p class="ia-asm-row__meta">${escapeHtml(when)} · ${escapeHtml(e.modality || "—")}${e.assemblyKind ? ` · ${escapeHtml(e.assemblyKind)}` : ""}${compact ? "" : ` · Convocados ${e.participantCount ?? 0}`}</p>
         </div>
-        <div><span class="ia-badge-status${bucket === "live" ? " is-live" : bucket === "upcoming" ? " is-ready" : ""}">${escapeHtml(statusLabelEs(e.status))}</span></div>
+        <div><span class="ia-badge-status${bucket === "live" ? " is-live" : bucket === "upcoming" ? " is-ready" : bucket === "cancelled" ? " is-cancelled" : ""}">${escapeHtml(statusLabelEs(e.status))}</span></div>
         <div class="ia-asm-row__actions">
-          <a class="btn btn-${compact ? "secondary" : "primary"} btn-sm" href="${primaryHref}">${primaryLabel}</a>
+          <a class="btn btn-${compact ? "secondary" : "primary"} btn-sm" href="${primaryHref}">${escapeHtml(primaryLabel)}</a>
           ${secondary}
           ${moreMenu}
         </div>
@@ -920,6 +980,7 @@ function renderAssembliesList() {
       const d = new Date(hero.scheduledAtUtc);
       const whenLong = Number.isNaN(d.getTime()) ? "—" : formatDateTime(hero.scheduledAtUtc);
       const id = encodeURIComponent(hero.assemblyId);
+      const primary = resolvePrimaryAction(hero, { assemblyId: hero.assemblyId });
       html += `
         <div class="ia-asm-summary__section">
           <p class="ia-asm-summary__section-title">Próxima asamblea</p>
@@ -932,7 +993,9 @@ function renderAssembliesList() {
               <span class="ia-badge-status is-ready">${escapeHtml(statusLabelEs(hero.status))}</span>
             </div>
             <div class="ia-asm-row__actions" style="justify-content:flex-start">
-              <a class="btn btn-primary" href="/dashboard.html?assemblyId=${id}">Continuar preparación</a>
+              <a class="btn btn-primary" href="${primary.href || `/dashboard.html?assemblyId=${id}`}">${escapeHtml(
+                primary.label || (hero.status === "Draft" ? "Continuar configuración" : "Continuar preparación")
+              )}</a>
               <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${id}">Ver asamblea</a>
               <details class="ia-row-menu">
                 <summary class="btn btn-ghost btn-sm" aria-label="Más acciones">•••</summary>

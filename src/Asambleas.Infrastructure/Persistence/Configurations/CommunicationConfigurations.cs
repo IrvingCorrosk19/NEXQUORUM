@@ -163,6 +163,7 @@ internal sealed class AssemblyAccessLinkConfiguration : IEntityTypeConfiguration
         builder.HasIndex(x => x.ConvocationId);
         builder.HasIndex(x => x.RecipientId);
         builder.HasIndex(x => new { x.ConvocationId, x.RecipientId });
+        builder.Property(x => x.RedeemCount).HasDefaultValue(0);
     }
 }
 

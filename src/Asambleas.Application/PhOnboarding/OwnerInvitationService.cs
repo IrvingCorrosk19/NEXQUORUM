@@ -29,6 +29,7 @@ public sealed class OwnerInvitationService
     private readonly IPortalNotificationProvider _portal;
     private readonly IAuditService _audit;
     private readonly IPublicBaseUrlProvider _publicBaseUrl;
+    private readonly AssemblyAccessLinkService _accessLinks;
 
     public OwnerInvitationService(
         IAsambleasDbContext db,
@@ -37,7 +38,8 @@ public sealed class OwnerInvitationService
         CommunicationConfigurationService communications,
         IPortalNotificationProvider portal,
         IAuditService audit,
-        IPublicBaseUrlProvider publicBaseUrl)
+        IPublicBaseUrlProvider publicBaseUrl,
+        AssemblyAccessLinkService accessLinks)
     {
         _db = db;
         _currentTenant = currentTenant;
@@ -46,6 +48,7 @@ public sealed class OwnerInvitationService
         _portal = portal;
         _audit = audit;
         _publicBaseUrl = publicBaseUrl;
+        _accessLinks = accessLinks;
     }
 
     public async Task<InviteOwnerResultDto> InviteAsync(
@@ -403,6 +406,12 @@ public sealed class OwnerInvitationService
             Roles.Owner,
             cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _accessLinks.EnrollOwnerIntoOpenConvocationsAsync(
+            owner.Id,
+            userId,
+            owner.DisplayName,
+            cancellationToken);
 
         await _audit.WriteSystemAsync(
             invitation.TenantId,

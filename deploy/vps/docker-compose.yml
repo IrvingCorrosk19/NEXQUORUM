@@ -62,8 +62,9 @@ services:
       DEMO_PUBLIC_USER_LIST: ${DEMO_PUBLIC_USER_LIST:-true}
       Demo__Enabled: ${DEMO_ENABLED:-true}
       Demo__PublicUserList: ${DEMO_PUBLIC_USER_LIST:-true}
-      Demo__SeedUsers: "true"
-      Demo__RotatePasswords: "true"
+      # false on VPS: existing DB; seed loop can block health / crash boot
+      Demo__SeedUsers: "false"
+      Demo__RotatePasswords: "false"
       Demo__Password: ${DEMO_PASSWORD}
       ASAMBLEAS_APPLY_MIGRATIONS: "true"
       ASAMBLEAS_ALLOW_INSECURE_LOGIN: ${ASAMBLEAS_ALLOW_INSECURE_LOGIN:-true}

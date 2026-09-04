@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/css/components.css?v=mux4" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <link rel="stylesheet" href="/css/loading.css?v=mux4" />
-  <link rel="stylesheet" href="/css/assembly-room.css?v=panel6" />
+  <link rel="stylesheet" href="/css/assembly-room.css?v=panel9" />
   <link rel="stylesheet" href="/css/live-voting.css?v=lv2" />
   <link rel="stylesheet" href="/css/voting-studio.css?v=vs1" />
 </head>
@@ -113,9 +113,16 @@
           <div id="motion-panel"><div class="empty-state">Aún no hay moción presentada. Cuando se presente, aparecerá aquí.</div></div>
         </section>
 
-        <section>
+        <section class="vote-section" aria-labelledby="heading-vote">
           <h2 id="heading-vote" class="section-title">Votación</h2>
-          <div id="vote-panel" class="vote-panel"><div class="empty-state">No hay votación abierta. Podrás emitir tu voto cuando el presidente la inicie.</div></div>
+          <div id="vote-updating" class="vote-updating" hidden role="status" aria-live="polite">Actualizando votación…</div>
+          <div id="vote-panel" class="vote-panel" data-testid="vote-panel">
+            <div class="empty-state">No hay votación abierta. Podrás emitir tu voto cuando el presidente la inicie.</div>
+          </div>
+          <details id="questionnaire-wrap" class="vote-questionnaire-wrap" data-testid="questionnaire-wrap">
+            <summary class="vote-questionnaire-summary">Ver otras preguntas</summary>
+            <div id="questionnaire-panel" class="questionnaire-panel" data-testid="questionnaire-panel"></div>
+          </details>
         </section>
 
         <section class="operator-only">
@@ -249,6 +256,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.9.1/dist/livekit-client.umd.min.js"></script>
-  <script type="module" src="/js/modules/room-app.js?v=speaker2"></script>
+  <script type="module" src="/js/modules/room-app.js?v=voteux2"></script>
 </body>
 </html>

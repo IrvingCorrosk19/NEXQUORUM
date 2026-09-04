@@ -358,25 +358,92 @@
   overscroll-behavior: contain;
 }
 
+/* Vote section: active ballot first; questionnaire is a separate collapsible */
+.vote-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.vote-updating {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--status-info-bg, rgba(56, 189, 248, 0.14));
+  color: var(--text-primary, #e8eef8);
+  font-size: 0.9rem;
+}
+
+.vote-questionnaire-wrap {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 0.35rem 0.65rem 0.65rem;
+  background: var(--surface-elevated, #162033);
+  color: var(--text-primary, #e8eef8);
+}
+
+.vote-questionnaire-summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--brand-teal-300, #5eead4);
+  padding: 0.45rem 0.15rem;
+  list-style: none;
+}
+
+.vote-questionnaire-summary::-webkit-details-marker {
+  display: none;
+}
+
+.questionnaire-panel {
+  margin-top: 0.5rem;
+}
+
+.vote-eligibility-msg,
+.vote-success-banner {
+  margin: 0.5rem 0 0;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary, #121a2b);
+  color: var(--text-primary, #e8eef8);
+  border: 1px solid var(--border-default);
+}
+
+.vote-success-title {
+  margin: 0 0 0.5rem;
+  font-weight: 700;
+  color: var(--status-success, #34d399);
+  font-size: 1.05rem;
+}
+
 .room[data-priority="voting"] .sidebar section:has(#vote-panel) {
   order: -1;
   border: 1px solid var(--assembly-voting, var(--color-gold-500));
   border-radius: var(--radius-md);
   padding: var(--space-3);
-  background: color-mix(in srgb, var(--color-gold-100, #f5ecd2) 70%, var(--color-surface-elevated));
+  background: var(--surface-elevated, #162033);
+  color: var(--text-primary, #e8eef8);
   box-shadow: inset 3px 0 0 var(--assembly-voting, var(--color-gold-500));
-  /* Do NOT set overflow on the grid item — it collapses min-height to 0 */
   overflow: visible;
   max-height: none;
   align-self: start;
 }
 
 .room[data-priority="voting"] .sidebar #vote-panel {
-  max-height: min(42vh, 18rem);
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+.room--meeting-ux .sidebar .live-questionnaire-list {
+  max-height: min(40vh, 14rem);
+}
+
+.btn-vote-confirm {
+  min-height: 3rem;
+  font-size: 1.05rem;
+  width: 100%;
+}
+
+.choice-card {
+  min-height: 3.5rem;
 }
 
 .room[data-priority="motion"] .sidebar section:has(#motion-panel) {
@@ -841,6 +908,38 @@
   border-top: 2px solid var(--assembly-voting);
   box-shadow: none;
   border-radius: var(--radius-md);
+}
+
+/* Owner open ballot: hide agenda/motion chrome so choices fit first viewport */
+.room[data-role="owner"][data-voting="open"] .sidebar section:has(#agenda-panel),
+.room[data-role="owner"][data-voting="open"] .sidebar section:has(#motion-panel) {
+  display: none;
+}
+
+.room[data-role="owner"][data-voting="open"] .vote-live-header--compact {
+  gap: 0.35rem;
+}
+
+.room[data-role="owner"][data-voting="open"] .vote-live-header--compact .vote-question {
+  font-size: 1.15rem;
+  line-height: 1.35;
+  margin: 0.15rem 0 0.35rem;
+}
+
+.room[data-role="owner"][data-voting="open"] .vote-participation {
+  opacity: 0.85;
+  font-size: 0.85rem;
+  margin-top: 0.35rem;
+}
+
+.room[data-role="owner"][data-voting="open"] .choice-cards {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+}
+
+.room[data-role="owner"][data-voting="open"] .choice-card {
+  min-height: 3.25rem;
 }
 
 /* Questionnaire can grow unbounded (many motions) — soft-cap inside the rail */
@@ -1645,6 +1744,61 @@
     order: 2;
     /* Governance panels move behind Más → Agenda / Votación on phones */
     display: none;
+  }
+  /* Owner open ballot: surface vote sheet above control bar (no Más dig). */
+  .room--meeting-ux[data-role="owner"][data-voting="open"] .sidebar {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    z-index: 45;
+    order: 0;
+    height: auto;
+    max-height: min(72vh, 40rem);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--surface-elevated, #162033);
+    color: var(--text-primary, #e8eef8);
+    border-top: 2px solid var(--assembly-voting, #f59e0b);
+    border-radius: 1rem 1rem 0 0;
+    padding: 0.55rem 0.85rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.4);
+  }
+  .room--meeting-ux[data-role="owner"][data-voting="open"] .sidebar > section:not(.vote-section) {
+    display: none !important;
+  }
+  .room--meeting-ux[data-role="owner"][data-voting="open"] .sidebar .section-title {
+    font-size: 0.8rem;
+    margin-bottom: 0.2rem;
+  }
+  .room--meeting-ux[data-role="owner"][data-voting="open"] #questionnaire-wrap {
+    display: none;
+  }
+  .room--meeting-ux[data-role="owner"][data-voting="open"] #vote-panel .vote-participation {
+    display: none;
+  }
+  .room--meeting-ux[data-role="owner"][data-voting="open"] #vote-panel .choice-cards {
+    gap: 0.45rem;
+  }
+  .room--meeting-ux[data-role="owner"][data-voting="open"] #vote-panel .choice-card {
+    min-height: 2.85rem;
+    padding: 0.55rem 0.75rem;
+  }
+  .room--meeting-ux[data-role="owner"][data-voting="open"] #vote-panel .choice-hint {
+    display: none;
+  }
+  .room--meeting-ux[data-role="owner"][data-voting="open"] #vote-panel .btn-vote-confirm {
+    min-height: 2.75rem;
+    margin-top: 0.35rem;
+  }
+  .room--meeting-ux[data-role="owner"][data-voting="open"] .video-stage {
+    min-height: 0;
+    max-height: 22vh;
+  }
+  .room--meeting-ux[data-role="owner"][data-voting="open"] .media-stage-grid:not(.view-focus) .media-tile:first-child {
+    min-height: min(18vh, 8rem);
   }
   .room--meeting-ux .video-stage {
     min-height: min(58vh, 28rem);

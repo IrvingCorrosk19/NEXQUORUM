@@ -230,6 +230,19 @@ function mapSpeakerError(error) {
   return { kind: "user", message: raw };
 }
 
+function mapCastError(error) {
+  const code = String(error?.code || error?.payload?.extensions?.code || "").toUpperCase();
+  if (code === "ALREADY_VOTED" || /already voted|doble voto/i.test(String(error?.message || ""))) {
+    return t("voting.alreadyRegistered");
+  }
+  if (code === "NOT_ACCREDITED") return t("voting.notAccredited");
+  if (code === "NOT_ELIGIBLE" || code === "NOT_PARTICIPANT") return t("voting.notEligible");
+  if (code === "VOTING_CLOSED" || /cerrad|closed/i.test(String(error?.message || ""))) {
+    return t("voting.votingFinished");
+  }
+  return t("voting.castFailed");
+}
+
 async function hydrateSpeakerQueue() {
   try {
     state.queue = await getQueue(assemblyId);
@@ -1659,13 +1672,31 @@ function refreshPanels() {
   }
 
   renderMotion();
+
+  const voteUpdating = qs("#vote-updating");
+  if (voteUpdating) {
+    voteUpdating.hidden = true;
+  }
+
+  const permissionCanCast = hasPermission(state.user, "vote:cast");
+  const statusCode = String(state.myVoteStatus?.status || state.myVoteStatus?.Status || "").toUpperCase();
+  const eligibleToShowCast =
+    permissionCanCast &&
+    (!state.session ||
+      state.session.status !== "Open" ||
+      statusCode === "ELIGIBLE" ||
+      statusCode === "ALREADY_VOTED" ||
+      Boolean(state.myVote?.evidenceId) ||
+      // Status still loading — allow panel to render; eligibility branch waits for myStatus
+      !statusCode);
+
   renderVotePanel(els.vote, {
     session: state.session,
     tally: state.tally,
     myVote: state.myVote,
     myStatus: state.myVoteStatus || null,
     motion: state.motion,
-    canCast: hasPermission(state.user, "vote:cast"),
+    canCast: permissionCanCast,
     canOpen:
       operator &&
       hasPermission(state.user, "vote:open") &&
@@ -1679,13 +1710,28 @@ function refreshPanels() {
       state.quorum?.eligibleUnits ??
       (state.participants.size || null),
     onCast: async (choice) => {
-      const receipt = await castVote(assemblyId, state.session.id, choice);
-      state.myVote = {
-        evidenceId: receipt.evidenceId,
-        castAtUtc: receipt.castAtUtc
-      };
-      showError("");
-      return receipt;
+      try {
+        const receipt = await castVote(assemblyId, state.session.id, choice);
+        state.myVote = {
+          evidenceId: receipt.evidenceId,
+          castAtUtc: receipt.castAtUtc
+        };
+        state.myVoteStatus = {
+          ...(state.myVoteStatus || {}),
+          status: "ALREADY_VOTED",
+          evidenceId: receipt.evidenceId,
+          castAtUtc: receipt.castAtUtc
+        };
+        showError("");
+        return receipt;
+      } catch (error) {
+        // Strip technical codes from surface message
+        const human = mapCastError(error);
+        const err = new Error(human);
+        err.status = error?.status;
+        err.code = error?.code;
+        throw err;
+      }
     },
     onVerify: async () => {
       if (!state.session?.id) {
@@ -1730,6 +1776,7 @@ function refreshPanels() {
         resultVisibilityPolicy: policy
       };
       state.myVote = null;
+      state.myVoteStatus = null;
       refreshPanels();
     },
     onClose: async () => {
@@ -1751,10 +1798,12 @@ function refreshPanels() {
     }
   });
 
+  void eligibleToShowCast;
+
   if (els.vote) {
     if (operator) {
       liveWorkspace.mountOperatorChrome(els.vote);
-      liveWorkspace.syncLockBanner(els.vote);
+      liveWorkspace.syncLockBanner(document.querySelector("#questionnaire-panel"));
     }
     liveWorkspace.renderQuestionnaire(els.vote, {
       motions: state.motions || [],
@@ -1779,9 +1828,21 @@ function refreshPanels() {
   updateLiveHeader();
   renderParticipants();
   syncOperationalPriority();
-  if (sidebar) {
+  const ownerBallotOpen = !operator && state.session?.status === "Open";
+  if (sidebar && !ownerBallotOpen) {
     // Realtime re-renders must not yank the operator's reading position.
     sidebar.scrollTop = preservedScrollTop;
+  }
+
+  // Owner + open vote: ballot first in rail; scroll choices into the window viewport.
+  if (ownerBallotOpen && els.vote) {
+    try {
+      if (sidebar) sidebar.scrollTop = 0;
+      const target = els.vote.querySelector(".choice-cards") || els.vote;
+      target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "auto" });
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -2336,6 +2397,11 @@ async function init() {
       liveWorkspace.handleRealtime("motionUpdated");
     },
     votingOpened: (s) => {
+      const updating = qs("#vote-updating");
+      if (updating) {
+        updating.hidden = false;
+        updating.textContent = t("voting.updating");
+      }
       state.session = s;
       state.tally = {
         votesCast: 0,
@@ -2347,13 +2413,25 @@ async function init() {
       state.myVote = null;
       state.myVoteStatus = null;
       refreshPanels();
+      const finish = () => {
+        if (updating) updating.hidden = true;
+      };
       if (hasPermission(state.user, "vote:cast") && s?.id) {
         getMyVoteStatus(assemblyId, s.id)
           .then((st) => {
             state.myVoteStatus = st;
+            if (st?.evidenceId || st?.EvidenceId) {
+              state.myVote = {
+                evidenceId: st.evidenceId || st.EvidenceId,
+                castAtUtc: st.castAtUtc || st.CastAtUtc
+              };
+            }
             refreshPanels();
           })
-          .catch(() => {});
+          .catch(() => {})
+          .finally(finish);
+      } else {
+        finish();
       }
     },
     voteTallyUpdated: async (tally) => {

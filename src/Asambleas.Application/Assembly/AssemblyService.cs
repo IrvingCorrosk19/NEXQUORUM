@@ -212,14 +212,15 @@ public sealed class AssemblyService
 
     private async Task EnsureAssemblyReadableAsync(Domain.Entities.Assembly assembly, CancellationToken cancellationToken)
     {
-        if (_currentTenant.Permissions.Contains(Permissions.AssemblyManage)
-            || _currentTenant.Permissions.Contains(Permissions.PhManage)
-            || _currentTenant.Permissions.Contains(Permissions.AuditView))
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+        var isTenantAdmin =
+            _currentTenant.Roles.Contains(Roles.PlatformAdmin, StringComparer.OrdinalIgnoreCase)
+            || _currentTenant.Roles.Contains(Roles.TenantAdmin, StringComparer.OrdinalIgnoreCase);
+        if (isTenantAdmin)
         {
             return;
         }
 
-        var userId = TenantGuard.RequireUserId(_currentTenant);
         var isParticipant = await _db.AssemblyParticipants.AsNoTracking().AnyAsync(
             p => p.AssemblyId == assembly.Id && p.UserId == userId,
             cancellationToken);
@@ -228,10 +229,31 @@ public sealed class AssemblyService
             return;
         }
 
+        var canManage =
+            _currentTenant.Permissions.Contains(Permissions.AssemblyManage)
+            || _currentTenant.Permissions.Contains(Permissions.PhManage)
+            || RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage)
+            || RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.PhManage);
+
+        // Managers are bound to the active PH claim — switch PH before opening another property.
+        if (canManage && _currentTenant.PropertyHorizontalId == assembly.PropertyHorizontalId)
+        {
+            return;
+        }
+
         var hasPhMembership = await _db.UserPropertyMemberships.AsNoTracking().AnyAsync(
             m => m.UserId == userId && m.PropertyHorizontalId == assembly.PropertyHorizontalId && m.IsActive,
             cancellationToken);
-        if (hasPhMembership && _currentTenant.Permissions.Contains(Permissions.PhView))
+        if (!canManage
+            && hasPhMembership
+            && _currentTenant.Permissions.Contains(Permissions.PhView))
+        {
+            return;
+        }
+
+        // Audit viewers still need active PH or membership to avoid cross-PH GUID fishing.
+        if (_currentTenant.Permissions.Contains(Permissions.AuditView)
+            && (_currentTenant.PropertyHorizontalId == assembly.PropertyHorizontalId || hasPhMembership))
         {
             return;
         }

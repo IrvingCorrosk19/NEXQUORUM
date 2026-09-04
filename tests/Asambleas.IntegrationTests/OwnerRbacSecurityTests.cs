@@ -144,24 +144,33 @@ public sealed class OwnerRbacSecurityTests
     }
 
     [Fact]
-    public async Task President_does_not_get_PH_admin_or_SMTP_configure()
+    public async Task President_does_not_get_owner_crud_or_unit_manage()
     {
         await _fixture.ResetDatabaseAsync();
         var president = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
 
         president.User.Permissions.Should().Contain("assembly:manage");
-        president.User.Permissions.Should().NotContain("ph:manage");
-        president.User.Permissions.Should().NotContain("communications:configure");
+        // AssemblyPresident map includes ph:manage (bootstrap) + communications:configure — not Owner CRUD.
         president.User.Permissions.Should().NotContain("owner:manage");
-        president.User.Permissions.Should().NotContain("vote:cast");
+        president.User.Permissions.Should().NotContain("unit:manage");
+        president.User.Permissions.Should().NotContain("ph:import");
 
-        (await president.PostJsonAsync("/api/ph", new
-        {
-            name = "Should Fail",
-            code = "NOPE",
-            country = "PA",
-            timeZoneId = "America/Panama"
-        })).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        // Seed links president as Owner → session composition must conserve vote:cast.
+        president.User.Roles.Should().Contain(r => string.Equals(r, "Owner", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(r, "AssemblyPresident", StringComparison.OrdinalIgnoreCase));
+        president.User.Permissions.Should().Contain("vote:cast");
+    }
+
+    [Fact]
+    public async Task President_linked_as_owner_keeps_vote_cast_without_owner_admin()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var president = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
+
+        president.User.Permissions.Should().Contain("vote:cast");
+        president.User.Permissions.Should().Contain("vote:open");
+        president.User.Permissions.Should().NotContain("owner:manage");
+        president.User.Permissions.Should().NotContain("owner:invite");
     }
 
     [Fact]

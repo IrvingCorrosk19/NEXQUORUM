@@ -23,10 +23,10 @@ cd "$APP_ROOT"
 tar -xzf /tmp/asambleas-src.tgz
 
 echo "== Ensure egress env keys (idempotent) =="
-python3 - <<'PY'
+python3 - <<PY
 from pathlib import Path
 import re
-p = Path("$COMPOSE_DIR/.env")
+p = Path("$COMPOSE_DIR") / ".env"
 text = p.read_text()
 defaults = {
     "LIVEKIT_EGRESS_URL": "http://host.docker.internal:7880",
@@ -47,15 +47,16 @@ echo "== LiveKit + Egress keys sync =="
 python3 - <<PY
 from pathlib import Path
 import re
-env = Path("$COMPOSE_DIR/.env").read_text()
+compose = Path("$COMPOSE_DIR")
+env = (compose / ".env").read_text()
 secret = re.search(r'^LIVEKIT_API_SECRET=(.+)$', env, re.M).group(1).strip()
 key = re.search(r'^LIVEKIT_API_KEY=(.+)$', env, re.M).group(1).strip()
-p = Path("$COMPOSE_DIR/livekit.yaml")
+p = compose / "livekit.yaml"
 text = p.read_text()
 text = re.sub(r'(?m)^keys:\n(?:  .*\n)*', f'keys:\n  {key}: "{secret}"\n', text, count=1)
 p.write_text(text)
 print('livekit.yaml ok')
-eg = Path("$COMPOSE_DIR/egress.yaml")
+eg = compose / "egress.yaml"
 if eg.exists():
     et = eg.read_text()
     et = re.sub(r'(?m)^api_key:\s*.*$', f"api_key: {key}", et, count=1)

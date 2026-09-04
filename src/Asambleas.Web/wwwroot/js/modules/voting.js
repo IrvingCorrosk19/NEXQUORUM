@@ -215,14 +215,17 @@ export function renderVotePanel(
     return;
   }
 
-  if (session.status === "Closed" && tally) {
-    root.innerHTML = renderOfficialResult(tally, session, motion);
+  if (session.status === "Closed") {
+    root.innerHTML = tally
+      ? renderOfficialResult(tally, session, motion)
+      : `<div class="vote-eligibility-msg" role="status"><p>${escapeHtml(t("voting.votingFinished"))}</p></div>`;
     return;
   }
 
   const voted = Boolean(myVote?.evidenceId || myVote?.EvidenceId);
   const evidenceId = myVote?.evidenceId || myVote?.EvidenceId;
   const castAt = myVote?.castAtUtc || myVote?.CastAtUtc;
+  const status = String(myStatus?.status || myStatus?.Status || "").toUpperCase();
   const policy = policyOf(session);
   const trendHidden = Boolean(
     tally?.trendHidden ?? tally?.TrendHidden ?? policy !== "LiveResults"
@@ -235,8 +238,10 @@ export function renderVotePanel(
     myStatus?.RepresentedCoefficientPercent ??
     null;
 
+  // Owner ballot: question → choices first (viewport priority). Meta/participation after.
+  const compactOwner = !operatorView;
   let body = `
-    <div class="vote-live-header">
+    <div class="vote-live-header${compactOwner ? " vote-live-header--compact" : ""}">
       <p class="vote-now-kicker">${escapeHtml(t("voting.openBanner"))}</p>
       ${
         motion
@@ -245,29 +250,52 @@ export function renderVotePanel(
       }
       <p class="vote-session-status">
         <span class="badge badge-live">${escapeHtml(t("voting.openStatus"))}</span>
-        <span class="muted">${escapeHtml(t(`voting.policy${policy}`))}</span>
+        ${
+          compactOwner
+            ? ""
+            : `<span class="muted">${escapeHtml(t(`voting.policy${policy}`))}</span>`
+        }
       </p>
-      <dl class="vote-meta-grid">
+      ${
+        compactOwner
+          ? weight != null
+            ? `<p class="vote-weight-inline muted">${escapeHtml(t("voting.yourWeight"))}: <strong class="metric-number">${Number(weight).toFixed(3)}%</strong></p>`
+            : ""
+          : `<dl class="vote-meta-grid">
         <div><dt>${escapeHtml(t("voting.method"))}</dt><dd>${escapeHtml(t("voting.methodCoefficient"))}</dd></div>
         ${
           weight != null
             ? `<div><dt>${escapeHtml(t("voting.yourWeight"))}</dt><dd class="metric-number">${Number(weight).toFixed(3)}%</dd></div>`
             : ""
         }
-      </dl>
+      </dl>`
+      }
     </div>`;
 
   if (operatorView && session.status === "Open") {
     body += renderOperatorTally(tally, eligibleVoters ?? session.eligibleVoters, {
       showTrend: canSeeLiveTrend && policy === "PresidentOnlyLive"
     });
-  } else if (session.status === "Open") {
-    body += participationBlock(tally, session);
   }
 
-  if (voted) {
-    body += renderReceipt(evidenceId, castAt, tally, session, { waiting: true });
-  } else if (canCast && session.status === "Open") {
+  if (voted || status === "ALREADY_VOTED") {
+    body += `
+      <div class="vote-success-banner" role="status">
+        <p class="vote-success-title">${escapeHtml(t("voting.alreadyRegistered"))}</p>
+        ${
+          evidenceId && !session?.isSecret
+            ? renderReceipt(evidenceId, castAt, tally, session, { waiting: true })
+            : `<p class="muted">${escapeHtml(t("voting.registeredBody"))}</p>`
+        }
+      </div>`;
+  } else if (!operatorView && status === "NOT_ACCREDITED") {
+    body += `<p class="vote-eligibility-msg" role="status">${escapeHtml(t("voting.notAccredited"))}</p>`;
+  } else if (
+    !operatorView &&
+    (status === "NOT_ELIGIBLE" || status === "NOT_PARTICIPANT" || (!canCast && session.status === "Open"))
+  ) {
+    body += `<p class="vote-eligibility-msg" role="status">${escapeHtml(t("voting.notEligible"))}</p>`;
+  } else if (canCast && session.status === "Open" && (status === "ELIGIBLE" || !status)) {
     body += `
       <div class="choice-cards" role="radiogroup" aria-label="${escapeHtml(t("voting.title"))}">
         ${["InFavor", "Against", "Abstention"]
@@ -284,13 +312,18 @@ export function renderVotePanel(
       </div>
       <div class="vote-confirm-row">
         <button type="button" class="btn btn-primary btn-vote-confirm" data-action="confirm-selection" disabled>
-          ${escapeHtml(t("voting.reviewConfirm"))}
+          ${escapeHtml(t("voting.confirmVote"))}
         </button>
       </div>
       <div id="vote-status" class="muted" aria-live="polite"></div>
     `;
   } else if (!operatorView && session.status === "Open") {
-    body += `<p class="muted">${escapeHtml(t("voting.notEligible"))}</p>`;
+    body += `<p class="vote-eligibility-msg" role="status">${escapeHtml(t("voting.notEligible"))}</p>`;
+  }
+
+  // Participation is secondary for owners — keep below cast controls so options stay in viewport.
+  if (!operatorView && session.status === "Open") {
+    body += participationBlock(tally, session);
   }
 
   if (canSeeLiveTrend && tally && policy === "LiveResults") {
@@ -355,9 +388,13 @@ export function renderVotePanel(
       const receipt = await onCast?.(choice);
       const evidence = receipt?.evidenceId || receipt?.EvidenceId || "—";
       const at = receipt?.castAtUtc || receipt?.CastAtUtc || new Date().toISOString();
-      root.innerHTML = renderReceipt(evidence, at, tally, session, { waiting: true });
       const { notify } = await import("./ui.js");
-      notify.success("Tu voto quedó registrado correctamente.", { title: "Voto registrado" });
+      notify.success(t("voting.registeredToast"), { title: t("voting.registered") });
+      root.innerHTML = `
+        <div class="vote-success-banner" role="status">
+          <p class="vote-success-title">${escapeHtml(t("voting.registeredBody"))}</p>
+          ${renderReceipt(evidence, at, tally, session, { waiting: true })}
+        </div>`;
     } catch (error) {
       const networkish =
         !error?.status ||
@@ -429,15 +466,9 @@ export function renderVotePanel(
         confirmBtn.removeAttribute("aria-busy");
       }
       if (statusEl) {
-        const msg =
-          error?.status === 409 || /cerr|closed/i.test(String(error.message || ""))
-            ? t("voting.closedError")
-            : error?.message || t("voting.failureBody");
         statusEl.innerHTML = `
           <div class="inline-alert inline-alert-error" role="alert">
-            <p><strong>${escapeHtml(t("voting.failureTitle"))}</strong></p>
-            <p>${escapeHtml(msg)}</p>
-            <p class="muted">${escapeHtml(t("voting.failureVerify"))}</p>
+            <p><strong>${escapeHtml(t("voting.castFailed"))}</strong></p>
           </div>`;
       }
     }

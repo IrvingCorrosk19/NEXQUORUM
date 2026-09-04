@@ -140,7 +140,23 @@ try
     builder.Services.AddOpenTelemetry()
         .ConfigureResource(resource => resource.AddService("Asambleas.Web"))
         .WithTracing(tracing => tracing
-            .AddAspNetCoreInstrumentation()
+            .AddAspNetCoreInstrumentation(options =>
+            {
+                options.EnrichWithHttpRequest = (activity, request) =>
+                {
+                    var path = request.Path.Value ?? string.Empty;
+                    if (path.StartsWith("/ingresar/", StringComparison.OrdinalIgnoreCase)
+                        || path.StartsWith("/go/reset-password/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var redacted = RedactSensitivePath(path);
+                        activity.DisplayName = $"{request.Method} {redacted}";
+                        activity.SetTag("url.path", redacted);
+                        activity.SetTag("http.route", path.StartsWith("/ingresar/", StringComparison.OrdinalIgnoreCase)
+                            ? "/ingresar/{token}"
+                            : "/go/reset-password/{token}");
+                    }
+                };
+            })
             .AddHttpClientInstrumentation()
             .AddConsoleExporter());
 
@@ -164,10 +180,15 @@ try
 
     app.UseSerilogRequestLogging(options =>
     {
+        // Never emit raw /ingresar/{token} (or reset-password tokens) in the default request line.
+        options.MessageTemplate =
+            "HTTP {RequestMethod} {RedactedRequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
         options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
         {
-            // Never enrich with raw query when it might contain secrets; path only.
-            diagnosticContext.Set("RequestPath", httpContext.Request.Path.Value ?? string.Empty);
+            var path = httpContext.Request.Path.Value ?? string.Empty;
+            var redacted = RedactSensitivePath(path);
+            diagnosticContext.Set("RedactedRequestPath", redacted);
+            diagnosticContext.Set("RequestPath", redacted);
         };
     });
 
@@ -222,6 +243,24 @@ try
     app.MapHub<AssemblyHub>("/hubs/assembly");
     app.MapControllers();
 
+    // Email-safe short entry for assembly join (path token; JS redeems via POST, then cleans URL).
+    app.MapGet("/ingresar/{token}", async (string token, IWebHostEnvironment env, HttpContext http) =>
+    {
+        http.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+        http.Response.Headers.Pragma = "no-cache";
+        http.Response.Headers["Referrer-Policy"] = "no-referrer";
+
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 512)
+        {
+            return Results.Redirect("/join.html");
+        }
+
+        // Serve join.html; client reads token from path then replaceState + POST /api/join/redeem.
+        // Do not log the token; Serilog path enrichment redacts /ingresar/*.
+        var path = Path.Combine(env.WebRootPath, "join.html");
+        return Results.File(path, "text/html; charset=utf-8");
+    }).AllowAnonymous().DisableAntiforgery();
+
     // Email-safe short entry for password reset (avoids opening /reset-password.html without ?token=).
     app.MapGet("/go/reset-password/{token}", (string token) =>
     {
@@ -267,6 +306,27 @@ catch (Exception ex)
 finally
 {
     await Log.CloseAndFlushAsync();
+}
+
+static string RedactSensitivePath(string path)
+{
+    if (string.IsNullOrEmpty(path))
+    {
+        return path;
+    }
+
+    // /ingresar/{token} and /go/reset-password/{token}
+    if (path.StartsWith("/ingresar/", StringComparison.OrdinalIgnoreCase))
+    {
+        return "/ingresar/[REDACTED]";
+    }
+
+    if (path.StartsWith("/go/reset-password/", StringComparison.OrdinalIgnoreCase))
+    {
+        return "/go/reset-password/[REDACTED]";
+    }
+
+    return path;
 }
 
 public sealed class QuorumOptions

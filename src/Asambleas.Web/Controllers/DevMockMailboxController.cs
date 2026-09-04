@@ -60,6 +60,17 @@ public sealed class DevMockMailboxController : ControllerBase
     private static string? ExtractActivationToken(string? html, string? text)
     {
         var blob = $"{html}\n{text}";
+
+        // Prefer assembly join CTA (/ingresar/{token}).
+        var join = System.Text.RegularExpressions.Regex.Match(
+            blob,
+            @"/ingresar/([A-Za-z0-9_\-]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (join.Success)
+        {
+            return Uri.UnescapeDataString(join.Groups[1].Value);
+        }
+
         var marker = "activate.html?token=";
         var idx = blob.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
         if (idx < 0)
