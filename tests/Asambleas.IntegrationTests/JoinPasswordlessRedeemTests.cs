@@ -161,6 +161,100 @@ public sealed class JoinPasswordlessRedeemTests
     }
 
     [Fact]
+    public async Task Redeem_redirects_directly_to_participant_room()
+    {
+        await _fixture.ResetDatabaseAsync();
+        MockEmailProvider.Clear();
+        var (raw, assemblyId, _) = await IssueViaSendAsync("owner101@ocean.demo");
+
+        var client = Anon();
+        var redeem = await RedeemAsync(client, raw);
+        redeem.StatusCode.Should().Be(HttpStatusCode.OK);
+        var dto = await redeem.Content.ReadFromJsonAsync<RedeemDto>(JsonOpts);
+        dto!.AssemblyId.Should().Be(assemblyId);
+        dto.RedirectPath.Should().StartWith("/assembly.html?");
+        dto.RedirectPath.Should().Contain(assemblyId.ToString("D"));
+        dto.RedirectPath.Should().NotContain("lobby.html");
+        dto.RedirectPath.Should().NotContain("owner.html");
+    }
+
+    [Fact]
+    public async Task Redeem_twice_is_idempotent_single_participant()
+    {
+        await _fixture.ResetDatabaseAsync();
+        MockEmailProvider.Clear();
+        var (raw, assemblyId, email) = await IssueViaSendAsync("owner102@ocean.demo");
+
+        var a = Anon();
+        (await RedeemAsync(a, raw)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var me = await a.GetFromJsonAsync<MeDto>("/api/auth/me", JsonOpts);
+
+        var b = Anon();
+        (await RedeemAsync(b, raw)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using var scope = _fixture.Factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
+        (await db.AssemblyParticipants.IgnoreQueryFilters()
+            .CountAsync(p => p.AssemblyId == assemblyId && p.UserId == me!.UserId)).Should().Be(1);
+        email.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task Preview_peek_does_not_consume_link_for_scanners()
+    {
+        await _fixture.ResetDatabaseAsync();
+        MockEmailProvider.Clear();
+        var (raw, _, _) = await IssueViaSendAsync("owner103@ocean.demo");
+
+        var scanner = Anon();
+        for (var i = 0; i < 3; i++)
+        {
+            var preview = await scanner.GetAsync($"/api/join/preview?token={Uri.EscapeDataString(raw)}");
+            preview.StatusCode.Should().Be(HttpStatusCode.OK);
+            var body = await preview.Content.ReadFromJsonAsync<PreviewDto>(JsonOpts);
+            body!.Valid.Should().BeTrue();
+        }
+
+        await using (var scope = _fixture.Factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
+            var link = await db.AssemblyAccessLinks.IgnoreQueryFilters()
+                .FirstAsync(l => l.TokenHash == AssemblyAccessLinkService.HashToken(raw));
+            link.RedeemCount.Should().Be(0);
+            link.FirstRedeemedAtUtc.Should().BeNull();
+        }
+
+        var owner = Anon();
+        (await RedeemAsync(owner, raw)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await IsAuthedAsync(owner)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Completed_assembly_blocks_redeem_without_cookie()
+    {
+        await _fixture.ResetDatabaseAsync();
+        MockEmailProvider.Clear();
+        var (raw, assemblyId, _) = await IssueViaSendAsync("owner104@ocean.demo");
+
+        await using (var scope = _fixture.Factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
+            var asm = await db.Assemblies.IgnoreQueryFilters().FirstAsync(a => a.Id == assemblyId);
+            asm.Status = Domain.Enums.AssemblyStatus.Completed;
+            await db.SaveChangesAsync();
+        }
+
+        var client = Anon();
+        var redeem = await RedeemAsync(client, raw);
+        redeem.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await IsAuthedAsync(client)).Should().BeFalse();
+        var text = await redeem.Content.ReadAsStringAsync();
+        text.Should().Contain("finaliz");
+        text.Should().NotContain("Token");
+        text.Should().NotContain(assemblyId.ToString("D"));
+    }
+
+    [Fact]
     public async Task Ingresar_entry_sets_cache_control_no_store()
     {
         await _fixture.ResetDatabaseAsync();
@@ -294,6 +388,7 @@ public sealed class JoinPasswordlessRedeemTests
 
     private sealed record AfDto(string RequestToken);
     private sealed record RedeemDto(Guid AssemblyId, string RedirectPath);
+    private sealed record PreviewDto(bool Valid, string? Reason, Guid? AssemblyId, string? RedirectPath);
     private sealed record MeDto(
         Guid UserId,
         string DisplayName,

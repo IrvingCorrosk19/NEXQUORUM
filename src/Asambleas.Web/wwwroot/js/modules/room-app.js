@@ -76,6 +76,9 @@ const els = {
   speakerName: qs("#speaker-name"),
   speakerMeta: qs("#speaker-meta"),
   statusLine: qs("#status-line"),
+  waitingBanner: qs("#waiting-room-banner"),
+  waitingTitle: qs("#waiting-room-title"),
+  waitingBody: qs("#waiting-room-body"),
   participants: qs("#participant-strip"),
   participantCount: qs("#participant-count"),
   agenda: qs("#agenda-panel"),
@@ -1316,9 +1319,32 @@ function syncLiveMode() {
   els.room.setAttribute("data-mode", mode);
   document.body.dataset.assemblyMode = mode;
 
+  const waiting =
+    status === "Scheduled" || status === "CheckIn" || status === "Draft";
+  if (els.waitingBanner) {
+    els.waitingBanner.hidden = !waiting;
+    if (waiting) {
+      if (els.waitingTitle) {
+        els.waitingTitle.textContent =
+          t("assembly.notStartedTitle") || "La asamblea todavía no ha comenzado.";
+      }
+      if (els.waitingBody) {
+        els.waitingBody.textContent =
+          t("assembly.notStartedBody") ||
+          "Puedes permanecer aquí. La sala se actualizará automáticamente cuando comience.";
+      }
+    }
+  }
+
   if (status === "Paused") {
     els.speakerName.textContent = t("assembly.recessTitle");
     els.speakerMeta.textContent = t("assembly.recessBody");
+  } else if (waiting) {
+    els.speakerName.textContent =
+      t("assembly.notStartedTitle") || "La asamblea todavía no ha comenzado.";
+    els.speakerMeta.textContent =
+      t("assembly.notStartedBody") ||
+      "Puedes permanecer aquí. La sala se actualizará automáticamente cuando comience.";
   }
 }
 
@@ -1816,13 +1842,25 @@ function refreshPanels() {
   }
 
   const current = state.queue?.queue?.find((s) => s.id === state.queue.currentSpeakerRequestId);
-  els.speakerName.textContent = current?.displayName || t("assembly.waitingRoom");
-  if (current) {
-    els.speakerMeta.textContent = t("assembly.speaking");
-  } else if (state.assembly) {
-    els.speakerMeta.textContent = "";
+  const waiting =
+    state.assembly?.status === "Scheduled" ||
+    state.assembly?.status === "CheckIn" ||
+    state.assembly?.status === "Draft";
+  if (waiting) {
+    els.speakerName.textContent =
+      t("assembly.notStartedTitle") || "La asamblea todavía no ha comenzado.";
+    els.speakerMeta.textContent =
+      t("assembly.notStartedBody") ||
+      "Puedes permanecer aquí. La sala se actualizará automáticamente cuando comience.";
   } else {
-    els.speakerMeta.textContent = t("assembly.preparing");
+    els.speakerName.textContent = current?.displayName || t("assembly.waitingRoom");
+    if (current) {
+      els.speakerMeta.textContent = t("assembly.speaking");
+    } else if (state.assembly) {
+      els.speakerMeta.textContent = "";
+    } else {
+      els.speakerMeta.textContent = t("assembly.preparing");
+    }
   }
 
   updateLiveHeader();

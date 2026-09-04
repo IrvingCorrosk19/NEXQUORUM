@@ -228,6 +228,9 @@ export default {
     pause: "Pausar",
     resume: "Reanudar",
     waitingRoom: "Sala en espera",
+    notStartedTitle: "La asamblea todavía no ha comenzado.",
+    notStartedBody:
+      "Puedes permanecer aquí. La sala se actualizará automáticamente cuando comience.",
     preparing: "Preparando sesión",
     speaking: "Orador con la palabra",
     noMotion: "Sin moción presentada.",

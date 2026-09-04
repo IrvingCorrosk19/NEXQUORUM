@@ -229,6 +229,8 @@ export default {
     pause: "Pause",
     resume: "Resume",
     waitingRoom: "Waiting room",
+    notStartedTitle: "The assembly has not started yet.",
+    notStartedBody: "You can stay here. The room will update automatically when it begins.",
     preparing: "Preparing session",
     speaking: "Speaker has the floor",
     noMotion: "No motion presented.",

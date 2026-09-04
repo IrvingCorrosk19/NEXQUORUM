@@ -874,6 +874,40 @@
   display: none !important;
 }
 
+.waiting-room-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  margin: 0 0 var(--space-3);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-navy-700, #1e3a5f);
+  background: color-mix(in srgb, var(--color-navy-100, #e8eef6) 88%, white);
+  color: var(--color-navy-950, #0b1a2e);
+  box-shadow: var(--shadow-soft);
+}
+
+.waiting-room-banner[hidden] {
+  display: none !important;
+}
+
+.waiting-room-banner strong {
+  font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.waiting-room-banner p {
+  margin: 0;
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  line-height: 1.45;
+  max-width: 42rem;
+}
+
+.room[data-mode="prep"] .video-stage {
+  min-height: 12rem;
+}
+
 .room[data-role="owner"] .floor-granted-banner {
   border-width: 2px;
   padding: var(--space-4);

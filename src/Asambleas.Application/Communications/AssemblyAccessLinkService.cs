@@ -224,12 +224,22 @@ public sealed class AssemblyAccessLinkService
             .Select(a => a.Status)
             .FirstAsync(cancellationToken);
 
-        var redirect = status is AssemblyStatus.InProgress or AssemblyStatus.Paused or AssemblyStatus.CheckIn
-            ? $"/lobby.html?assemblyId={link.AssemblyId:D}"
-            : $"/owner.html?assemblyId={link.AssemblyId:D}";
+        var redirect = ResolveParticipantRoomRedirect(status, link.AssemblyId);
 
         return (link.AssemblyId, redirect);
     }
+
+    /// <summary>
+    /// One-click destination after passwordless redeem: the participant room (not lobby gate).
+    /// </summary>
+    public static string ResolveParticipantRoomRedirect(AssemblyStatus status, Guid assemblyId) =>
+        status switch
+        {
+            AssemblyStatus.Completed => $"/dashboard.html?assemblyId={assemblyId:D}&mode=historical",
+            AssemblyStatus.Cancelled => $"/join.html?reason=cancelled&assemblyId={assemblyId:D}",
+            // Scheduled / CheckIn / InProgress / Paused / Draft → participant room (waiting or live).
+            _ => $"/assembly.html?assemblyId={assemblyId:D}"
+        };
 
     /// <summary>
     /// After an owner account is linked, enroll them into open assemblies where they are a convocation recipient.

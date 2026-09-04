@@ -1,5 +1,5 @@
 import { api } from "./api.js";
-import { escapeHtml, formatDateTime, qs } from "./ui.js";
+import { qs } from "./ui.js";
 
 function readTokenFromLocation() {
   const params = new URLSearchParams(location.search);
@@ -25,30 +25,19 @@ function readTokenFromLocation() {
 
 function scrubTokenFromUrl() {
   if (location.hash || /[?&]token=/.test(location.search) || /^\/ingresar\//i.test(location.pathname)) {
-    history.replaceState({}, "", "/join.html");
+    // Keep a clean path without the secret; reason query from cancelled redirects is fine.
+    const reason = new URLSearchParams(location.search).get("reason");
+    history.replaceState({}, "", reason ? `/join.html?reason=${encodeURIComponent(reason)}` : "/join.html");
   }
 }
 
-function statusEs(status) {
-  const map = {
-    Draft: "Borrador",
-    Scheduled: "Programada",
-    CheckIn: "Acreditación abierta",
-    InProgress: "En curso",
-    Paused: "En pausa",
-    Completed: "Finalizada",
-    Cancelled: "Cancelada"
-  };
-  return map[status] || status || "—";
-}
-
-function showExpired(title, body, actions, alert, rawToken) {
-  title.textContent = "Enlace no disponible";
-  body.textContent = "Este enlace ya no está disponible. Solicita uno nuevo para ingresar.";
+function showHumanError(titleEl, bodyEl, actions, alert, rawToken, title, message) {
+  titleEl.textContent = title;
+  bodyEl.textContent = message;
   actions.hidden = false;
-  actions.innerHTML = `<button type="button" class="btn btn-primary" id="btn-request-link">Solicitar nuevo enlace</button>`;
+  actions.innerHTML = `<button type="button" class="btn btn-primary btn-lg" id="btn-request-link">Solicitar nueva invitación</button>`;
   alert.hidden = false;
-  alert.textContent = "Te enviaremos un acceso nuevo si tu correo está en la convocatoria.";
+  alert.textContent = "Si tu correo está en la convocatoria, el administrador puede enviarte un acceso nuevo.";
   qs("#btn-request-link")?.addEventListener("click", async () => {
     const btn = qs("#btn-request-link");
     if (btn) {
@@ -60,38 +49,96 @@ function showExpired(title, body, actions, alert, rawToken) {
         method: "POST",
         body: { token: rawToken || null, email: null }
       });
-      alert.textContent = res.message || "Si el correo corresponde a una convocatoria activa, enviaremos un nuevo enlace.";
+      alert.textContent =
+        res.message || "Si el correo corresponde a una convocatoria activa, enviaremos un nuevo enlace.";
     } catch {
-      alert.textContent = "No pudimos completar la solicitud. Intenta más tarde o contacta a la administración.";
+      alert.textContent = "No pudimos completar la solicitud. Contacta a la administración de tu PH.";
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = "Solicitar nuevo enlace";
+        btn.textContent = "Solicitar nueva invitación";
       }
     }
   });
 }
 
-async function redeemAndGo(token, actions, alert) {
-  actions.hidden = false;
-  actions.innerHTML = `<p class="muted" id="join-progress">Validando tu acceso…</p>`;
+function showExpired(title, body, actions, alert, rawToken) {
+  showHumanError(
+    title,
+    body,
+    actions,
+    alert,
+    rawToken,
+    "Este enlace ya no está disponible.",
+    "Solicita una nueva invitación al administrador de tu PH."
+  );
+}
+
+async function redeemAndGo(token, title, body, actions, alert) {
+  title.textContent = "Estamos preparando tu entrada a la asamblea…";
+  body.textContent = "Un momento. No cierres esta ventana.";
+  actions.hidden = true;
+  actions.innerHTML = "";
   try {
+    // Peek first so email scanners / HEAD previews do not consume the link;
+    // redeem is POST-only and creates the session.
+    const preview = await api(`/api/join/preview?token=${encodeURIComponent(token)}`);
+    if (!preview.valid) {
+      if (preview.reason === "CANCELLED" || /cancel/i.test(String(preview.status || ""))) {
+        showHumanError(
+          title,
+          body,
+          actions,
+          alert,
+          token,
+          "Esta asamblea fue cancelada.",
+          "No es necesario que ingreses."
+        );
+        return;
+      }
+      if (preview.reason === "COMPLETED" || preview.status === "Completed") {
+        showHumanError(
+          title,
+          body,
+          actions,
+          alert,
+          token,
+          "Esta asamblea ya finalizó.",
+          "Si necesitas el acta o los resultados, solicita acceso a la administración de tu PH."
+        );
+        return;
+      }
+      showExpired(title, body, actions, alert, token);
+      return;
+    }
+
     const claimed = await api("/api/join/redeem", {
       method: "POST",
       body: { token }
     });
-    const target = claimed.redirectPath || `/lobby.html?assemblyId=${claimed.assemblyId}`;
-    actions.innerHTML = `<p class="muted">Entrando a la asamblea…</p>`;
+    const target = claimed.redirectPath || `/assembly.html?assemblyId=${claimed.assemblyId}`;
+    title.textContent = "Entrando a la asamblea…";
+    body.textContent = "";
     location.replace(target);
   } catch (e) {
     const msg = String(e?.message || "");
-    if (/ya no está disponible|INVALID_OR_EXPIRED|expir/i.test(msg) || e?.status === 400) {
-      showExpired(qs("#join-title"), qs("#join-body"), actions, alert, token);
+    if (/cancel/i.test(msg)) {
+      showHumanError(
+        title,
+        body,
+        actions,
+        alert,
+        token,
+        "Esta asamblea fue cancelada.",
+        "No es necesario que ingreses."
+      );
       return;
     }
-    alert.hidden = false;
-    alert.textContent = "No pudimos completar el ingreso. Solicita un nuevo enlace.";
-    showExpired(qs("#join-title"), qs("#join-body"), actions, alert, token);
+    if (/ya no está disponible|INVALID_OR_EXPIRED|expir|finaliz/i.test(msg) || e?.status === 400) {
+      showExpired(title, body, actions, alert, token);
+      return;
+    }
+    showExpired(title, body, actions, alert, token);
   }
 }
 
@@ -101,15 +148,29 @@ async function init() {
   const actions = qs("#join-actions");
   const alert = qs("#join-alert");
 
+  const reason = new URLSearchParams(location.search).get("reason");
   const token = readTokenFromLocation();
   scrubTokenFromUrl();
+
+  if (reason === "cancelled" && !token) {
+    showHumanError(
+      title,
+      body,
+      actions,
+      alert,
+      null,
+      "Esta asamblea fue cancelada.",
+      "No es necesario que ingreses."
+    );
+    return;
+  }
 
   if (!token) {
     title.textContent = "Ingreso a la asamblea";
     body.textContent =
       "Abre el botón «Ingresar a la asamblea» desde el correo de convocatoria. Si el enlace venció, solicita uno nuevo.";
     actions.hidden = false;
-    actions.innerHTML = `<button type="button" class="btn btn-primary" id="btn-request-link">Solicitar nuevo enlace</button>`;
+    actions.innerHTML = `<button type="button" class="btn btn-primary btn-lg" id="btn-request-link">Solicitar nueva invitación</button>`;
     qs("#btn-request-link")?.addEventListener("click", () => {
       const email = window.prompt("Escribe el correo donde recibiste la convocatoria:");
       if (!email) return;
@@ -126,28 +187,7 @@ async function init() {
     return;
   }
 
-  let preview;
-  try {
-    preview = await api(`/api/join/preview?token=${encodeURIComponent(token)}`);
-  } catch {
-    showExpired(title, body, actions, alert, token);
-    return;
-  }
-
-  if (!preview.valid) {
-    showExpired(title, body, actions, alert, token);
-    return;
-  }
-
-  title.textContent = preview.assemblyTitle || "Asamblea";
-  body.innerHTML = `
-    <strong>${escapeHtml(preview.propertyHorizontalName || "")}</strong><br />
-    Estado: ${escapeHtml(statusEs(preview.status))}<br />
-    ${preview.scheduledAtUtc ? `Fecha: ${escapeHtml(formatDateTime(preview.scheduledAtUtc))}` : ""}
-    <p class="muted" style="margin-top:0.75rem">Entrarás automáticamente sin contraseña.</p>
-  `;
-
-  await redeemAndGo(token, actions, alert);
+  await redeemAndGo(token, title, body, actions, alert);
 }
 
 init();

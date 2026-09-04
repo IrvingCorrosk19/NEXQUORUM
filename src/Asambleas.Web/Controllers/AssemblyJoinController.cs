@@ -85,6 +85,34 @@ public sealed class AssemblyJoinController : ControllerBase
             return Ok(new JoinPreviewDto(false, "ASSEMBLY_NOT_FOUND", null, null, null, null, null, null, false));
         }
 
+        if (assembly.Status is AssemblyStatus.Cancelled)
+        {
+            return Ok(new JoinPreviewDto(
+                false,
+                "CANCELLED",
+                assembly.Id,
+                assembly.Title,
+                ph.Name,
+                assembly.Status.ToString(),
+                assembly.ScheduledAtUtc,
+                null,
+                RequiresLogin: false));
+        }
+
+        if (assembly.Status is AssemblyStatus.Completed)
+        {
+            return Ok(new JoinPreviewDto(
+                false,
+                "COMPLETED",
+                assembly.Id,
+                assembly.Title,
+                ph.Name,
+                assembly.Status.ToString(),
+                assembly.ScheduledAtUtc,
+                $"/dashboard.html?assemblyId={assembly.Id:D}&mode=historical",
+                RequiresLogin: false));
+        }
+
         var redirect = ResolveRedirect(assembly.Status, assembly.Id);
         // Passwordless redeem — no login form on the happy path.
         return Ok(new JoinPreviewDto(
@@ -131,9 +159,27 @@ public sealed class AssemblyJoinController : ControllerBase
 
         var assembly = await _db.Assemblies.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == link.AssemblyId, cancellationToken);
-        if (assembly is null || assembly.Status is AssemblyStatus.Cancelled)
+        if (assembly is null)
         {
             return BadRequest(new { message = "Este enlace ya no está disponible. Solicita uno nuevo para ingresar." });
+        }
+
+        if (assembly.Status is AssemblyStatus.Cancelled)
+        {
+            return BadRequest(new
+            {
+                message = "Esta asamblea fue cancelada. No es necesario que ingreses.",
+                code = "CANCELLED"
+            });
+        }
+
+        if (assembly.Status is AssemblyStatus.Completed)
+        {
+            return BadRequest(new
+            {
+                message = "Esta asamblea ya finalizó.",
+                code = "COMPLETED"
+            });
         }
 
         var ph = await _db.PropertyHorizontals.IgnoreQueryFilters().AsNoTracking()
@@ -353,9 +399,7 @@ public sealed class AssemblyJoinController : ControllerBase
     }
 
     private static string ResolveRedirect(AssemblyStatus status, Guid assemblyId) =>
-        status is AssemblyStatus.InProgress or AssemblyStatus.Paused or AssemblyStatus.CheckIn
-            ? $"/lobby.html?assemblyId={assemblyId:D}"
-            : $"/owner.html?assemblyId={assemblyId:D}";
+        AssemblyAccessLinkService.ResolveParticipantRoomRedirect(status, assemblyId);
 
     private static string HashPrefix(string raw)
     {
