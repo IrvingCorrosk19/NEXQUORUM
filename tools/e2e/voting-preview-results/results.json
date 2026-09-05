@@ -1,6 +1,6 @@
 {
   "env": "LOCALHOST",
-  "url": "https://localhost:7188",
+  "url": "https://asambleas.164.68.99.83.nip.io",
   "tests": [
     {
       "id": "login",
@@ -10,17 +10,17 @@
     {
       "id": "ph-ready",
       "pass": true,
-      "detail": "1c8f07b1-2948-40ba-91b2-084309c888ce"
+      "detail": "80f92e89-78c9-4c01-bd1e-b4e8ec3671cc"
     },
     {
       "id": "assembly-ready",
       "pass": true,
-      "detail": "e07f9b00-6963-4db1-b386-8bacb17b54d9"
+      "detail": "3d66fcf3-2672-4e3c-ae4e-1e2f3ea78a0b"
     },
     {
       "id": "studio-loaded",
       "pass": true,
-      "detail": "https://localhost:7188/voting-studio.html?assemblyId=e07f9b00-6963-4db1-b386-8bacb17b54d9"
+      "detail": "https://asambleas.164.68.99.83.nip.io/voting-studio.html?assemblyId=3d66fcf3-2672-4e3c-ae4e-1e2f3ea78a0b"
     },
     {
       "id": "preview-open",
@@ -65,7 +65,7 @@
     {
       "id": "no-reload",
       "pass": true,
-      "detail": "https://localhost:7188/voting-studio.html?assemblyId=e07f9b00-6963-4db1-b386-8bacb17b54d9"
+      "detail": "https://asambleas.164.68.99.83.nip.io/voting-studio.html?assemblyId=3d66fcf3-2672-4e3c-ae4e-1e2f3ea78a0b"
     },
     {
       "id": "option-select-feedback",

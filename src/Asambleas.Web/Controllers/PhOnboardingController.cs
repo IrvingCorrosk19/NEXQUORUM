@@ -1,7 +1,6 @@
 namespace Asambleas.Web.Controllers;
 
 using System.Security.Claims;
-using Asambleas.Application.Abstractions;
 using Asambleas.Application.PhOnboarding;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.PhOnboarding;
@@ -21,7 +20,6 @@ public sealed class PhOnboardingController : ControllerBase
     private readonly PhImportService _import;
     private readonly OwnerInvitationService _invitations;
     private readonly OwnerPasswordResetService _passwordResets;
-    private readonly IPhImportWorkbookService _workbook;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
 
@@ -30,7 +28,6 @@ public sealed class PhOnboardingController : ControllerBase
         PhImportService import,
         OwnerInvitationService invitations,
         OwnerPasswordResetService passwordResets,
-        IPhImportWorkbookService workbook,
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager)
     {
@@ -38,7 +35,6 @@ public sealed class PhOnboardingController : ControllerBase
         _import = import;
         _invitations = invitations;
         _passwordResets = passwordResets;
-        _workbook = workbook;
         _userManager = userManager;
         _signInManager = signInManager;
     }
@@ -414,52 +410,52 @@ public sealed class PhOnboardingController : ControllerBase
 
     [HttpGet("{propertyHorizontalId:guid}/import/template")]
     [Authorize(Policy = Permissions.PhImport)]
-    public IActionResult DownloadTemplate(Guid propertyHorizontalId)
+    public async Task<IActionResult> DownloadTemplate(Guid propertyHorizontalId, CancellationToken cancellationToken)
     {
-        var bytes = _import.DownloadTemplate();
-        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ASAMBLEAS-import-template.xlsx");
+        var (bytes, fileName) = await _import.BuildTemplateAsync(propertyHorizontalId, cancellationToken);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
 
     [HttpPost("{propertyHorizontalId:guid}/import/analyze")]
     [Authorize(Policy = Permissions.PhImport)]
-    [RequestSizeLimit(20_000_000)]
-    public async Task<ImportAnalyzeResultDto> AnalyzeImport(
+    [RequestSizeLimit(PhImportService.MaxFileBytes)]
+    public async Task<PhRosterImportPreviewDto> AnalyzeImport(
         Guid propertyHorizontalId,
         IFormFile file,
         CancellationToken cancellationToken)
     {
         if (file is null || file.Length == 0)
         {
-            throw new DomainException("IMPORT_FILE_REQUIRED", "Upload a CSV or XLSX file.");
+            throw new DomainException("IMPORT_FILE_REQUIRED", "Seleccione un archivo .xlsx o .csv.");
         }
 
         await using var stream = file.OpenReadStream();
-        var name = file.FileName ?? string.Empty;
-        if (name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(file.ContentType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", StringComparison.OrdinalIgnoreCase))
-        {
-            var (headers, rows) = _workbook.ParseWorkbook(stream);
-            return await _import.AnalyzeXlsxAsync(propertyHorizontalId, headers, rows, cancellationToken);
-        }
-
-        return await _import.AnalyzeCsvAsync(propertyHorizontalId, stream, cancellationToken);
+        return await _import.AnalyzeAsync(propertyHorizontalId, stream, file.FileName, cancellationToken);
     }
 
-    [HttpPost("{propertyHorizontalId:guid}/import/validate")]
+    [HttpPost("{propertyHorizontalId:guid}/import/patch-row")]
     [Authorize(Policy = Permissions.PhImport)]
-    public Task<ImportPreviewDto> ValidateImport(
+    public Task<PhRosterImportPreviewDto> PatchImportRow(
         Guid propertyHorizontalId,
-        [FromBody] ImportValidateRequest request,
+        [FromBody] PhRosterImportPatchRequest request,
         CancellationToken cancellationToken) =>
-        _import.ValidateAsync(request, cancellationToken);
+        _import.PatchRowAsync(propertyHorizontalId, request, cancellationToken);
+
+    [HttpPost("{propertyHorizontalId:guid}/import/exclude-row")]
+    [Authorize(Policy = Permissions.PhImport)]
+    public Task<PhRosterImportPreviewDto> ExcludeImportRow(
+        Guid propertyHorizontalId,
+        [FromBody] PhRosterImportExcludeRequest request,
+        CancellationToken cancellationToken) =>
+        _import.ExcludeRowAsync(propertyHorizontalId, request, cancellationToken);
 
     [HttpPost("{propertyHorizontalId:guid}/import/commit")]
     [Authorize(Policy = Permissions.PhImport)]
-    public Task<ImportCommitResultDto> CommitImport(
+    public Task<PhRosterImportCommitResultDto> CommitImport(
         Guid propertyHorizontalId,
-        [FromBody] ImportValidateRequest request,
+        [FromBody] PhRosterImportCommitRequest request,
         CancellationToken cancellationToken) =>
-        _import.CommitAsync(request, cancellationToken);
+        _import.CommitAsync(propertyHorizontalId, request, cancellationToken);
 
     [HttpGet("{propertyHorizontalId:guid}/import/{sessionId:guid}/errors")]
     [Authorize(Policy = Permissions.PhImport)]

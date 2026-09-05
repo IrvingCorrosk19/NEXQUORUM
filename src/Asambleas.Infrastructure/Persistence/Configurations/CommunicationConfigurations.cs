@@ -157,12 +157,18 @@ internal sealed class AssemblyAccessLinkConfiguration : IEntityTypeConfiguration
         builder.HasKey(x => x.Id);
         builder.Property(x => x.TokenHash).HasMaxLength(128).IsRequired();
         builder.Property(x => x.Purpose).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.RevocationReason).HasMaxLength(64);
         builder.HasIndex(x => x.TokenHash).IsUnique();
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.AssemblyId);
         builder.HasIndex(x => x.ConvocationId);
         builder.HasIndex(x => x.RecipientId);
         builder.HasIndex(x => new { x.ConvocationId, x.RecipientId });
+        // At most one non-revoked link per recipient/convocation (concurrency-safe resend/reschedule).
+        builder.HasIndex(x => new { x.ConvocationId, x.RecipientId })
+            .IsUnique()
+            .HasFilter("\"RevokedAtUtc\" IS NULL")
+            .HasDatabaseName("IX_assembly_access_links_active_recipient");
         builder.Property(x => x.RedeemCount).HasDefaultValue(0);
     }
 }

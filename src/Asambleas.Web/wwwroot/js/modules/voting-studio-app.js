@@ -9,6 +9,7 @@ import { isReadinessReturnContext } from "./return-context.js";
 import { bootIaPage } from "./ia-page.js";
 import { readIaContext } from "./ia-context.js";
 import { phHref } from "./ia-nav.js";
+import { openMotionImportWizard } from "./motion-import.js";
 
 const showLoader = (msg) => showGlobalLoader(msg, { immediate: true });
 const hideLoader = () => hideGlobalLoader();
@@ -156,8 +157,139 @@ const state = {
   surveys: [],
   mode: null, // vote | survey
   editingId: null,
-  draft: null
+  draft: null,
+  studioView: "list", // list | editor
+  dirty: false
 };
+
+function truncateText(value, max = 80) {
+  const text = String(value || "").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+/** Repair classic UTF-8-as-Latin1 mojibake in seeded/legacy strings. */
+function repairMojibake(value) {
+  const s = String(value ?? "");
+  // Ã³ / Â / â€" (em-dash) and similar double-encoded UTF-8 sequences
+  if (!/[ÃÂâ]/.test(s)) return s;
+  try {
+    const bytes = Uint8Array.from(s, (ch) => ch.charCodeAt(0) & 0xff);
+    return new TextDecoder("utf-8").decode(bytes);
+  } catch {
+    return s;
+  }
+}
+
+function agendaCodeFor(motion) {
+  const id = motion?.agendaItemId;
+  if (!id) return "—";
+  const item = state.agenda.find((a) => String(a.id) === String(id));
+  return item?.code || "—";
+}
+
+function motionCounts() {
+  const counts = { total: state.motions.length, draft: 0, ready: 0, live: 0, closed: 0 };
+  for (const m of state.motions) {
+    const bucket = motionBucket(m);
+    if (counts[bucket] != null) counts[bucket] += 1;
+  }
+  return counts;
+}
+
+function setDirty(flag) {
+  state.dirty = !!flag;
+  const el = qs("#editor-dirty") || qs(".studio-dirty-flag");
+  if (!el) return;
+  el.hidden = !state.dirty;
+  if (state.dirty) el.textContent = "Cambios pendientes";
+}
+
+function syncStudioUrl() {
+  try {
+    const url = new URL(location.href);
+    if (assemblyId) url.searchParams.set("assemblyId", assemblyId);
+    else url.searchParams.delete("assemblyId");
+    if (state.studioView === "editor" && state.editingId) {
+      url.searchParams.set("view", "edit");
+      url.searchParams.set("motionId", state.editingId);
+    } else {
+      url.searchParams.delete("view");
+      url.searchParams.delete("motionId");
+    }
+    history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    /* soft: ignore history failures */
+  }
+}
+
+function applyLayoutMode() {
+  const layout = qs("#voting-layout");
+  const listPanel = qs("#list-panel") || qs(".studio-list-shell");
+  const editorPanel = qs("#editor-panel");
+  const isEditor = state.studioView === "editor";
+
+  if (listPanel) listPanel.hidden = isEditor;
+  if (editorPanel) editorPanel.hidden = !isEditor;
+
+  if (layout) {
+    layout.classList.toggle("is-list", !isEditor);
+    layout.classList.toggle("is-editor", isEditor);
+    layout.classList.remove("has-editor");
+  }
+
+  const listHero = qs("#list-hero");
+  if (listHero) listHero.hidden = isEditor;
+}
+
+function enterListMode({ keepFilters = true } = {}) {
+  state.studioView = "list";
+  state.mode = null;
+  state.editingId = null;
+  state.draft = null;
+  setDirty(false);
+  if (!keepFilters) {
+    voteFilter = "all";
+    voteSearch = "";
+    const search = qs("#vote-search");
+    if (search) search.value = "";
+    document.querySelectorAll("#vote-filters button").forEach((b) => {
+      b.setAttribute("aria-pressed", b.dataset.filter === "all" ? "true" : "false");
+    });
+  }
+  applyLayoutMode();
+  syncStudioUrl();
+  renderLists();
+}
+
+function enterEditorMode() {
+  state.studioView = "editor";
+  applyLayoutMode();
+  syncStudioUrl();
+}
+
+async function closeEditor() {
+  if (state.dirty) {
+    const ok = await confirmDialog({
+      title: "Cambios sin guardar",
+      body: "Hay cambios pendientes en el editor. Si sales ahora, se perderán.",
+      confirmLabel: "Descartar cambios",
+      cancelLabel: "Seguir editando"
+    });
+    if (!ok) return false;
+  }
+  enterListMode({ keepFilters: true });
+  return true;
+}
+
+async function createNewVote() {
+  try {
+    await ensureAgendaItem();
+    openVoteEditor(null, TEMPLATES[0]);
+  } catch (err) {
+    showError(err.message);
+  }
+}
 
 function defaultVoteDraft(template) {
   const t = template || TEMPLATES[0];
@@ -285,25 +417,101 @@ function filteredMotions() {
   if (voteFilter !== "all") rows = rows.filter((m) => motionBucket(m) === voteFilter);
   if (voteSearch.trim()) {
     const q = voteSearch.trim().toLowerCase();
-    rows = rows.filter((m) => (m.title || "").toLowerCase().includes(q));
+    rows = rows.filter((m) => {
+      const haystack = [m.title, m.questionText, m.body, m.code]
+        .map((v) => String(v || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
   }
   return rows;
 }
 
+function updateVoteStatsAndFilters() {
+  const counts = motionCounts();
+  const statsRoot = qs("#vote-stats");
+  if (statsRoot) {
+    for (const key of ["total", "draft", "ready", "live", "closed"]) {
+      const el = statsRoot.querySelector(`[data-stat="${key}"]`);
+      if (el) el.textContent = String(counts[key] ?? 0);
+    }
+  } else {
+    let host = qs("#vote-stats");
+    if (!host) {
+      const votesPanel = qs("#votes-panel");
+      if (votesPanel) {
+        host = document.createElement("div");
+        host.id = "vote-stats";
+        host.className = "studio-stats";
+        host.setAttribute("aria-live", "polite");
+        host.innerHTML = `
+          <div class="studio-stat"><span class="studio-stat__value" data-stat="total">0</span><span class="studio-stat__label">Total</span></div>
+          <div class="studio-stat"><span class="studio-stat__value" data-stat="draft">0</span><span class="studio-stat__label">Borradores</span></div>
+          <div class="studio-stat"><span class="studio-stat__value" data-stat="ready">0</span><span class="studio-stat__label">Preparadas</span></div>
+          <div class="studio-stat"><span class="studio-stat__value" data-stat="live">0</span><span class="studio-stat__label">En vivo</span></div>
+          <div class="studio-stat"><span class="studio-stat__value" data-stat="closed">0</span><span class="studio-stat__label">Cerradas</span></div>`;
+        votesPanel.prepend(host);
+      }
+    }
+    if (host) {
+      for (const key of ["total", "draft", "ready", "live", "closed"]) {
+        const el = host.querySelector(`[data-stat="${key}"]`);
+        if (el) el.textContent = String(counts[key] ?? 0);
+      }
+    }
+  }
+
+  const labels = {
+    all: "Todas",
+    draft: "Borradores",
+    ready: "Preparadas",
+    live: "En vivo",
+    closed: "Cerradas"
+  };
+  document.querySelectorAll("#vote-filters button").forEach((btn) => {
+    const key = btn.dataset.filter || "all";
+    const n = key === "all" ? counts.total : counts[key] || 0;
+    btn.textContent = `${labels[key] || key} ${n}`;
+    btn.setAttribute("aria-pressed", key === voteFilter ? "true" : "false");
+  });
+}
+
+function primaryActionForMotion(m) {
+  const bucket = motionBucket(m);
+  if (bucket === "closed") {
+    return `<a class="btn btn-secondary btn-sm" href="/lobby.html?assemblyId=${encodeURIComponent(assemblyId)}">Ver resultados</a>`;
+  }
+  if (bucket === "live") {
+    return `<a class="btn btn-primary btn-sm" href="/lobby.html?assemblyId=${encodeURIComponent(assemblyId)}">Administrar</a>`;
+  }
+  if (bucket === "draft") {
+    return `<button type="button" class="btn btn-secondary btn-sm" data-edit-vote="${m.id}">Continuar edición</button>`;
+  }
+  return `<button type="button" class="btn btn-secondary btn-sm" data-edit-vote="${m.id}">Editar</button>`;
+}
+
 function renderLists() {
   const votes = qs("#list-votes");
-  const rows = filteredMotions();
+  if (!votes) return;
 
-  if (!state.motions.length) {
+  const focusFilter = document.activeElement?.closest?.("#vote-filters button")?.dataset?.filter || null;
+  updateVoteStatsAndFilters();
+
+  const rows = filteredMotions();
+  const showEmpty = !state.motions.length && state.studioView === "list";
+
+  if (showEmpty) {
     votes.innerHTML = `
       <div class="ia-empty-state">
         <p>Todavía no has preparado votaciones.</p>
         <p>Crea las decisiones que serán sometidas a los propietarios durante la Asamblea.</p>
         <button type="button" class="btn btn-primary" id="btn-empty-create">Crear primera votación</button>
-        <p style="margin-top:1rem;font-size:0.875rem">También puedes <button type="button" class="btn btn-ghost" id="btn-empty-templates">usar una plantilla</button></p>
+        <button type="button" class="btn btn-secondary" id="btn-empty-import">Importar preguntas</button>
       </div>`;
-    qs("#btn-empty-create")?.addEventListener("click", () => openCreateDialog());
-    qs("#btn-empty-templates")?.addEventListener("click", () => showTemplatesTab());
+    qs("#btn-empty-create")?.addEventListener("click", () => createNewVote());
+    qs("#btn-empty-import")?.addEventListener("click", () => qs("#btn-import-motions")?.click());
+  } else if (!state.motions.length) {
+    votes.innerHTML = "";
   } else if (!rows.length) {
     votes.innerHTML = `<div class="ia-empty-state"><p>No hay votaciones en este filtro.</p></div>`;
   } else {
@@ -311,27 +519,51 @@ function renderLists() {
       <table class="ia-data-table" aria-label="Votaciones">
         <thead>
           <tr>
+            <th scope="col"><span class="visually-hidden">Seleccionar</span></th>
+            <th>Orden</th>
+            <th>Código</th>
             <th>Título</th>
+            <th>Pregunta</th>
+            <th>Agenda</th>
             <th>Estado</th>
-            <th>Participación</th>
             <th class="col-actions">Acción</th>
           </tr>
         </thead>
         <tbody>
           ${rows
-            .map((m) => {
-              const action =
-                motionBucket(m) === "closed"
-                  ? `<button type="button" class="btn btn-secondary btn-sm" data-results-vote="${m.id}">Resultados</button>`
-                  : motionBucket(m) === "live"
-                    ? `<a class="btn btn-primary btn-sm" href="/lobby.html?assemblyId=${encodeURIComponent(assemblyId)}">Abrir</a>`
-                    : `<button type="button" class="btn btn-secondary btn-sm" data-edit-vote="${m.id}">Editar</button>`;
+            .map((m, idx) => {
+              const order = m.displayOrder ?? m.DisplayOrder ?? idx + 1;
+              const question = m.questionText || m.body || "";
+              const questionShort = truncateText(question, 80);
+              const canBulk = (m.designStatus || "Draft") === "Draft" && (m.status === "Draft" || !m.status);
+              const secondary =
+                motionBucket(m) === "closed" || motionBucket(m) === "live"
+                  ? ""
+                  : `<details class="studio-row-more">
+                      <summary class="btn btn-ghost btn-sm" aria-label="Más acciones">⋯</summary>
+                      <div class="studio-row-more__menu" role="menu">
+                        <button type="button" role="menuitem" data-dup-vote="${m.id}">Duplicar</button>
+                        ${
+                          motionBucket(m) === "draft" || motionBucket(m) === "ready"
+                            ? `<button type="button" role="menuitem" data-publish-vote="${m.id}">Publicar</button>`
+                            : ""
+                        }
+                      </div>
+                    </details>`;
               return `
             <tr>
-              <td data-label="Título"><strong>${escapeHtml(m.title)}</strong></td>
+              <td data-label="Seleccionar">
+                <input type="checkbox" data-bulk-id="${m.id}" ${canBulk ? "" : "disabled"} aria-label="Seleccionar ${escapeHtml(m.title || "")}" />
+              </td>
+              <td data-label="Orden">${escapeHtml(String(order))}</td>
+              <td data-label="Código"><code>${escapeHtml(m.code || "—")}</code></td>
+              <td data-label="Título"><strong>${escapeHtml(repairMojibake(m.title || "—"))}</strong></td>
+              <td data-label="Pregunta" title="${escapeHtml(repairMojibake(question))}">${escapeHtml(repairMojibake(questionShort || "—"))}</td>
+              <td data-label="Agenda">${escapeHtml(agendaCodeFor(m))}</td>
               <td data-label="Estado"><span class="ia-badge-status">${escapeHtml(motionStatusLabel(m))}</span></td>
-              <td data-label="Participación" class="muted">—</td>
-              <td data-label="Acción" class="col-actions">${action}</td>
+              <td data-label="Acción" class="col-actions">
+                <div class="studio-row-actions">${primaryActionForMotion(m)}${secondary}</div>
+              </td>
             </tr>`;
             })
             .join("")}
@@ -340,53 +572,63 @@ function renderLists() {
   }
 
   const surveys = qs("#list-surveys");
-  if (!state.surveys.length) {
-    surveys.innerHTML = `
-      <div class="ia-empty-state">
-        <p>No hay encuestas preparadas.</p>
-        <button type="button" class="btn btn-primary" id="btn-empty-survey">Crear encuesta</button>
-      </div>`;
-    qs("#btn-empty-survey")?.addEventListener("click", async () => {
-      try {
-        await ensureAgendaItem();
-        openSurveyEditor(null, TEMPLATES.find((t) => t.isSurvey));
-      } catch (err) {
-        showError(err.message);
-      }
-    });
-  } else {
-    surveys.innerHTML = `
-      <table class="ia-data-table" aria-label="Encuestas">
-        <thead><tr><th>Título</th><th>Estado</th><th>Respuestas</th><th class="col-actions">Acción</th></tr></thead>
-        <tbody>
-          ${state.surveys
-            .map(
-              (s) => `
-            <tr>
-              <td data-label="Título"><strong>${escapeHtml(s.title)}</strong></td>
-              <td data-label="Estado">${escapeHtml(STATUS_LABELS[s.status] || s.status || "—")}</td>
-              <td data-label="Respuestas">${s.responseCount || 0}</td>
-              <td data-label="Acción" class="col-actions">
-                <button type="button" class="btn btn-secondary btn-sm" data-edit-survey="${s.id}">Editar</button>
-              </td>
-            </tr>`
-            )
-            .join("")}
-        </tbody>
-      </table>`;
+  if (surveys) {
+    if (!state.surveys.length) {
+      surveys.innerHTML = `
+        <div class="ia-empty-state">
+          <p>No hay encuestas preparadas.</p>
+          <button type="button" class="btn btn-primary" id="btn-empty-survey">Crear encuesta</button>
+        </div>`;
+      qs("#btn-empty-survey")?.addEventListener("click", async () => {
+        try {
+          await ensureAgendaItem();
+          openSurveyEditor(null, TEMPLATES.find((t) => t.isSurvey));
+        } catch (err) {
+          showError(err.message);
+        }
+      });
+    } else {
+      surveys.innerHTML = `
+        <table class="ia-data-table" aria-label="Encuestas">
+          <thead><tr><th>Título</th><th>Estado</th><th>Respuestas</th><th class="col-actions">Acción</th></tr></thead>
+          <tbody>
+            ${state.surveys
+              .map(
+                (s) => `
+              <tr>
+                <td data-label="Título"><strong>${escapeHtml(s.title)}</strong></td>
+                <td data-label="Estado">${escapeHtml(STATUS_LABELS[s.status] || s.status || "—")}</td>
+                <td data-label="Respuestas">${s.responseCount || 0}</td>
+                <td data-label="Acción" class="col-actions">
+                  <button type="button" class="btn btn-secondary btn-sm" data-edit-survey="${s.id}">Editar</button>
+                </td>
+              </tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>`;
+    }
   }
 
-  qs("#list-templates").innerHTML = `<div class="template-grid">${TEMPLATES.map(
-    (t) => `
-    <article class="studio-card">
-      <h3>${escapeHtml(t.title)}</h3>
-      <p class="muted">${t.isSurvey ? "Encuesta" : "Votación formal"}</p>
-      <button type="button" class="btn btn-primary" data-template="${escapeHtml(t.key)}">Usar plantilla</button>
-    </article>`
-  ).join("")}</div>`;
+  const templates = qs("#list-templates");
+  if (templates) {
+    templates.innerHTML = `<div class="template-grid">${TEMPLATES.map(
+      (t) => `
+      <article class="studio-card">
+        <h3>${escapeHtml(t.title)}</h3>
+        <p class="muted">${t.isSurvey ? "Encuesta" : "Votación formal"}</p>
+        <button type="button" class="btn btn-primary" data-template="${escapeHtml(t.key)}">Usar plantilla</button>
+      </article>`
+    ).join("")}</div>`;
+  }
 
   bindListActions();
-  qs("#voting-layout")?.classList.toggle("has-editor", !qs("#editor-panel")?.hidden);
+  applyLayoutMode();
+
+  if (focusFilter) {
+    const btn = qs(`#vote-filters button[data-filter="${focusFilter}"]`);
+    btn?.focus({ preventScroll: true });
+  }
 }
 
 function showTemplatesTab() {
@@ -430,14 +672,17 @@ function bindListActions() {
   qs("#list-votes").onclick = async (e) => {
     const t = e.target;
     if (!(t instanceof HTMLElement)) return;
-    if (t.dataset.editVote) {
-      const m = state.motions.find((x) => x.id === t.dataset.editVote);
+    const editBtn = t.closest("[data-edit-vote]");
+    if (editBtn) {
+      const m = state.motions.find((x) => x.id === editBtn.dataset.editVote);
       if (m) openVoteEditor(m);
+      return;
     }
-    if (t.dataset.dupVote) {
+    const dupBtn = t.closest("[data-dup-vote]");
+    if (dupBtn) {
       showLoader("Duplicando votación…");
       try {
-        await api(`/api/assemblies/${assemblyId}/motions/${t.dataset.dupVote}/duplicate`, { method: "POST" });
+        await api(`/api/assemblies/${assemblyId}/motions/${dupBtn.dataset.dupVote}/duplicate`, { method: "POST" });
         await refresh();
         showToast("Votación duplicada", "success");
       } catch (err) {
@@ -445,11 +690,13 @@ function bindListActions() {
       } finally {
         hideLoader();
       }
+      return;
     }
-    if (t.dataset.publishVote) {
+    const publishBtn = t.closest("[data-publish-vote]");
+    if (publishBtn) {
       showLoader("Publicando votación…");
       try {
-        await api(`/api/assemblies/${assemblyId}/motions/${t.dataset.publishVote}/publish`, { method: "POST" });
+        await api(`/api/assemblies/${assemblyId}/motions/${publishBtn.dataset.publishVote}/publish`, { method: "POST" });
         await refresh();
         showToast("Votación lista para presentar", "success");
       } catch (err) {
@@ -463,14 +710,17 @@ function bindListActions() {
   qs("#list-surveys").onclick = async (e) => {
     const t = e.target;
     if (!(t instanceof HTMLElement)) return;
-    if (t.dataset.editSurvey) {
-      const s = state.surveys.find((x) => x.id === t.dataset.editSurvey);
+    const editBtn = t.closest("[data-edit-survey]");
+    if (editBtn) {
+      const s = state.surveys.find((x) => x.id === editBtn.dataset.editSurvey);
       if (s) openSurveyEditor(s);
+      return;
     }
-    if (t.dataset.publishSurvey) {
+    const publishBtn = t.closest("[data-publish-survey]");
+    if (publishBtn) {
       showLoader("Publicando formulario…");
       try {
-        await api(`/api/assemblies/${assemblyId}/surveys/${t.dataset.publishSurvey}/publish`, { method: "POST" });
+        await api(`/api/assemblies/${assemblyId}/surveys/${publishBtn.dataset.publishSurvey}/publish`, { method: "POST" });
         await refresh();
         showToast("Formulario publicado", "success");
       } catch (err) {
@@ -478,10 +728,12 @@ function bindListActions() {
       } finally {
         hideLoader();
       }
+      return;
     }
-    if (t.dataset.resultsSurvey) {
+    const resultsBtn = t.closest("[data-results-survey]");
+    if (resultsBtn) {
       try {
-        const results = await api(`/api/assemblies/${assemblyId}/surveys/${t.dataset.resultsSurvey}/results`);
+        const results = await api(`/api/assemblies/${assemblyId}/surveys/${resultsBtn.dataset.resultsSurvey}/results`);
         const lines = (results.questions || [])
           .map((q) => `• ${q.title}: ${(q.distribution || []).map((d) => `${d.label} ${d.count}`).join(", ")}`)
           .join("\n");
@@ -510,9 +762,18 @@ function bindListActions() {
   };
 }
 
+function motionEditMode(motion) {
+  return String(motion?.editMode || motion?.EditMode || "Full");
+}
+
+function motionEditBlockReason(motion) {
+  return repairMojibake(motion?.editBlockReason || motion?.EditBlockReason || motion?.message || "");
+}
+
 function openVoteEditor(motion, template) {
   state.mode = "vote";
   state.editingId = motion?.id || null;
+  const editMode = motion ? motionEditMode(motion) : "Full";
   state.draft = motion
     ? {
         agendaItemId: motion.agendaItemId,
@@ -535,15 +796,31 @@ function openVoteEditor(motion, template) {
         })(),
         isSecret: !!motion.isSecret,
         templateKey: motion.templateKey,
-        designStatus: motion.designStatus || "Draft"
+        designStatus: motion.designStatus || "Draft",
+        editMode,
+        editBlockReason: motionEditBlockReason(motion),
+        acceptedBallots: Number(motion.acceptedBallots || motion.AcceptedBallots || 0)
       }
-    : defaultVoteDraft(template);
+    : { ...defaultVoteDraft(template), editMode: "Full", editBlockReason: "", acceptedBallots: 0 };
 
-  qs("#editor-panel").hidden = false;
-  qs("#editor-title").textContent = motion ? "Editar votación" : "Crear votación";
+  enterEditorMode();
+  const titleEl = qs("#editor-title");
+  const ledeEl = qs("#editor-lede");
+  if (motion) {
+    if (titleEl) titleEl.textContent = editMode === "Full" ? "Editar votación" : "Votación protegida";
+    if (ledeEl) {
+      const code = state.draft.code || "—";
+      const status = DESIGN_LABELS[state.draft.designStatus] || motionStatusLabel(motion);
+      ledeEl.textContent = `${code} · ${status}`;
+    }
+  } else {
+    if (titleEl) titleEl.textContent = "Nueva votación";
+    if (ledeEl) ledeEl.textContent = "Configura la pregunta que se presentará a los participantes.";
+  }
   qs("#editor-status").textContent = DESIGN_LABELS[state.draft.designStatus] || "Borrador";
-  qs("#voting-layout")?.classList.add("has-editor");
   renderVoteEditor();
+  setDirty(false);
+  syncStudioUrl();
 }
 
 function openSurveyEditor(survey, template) {
@@ -564,29 +841,63 @@ function openSurveyEditor(survey, template) {
       }
     : defaultSurveyDraft(template);
 
-  qs("#editor-panel").hidden = false;
-  qs("#editor-title").textContent = survey ? "Editar encuesta" : "Crear encuesta";
+  enterEditorMode();
+  const titleEl = qs("#editor-title");
+  const ledeEl = qs("#editor-lede");
+  if (survey) {
+    if (titleEl) titleEl.textContent = "Editar encuesta";
+    if (ledeEl) ledeEl.textContent = `${survey.title || "Encuesta"} · ${STATUS_LABELS[survey.status] || "Borrador"}`;
+  } else {
+    if (titleEl) titleEl.textContent = "Nueva encuesta";
+    if (ledeEl) ledeEl.textContent = "Configura las preguntas del formulario.";
+  }
   qs("#editor-status").textContent = STATUS_LABELS[survey?.status] || "Borrador";
-  qs("#voting-layout")?.classList.add("has-editor");
   renderSurveyEditor();
+  setDirty(false);
+  syncStudioUrl();
 }
 
 function renderVoteEditor() {
   const d = state.draft;
+  const locked = (d.editMode || "Full") !== "Full";
+  const lockReason =
+    d.editBlockReason ||
+    (d.editMode === "WithdrawRequired"
+      ? "La votación está abierta. Retire la apertura (sin votos) antes de editar campos críticos."
+      : d.editMode === "CancelRequired"
+        ? "Ya hay votos registrados. Anule y cree una nueva versión para corregir."
+        : d.editMode === "Immutable"
+          ? "Registro histórico inmutable. No se pueden alterar resultados ni evidencia."
+          : "");
+  const dis = locked ? "disabled" : "";
   const agendaOptions = state.agenda
-    .map((a) => `<option value="${a.id}" ${a.id === d.agendaItemId ? "selected" : ""}>${escapeHtml(a.code)} — ${escapeHtml(a.title)}</option>`)
+    .map((a) => {
+      const label = `${repairMojibake(a.code)} — ${repairMojibake(a.title)}`;
+      return `<option value="${a.id}" ${a.id === d.agendaItemId ? "selected" : ""} title="${escapeHtml(label)}">${escapeHtml(label)}</option>`;
+    })
     .join("");
   const thresholdApplies = d.decisionRuleCode === "QualifiedMajority";
+  const options = d.options || [];
+  const canRemove = options.length > 2 && !locked;
+
+  const lockBanner = locked
+    ? `<div class="studio-lock-banner" role="status" id="editor-lock-banner">
+        <strong>Campos protegidos</strong>
+        <p>${escapeHtml(lockReason || "Esta votación no admite edición crítica en su estado actual.")}</p>
+        <p class="studio-field__hint">Modo: ${escapeHtml(d.editMode || "—")}${d.acceptedBallots ? ` · Votos: ${escapeHtml(String(d.acceptedBallots))}` : ""}</p>
+      </div>`
+    : "";
 
   qs("#editor-canvas").innerHTML = `
-    <p class="studio-section-title">Contenido</p>
+    ${lockBanner}
+    <p class="studio-section-title">Pregunta</p>
     <div class="studio-field studio-field--dominant">
       <div class="studio-field__label"><label for="v-question">Pregunta</label></div>
-      <textarea id="v-question" class="studio-field__control" rows="3" placeholder="Ej. ¿Se aprueba el presupuesto de gastos comunes 2026?">${escapeHtml(d.questionText || "")}</textarea>
+      <textarea id="v-question" class="studio-field__control" rows="3" placeholder="Ej. ¿Se aprueba el presupuesto de gastos comunes 2026?" ${dis}>${escapeHtml(d.questionText || "")}</textarea>
     </div>
     <div class="studio-field">
       <div class="studio-field__label"><label for="v-title">Título corto</label></div>
-      <input id="v-title" class="studio-field__control" value="${escapeHtml(d.title || "")}" placeholder="Nombre breve" />
+      <input id="v-title" class="studio-field__control" value="${escapeHtml(d.title || "")}" placeholder="Nombre breve" ${dis} />
       <p class="studio-field__hint">Se utiliza en listados y resultados.</p>
     </div>
     <div class="studio-field">
@@ -594,42 +905,51 @@ function renderVoteEditor() {
         <label for="v-instructions">Instrucciones</label>
         <span class="optional">Opcional</span>
       </div>
-      <textarea id="v-instructions" class="studio-field__control" rows="2" placeholder="Indicaciones para el participante">${escapeHtml(d.instructions || "")}</textarea>
+      <textarea id="v-instructions" class="studio-field__control" rows="2" placeholder="Indicaciones para el participante" ${dis}>${escapeHtml(d.instructions || "")}</textarea>
     </div>
+    <p class="studio-section-title">Opciones</p>
     <div class="studio-field">
-      <div class="studio-field__label"><span>Opciones de respuesta</span></div>
-      <div class="option-editor" id="v-options">${(d.options || [])
-        .map(
-          (o, i) => `
-        <div class="option-row">
-          <input class="option-row__input" data-opt="${i}" value="${escapeHtml(o)}" aria-label="Opción ${i + 1}" />
-          <button type="button" class="option-row__remove" data-remove-opt="${i}" title="Eliminar opción" aria-label="Eliminar opción ${i + 1}">×</button>
-        </div>`
-        )
-        .join("")}</div>
-      <button type="button" class="btn btn-ghost studio-add-opt" id="btn-add-opt">+ Agregar opción</button>
+      <div id="v-options" class="studio-options">
+        ${(options || [])
+          .map(
+            (opt, i) => `
+          <div class="option-row">
+            <input class="option-row__input studio-field__control" data-opt-idx="${i}" value="${escapeHtml(opt)}" aria-label="Opción ${i + 1}" ${dis} />
+            <div class="option-row__actions">
+              <button type="button" class="btn btn-ghost btn-sm" data-opt-up="${i}" aria-label="Subir opción ${i + 1}" ${i === 0 || locked ? "disabled" : ""}>↑</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-opt-down="${i}" aria-label="Bajar opción ${i + 1}" ${i >= options.length - 1 || locked ? "disabled" : ""}>↓</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-remove-opt="${i}" aria-label="Quitar opción ${i + 1}" ${!canRemove ? "disabled" : ""}>×</button>
+            </div>
+          </div>`
+          )
+          .join("")}
+      </div>
+      ${locked ? "" : `<button type="button" class="btn btn-ghost btn-sm" id="btn-add-opt">+ Agregar opción</button>`}
     </div>
     <div class="ballot-preview" id="ballot-live" aria-live="polite"></div>
   `;
 
-  qs("#editor-config").innerHTML = `
+  // Keep config panel in sync — find where editor-config is set
+  const configHost = qs("#editor-config");
+  if (configHost) {
+    configHost.innerHTML = `
     <p class="studio-section-title">Configuración</p>
     <div class="studio-config-group">
       <h3 class="studio-config-group__title">Contexto</h3>
       <div class="studio-field">
         <div class="studio-field__label"><label for="v-agenda">Punto de agenda</label></div>
-        <select id="v-agenda" class="studio-field__control" data-control="select">${agendaOptions || '<option value="">Sin agenda — cree un punto primero</option>'}</select>
+        <select id="v-agenda" class="studio-field__control" data-control="select" ${dis}>${agendaOptions || '<option value="">Sin agenda — cree un punto primero</option>'}</select>
       </div>
       <div class="studio-field">
         <div class="studio-field__label"><label for="v-code">Código</label></div>
-        <input id="v-code" class="studio-field__control" value="${escapeHtml(d.code || "")}" placeholder="Ej. V-01" />
+        <input id="v-code" class="studio-field__control" value="${escapeHtml(d.code || "")}" placeholder="Ej. V-01" ${dis} />
       </div>
     </div>
     <div class="studio-config-group">
-      <h3 class="studio-config-group__title">Votación</h3>
+      <h3 class="studio-config-group__title">Forma de contabilización</h3>
       <div class="studio-field">
         <div class="studio-field__label"><label for="v-ballot">Tipo de respuesta</label></div>
-        <select id="v-ballot" class="studio-field__control" data-control="select">
+        <select id="v-ballot" class="studio-field__control" data-control="select" ${dis}>
           <option value="FavorAgainstAbstain">A favor / En contra / Abstención</option>
           <option value="YesNo">Sí / No</option>
           <option value="YesNoAbstain">Sí / No / Abstención</option>
@@ -639,46 +959,59 @@ function renderVoteEditor() {
       </div>
       <div class="studio-field">
         <div class="studio-field__label"><label for="v-calc">Método</label></div>
-        <select id="v-calc" class="studio-field__control" data-control="select">
+        <select id="v-calc" class="studio-field__control" data-control="select" ${dis}>
           <option value="Coefficient">Por coeficiente</option>
           <option value="PerPerson">Por persona</option>
           <option value="PerUnit">Por unidad</option>
         </select>
       </div>
-    </div>
-    <div class="studio-config-group">
-      <h3 class="studio-config-group__title">Decisión</h3>
       <div class="studio-field">
         <div class="studio-field__label"><label for="v-rule">Mayoría</label></div>
-        <select id="v-rule" class="studio-field__control" data-control="select">
+        <select id="v-rule" class="studio-field__control" data-control="select" ${dis}>
           <option value="SimpleMajority">Mayoría simple</option>
           <option value="QualifiedMajority">Porcentaje requerido</option>
         </select>
       </div>
-      <div class="studio-field ${thresholdApplies ? "" : "is-disabled-visual"}" id="v-threshold-field">
+      <div class="studio-field" id="v-threshold-field" ${thresholdApplies ? "" : "hidden"}>
         <div class="studio-field__label"><label for="v-threshold">Umbral %</label></div>
-        <input id="v-threshold" class="studio-field__control" type="number" min="0" max="100" step="0.01" value="${escapeHtml(String(d.requiredThresholdPercent ?? ""))}" ${thresholdApplies ? "" : "disabled"} />
-        ${thresholdApplies ? "" : `<p class="studio-field__hint">Aplica solo con mayoría por porcentaje requerido.</p>`}
+        <input id="v-threshold" class="studio-field__control" type="number" min="0" max="100" step="0.01" value="${escapeHtml(String(d.requiredThresholdPercent ?? ""))}" ${!thresholdApplies || locked ? "disabled" : ""} />
       </div>
     </div>
     <div class="studio-config-group">
-      <h3 class="studio-config-group__title">Resultados</h3>
+      <h3 class="studio-config-group__title">Privacidad y resultados</h3>
       <div class="studio-field">
         <div class="studio-field__label"><label for="v-vis">Visibilidad del resultado</label></div>
-        <select id="v-vis" class="studio-field__control" data-control="select">
+        <select id="v-vis" class="studio-field__control" data-control="select" ${dis}>
           <option value="HiddenUntilClose">Oculto hasta cierre</option>
           <option value="PresidentOnlyLive">Solo mesa en vivo</option>
           <option value="LiveResults">Resultados en vivo</option>
         </select>
       </div>
-      <label class="studio-check"><input type="checkbox" id="v-secret" ${d.isSecret ? "checked" : ""} /> Voto secreto (operacional)</label>
+      <label class="studio-check"><input type="checkbox" id="v-secret" ${d.isSecret ? "checked" : ""} ${dis} /> Voto secreto (operacional)</label>
     </div>
   `;
+  }
 
-  qs("#v-ballot").value = d.ballotKind;
-  qs("#v-calc").value = d.calculationMethod;
-  qs("#v-rule").value = d.decisionRuleCode;
-  qs("#v-vis").value = d.defaultResultVisibilityPolicy;
+  const saveBtn = qs("#btn-save-draft");
+  const pubBtn = qs("#btn-publish");
+  if (saveBtn) {
+    saveBtn.disabled = locked;
+    saveBtn.hidden = locked;
+  }
+  if (pubBtn) {
+    pubBtn.disabled = locked;
+    pubBtn.hidden = locked;
+  }
+
+  if (qs("#v-ballot")) qs("#v-ballot").value = d.ballotKind;
+  if (qs("#v-calc")) qs("#v-calc").value = d.calculationMethod;
+  if (qs("#v-rule")) qs("#v-rule").value = d.decisionRuleCode;
+  if (qs("#v-vis")) qs("#v-vis").value = d.defaultResultVisibilityPolicy;
+
+  if (locked) {
+    updateBallotLive();
+    return;
+  }
 
   const sync = () => {
     readVoteDraftFromDom();
@@ -688,31 +1021,49 @@ function renderVoteEditor() {
     const applies = rule === "QualifiedMajority";
     if (thInput) thInput.disabled = !applies;
     if (thField) {
-      thField.classList.toggle("is-disabled-visual", !applies);
-      const hint = thField.querySelector(".studio-field__hint");
-      if (!applies && !hint) {
-        const p = document.createElement("p");
-        p.className = "studio-field__hint";
-        p.textContent = "Aplica solo con mayoría por porcentaje requerido.";
-        thField.appendChild(p);
-      } else if (applies && hint) {
-        hint.remove();
-      }
+      if (applies) thField.removeAttribute("hidden");
+      else thField.setAttribute("hidden", "");
     }
+    setDirty(true);
     updateBallotLive();
   };
   qs("#editor-canvas").oninput = sync;
   qs("#editor-config").onchange = sync;
+  qs("#editor-config").oninput = sync;
   qs("#btn-add-opt").onclick = () => {
     readVoteDraftFromDom();
     state.draft.options.push("Nueva opción");
+    setDirty(true);
     renderVoteEditor();
   };
   qs("#editor-canvas").onclick = (e) => {
     const t = e.target;
-    if (t instanceof HTMLElement && t.dataset.removeOpt != null) {
+    if (!(t instanceof HTMLElement)) return;
+    if (t.dataset.removeOpt != null) {
       readVoteDraftFromDom();
+      if ((state.draft.options || []).length <= 2) return;
       state.draft.options.splice(Number(t.dataset.removeOpt), 1);
+      setDirty(true);
+      renderVoteEditor();
+      return;
+    }
+    if (t.dataset.optUp != null) {
+      readVoteDraftFromDom();
+      const i = Number(t.dataset.optUp);
+      if (i <= 0) return;
+      const arr = state.draft.options;
+      [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+      setDirty(true);
+      renderVoteEditor();
+      return;
+    }
+    if (t.dataset.optDown != null) {
+      readVoteDraftFromDom();
+      const i = Number(t.dataset.optDown);
+      const arr = state.draft.options;
+      if (i >= arr.length - 1) return;
+      [arr[i], arr[i + 1]] = [arr[i + 1], arr[i]];
+      setDirty(true);
       renderVoteEditor();
     }
   };
@@ -757,7 +1108,10 @@ function updateBallotLive() {
 function renderSurveyEditor() {
   const d = state.draft;
   const agendaOptions = state.agenda
-    .map((a) => `<option value="${a.id}" ${a.id === d.agendaItemId ? "selected" : ""}>${escapeHtml(a.code)} — ${escapeHtml(a.title)}</option>`)
+    .map((a) => {
+      const label = `${repairMojibake(a.code)} — ${repairMojibake(a.title)}`;
+      return `<option value="${a.id}" ${a.id === d.agendaItemId ? "selected" : ""} title="${escapeHtml(label)}">${escapeHtml(label)}</option>`;
+    })
     .join("");
 
   qs("#editor-canvas").innerHTML = `
@@ -820,6 +1174,14 @@ function renderSurveyEditor() {
   });
   if (d.agendaItemId) qs("#s-agenda").value = d.agendaItemId;
 
+  const markSurveyDirty = () => {
+    readSurveyDraftFromDom();
+    setDirty(true);
+  };
+  qs("#editor-canvas").oninput = markSurveyDirty;
+  qs("#editor-canvas").onchange = markSurveyDirty;
+  qs("#editor-config").onchange = markSurveyDirty;
+
   qs("#btn-add-q").onclick = () => {
     readSurveyDraftFromDom();
     state.draft.questions.push({
@@ -828,6 +1190,7 @@ function renderSurveyEditor() {
       optionsJson: '["Opción A","Opción B"]',
       isRequired: true
     });
+    setDirty(true);
     renderSurveyEditor();
   };
   qs("#editor-canvas").onclick = (e) => {
@@ -835,6 +1198,7 @@ function renderSurveyEditor() {
     if (t instanceof HTMLElement && t.dataset.qRemove != null) {
       readSurveyDraftFromDom();
       state.draft.questions.splice(Number(t.dataset.qRemove), 1);
+      setDirty(true);
       renderSurveyEditor();
     }
   };
@@ -856,13 +1220,13 @@ function readSurveyDraftFromDom() {
   });
 }
 
-async function saveDraft() {
+async function saveDraft({ returnToList = true } = {}) {
   if (state.mode === "vote") {
     readVoteDraftFromDom();
     const d = state.draft;
     if (!d.agendaItemId) {
       showError("Seleccione o cree un punto de agenda.");
-      return;
+      return false;
     }
     const body = {
       agendaItemId: d.agendaItemId,
@@ -889,14 +1253,17 @@ async function saveDraft() {
         const created = await api(`/api/assemblies/${assemblyId}/motions`, { method: "POST", body });
         state.editingId = created.id;
       }
+      setDirty(false);
       await refresh();
       showToast("Borrador guardado", "success");
+      if (returnToList) enterListMode({ keepFilters: true });
+      return true;
     } catch (err) {
       showError(err.message);
+      return false;
     } finally {
       hideLoader();
     }
-    return;
   }
 
   if (state.mode === "survey") {
@@ -916,19 +1283,24 @@ async function saveDraft() {
         const created = await api(`/api/assemblies/${assemblyId}/surveys`, { method: "POST", body });
         state.editingId = created.id;
       }
+      setDirty(false);
       await refresh();
       showToast("Formulario guardado", "success");
+      if (returnToList) enterListMode({ keepFilters: true });
+      return true;
     } catch (err) {
       showError(err.message);
+      return false;
     } finally {
       hideLoader();
     }
   }
+  return false;
 }
 
 async function publishCurrent() {
-  await saveDraft();
-  if (!state.editingId) return;
+  const saved = await saveDraft({ returnToList: false });
+  if (!saved || !state.editingId) return;
   showLoader("Publicando…");
   try {
     if (state.mode === "vote") {
@@ -936,8 +1308,10 @@ async function publishCurrent() {
     } else {
       await api(`/api/assemblies/${assemblyId}/surveys/${state.editingId}/publish`, { method: "POST" });
     }
+    setDirty(false);
     await refresh();
     showToast("Publicado", "success");
+    enterListMode({ keepFilters: true });
   } catch (err) {
     showError(err.message);
   } finally {
@@ -1014,8 +1388,33 @@ async function refresh() {
   state.agenda = agenda.items || [];
   state.motions = Array.isArray(motions) ? motions : [];
   state.surveys = Array.isArray(surveys) ? surveys : [];
-  qs("#assembly-label").textContent = `${assembly?.title || "Asamblea"}${assembly?.status ? ` · ${statusLabelEs(assembly.status)}` : ""}`;
+  qs("#assembly-label").textContent = `${repairMojibake(assembly?.title || "Asamblea")}${assembly?.status ? ` · ${statusLabelEs(assembly.status)}` : ""}`;
   renderLists();
+}
+
+function softenRoleChip() {
+  const roleChip = qs("#ia-role-chip");
+  const userChip = qs("#user-chip");
+  if (!roleChip || !userChip) return;
+  const roleVisible = !roleChip.hidden && roleChip.offsetParent !== null;
+  const userVisible = !userChip.hidden && userChip.offsetParent !== null;
+  if (!roleVisible || !userVisible) return;
+  roleChip.classList.remove("badge-live", "badge", "badge-muted");
+  roleChip.classList.add("ia-role-chip");
+  roleChip.title = "Rol operativo en esta asamblea";
+}
+
+async function openDeepLinkEditor() {
+  try {
+    const url = new URL(location.href);
+    if (url.searchParams.get("view") !== "edit") return;
+    const motionId = url.searchParams.get("motionId");
+    if (!motionId) return;
+    const motion = state.motions.find((m) => String(m.id) === String(motionId));
+    if (motion) openVoteEditor(motion);
+  } catch {
+    /* soft */
+  }
 }
 
 async function init() {
@@ -1026,6 +1425,7 @@ async function init() {
 
   state.user = ctx.user;
   assemblyId = assemblyId || ctx.assemblyId || readIaContext().assemblyId;
+  softenRoleChip();
 
   if (!assemblyId) {
     const phId = ctx.phId || readIaContext().phId;
@@ -1040,8 +1440,68 @@ async function init() {
     showError("No tiene permiso para diseñar votaciones.");
   }
 
-  qs("#btn-create")?.addEventListener("click", () => openCreateDialog());
+  import("./ph-context.js")
+    .then(({ setDirtyGuard }) => {
+      setDirtyGuard(() =>
+        state.dirty
+          ? { dirty: true, message: "Hay cambios sin guardar en el editor de votaciones." }
+          : false
+      );
+    })
+    .catch(() => {});
+
+  qs("#btn-create")?.addEventListener("click", () => createNewVote());
+  qs("#btn-create-survey")?.addEventListener("click", async () => {
+    try {
+      await ensureAgendaItem();
+      openSurveyEditor(null, TEMPLATES.find((t) => t.isSurvey));
+    } catch (err) {
+      showError(err.message);
+    }
+  });
   qs("#btn-open-templates")?.addEventListener("click", () => showTemplatesTab());
+  qs("#btn-import-motions")?.addEventListener("click", () => {
+    if (!hasPermission(state.user, "motion:create")) {
+      showError("No tiene permiso para importar preguntas.");
+      return;
+    }
+    openMotionImportWizard({
+      assemblyId,
+      onImported: async () => {
+        await refresh();
+        enterListMode({ keepFilters: true });
+      }
+    });
+  });
+  qs("#btn-bulk-publish")?.addEventListener("click", async () => {
+    const ids = [...document.querySelectorAll("#list-votes [data-bulk-id]:checked")].map(
+      (el) => el.getAttribute("data-bulk-id")
+    );
+    if (!ids.length) {
+      showToast("Seleccione borradores en la lista", "info");
+      return;
+    }
+    const ok = await confirmDialog({
+      title: "Publicar seleccionadas",
+      body: `Preguntas seleccionadas: ${ids.length}. Solo se publicaran las que cumplan las reglas actuales.`,
+      confirmLabel: "Publicar",
+      cancelLabel: "Cancelar"
+    });
+    if (!ok) return;
+    try {
+      const result = await api(`/api/assemblies/${assemblyId}/motions/bulk-publish`, {
+        method: "POST",
+        body: { motionIds: ids }
+      });
+      showToast(
+        `Se actualizaron ${result.updated}. No se pudieron modificar: ${result.skipped}.`,
+        result.skipped ? "info" : "success"
+      );
+      await refresh();
+    } catch (err) {
+      showToast(err.message || "Error", "error");
+    }
+  });
 
   document.querySelectorAll("#vote-filters button").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1054,10 +1514,22 @@ async function init() {
   });
   qs("#vote-search")?.addEventListener("input", (e) => {
     voteSearch = e.target.value || "";
+    const clearBtn = qs("#btn-clear-search");
+    if (clearBtn) clearBtn.hidden = !voteSearch;
+    renderLists();
+  });
+  qs("#btn-clear-search")?.addEventListener("click", () => {
+    voteSearch = "";
+    const search = qs("#vote-search");
+    if (search) search.value = "";
+    const clearBtn = qs("#btn-clear-search");
+    if (clearBtn) clearBtn.hidden = true;
     renderLists();
   });
 
-  qs("#btn-save-draft").onclick = () => saveDraft();
+  qs("#btn-editor-back")?.addEventListener("click", () => closeEditor());
+  qs("#btn-cancel-editor")?.addEventListener("click", () => closeEditor());
+  qs("#btn-save-draft").onclick = () => saveDraft({ returnToList: true });
   qs("#btn-publish").onclick = () => publishCurrent();
   qs("#btn-preview").onclick = () => showPreview();
   qs("#btn-preview-close")?.addEventListener("click", () => closePreviewDialog());
@@ -1083,9 +1555,19 @@ async function init() {
     });
   });
 
+  document.querySelectorAll(".studio-tab-link[data-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tabBtn = qs(`.studio-tab[data-tab="${btn.dataset.tab}"]`);
+      tabBtn?.click();
+    });
+  });
+
+  enterListMode({ keepFilters: true });
+
   showLoader("Cargando votaciones…");
   try {
     await refresh();
+    await openDeepLinkEditor();
   } catch (err) {
     qs("#assembly-label").textContent = "No pudimos cargar esta asamblea.";
     showError(err.message);

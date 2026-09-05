@@ -8,6 +8,7 @@ using Asambleas.Infrastructure.Identity;
 using Asambleas.Infrastructure.Meeting;
 using Asambleas.Infrastructure.Persistence;
 using Asambleas.Infrastructure.PhOnboarding;
+using Asambleas.Infrastructure.Motion;
 using Asambleas.Infrastructure.Seed;
 using Asambleas.Infrastructure.Storage;
 using Asambleas.Infrastructure.Tenancy;
@@ -85,6 +86,7 @@ public static class DependencyInjection
         services.AddScoped<ISmsProvider, MockSmsProvider>();
         services.AddScoped<IPortalNotificationProvider, PortalNotificationProvider>();
         services.AddScoped<IPhImportWorkbookService, PhImportWorkbookService>();
+        services.AddScoped<IMotionImportWorkbookService, MotionImportWorkbookService>();
         services.AddScoped<IOwnerPortalIdentityService, OwnerPortalIdentityService>();
         services.AddScoped<Func<SmtpClientFactoryArgs, IEmailProvider>>(sp => args =>
         {

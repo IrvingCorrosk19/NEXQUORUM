@@ -31,6 +31,12 @@ public class AssemblyAccessLink : Entity, ITenantScoped, IPropertyHorizontalScop
 
     public DateTimeOffset? RevokedAtUtc { get; set; }
 
+    /// <summary>Machine reason code (e.g. Resent, AssemblyRescheduled). Never stores the raw token.</summary>
+    public string? RevocationReason { get; set; }
+
+    /// <summary>When this link was replaced, points at the successor link id.</summary>
+    public Guid? ReplacedByLinkId { get; set; }
+
     public DateTimeOffset? LastUsedAtUtc { get; set; }
 
     /// <summary>Successful passwordless redemptions (reload/re-entry allowed while valid).</summary>

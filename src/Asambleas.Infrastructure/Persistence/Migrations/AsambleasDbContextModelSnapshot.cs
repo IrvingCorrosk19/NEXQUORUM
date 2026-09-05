@@ -231,6 +231,13 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
 
+                    b.Property<Guid?>("ReplacedByLinkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<DateTimeOffset?>("RevokedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -261,7 +268,10 @@ namespace Asambleas.Infrastructure.Persistence.Migrations
                     b.HasIndex("TokenHash")
                         .IsUnique();
 
-                    b.HasIndex("ConvocationId", "RecipientId");
+                    b.HasIndex("ConvocationId", "RecipientId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_assembly_access_links_active_recipient")
+                        .HasFilter("\"RevokedAtUtc\" IS NULL");
 
                     b.ToTable("assembly_access_links", (string)null);
                 });

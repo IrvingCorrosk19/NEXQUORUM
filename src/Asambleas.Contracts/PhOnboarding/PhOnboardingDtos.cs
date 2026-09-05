@@ -395,3 +395,136 @@ public sealed record BulkValidateOwnersResultDto(
     int WithoutUnit,
     int WithoutUser,
     IReadOnlyList<string> Issues);
+
+// --- Multi-sheet PH roster import (MotionImport-style preview/commit) ---
+
+public static class PhRosterImportModes
+{
+    public const string CreateOnly = "CreateOnly";
+    public const string CreateAndUpdate = "CreateAndUpdate";
+}
+
+public static class PhRosterImportSheets
+{
+    public const string Units = "Units";
+    public const string Owners = "Owners";
+    public const string Relations = "Relations";
+}
+
+public sealed record PhRosterImportPreviewDto(
+    Guid SessionId,
+    Guid PhId,
+    string PhName,
+    string Mode,
+    IReadOnlyList<PhRosterUnitRowDto> Units,
+    IReadOnlyList<PhRosterOwnerRowDto> Owners,
+    IReadOnlyList<PhRosterRelationRowDto> Relations,
+    PhRosterImportSummaryDto Summary,
+    int MaxRows,
+    int MaxFileBytes);
+
+public sealed record PhRosterUnitRowDto(
+    int RowNumber,
+    string? Code,
+    string? Tower,
+    int? Floor,
+    string? UnitType,
+    decimal? Coefficient,
+    string? Estado,
+    string Classification,
+    string Status,
+    IReadOnlyList<string> Issues,
+    bool Included);
+
+public sealed record PhRosterOwnerRowDto(
+    int RowNumber,
+    string? IdType,
+    string? Identification,
+    string? FirstName,
+    string? LastName,
+    string? DisplayName,
+    string? Email,
+    string? Phone,
+    string? Estado,
+    string Classification,
+    string Status,
+    IReadOnlyList<string> Issues,
+    bool Included);
+
+public sealed record PhRosterRelationRowDto(
+    int RowNumber,
+    string? Identification,
+    string? Email,
+    string? UnitCode,
+    decimal? SharePercent,
+    string? Estado,
+    string Classification,
+    string Status,
+    IReadOnlyList<string> Issues,
+    bool Included);
+
+public sealed record PhRosterImportSummaryDto(
+    int UnitsNew,
+    int UnitsExisting,
+    int UnitsUpdates,
+    int UnitsErrors,
+    int OwnersNew,
+    int OwnersExisting,
+    int OwnersUpdates,
+    int OwnersErrors,
+    int RelationsNew,
+    int RelationsExisting,
+    int RelationsUpdates,
+    int RelationsErrors,
+    decimal CoefficientCurrent,
+    decimal CoefficientFileNew,
+    decimal CoefficientProjected,
+    decimal CoefficientDelta,
+    decimal ExpectedTotal,
+    bool CanCommit,
+    bool ActiveAssemblyBlocked,
+    string? ActiveAssemblyMessage,
+    IReadOnlyList<string> Warnings);
+
+public sealed record PhRosterImportPatchRequest(
+    Guid SessionId,
+    string Sheet,
+    int RowNumber,
+    string? Code = null,
+    string? Tower = null,
+    int? Floor = null,
+    string? UnitType = null,
+    decimal? Coefficient = null,
+    string? Estado = null,
+    string? IdType = null,
+    string? Identification = null,
+    string? FirstName = null,
+    string? LastName = null,
+    string? DisplayName = null,
+    string? Email = null,
+    string? Phone = null,
+    string? UnitCode = null,
+    decimal? SharePercent = null,
+    bool? Included = null);
+
+public sealed record PhRosterImportExcludeRequest(
+    Guid SessionId,
+    string Sheet,
+    int RowNumber,
+    bool Included = false);
+
+public sealed record PhRosterImportCommitRequest(
+    Guid SessionId,
+    string Mode,
+    bool ConfirmUpdate = false,
+    string? ClientRequestId = null,
+    string? ConfirmPhName = null);
+
+public sealed record PhRosterImportCommitResultDto(
+    Guid SessionId,
+    int UnitsCreated,
+    int UnitsUpdated,
+    int OwnersCreated,
+    int OwnersUpdated,
+    int OwnershipsCreated,
+    bool IdempotentReplay = false);

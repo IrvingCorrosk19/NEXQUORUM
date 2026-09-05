@@ -1,12 +1,14 @@
 const LONG_MS = 8000;
 const SHOW_DELAY_MS = 120;
 const PROGRESS_DELAY_MS = 180;
+const HARD_MS = 45000;
 
 let host = null;
 let messageEl = null;
 let hintEl = null;
 let showTimer = null;
 let longTimer = null;
+let hardTimer = null;
 let depth = 0;
 
 let progressEl = null;
@@ -64,6 +66,21 @@ function clearTimers() {
     clearTimeout(longTimer);
     longTimer = null;
   }
+  if (hardTimer) {
+    clearTimeout(hardTimer);
+    hardTimer = null;
+  }
+}
+
+/** Update message without nesting another show (avoids stuck depth counter). */
+export function setGlobalLoaderMessage(message, options = {}) {
+  ensureHost();
+  if (messageEl && message) {
+    messageEl.textContent = message;
+  }
+  if (hintEl && options.hint) {
+    hintEl.textContent = options.hint;
+  }
 }
 
 /** Level 3 — only for real full-view loads (login, heavy studio). Prefer button/top progress for CRUD. */
@@ -87,6 +104,16 @@ export function showGlobalLoader(message = "Preparando tu asamblea…", options 
     }
   }, options.longMs || LONG_MS);
 
+  // Hard escape: never leave the assembly blocked indefinitely.
+  hardTimer = setTimeout(() => {
+    if (depth > 0) {
+      forceHideGlobalLoader();
+      if (hintEl) {
+        hintEl.textContent = "No pudimos confirmar el progreso. Verificaremos el estado antes de reintentar.";
+      }
+    }
+  }, options.hardMs || HARD_MS);
+
   return () => hideGlobalLoader();
 }
 
@@ -108,6 +135,18 @@ export function hideGlobalLoader() {
       host.hidden = true;
     }
   }, 280);
+}
+
+/** Unconditionally clear loader (success/error/timeout/reconnect paths). */
+export function forceHideGlobalLoader() {
+  depth = 0;
+  clearTimers();
+  if (!host) {
+    return;
+  }
+  host.classList.remove("is-visible");
+  host.setAttribute("aria-busy", "false");
+  host.hidden = true;
 }
 
 /** Level 1 — discrete top progress for navigation / API mutations. */
@@ -208,7 +247,9 @@ export function scrubCredentialQueryFromLocation() {
 export const loading = {
   page: {
     start: showGlobalLoader,
-    stop: hideGlobalLoader
+    stop: hideGlobalLoader,
+    forceStop: forceHideGlobalLoader,
+    setMessage: setGlobalLoaderMessage
   },
   progress: {
     start: startTopProgress,

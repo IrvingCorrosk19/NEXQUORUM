@@ -38,6 +38,7 @@ public static class AuditEventType
     public const string MotionPublished = "MOTION_PUBLISHED";
     public const string MotionArchived = "MOTION_ARCHIVED";
     public const string MotionReordered = "MOTION_REORDERED";
+    public const string MotionBulkImported = "MOTION_BULK_IMPORTED";
     public const string VotingOpened = "VOTING_OPENED";
     public const string VoteCast = "VOTE_CAST";
     public const string VoteAccepted = "VOTE_ACCEPTED";
@@ -98,4 +99,6 @@ public static class AuditEventType
 
     public const string OwnerPasswordResetRequested = "OWNER_PASSWORD_RESET_REQUESTED";
     public const string OwnerPasswordResetCompleted = "OWNER_PASSWORD_RESET_COMPLETED";
+
+    public const string PhRosterBulkImported = "PH_ROSTER_BULK_IMPORTED";
 }

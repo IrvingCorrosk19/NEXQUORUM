@@ -1,8 +1,42 @@
 import { api } from "./api.js";
 import { escapeHtml, confirmDialog, showToast, qs } from "./ui.js";
-import { showGlobalLoader, hideGlobalLoader } from "./loading.js";
+import { showGlobalLoader, hideGlobalLoader, forceHideGlobalLoader, setGlobalLoaderMessage } from "./loading.js";
 import { hasPermission } from "./auth.js";
 import { openVoting, closeVoting } from "./voting.js";
+
+/** Deterministic question order: DisplayOrder → CreatedAt → Id. */
+function sortMotionsDeterministic(motions) {
+  return [...(motions || [])].sort((a, b) => {
+    const ao = Number(a.displayOrder ?? a.DisplayOrder ?? 0);
+    const bo = Number(b.displayOrder ?? b.DisplayOrder ?? 0);
+    if (ao !== bo) return ao - bo;
+    const ac = Date.parse(a.createdAtUtc || a.CreatedAtUtc || 0) || 0;
+    const bc = Date.parse(b.createdAtUtc || b.CreatedAtUtc || 0) || 0;
+    if (ac !== bc) return ac - bc;
+    return String(a.id || a.Id || "").localeCompare(String(b.id || b.Id || ""));
+  });
+}
+
+function humanQuestionStatus(m, activeMotionId, session) {
+  const sid = session?.motionId || session?.MotionId;
+  const sessionOpen = session?.status === "Open" || session?.Status === "Open";
+  if (sessionOpen && sid && sid === m.id) {
+    return { key: "active", label: "Activa — votación abierta" };
+  }
+  if (m.status === "Voting" && (!sid || sid === m.id)) {
+    return { key: "active", label: "Activa — votación abierta" };
+  }
+  if (m.status === "Approved" || m.status === "Rejected") {
+    return { key: "answered", label: "Respondida" };
+  }
+  if (m.status === "Cancelled") return { key: "closed", label: "Anulada" };
+  if (m.status === "Closed") return { key: "closed", label: "Cerrada" };
+  if (m.id === activeMotionId || m.status === "Presented" || m.status === "Published") {
+    return { key: "pending", label: "Pendiente" };
+  }
+  if (m.status === "Draft") return { key: "pending", label: "Preparada" };
+  return { key: "pending", label: m.status || "Pendiente" };
+}
 
 /**
  * Live Voting Workspace — operator controls inside the meeting room (no LiveKit teardown).
@@ -82,11 +116,45 @@ export function createLiveVotingWorkspace({
   }
 
   function questionStatusMark(m, activeMotionId, session) {
-    if (m.status === "Approved" || m.status === "Rejected") return "✓";
-    if (m.status === "Cancelled") return "⊘";
-    if (m.status === "Voting" || (session?.status === "Open" && session?.motionId === m.id)) return "●";
+    const st = humanQuestionStatus(m, activeMotionId, session);
+    if (st.key === "answered") return "✓";
+    if (st.key === "closed") return "⊘";
+    if (st.key === "active") return "●";
     if (m.id === activeMotionId || m.status === "Presented") return "◐";
     return "○";
+  }
+
+  function renderQuestionnaireSection(title, items, { manage, activeMotionId, session, indexOffset = 0, allOrdered }) {
+    if (!items.length) return "";
+    return `
+      <section class="lq-section" aria-label="${escapeHtml(title)}">
+        <h4 class="lq-section-title">${escapeHtml(title)}</h4>
+        <ol class="live-questionnaire-list" start="${indexOffset + 1}">
+          ${items
+            .map((m) => {
+              const idx = allOrdered.findIndex((x) => x.id === m.id);
+              const n = idx >= 0 ? idx + 1 : indexOffset + 1;
+              const st = humanQuestionStatus(m, activeMotionId, session);
+              const isActive = st.key === "active";
+              return `<li class="${isActive ? "is-active" : ""} lq-${st.key}" data-motion-id="${m.id}">
+                <span class="lq-mark" aria-hidden="true">${questionStatusMark(m, activeMotionId, session)}</span>
+                <span class="lq-text"><strong>Pregunta ${n}.</strong> ${escapeHtml(m.questionText || m.title || m.code)}
+                  <small class="muted">${escapeHtml(st.label)}${m.versionNumber > 1 ? ` · v${m.versionNumber}` : ""}</small>
+                </span>
+                ${
+                  manage
+                    ? `<span class="lq-ops">
+                        <button type="button" class="btn btn-ghost btn-xs" data-lq="up" data-id="${m.id}" title="Subir" ${n <= 1 ? "disabled" : ""}>↑</button>
+                        <button type="button" class="btn btn-ghost btn-xs" data-lq="down" data-id="${m.id}" title="Bajar" ${n >= allOrdered.length ? "disabled" : ""}>↓</button>
+                        <button type="button" class="btn btn-ghost btn-xs" data-lq="archive" data-id="${m.id}" title="Eliminar" ${m.status === "Draft" || m.status === "Presented" ? "" : "hidden"}>✕</button>
+                      </span>`
+                    : ""
+                }
+              </li>`;
+            })
+            .join("")}
+        </ol>
+      </section>`;
   }
 
   function renderQuestionnaire(root, { motions = [], activeMotionId = null, session = null, canManage: manage = false } = {}) {
@@ -103,51 +171,83 @@ export function createLiveVotingWorkspace({
       else hostRoot.prepend(host);
     }
 
+    const ordered = sortMotionsDeterministic(
+      (motions || []).filter((m) => m.designStatus !== "Archived")
+    );
+    const activeOpen = ordered.filter(
+      (m) => humanQuestionStatus(m, activeMotionId, session).key === "active"
+    );
+    const pending = ordered.filter(
+      (m) => humanQuestionStatus(m, activeMotionId, session).key === "pending"
+    );
+    const answered = ordered.filter(
+      (m) => humanQuestionStatus(m, activeMotionId, session).key === "answered"
+    );
+    const closed = ordered.filter(
+      (m) => humanQuestionStatus(m, activeMotionId, session).key === "closed"
+    );
+
     const wrap = document.querySelector("#questionnaire-wrap");
     if (wrap) {
       wrap.hidden = false;
       wrap.open = Boolean(manage);
       const summary = wrap.querySelector("summary");
-      if (summary) summary.textContent = manage ? "Cuestionario en vivo" : "Ver otras preguntas";
+      if (summary) {
+        const activeLabel = activeOpen[0]
+          ? `Activa: ${(activeOpen[0].questionText || activeOpen[0].title || "").slice(0, 42)}`
+          : null;
+        summary.textContent = manage
+          ? "Cuestionario en vivo"
+          : activeLabel
+            ? `Ver otras preguntas · ${activeLabel}`
+            : "Ver otras preguntas";
+      }
     }
 
-    const active = (motions || []).filter((m) => m.designStatus !== "Archived");
-    const completed = active.filter((m) => m.status === "Approved" || m.status === "Rejected").length;
-    const total = active.length;
+    const completed = answered.length;
+    const total = ordered.length;
     const pct = total ? Math.round((completed / total) * 10000) / 100 : 0;
+    const multiOpen =
+      activeOpen.length > 1
+        ? `<p class="inline-alert" role="alert">Hay más de una votación abierta. Espere a que la mesa corrija el estado.</p>`
+        : "";
 
     host.innerHTML = `
       <div class="live-questionnaire-head">
-        <strong>Cuestionario en vivo</strong>
+        <strong>${manage ? "Cuestionario en vivo" : "Otras preguntas"}</strong>
         <span class="muted">${completed} / ${total} · ${pct}%</span>
       </div>
-      <ol class="live-questionnaire-list">
-        ${
-          active.length
-            ? active
-                .map((m, idx) => {
-                  const mark = questionStatusMark(m, activeMotionId, session);
-                  const isActive = m.id === activeMotionId || m.status === "Voting";
-                  return `<li class="${isActive ? "is-active" : ""}" data-motion-id="${m.id}">
-                    <span class="lq-mark" aria-hidden="true">${mark}</span>
-                    <span class="lq-text"><strong>${idx + 1}.</strong> ${escapeHtml(m.questionText || m.title || m.code)}
-                      <small class="muted">${escapeHtml(m.status)}${m.versionNumber > 1 ? ` · v${m.versionNumber}` : ""}</small>
-                    </span>
-                    ${
-                      manage
-                        ? `<span class="lq-ops">
-                            <button type="button" class="btn btn-ghost btn-xs" data-lq="up" data-id="${m.id}" title="Subir" ${idx === 0 ? "disabled" : ""}>↑</button>
-                            <button type="button" class="btn btn-ghost btn-xs" data-lq="down" data-id="${m.id}" title="Bajar" ${idx === active.length - 1 ? "disabled" : ""}>↓</button>
-                            <button type="button" class="btn btn-ghost btn-xs" data-lq="archive" data-id="${m.id}" title="Eliminar" ${m.status === "Draft" || m.status === "Presented" ? "" : "hidden"}>✕</button>
-                          </span>`
-                        : ""
-                    }
-                  </li>`;
-                })
-                .join("")
-            : `<li class="muted">Sin preguntas aún.</li>`
-        }
-      </ol>
+      ${multiOpen}
+      ${
+        ordered.length
+          ? [
+              renderQuestionnaireSection("Activa", activeOpen, {
+                manage,
+                activeMotionId,
+                session,
+                allOrdered: ordered
+              }),
+              renderQuestionnaireSection("Pendientes", pending, {
+                manage,
+                activeMotionId,
+                session,
+                allOrdered: ordered
+              }),
+              renderQuestionnaireSection("Respondidas", answered, {
+                manage,
+                activeMotionId,
+                session,
+                allOrdered: ordered
+              }),
+              renderQuestionnaireSection("Cerradas", closed, {
+                manage,
+                activeMotionId,
+                session,
+                allOrdered: ordered
+              })
+            ].join("")
+          : `<p class="muted">Sin preguntas aún.</p>`
+      }
     `;
 
     if (!manage) return;
@@ -180,7 +280,9 @@ export function createLiveVotingWorkspace({
   }
 
   async function moveMotion(motionId, direction) {
-    const list = (getMotions() || []).filter((m) => m.designStatus !== "Archived");
+    const list = sortMotionsDeterministic(
+      (getMotions() || []).filter((m) => m.designStatus !== "Archived")
+    );
     const idx = list.findIndex((m) => m.id === motionId);
     if (idx < 0) return;
     const swap = direction === "up" ? idx - 1 : idx + 1;
@@ -316,7 +418,8 @@ export function createLiveVotingWorkspace({
           body: { motionId: created.id }
         });
         if (action === "open") {
-          showGlobalLoader("Abriendo votación…", { immediate: true });
+          // Swap message — do NOT nest another showGlobalLoader (depth leak → stuck overlay).
+          setGlobalLoaderMessage("Abriendo votación…");
           await openVoting(
             getAssemblyId(),
             created.id,
@@ -331,7 +434,7 @@ export function createLiveVotingWorkspace({
       } catch (err) {
         showToast(err.message, "error");
       } finally {
-        hideGlobalLoader();
+        forceHideGlobalLoader();
       }
     }, { once: true });
   }

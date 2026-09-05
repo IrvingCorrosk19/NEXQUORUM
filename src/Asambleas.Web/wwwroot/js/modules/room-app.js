@@ -3,7 +3,7 @@ import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { renderQuorum } from "./quorum.js";
-import { castVote, closeVoting, getMyVoteStatus, openVoting, renderVotePanel } from "./voting.js";
+import { castVote, closeVoting, getMyVoteStatus, openVoting, renderVotePanel, tallyFromCastReceipt } from "./voting.js";
 import { createLiveVotingWorkspace } from "./live-voting-workspace.js";
 import {
   completeFloor,
@@ -1716,13 +1716,29 @@ function refreshPanels() {
       // Status still loading — allow panel to render; eligibility branch waits for myStatus
       !statusCode);
 
+  const orderedMotions = [...(state.motions || [])]
+    .filter((m) => m.designStatus !== "Archived")
+    .sort((a, b) => {
+      const ao = Number(a.displayOrder ?? a.DisplayOrder ?? 0);
+      const bo = Number(b.displayOrder ?? b.DisplayOrder ?? 0);
+      if (ao !== bo) return ao - bo;
+      const ac = Date.parse(a.createdAtUtc || a.CreatedAtUtc || 0) || 0;
+      const bc = Date.parse(b.createdAtUtc || b.CreatedAtUtc || 0) || 0;
+      if (ac !== bc) return ac - bc;
+      return String(a.id || "").localeCompare(String(b.id || ""));
+    });
+  const activeMotionId = state.motion?.id || state.session?.motionId || null;
+  const questionIdx = activeMotionId
+    ? orderedMotions.findIndex((m) => m.id === activeMotionId)
+    : -1;
+
   renderVotePanel(els.vote, {
     session: state.session,
     tally: state.tally,
     myVote: state.myVote,
     myStatus: state.myVoteStatus || null,
     motion: state.motion,
-    canCast: permissionCanCast,
+    canCast: eligibleToShowCast,
     canOpen:
       operator &&
       hasPermission(state.user, "vote:open") &&
@@ -1735,6 +1751,8 @@ function refreshPanels() {
       state.tally?.eligibleVoters ??
       state.quorum?.eligibleUnits ??
       (state.participants.size || null),
+    questionIndex: questionIdx >= 0 ? questionIdx + 1 : null,
+    questionTotal: orderedMotions.length || null,
     onCast: async (choice) => {
       try {
         const receipt = await castVote(assemblyId, state.session.id, choice);
@@ -1748,6 +1766,10 @@ function refreshPanels() {
           evidenceId: receipt.evidenceId,
           castAtUtc: receipt.castAtUtc
         };
+        const merged = tallyFromCastReceipt(receipt, state.tally, state.session);
+        if (merged) {
+          state.tally = merged;
+        }
         showError("");
         return receipt;
       } catch (error) {
@@ -1823,8 +1845,6 @@ function refreshPanels() {
       refreshPanels();
     }
   });
-
-  void eligibleToShowCast;
 
   if (els.vote) {
     if (operator) {
@@ -2473,7 +2493,18 @@ async function init() {
       }
     },
     voteTallyUpdated: async (tally) => {
-      state.tally = tally;
+      const sid = tally?.votingSessionId || tally?.VotingSessionId;
+      const currentSid = state.session?.id;
+      if (sid && currentSid && String(sid) !== String(currentSid)) {
+        return;
+      }
+      const incoming = Number(tally?.votesCast ?? tally?.VotesCast ?? 0);
+      const current = Number(state.tally?.votesCast ?? state.tally?.VotesCast ?? 0);
+      // Ignore stale out-of-order pulses for the same open session.
+      if (sid && currentSid && String(sid) === String(currentSid) && incoming < current) {
+        return;
+      }
+      state.tally = { ...(state.tally || {}), ...(tally || {}) };
       const policy =
         state.session?.resultVisibilityPolicy ||
         tally?.resultVisibilityPolicy ||

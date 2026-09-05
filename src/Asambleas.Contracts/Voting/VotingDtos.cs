@@ -64,7 +64,11 @@ public sealed record CastVoteResponse(
     Guid VotingSessionId,
     Guid EvidenceId,
     DateTimeOffset CastAtUtc,
-    bool IdempotentReplay = false);
+    bool IdempotentReplay = false,
+    int? VotesCast = null,
+    int? EligibleVoters = null,
+    decimal? ParticipatingCoefficient = null,
+    decimal? EligibleCoefficient = null);
 
 public sealed record VoteTallyDto(
     Guid VotingSessionId,

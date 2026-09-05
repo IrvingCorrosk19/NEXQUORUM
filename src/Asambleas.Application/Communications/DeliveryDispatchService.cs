@@ -395,6 +395,8 @@ public sealed class DeliveryDispatchService
             recipient,
             delivery.Id,
             assembly.ScheduledAtUtc,
+            assembly.EstimatedEndAtUtc,
+            AccessLinkRevocationReasons.Resent,
             cancellationToken);
 
         delivery.ProviderMessageId = $"access-link:{issued.Link.Id:N}";

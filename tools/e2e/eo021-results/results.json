@@ -1,7 +1,7 @@
 {
   "env": "LOCALHOST",
   "url": "https://localhost:7188",
-  "stamp": "12815233",
+  "stamp": "34107094",
   "previousEo": {
     "eo019": {
       "certified": true,
@@ -97,7 +97,7 @@
       "Area": "PH",
       "Scenario": "Create PH via UI",
       "Expected": "phId",
-      "Actual": "834367e4-2a6d-4736-8866-c1f30505b9b5",
+      "Actual": "c4a022bd-f8ee-466f-9295-e6a4b8ccbce7",
       "Result": "PASS",
       "Severity": "P0"
     },
@@ -205,7 +205,7 @@
       "Area": "PH Isolation",
       "Scenario": "Second PH for isolation",
       "Expected": "phBId",
-      "Actual": "39589b6a-d3e3-424a-b04e-fbac87b6295b",
+      "Actual": "3c64837c-07ea-499f-afbc-49b2679c43d1",
       "Result": "PASS",
       "Severity": "P1"
     },
@@ -214,7 +214,7 @@
       "Area": "PH",
       "Scenario": "Switch A→B→A without logout",
       "Expected": "context switches",
-      "Actual": "phB=39589b6a-d3e3-424a-b04e-fbac87b6295b unitsB=0 claim=39589b6a-d3e3-424a-b04e-fbac87b6295b",
+      "Actual": "phB=3c64837c-07ea-499f-afbc-49b2679c43d1 unitsB=0 claim=3c64837c-07ea-499f-afbc-49b2679c43d1",
       "Result": "PASS",
       "Severity": "P0",
       "Evidence": "ph switch API + ph.html reload"
@@ -224,7 +224,7 @@
       "Area": "Assembly",
       "Scenario": "Create EO-021 assembly",
       "Expected": "id",
-      "Actual": "7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Actual": "06873e62-94a6-49b2-9cd6-ed6b7edcd4f3",
       "Result": "PASS",
       "Severity": "P0"
     },
@@ -296,7 +296,7 @@
       "Area": "Accreditation",
       "Scenario": "Check-in A",
       "Expected": "<300",
-      "Actual": "200 {\"participantId\":\"2639c182-6bff-4c26-a6a6-02f8c60db15c\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5",
+      "Actual": "200 {\"participantId\":\"57e96341-1b78-4133-b6ed-957f7daa511a\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-09-05T18:4",
       "Result": "PASS",
       "Severity": "P1"
     },
@@ -305,7 +305,7 @@
       "Area": "Accreditation",
       "Scenario": "Check-in B",
       "Expected": "<300",
-      "Actual": "200 {\"participantId\":\"86a268f6-4af7-4ca1-a747-77e57d43b514\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5",
+      "Actual": "200 {\"participantId\":\"d47fea88-1f7b-4f77-8fb6-1341898f2fab\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-09-05T18:4",
       "Result": "PASS",
       "Severity": "P1"
     },
@@ -314,7 +314,7 @@
       "Area": "Accreditation",
       "Scenario": "Check-in C",
       "Expected": "<300",
-      "Actual": "200 {\"participantId\":\"5fb29996-674c-460f-a972-d0302900eeff\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5",
+      "Actual": "200 {\"participantId\":\"166e0c52-8308-490d-8e7f-c2bb778c8d99\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-09-05T18:4",
       "Result": "PASS",
       "Severity": "P1"
     },
@@ -386,7 +386,7 @@
       "Area": "Voting",
       "Scenario": "Open Q1",
       "Expected": "session id",
-      "Actual": "200 52087164-fa80-4bc0-bbcc-3006c836003e",
+      "Actual": "200 0ee515bb-9a99-4afd-ac40-6f496e3bdce2",
       "Result": "PASS",
       "Severity": "P0"
     },
@@ -458,7 +458,7 @@
       "Area": "Voting",
       "Scenario": "4 voters race + weight semantics",
       "Expected": "deterministic race outcome",
-      "Actual": "c=200 fav=60 ag=40",
+      "Actual": "c=400 fav=40 ag=40",
       "Result": "PASS",
       "Severity": "P0"
     },
@@ -485,7 +485,7 @@
       "Area": "Questionnaire",
       "Scenario": "Add Q after completed votes",
       "Expected": "new motion exists; prior intact",
-      "Actual": "total=5 m4=ebfc27a0-c4fb-4ac6-a0d4-b14d501f47ee",
+      "Actual": "total=5 m4=a19fdd14-0db1-4524-9349-b25c0a4b207e",
       "Result": "PASS",
       "Severity": "P1"
     },
@@ -602,14 +602,14 @@
       "Area": "Audit",
       "Scenario": "Audit trail present",
       "Expected": ">10 items",
-      "Actual": "n=95",
+      "Actual": "n=94",
       "Result": "PASS",
       "Severity": "P1"
     },
     {
       "TestId": "TAB-dashboardhtml",
       "Area": "MenuWalk",
-      "Scenario": "/dashboard.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Scenario": "/dashboard.html?assemblyId=06873e62-94a6-49b2-9cd6-ed6b7edcd4f3",
       "Expected": "<400",
       "Actual": "200",
       "Result": "PASS",
@@ -618,7 +618,7 @@
     {
       "TestId": "TAB-checkinhtml",
       "Area": "MenuWalk",
-      "Scenario": "/checkin.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Scenario": "/checkin.html?assemblyId=06873e62-94a6-49b2-9cd6-ed6b7edcd4f3",
       "Expected": "<400",
       "Actual": "200",
       "Result": "PASS",
@@ -627,7 +627,7 @@
     {
       "TestId": "TAB-votingstudiohtml",
       "Area": "MenuWalk",
-      "Scenario": "/voting-studio.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Scenario": "/voting-studio.html?assemblyId=06873e62-94a6-49b2-9cd6-ed6b7edcd4f3",
       "Expected": "<400",
       "Actual": "200",
       "Result": "PASS",
@@ -636,7 +636,7 @@
     {
       "TestId": "TAB-evidencehtml",
       "Area": "MenuWalk",
-      "Scenario": "/evidence.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Scenario": "/evidence.html?assemblyId=06873e62-94a6-49b2-9cd6-ed6b7edcd4f3",
       "Expected": "<400",
       "Actual": "200",
       "Result": "PASS",
@@ -645,7 +645,7 @@
     {
       "TestId": "TAB-minuteshtml",
       "Area": "MenuWalk",
-      "Scenario": "/minutes.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Scenario": "/minutes.html?assemblyId=06873e62-94a6-49b2-9cd6-ed6b7edcd4f3",
       "Expected": "<400",
       "Actual": "200",
       "Result": "PASS",
@@ -654,7 +654,7 @@
     {
       "TestId": "TAB-convocationhtml",
       "Area": "MenuWalk",
-      "Scenario": "/convocation.html?assemblyId=7b0e5b15-f225-4626-a79f-9189d3dafe63",
+      "Scenario": "/convocation.html?assemblyId=06873e62-94a6-49b2-9cd6-ed6b7edcd4f3",
       "Expected": "<400",
       "Actual": "200",
       "Result": "PASS",
@@ -803,7 +803,7 @@
     {
       "n": "PH-CREATE",
       "pass": true,
-      "d": "834367e4-2a6d-4736-8866-c1f30505b9b5"
+      "d": "c4a022bd-f8ee-466f-9295-e6a4b8ccbce7"
     },
     {
       "n": "COMM-SANDBOX",
@@ -863,17 +863,17 @@
     {
       "n": "PH-B-CREATE",
       "pass": true,
-      "d": "39589b6a-d3e3-424a-b04e-fbac87b6295b"
+      "d": "3c64837c-07ea-499f-afbc-49b2679c43d1"
     },
     {
       "n": "GLOBAL-PH-SWITCH",
       "pass": true,
-      "d": "phB=39589b6a-d3e3-424a-b04e-fbac87b6295b unitsB=0 claim=39589b6a-d3e3-424a-b04e-fbac87b6295b"
+      "d": "phB=3c64837c-07ea-499f-afbc-49b2679c43d1 unitsB=0 claim=3c64837c-07ea-499f-afbc-49b2679c43d1"
     },
     {
       "n": "ASSEMBLY-CREATE",
       "pass": true,
-      "d": "7b0e5b15-f225-4626-a79f-9189d3dafe63"
+      "d": "06873e62-94a6-49b2-9cd6-ed6b7edcd4f3"
     },
     {
       "n": "CALENDAR",
@@ -913,17 +913,17 @@
     {
       "n": "ACCREDIT-A",
       "pass": true,
-      "d": "200 {\"participantId\":\"2639c182-6bff-4c26-a6a6-02f8c60db15c\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5"
+      "d": "200 {\"participantId\":\"57e96341-1b78-4133-b6ed-957f7daa511a\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-09-05T18:4"
     },
     {
       "n": "ACCREDIT-B",
       "pass": true,
-      "d": "200 {\"participantId\":\"86a268f6-4af7-4ca1-a747-77e57d43b514\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5"
+      "d": "200 {\"participantId\":\"d47fea88-1f7b-4f77-8fb6-1341898f2fab\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-09-05T18:4"
     },
     {
       "n": "ACCREDIT-C",
       "pass": true,
-      "d": "200 {\"participantId\":\"5fb29996-674c-460f-a972-d0302900eeff\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-08-15T16:5"
+      "d": "200 {\"participantId\":\"166e0c52-8308-490d-8e7f-c2bb778c8d99\",\"attendanceStatus\":\"CheckedIn\",\"checkedInAtUtc\":\"2026-09-05T18:4"
     },
     {
       "n": "QUORUM-90",
@@ -963,7 +963,7 @@
     {
       "n": "REALTIME-OPEN",
       "pass": true,
-      "d": "200 52087164-fa80-4bc0-bbcc-3006c836003e"
+      "d": "200 0ee515bb-9a99-4afd-ac40-6f496e3bdce2"
     },
     {
       "n": "D-NOT-ELIGIBLE",
@@ -1003,7 +1003,7 @@
     {
       "n": "V2-HEADCOUNT-VS-WEIGHT",
       "pass": true,
-      "d": "c=200 fav=60 ag=40"
+      "d": "c=400 fav=40 ag=40"
     },
     {
       "n": "ABSTENTION",
@@ -1018,7 +1018,7 @@
     {
       "n": "DYNAMIC-RECALC",
       "pass": true,
-      "d": "total=5 m4=ebfc27a0-c4fb-4ac6-a0d4-b14d501f47ee"
+      "d": "total=5 m4=a19fdd14-0db1-4524-9349-b25c0a4b207e"
     },
     {
       "n": "VOID-CANCEL",
@@ -1083,7 +1083,7 @@
     {
       "n": "AUDIT",
       "pass": true,
-      "d": "n=95"
+      "d": "n=94"
     },
     {
       "n": "TAB-dashboardhtml",
@@ -1284,15 +1284,15 @@
   "defects": [],
   "latencies": {
     "cast": [
-      52,
-      51.40000009536743,
-      51.5
+      37.400000005960464,
+      44.099999994039536,
+      54.39999997615814
     ],
     "close": [
-      41.10000038146973
+      42.19999998807907
     ],
     "open": [
-      57.700000286102295
+      77.19999998807907
     ]
   },
   "http500": 0,
@@ -1317,7 +1317,7 @@
     "[prez] Failed to load resource: the server responded with a status of 400 ()",
     "[A] Failed to load resource: the server responded with a status of 400 ()",
     "[A] Failed to load resource: the server responded with a status of 400 ()",
-    "[B2] Failed to load resource: the server responded with a status of 404 ()",
+    "[C] Failed to load resource: the server responded with a status of 400 ()",
     "[prez] Failed to load resource: the server responded with a status of 404 ()",
     "[A] Failed to load resource: the server responded with a status of 400 ()",
     "[A] Failed to load resource: the server responded with a status of 403 ()",
@@ -1421,13 +1421,13 @@
     ]
   },
   "ids": {
-    "phId": "834367e4-2a6d-4736-8866-c1f30505b9b5",
-    "assemblyId": "7b0e5b15-f225-4626-a79f-9189d3dafe63"
+    "phId": "c4a022bd-f8ee-466f-9295-e6a4b8ccbce7",
+    "assemblyId": "06873e62-94a6-49b2-9cd6-ed6b7edcd4f3"
   },
   "latencySummary": {
-    "cast_p50": 51.5,
-    "cast_p95": 52,
-    "close_p50": 41.10000038146973,
-    "open_p50": 57.700000286102295
+    "cast_p50": 44.099999994039536,
+    "cast_p95": 54.39999997615814,
+    "close_p50": 42.19999998807907,
+    "open_p50": 77.19999998807907
   }
 }

@@ -42,6 +42,11 @@ public sealed class VotingTransactionTests
         var castBody = await cast1.Content.ReadFromJsonAsync<CastVoteResponse>();
         castBody!.VoteId.Should().NotBeEmpty();
         castBody.EvidenceId.Should().NotBeEmpty();
+        castBody.VotesCast.Should().Be(1);
+        castBody.EligibleVoters.Should().NotBeNull();
+        castBody.EligibleVoters!.Value.Should().BeGreaterThan(0);
+        castBody.ParticipatingCoefficient.Should().NotBeNull();
+        castBody.ParticipatingCoefficient!.Value.Should().BeGreaterThan(0);
 
         await using (var scope = _fixture.Factory.Services.CreateAsyncScope())
         {
@@ -67,6 +72,7 @@ public sealed class VotingTransactionTests
         var replayBody = await castReplay.Content.ReadFromJsonAsync<CastVoteResponse>();
         replayBody!.EvidenceId.Should().Be(castBody.EvidenceId);
         replayBody.IdempotentReplay.Should().BeTrue();
+        replayBody.VotesCast.Should().Be(1);
 
         await using (var scope = _fixture.Factory.Services.CreateAsyncScope())
         {

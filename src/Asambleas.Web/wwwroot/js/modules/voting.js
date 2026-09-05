@@ -87,6 +87,53 @@ function shortReceiptCode(evidenceId) {
   return `VT-${compact.slice(0, 6)}`;
 }
 
+/** Merge authoritative participation from CastVoteResponse into local tally. */
+export function tallyFromCastReceipt(receipt, fallbackTally = null, session = null) {
+  if (!receipt) return fallbackTally;
+  const votesCast = receipt.votesCast ?? receipt.VotesCast;
+  if (votesCast == null) return fallbackTally;
+  const eligible =
+    receipt.eligibleVoters ??
+    receipt.EligibleVoters ??
+    fallbackTally?.eligibleVoters ??
+    fallbackTally?.EligibleVoters ??
+    session?.eligibleVoters ??
+    session?.EligibleVoters ??
+    null;
+  const participating =
+    receipt.participatingCoefficient ??
+    receipt.ParticipatingCoefficient ??
+    fallbackTally?.participatingCoefficient ??
+    fallbackTally?.ParticipatingCoefficient ??
+    null;
+  const eligibleCoeff =
+    receipt.eligibleCoefficient ??
+    receipt.EligibleCoefficient ??
+    fallbackTally?.eligibleCoefficient ??
+    fallbackTally?.EligibleCoefficient ??
+    session?.eligibleCoefficient ??
+    session?.EligibleCoefficient ??
+    null;
+  return {
+    ...(fallbackTally || {}),
+    votesCast,
+    VotesCast: votesCast,
+    eligibleVoters: eligible,
+    EligibleVoters: eligible,
+    participatingCoefficient: participating,
+    ParticipatingCoefficient: participating,
+    eligibleCoefficient: eligibleCoeff,
+    EligibleCoefficient: eligibleCoeff,
+    votingSessionId:
+      receipt.votingSessionId ||
+      receipt.VotingSessionId ||
+      fallbackTally?.votingSessionId ||
+      fallbackTally?.VotingSessionId,
+    trendHidden: fallbackTally?.trendHidden ?? fallbackTally?.TrendHidden ?? true,
+    TrendHidden: fallbackTally?.trendHidden ?? fallbackTally?.TrendHidden ?? true
+  };
+}
+
 function participationBlock(tally, session, { showPending = false } = {}) {
   const cast = tally?.votesCast ?? tally?.VotesCast ?? 0;
   const eligible =
@@ -145,6 +192,8 @@ export function renderVotePanel(
     canClose,
     operatorView = false,
     eligibleVoters = null,
+    questionIndex = null,
+    questionTotal = null,
     onCast,
     onOpen,
     onClose,
@@ -240,12 +289,24 @@ export function renderVotePanel(
 
   // Owner ballot: question → choices first (viewport priority). Meta/participation after.
   const compactOwner = !operatorView;
+  const progressLabel =
+    questionIndex != null && questionTotal != null && questionTotal > 0
+      ? t("voting.questionProgress", { current: questionIndex, total: questionTotal }) ||
+        `Pregunta ${questionIndex} de ${questionTotal}`
+      : null;
   let body = `
     <div class="vote-live-header${compactOwner ? " vote-live-header--compact" : ""}">
+      ${
+        progressLabel
+          ? `<p class="vote-progress-label">${escapeHtml(progressLabel)}</p>`
+          : ""
+      }
       <p class="vote-now-kicker">${escapeHtml(t("voting.openBanner"))}</p>
       ${
         motion
-          ? `<h3 class="vote-question">${escapeHtml(motion.title || motion.code || "")}</h3>`
+          ? `<h3 class="vote-question" id="vote-question-heading">${escapeHtml(
+              motion.questionText || motion.body || motion.title || motion.code || ""
+            )}</h3>`
           : ""
       }
       <p class="vote-session-status">
@@ -281,12 +342,7 @@ export function renderVotePanel(
   if (voted || status === "ALREADY_VOTED") {
     body += `
       <div class="vote-success-banner" role="status">
-        <p class="vote-success-title">${escapeHtml(t("voting.alreadyRegistered"))}</p>
-        ${
-          evidenceId && !session?.isSecret
-            ? renderReceipt(evidenceId, castAt, tally, session, { waiting: true })
-            : `<p class="muted">${escapeHtml(t("voting.registeredBody"))}</p>`
-        }
+        ${renderReceipt(evidenceId, castAt, tally, session, { waiting: true })}
       </div>`;
   } else if (!operatorView && status === "NOT_ACCREDITED") {
     body += `<p class="vote-eligibility-msg" role="status">${escapeHtml(t("voting.notAccredited"))}</p>`;
@@ -297,7 +353,8 @@ export function renderVotePanel(
     body += `<p class="vote-eligibility-msg" role="status">${escapeHtml(t("voting.notEligible"))}</p>`;
   } else if (canCast && session.status === "Open" && (status === "ELIGIBLE" || !status)) {
     body += `
-      <div class="choice-cards" role="radiogroup" aria-label="${escapeHtml(t("voting.title"))}">
+      <p class="vote-select-hint muted">${escapeHtml(t("voting.selectHint"))}</p>
+      <div class="choice-cards" role="radiogroup" aria-labelledby="vote-question-heading" aria-label="${escapeHtml(t("voting.title"))}">
         ${["InFavor", "Against", "Abstention"]
           .map(
             (choice) => `
@@ -305,7 +362,6 @@ export function renderVotePanel(
             data-choice="${choice}" tabindex="0">
             <span class="choice-icon" aria-hidden="true">${CHOICE_ICON[choice]}</span>
             <span class="choice-label">${escapeHtml(CHOICE_LABEL[choice]())}</span>
-            <span class="choice-hint">${escapeHtml(t("voting.selectHint"))}</span>
           </button>`
           )
           .join("")}
@@ -388,13 +444,10 @@ export function renderVotePanel(
       const receipt = await onCast?.(choice);
       const evidence = receipt?.evidenceId || receipt?.EvidenceId || "—";
       const at = receipt?.castAtUtc || receipt?.CastAtUtc || new Date().toISOString();
+      const freshTally = tallyFromCastReceipt(receipt, tally, session);
       const { notify } = await import("./ui.js");
       notify.success(t("voting.registeredToast"), { title: t("voting.registered") });
-      root.innerHTML = `
-        <div class="vote-success-banner" role="status">
-          <p class="vote-success-title">${escapeHtml(t("voting.registeredBody"))}</p>
-          ${renderReceipt(evidence, at, tally, session, { waiting: true })}
-        </div>`;
+      root.innerHTML = renderReceipt(evidence, at, freshTally, session, { waiting: true });
     } catch (error) {
       const networkish =
         !error?.status ||
@@ -498,6 +551,7 @@ function renderReceipt(evidenceId, castAt, tally, session, { waiting = false } =
       <h3>${escapeHtml(t("voting.registered"))}</h3>
       <p>${escapeHtml(t("voting.registeredBody"))}</p>
       ${time ? `<p class="metric-number vote-receipt-time">${escapeHtml(time)}</p>` : ""}
+      <p class="muted">${escapeHtml(t("voting.continueAssembly") || "Puedes continuar en la asamblea")}</p>
       <p>${escapeHtml(t("voting.evidence"))}</p>
       <p class="evidence-id" title="${escapeHtml(evidenceId || "")}">${escapeHtml(code)}</p>
       ${participationBlock(tally, session)}

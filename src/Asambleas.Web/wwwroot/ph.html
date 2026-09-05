@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia4" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
+  <link rel="stylesheet" href="/css/ph-roster-import.css?v=pri1" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
 </head>
@@ -98,7 +99,7 @@
           <button type="button" data-tab="owners">Propietarios</button>
           <button type="button" data-tab="info">Configuración</button>
           <button type="button" data-tab="coefficients">Coeficientes</button>
-          <button type="button" data-tab="import">Importar</button>
+          <button type="button" data-tab="import">Importar propietarios y unidades</button>
           <button type="button" data-tab="readiness">Preparación</button>
         </div>
 
@@ -186,6 +187,7 @@
             <input id="unit-search" placeholder="Buscar unidad..." aria-label="Buscar unidad" />
             <button type="button" id="btn-new-unit" class="btn btn-primary">+ Nueva unidad</button>
             <button type="button" id="btn-bulk-units" class="btn btn-secondary">Generar unidades</button>
+            <button type="button" id="btn-units-goto-import" class="btn btn-ghost">Importar propietarios y unidades</button>
           </div>
           <div id="unit-form-wrap" hidden>
             <form id="form-unit" class="form-grid" style="margin:1rem 0">
@@ -248,7 +250,7 @@
           <div class="cta-row owners-toolbar">
             <input id="owner-search" placeholder="Buscar propietario…" aria-label="Buscar propietario" />
             <button type="button" id="btn-owner-filters" class="btn btn-secondary" aria-expanded="false" aria-controls="owner-filters-popover">Filtros</button>
-            <button type="button" id="btn-goto-import" class="btn btn-ghost">Importar</button>
+            <button type="button" id="btn-goto-import" class="btn btn-ghost">Importar propietarios y unidades</button>
             <button type="button" id="btn-export-owners" class="btn btn-ghost">Exportar</button>
             <button type="button" id="btn-bulk-invite" class="btn btn-secondary">Invitar seleccionados</button>
             <button type="button" id="btn-validate-owners" class="btn btn-ghost" hidden>Validar</button>
@@ -309,7 +311,7 @@
             <p>Agrega el primer propietario para comenzar a preparar la estructura del PH.</p>
             <div class="cta-row">
               <button type="button" class="btn btn-primary" id="btn-empty-add-owner">+ Agregar propietario</button>
-              <button type="button" class="btn btn-secondary" id="btn-empty-import">Importar</button>
+              <button type="button" class="btn btn-secondary" id="btn-empty-import">Importar propietarios y unidades</button>
             </div>
           </div>
           <div id="owner-form-wrap" class="panel" hidden>
@@ -366,19 +368,28 @@
         </section>
 
         <section class="panel wizard-panel" data-panel="import" hidden>
-          <h2 class="section-title">Importación masiva</h2>
+          <h2 class="section-title" id="import-ph-title">Importar propietarios y unidades</h2>
+          <p class="lede" id="import-ph-lede">Cargue unidades, propietarios y relaciones desde Excel. Los datos quedan editables como si se hubieran creado manualmente.</p>
           <div class="cta-row">
-            <a id="btn-template" class="btn btn-secondary" href="#">Descargar plantilla</a>
-            <input type="file" id="import-file" accept=".csv,.xlsx" />
-            <button type="button" id="btn-analyze" class="btn btn-primary">Analizar</button>
+            <button type="button" id="btn-open-roster-import" class="btn btn-primary">Importar propietarios y unidades</button>
+            <a id="btn-template" class="btn btn-secondary" href="#">Descargar plantilla Excel</a>
           </div>
+          <ul class="pri-hints" style="margin-top:1rem">
+            <li>Plantilla con hojas Unidades, Propietarios, PropietarioUnidad, Catálogos e Instrucciones.</li>
+            <li>Primero se valida; no se importa al seleccionar el archivo.</li>
+            <li>Modo recomendado: crear solo registros nuevos.</li>
+            <li>No envía convocatorias ni crea contraseñas.</li>
+          </ul>
+          <!-- legacy hooks kept hidden for compatibility -->
+          <input type="file" id="import-file" accept=".csv,.xlsx" hidden />
           <div id="import-map" class="import-map" hidden></div>
           <div class="cta-row" id="import-actions" hidden>
-            <button type="button" id="btn-validate-import" class="btn btn-secondary">Validar</button>
-            <button type="button" id="btn-commit-import" class="btn btn-primary">Confirmar importación</button>
+            <button type="button" id="btn-analyze" class="btn btn-secondary" hidden>Analizar</button>
+            <button type="button" id="btn-validate-import" class="btn btn-secondary" hidden>Validar</button>
+            <button type="button" id="btn-commit-import" class="btn btn-primary" hidden>Confirmar importación</button>
             <a id="btn-import-errors" class="btn btn-secondary" href="#" hidden>Descargar errores</a>
           </div>
-          <div id="import-preview"></div>
+          <div id="import-preview" hidden></div>
         </section>
 
         <section class="panel wizard-panel" data-panel="readiness" hidden>

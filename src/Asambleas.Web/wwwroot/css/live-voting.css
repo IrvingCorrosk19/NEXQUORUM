@@ -124,6 +124,27 @@
   background: var(--brand-teal-100, rgba(45, 212, 191, 0.14));
 }
 
+.lq-section {
+  margin-top: 0.65rem;
+}
+
+.lq-section-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #7a879c);
+}
+
+.lq-active .lq-mark {
+  color: #fbbf24;
+}
+
+.lq-answered .lq-mark {
+  color: var(--brand-teal-300, #5eead4);
+}
+
 .lq-mark {
   font-weight: 700;
   color: var(--brand-teal-300, #5eead4);

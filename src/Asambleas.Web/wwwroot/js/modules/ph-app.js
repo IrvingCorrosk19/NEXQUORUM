@@ -18,23 +18,9 @@ const STEP_LABELS = [
   "Activar"
 ];
 
-const SYSTEM_FIELDS = [
-  ["UnitCode", "Unidad"],
-  ["Tower", "Torre"],
-  ["Floor", "Piso"],
-  ["CoefficientPercent", "Coeficiente"],
-  ["FirstName", "Nombre"],
-  ["LastName", "Apellido"],
-  ["Identification", "Identificación"],
-  ["Email", "Email"],
-  ["Phone", "Teléfono"]
-];
-
 let user = null;
 let currentPhId = null;
 let currentPh = null;
-let importSession = null;
-let suggestedMappings = [];
 let editingOwnerId = null;
 let myMemberships = [];
 let phAssemblies = [];
@@ -299,8 +285,19 @@ function wireUi() {
     $("#form-owner").reset();
     $("#owner-form-wrap").hidden = true;
   });
-  $("#btn-goto-import")?.addEventListener("click", () => switchTab("import"));
-  $("#btn-empty-import")?.addEventListener("click", () => switchTab("import"));
+  $("#btn-goto-import")?.addEventListener("click", () => {
+    switchTab("import");
+    openRosterImport();
+  });
+  $("#btn-empty-import")?.addEventListener("click", () => {
+    switchTab("import");
+    openRosterImport();
+  });
+  $("#btn-open-roster-import")?.addEventListener("click", () => openRosterImport());
+  $("#btn-units-goto-import")?.addEventListener("click", () => {
+    switchTab("import");
+    openRosterImport();
+  });
   $("#form-owner").addEventListener("submit", onSaveOwner);
   $("#owner-unit-select")?.addEventListener("change", () => syncOwnerShareForSelectedUnit());
   $("#owner-search")?.addEventListener("input", () => loadOwners());
@@ -347,9 +344,6 @@ function wireUi() {
     });
   });
 
-  $("#btn-analyze").addEventListener("click", analyzeImport);
-  $("#btn-validate-import").addEventListener("click", validateImport);
-  $("#btn-commit-import").addEventListener("click", commitImport);
 }
 
 async function refreshSwitcher() {
@@ -780,7 +774,7 @@ function tabLabel(tab) {
     units: "Unidades",
     owners: "Propietarios",
     coefficients: "Coeficientes",
-    import: "Importar",
+    import: "Importar propietarios y unidades",
     readiness: "Preparación"
   };
   return labels[tab] || tab;
@@ -2180,81 +2174,19 @@ async function loadReadiness() {
     ${(r.blockingIssues || []).map((i) => `<p class="lede">${escapeHtml(i)}</p>`).join("")}`;
 }
 
-async function analyzeImport() {
-  const file = $("#import-file").files?.[0];
-  if (!file) {
-    AppFeedback.warning("Selecciona un archivo CSV o XLSX.", { title: "Archivo requerido" });
+async function openRosterImport() {
+  if (!currentPhId) {
+    AppFeedback.warning("Seleccione un PH primero.", { title: "PH requerido" });
     return;
   }
-  await ensureAntiforgery();
-  const fd = new FormData();
-  fd.append("file", file);
-  const token = await ensureAntiforgery();
-  const response = await fetch(`/api/ph/${currentPhId}/import/analyze`, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { RequestVerificationToken: token },
-    body: fd
+  const { openPhRosterImportWizard } = await import("./ph-roster-import.js");
+  openPhRosterImportWizard({
+    phId: currentPhId,
+    phName: currentPh?.name || "",
+    onImported: async () => {
+      await Promise.all([loadUnits(), loadOwners(), loadCoefficients(), loadReadiness()]);
+    }
   });
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.detail || "Error al analizar");
-  }
-  importSession = payload.sessionId;
-  suggestedMappings = payload.suggestedMappings || [];
-  const map = $("#import-map");
-  map.hidden = false;
-  map.innerHTML = SYSTEM_FIELDS.map(([field, label]) => {
-    const suggested = suggestedMappings.find((m) => m.systemField === field)?.sourceColumn || "";
-    const options = (payload.detectedColumns || [])
-      .map((c) => `<option value="${escapeHtml(c)}" ${c === suggested ? "selected" : ""}>${escapeHtml(c)}</option>`)
-      .join("");
-    return `<div class="map-row"><span>${label}</span><select data-field="${field}"><option value="">—</option>${options}</select></div>`;
-  }).join("");
-  $("#import-actions").hidden = false;
-  $("#import-preview").innerHTML = `<p>${payload.rowCount} filas detectadas. Mapea columnas y valida.</p>`;
-}
-
-function collectMappings() {
-  return SYSTEM_FIELDS.map(([field]) => ({
-    systemField: field,
-    sourceColumn: $(`#import-map select[data-field="${field}"]`)?.value || null
-  }));
-}
-
-async function validateImport() {
-  const preview = await api(`/api/ph/${currentPhId}/import/validate`, {
-    method: "POST",
-    body: { sessionId: importSession, mappings: collectMappings() }
-  });
-  renderImportPreview(preview);
-}
-
-async function commitImport() {
-  const result = await api(`/api/ph/${currentPhId}/import/commit`, {
-    method: "POST",
-    body: { sessionId: importSession, mappings: collectMappings() }
-  });
-  AppFeedback.success(
-    `Unidades ${result.unitsCreated}, propietarios ${result.ownersCreated}, titularidades ${result.ownershipsCreated}.`,
-    { title: "Importación completada" }
-  );
-  await Promise.all([loadUnits(), loadOwners(), loadCoefficients(), loadReadiness()]);
-}
-
-function renderImportPreview(preview) {
-  const errLink = $("#btn-import-errors");
-  errLink.hidden = preview.errorRows === 0;
-  errLink.href = `/api/ph/${currentPhId}/import/${preview.sessionId}/errors`;
-  $("#import-preview").innerHTML = `
-    <p><strong>${preview.totalRows}</strong> filas · ${preview.validRows} válidas · ${preview.warningRows} advertencias · ${preview.errorRows} errores</p>
-    <ul>${(preview.issues || [])
-      .slice(0, 30)
-      .map(
-        (i) =>
-          `<li>[${escapeHtml(i.severity)}] Fila ${i.rowNumber} · ${escapeHtml(i.field)}: ${escapeHtml(i.problem)}</li>`
-      )
-      .join("")}</ul>`;
 }
 
 function escapeHtml(value) {

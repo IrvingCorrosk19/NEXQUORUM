@@ -1,4 +1,4 @@
-﻿namespace Asambleas.Infrastructure.Seed;
+namespace Asambleas.Infrastructure.Seed;
 
 using Asambleas.Application.Security;
 using Asambleas.Domain.Entities;
@@ -267,7 +267,7 @@ public sealed class DemoDataSeeder
             Id = DemoSeedConstants.AssemblyOceanId,
             TenantId = DemoSeedConstants.TenantOceanId,
             PropertyHorizontalId = DemoSeedConstants.PhOceanId,
-            Title = "ASAMBLEA GENERAL ORDINARIA — PH OCEAN TOWER",
+            Title = "ASAMBLEA GENERAL ORDINARIA - PH OCEAN TOWER",
             Modality = AssemblyEntity.ModalityVirtual,
             AssemblyKind = "ORDINARY",
             Status = AssemblyStatus.Scheduled,
@@ -298,9 +298,9 @@ public sealed class DemoDataSeeder
 
         var agenda = new[]
         {
-            (DemoSeedConstants.Agenda01Id, 1, "01", "VerificaciÃ³n de quÃ³rum e instalaciÃ³n"),
-            (DemoSeedConstants.Agenda02Id, 2, "02", "Lectura y aprobaciÃ³n del orden del dÃ­a"),
-            (DemoSeedConstants.Agenda03Id, 3, "03", "AprobaciÃ³n del presupuesto anual"),
+            (DemoSeedConstants.Agenda01Id, 1, "01", "Verificacion de quorum e instalacion"),
+            (DemoSeedConstants.Agenda02Id, 2, "02", "Lectura y aprobacion del orden del dia"),
+            (DemoSeedConstants.Agenda03Id, 3, "03", "Aprobacion del presupuesto anual"),
             (DemoSeedConstants.Agenda04Id, 4, "04", "Proposiciones y varios")
         };
 
@@ -389,7 +389,7 @@ public sealed class DemoDataSeeder
             Id = DemoSeedConstants.AssemblyOtherId,
             TenantId = DemoSeedConstants.TenantOtherId,
             PropertyHorizontalId = DemoSeedConstants.PhOtherId,
-            Title = "ASAMBLEA AISLAMIENTO — PH OTHER",
+            Title = "ASAMBLEA AISLAMIENTO - PH OTHER",
             Modality = AssemblyEntity.ModalityVirtual,
             AssemblyKind = "ORDINARY",
             Status = AssemblyStatus.Scheduled,

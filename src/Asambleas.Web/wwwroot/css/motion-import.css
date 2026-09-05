@@ -1,0 +1,60 @@
+.motion-import-dialog {
+  width: min(56rem, 96vw);
+  max-height: min(90dvh, 52rem);
+  border: 1px solid var(--border-subtle, #2a3548);
+  border-radius: var(--radius-lg, 0.75rem);
+  padding: 0;
+  background: var(--surface-elevated, #121a28);
+  color: var(--text-primary, #e8eef8);
+}
+.motion-import-dialog::backdrop { background: rgba(6, 10, 18, 0.72); }
+.motion-import-form { display: grid; grid-template-rows: auto 1fr auto; max-height: inherit; }
+.motion-import-head, .motion-import-foot { padding: 1rem 1.15rem; }
+.motion-import-head { border-bottom: 1px solid var(--border-subtle, #2a3548); }
+.motion-import-foot {
+  border-top: 1px solid var(--border-subtle, #2a3548);
+  display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;
+}
+.motion-import-body { padding: 1rem 1.15rem; overflow: auto; min-height: 12rem; }
+.motion-import-steps {
+  list-style: none; display: flex; gap: 0.75rem; padding: 0; margin: 0.75rem 0 0; flex-wrap: wrap;
+}
+.motion-import-steps li {
+  font-size: 0.85rem; color: var(--text-muted, #7a879c);
+  padding: 0.25rem 0.55rem; border-radius: 999px; border: 1px solid transparent;
+}
+.motion-import-steps li.is-active {
+  color: var(--text-primary, #e8eef8);
+  border-color: var(--brand-teal-300, #5eead4);
+  background: rgba(45, 212, 191, 0.12);
+}
+.motion-import-drop {
+  display: grid; place-items: center; gap: 0.35rem; min-height: 8rem;
+  border: 2px dashed var(--border-subtle, #3a4660); border-radius: 0.75rem;
+  cursor: pointer; padding: 1.25rem; text-align: center;
+}
+.motion-import-drop.is-drag { border-color: var(--brand-teal-300, #5eead4); background: rgba(45,212,191,0.08); }
+.motion-import-drop__title { font-weight: 700; }
+.motion-import-summary {
+  display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem;
+  padding: 0.65rem 0.85rem; border-radius: 0.5rem;
+  background: rgba(255,255,255,0.04); margin-bottom: 0.5rem;
+}
+.motion-import-table-wrap { overflow: auto; max-height: min(48vh, 24rem); }
+.motion-import-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.motion-import-table th, .motion-import-table td {
+  text-align: left; padding: 0.45rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+  vertical-align: top;
+}
+.motion-import-table th { position: sticky; top: 0; background: #152033; z-index: 1; }
+.mi-error { background: rgba(239, 68, 68, 0.1); }
+.mi-warning { background: rgba(245, 158, 11, 0.1); }
+.mi-ready { background: rgba(45, 212, 191, 0.06); }
+.mi-q { font-size: 0.8rem; margin-top: 0.15rem; }
+.motion-import-edit input, .motion-import-edit textarea {
+  width: 100%; margin-top: 0.25rem;
+}
+@media (max-width: 767px) {
+  .motion-import-table-wrap { display: none; }
+  .motion-import-cards { display: grid !important; gap: 0.65rem; }
+}

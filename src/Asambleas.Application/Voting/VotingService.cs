@@ -303,7 +303,8 @@ public sealed class VotingService
                 }
 
                 await tx.CommitAsync(cancellationToken);
-                return ToCastResponse(byKey, idempotentReplay: true);
+                await PublishParticipationPulseAsync(session, cancellationToken);
+                return await ToCastResponseWithParticipationAsync(byKey, idempotentReplay: true, session, cancellationToken);
             }
         }
 
@@ -363,7 +364,9 @@ public sealed class VotingService
             if (existing.Choice == choice)
             {
                 await tx.CommitAsync(cancellationToken);
-                return ToCastResponse(existing, idempotentReplay: true);
+                await PublishParticipationPulseAsync(session, cancellationToken);
+                return await ToCastResponseWithParticipationAsync(
+                    existing, idempotentReplay: true, session, cancellationToken);
             }
 
             throw new DomainException(
@@ -478,7 +481,9 @@ public sealed class VotingService
                     ex);
             }
 
-            return ToCastResponse(winner, idempotentReplay: true);
+            await PublishParticipationPulseAsync(session, cancellationToken);
+            return await ToCastResponseWithParticipationAsync(
+                winner, idempotentReplay: true, session, cancellationToken);
         }
 
         var policy = ResultVisibility.Parse(session.ResultVisibilityPolicy, session.HidePartialResults);
@@ -516,7 +521,8 @@ public sealed class VotingService
 
         await PublishParticipationPulseAsync(session, cancellationToken);
 
-        return ToCastResponse(vote, idempotentReplay: false);
+        return await ToCastResponseWithParticipationAsync(
+            vote, idempotentReplay: false, session, cancellationToken);
     }
 
     public async Task<VotingSessionDto> WithdrawOpenAsync(
@@ -1569,6 +1575,26 @@ public sealed class VotingService
 
     private static CastVoteResponse ToCastResponse(Vote vote, bool idempotentReplay) =>
         new(vote.Id, vote.VotingSessionId, vote.EvidenceId, vote.CastAtUtc, idempotentReplay);
+
+    private async Task<CastVoteResponse> ToCastResponseWithParticipationAsync(
+        Vote vote,
+        bool idempotentReplay,
+        VotingSession session,
+        CancellationToken cancellationToken)
+    {
+        // Authoritative participation for the casting client (does not wait on SignalR).
+        var pulse = await BuildTallyAsync(session, decisionStatus: null, hideTrend: true, cancellationToken);
+        return new CastVoteResponse(
+            vote.Id,
+            vote.VotingSessionId,
+            vote.EvidenceId,
+            vote.CastAtUtc,
+            idempotentReplay,
+            pulse.VotesCast,
+            pulse.EligibleVoters,
+            pulse.ParticipatingCoefficient,
+            pulse.EligibleCoefficient);
+    }
 
     /// <summary>
     /// Serializes cast/close on the same voting session (PostgreSQL row lock).

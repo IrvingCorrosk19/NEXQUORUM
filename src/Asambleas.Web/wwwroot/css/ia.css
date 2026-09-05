@@ -504,13 +504,15 @@
 
 .ia-asm-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.25rem 0.35rem;
-  margin: 0 0 1rem;
-  padding-bottom: 0.65rem;
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .ia-asm-tab {
@@ -753,19 +755,28 @@
   display: grid;
   gap: 1rem;
   grid-template-columns: 1fr;
+  align-items: start;
 }
 
-@media (min-width: 1100px) {
-  .ia-voting-layout.has-editor {
-    grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1.58fr);
-    align-items: start;
-  }
+/* Exclusive list OR editor — never squeeze both columns */
+.ia-voting-layout.is-list #editor-panel,
+.ia-voting-layout.is-list .studio-editor[hidden] {
+  display: none !important;
 }
 
-@media (min-width: 1360px) {
-  .ia-voting-layout.has-editor {
-    grid-template-columns: minmax(260px, 0.38fr) minmax(0, 1.62fr);
-  }
+.ia-voting-layout.is-editor .studio-list-shell {
+  display: none !important;
+}
+
+.ia-voting-layout.is-editor,
+.ia-voting-layout.has-editor {
+  grid-template-columns: 1fr;
+}
+
+/* Compact assembly tabs under breadcrumbs (reduce empty-bar feel) */
+.studio-main > #ia-assembly-tabs.ia-asm-tabs {
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.5rem;
 }
 
 .ia-panel--flat {

@@ -327,11 +327,16 @@ public sealed class AssemblyJoinController : ControllerBase
 
             // Issue a fresh access link URL is created on next admin resend; for self-serve we issue now and rely on SMTP if configured.
             // Without injecting dispatch here, we still create a new link the admin can see / next send uses.
+            var assembly = await _db.Assemblies.IgnoreQueryFilters().AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == deliveryTarget.Convocation.AssemblyId, cancellationToken);
+
             await _links.IssueAsync(
                 deliveryTarget.Convocation,
                 deliveryTarget.Recipient,
                 deliveryId: null,
-                assemblyScheduledAtUtc: null,
+                assembly?.ScheduledAtUtc,
+                assembly?.EstimatedEndAtUtc,
+                AccessLinkRevocationReasons.Resent,
                 cancellationToken);
 
             return Ok(new { message = okMsg });

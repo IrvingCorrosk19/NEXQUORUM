@@ -50,7 +50,13 @@ public sealed class MotionService
             .ThenBy(m => m.Code)
             .ToListAsync(cancellationToken);
 
-        return motions.Select(ToDto).ToList();
+        var result = new List<MotionDto>(motions.Count);
+        foreach (var motion in motions)
+        {
+            result.Add(await ToDtoAsync(motion, cancellationToken));
+        }
+
+        return result;
     }
 
     public async Task<MotionDto?> GetActiveAsync(
@@ -96,7 +102,7 @@ public sealed class MotionService
             ?? throw new DomainException($"Motion '{motionId}' was not found.");
 
         TenantGuard.EnsureTenantMatch(_currentTenant, motion.TenantId);
-        return ToDto(motion);
+        return await ToDtoAsync(motion, cancellationToken);
     }
 
     public async Task<MotionDto> CreateAsync(
@@ -142,12 +148,16 @@ public sealed class MotionService
             .Select(m => (int?)m.DisplayOrder)
             .MaxAsync(cancellationToken) ?? 0;
 
+        var displayOrder = request.DisplayOrder is > 0
+            ? request.DisplayOrder.Value
+            : nextOrder + 1;
+
         var motion = new MotionEntity
         {
             TenantId = assembly.TenantId,
             AssemblyId = assemblyId,
             AgendaItemId = request.AgendaItemId,
-            DisplayOrder = nextOrder + 1,
+            DisplayOrder = displayOrder,
             Code = code,
             Title = title,
             Body = body,
@@ -682,6 +692,25 @@ public sealed class MotionService
                 "Esta votación es histórica e inmutable. Anule y cree una nueva versión si necesita corregir.");
         }
 
+        // Closed sessions with ballots are immutable even if design status remains Presented.
+        var closedIds = await _db.VotingSessions
+            .AsNoTracking()
+            .Where(s => s.MotionId == motion.Id && s.Status == VotingSessionStatus.Closed)
+            .Select(s => s.Id)
+            .ToListAsync(cancellationToken);
+        if (closedIds.Count > 0)
+        {
+            var closedBallots = await _db.Votes.CountAsync(
+                v => closedIds.Contains(v.VotingSessionId),
+                cancellationToken);
+            if (closedBallots > 0)
+            {
+                throw new DomainException(
+                    "VOTING_IMMUTABLE",
+                    "Esta votación ya fue cerrada con votos. No se pueden alterar pregunta, opciones ni reglas.");
+            }
+        }
+
         if (motion.Status == MotionStatus.Voting)
         {
             var (mode, ballots, _, _) = await ResolveEditStateAsync(motion, cancellationToken);
@@ -715,6 +744,24 @@ public sealed class MotionService
 
         if (open is null)
         {
+            // Any prior closed session with ballots → treat as historical for critical edits.
+            var closedWithBallots = await _db.VotingSessions
+                .AsNoTracking()
+                .Where(s => s.MotionId == motion.Id && s.Status == VotingSessionStatus.Closed)
+                .Select(s => s.Id)
+                .ToListAsync(cancellationToken);
+            if (closedWithBallots.Count > 0)
+            {
+                var priorBallots = await _db.Votes.CountAsync(
+                    v => closedWithBallots.Contains(v.VotingSessionId),
+                    cancellationToken);
+                if (priorBallots > 0
+                    || motion.Status is MotionStatus.Approved or MotionStatus.Rejected or MotionStatus.Cancelled)
+                {
+                    return ("Immutable", priorBallots, null, "Registro histórico inmutable.");
+                }
+            }
+
             if (motion.Status is MotionStatus.Draft or MotionStatus.Presented)
             {
                 return ("Full", 0, null, null);

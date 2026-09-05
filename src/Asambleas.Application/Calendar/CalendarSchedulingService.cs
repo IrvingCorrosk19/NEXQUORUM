@@ -6,9 +6,11 @@ using System.Text;
 using System.Text.Json;
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Common;
+using Asambleas.Application.Communications;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.Assemblies;
 using Asambleas.Contracts.Calendar;
+using Asambleas.Contracts.Communications;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
 using Asambleas.Domain.Enums;
@@ -25,17 +27,23 @@ public sealed class CalendarSchedulingService
     private readonly ICurrentTenant _currentTenant;
     private readonly IAuditService _audit;
     private readonly IAssemblyRealtimePublisher _realtime;
+    private readonly AssemblyAccessLinkService _accessLinks;
+    private readonly ConvocationService _convocations;
 
     public CalendarSchedulingService(
         IAsambleasDbContext db,
         ICurrentTenant currentTenant,
         IAuditService audit,
-        IAssemblyRealtimePublisher realtime)
+        IAssemblyRealtimePublisher realtime,
+        AssemblyAccessLinkService accessLinks,
+        ConvocationService convocations)
     {
         _db = db;
         _currentTenant = currentTenant;
         _audit = audit;
         _realtime = realtime;
+        _accessLinks = accessLinks;
+        _convocations = convocations;
     }
 
     public async Task<CalendarListResponse> ListEventsAsync(
@@ -517,6 +525,12 @@ public sealed class CalendarSchedulingService
             }
         }
 
+        // Always revoke outstanding join links for this assembly before committing the new schedule.
+        await _accessLinks.RevokeActiveForAssemblyAsync(
+            assembly.Id,
+            AccessLinkRevocationReasons.AssemblyRescheduled,
+            cancellationToken);
+
         await NotifyPortalAsync(
             assembly,
             "Asamblea reprogramada",
@@ -532,6 +546,39 @@ public sealed class CalendarSchedulingService
             throw new DomainException("This assembly was modified by another user. Refresh and try again.");
         }
 
+        // Rotate links: email resend (preferred) or silent reissue so owners are never left without a valid token.
+        if (impact.HasSentConvocation)
+        {
+            var latestSent = await _db.Convocations.AsNoTracking()
+                .Where(c => c.AssemblyId == assembly.Id
+                            && (c.Status == ConvocationStatus.Sent
+                                || c.Status == ConvocationStatus.Partial
+                                || c.Status == ConvocationStatus.Failed))
+                .OrderByDescending(c => c.Version)
+                .ThenByDescending(c => c.SentAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (latestSent is not null)
+            {
+                if (request.NotifyParticipants)
+                {
+                    await _convocations.ResendAsync(
+                        latestSent.Id,
+                        new ResendConvocationRequest(
+                            Confirmed: true,
+                            IdempotencyKey: $"reschedule-links-{assembly.Id:N}-v{assembly.ScheduleVersion}"),
+                        cancellationToken);
+                }
+                else
+                {
+                    await _accessLinks.ReissueActiveRecipientsForConvocationAsync(
+                        latestSent.Id,
+                        assembly.ScheduledAtUtc,
+                        assembly.EstimatedEndAtUtc,
+                        cancellationToken);
+                }
+            }
+        }
+
         await _audit.WriteAsync(
             AuditEventType.AssemblyRescheduled,
             assembly.Id,
@@ -541,7 +588,8 @@ public sealed class CalendarSchedulingService
                 @new = assembly.ScheduledAtUtc,
                 request.Reason,
                 version = assembly.ScheduleVersion,
-                notify = request.NotifyParticipants
+                notify = request.NotifyParticipants,
+                accessLinksRotated = impact.HasSentConvocation
             },
             cancellationToken: cancellationToken);
 
@@ -581,14 +629,10 @@ public sealed class CalendarSchedulingService
         assembly.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         // Revoke outstanding magic links so redeem cannot race status checks.
-        var now = DateTimeOffset.UtcNow;
-        var openLinks = await _db.AssemblyAccessLinks
-            .Where(l => l.AssemblyId == assembly.Id && l.RevokedAtUtc == null)
-            .ToListAsync(cancellationToken);
-        foreach (var link in openLinks)
-        {
-            link.RevokedAtUtc = now;
-        }
+        await _accessLinks.RevokeActiveForAssemblyAsync(
+            assembly.Id,
+            AccessLinkRevocationReasons.AssemblyCancelled,
+            cancellationToken);
 
         await CancelPendingRemindersAsync(assembly.Id, "Assembly cancelled", cancellationToken);
         await NotifyPortalAsync(

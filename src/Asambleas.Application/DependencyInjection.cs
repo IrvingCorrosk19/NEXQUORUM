@@ -19,12 +19,15 @@ using Asambleas.Application.Surveys;
 using Asambleas.Application.Voting;
 using Asambleas.Domain.Voting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 public static class DependencyInjection
 {
     public static IServiceCollection AddAsambleasApplication(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton(TimeProvider.System);
 
         services.AddScoped<AuditService>();
         services.AddScoped<IAuditService>(sp => sp.GetRequiredService<AuditService>());
@@ -43,6 +46,7 @@ public static class DependencyInjection
         services.AddScoped<AgendaService>();
         services.AddScoped<SpeakerService>();
         services.AddScoped<MotionService>();
+        services.AddScoped<MotionImportService>();
         services.AddScoped<VotingService>();
         services.AddScoped<SurveyFormService>();
         services.AddSingleton<IScreenShareCoordinator, InMemoryScreenShareCoordinator>();

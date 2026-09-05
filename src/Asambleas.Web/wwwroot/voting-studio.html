@@ -7,13 +7,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=ia3" />
+  <link rel="stylesheet" href="/css/tokens.css?v=ia4" />
   <link rel="stylesheet" href="/css/base.css?v=ia3" />
   <link rel="stylesheet" href="/css/components.css?v=ia3" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <link rel="stylesheet" href="/css/loading.css?v=ia3" />
-  <link rel="stylesheet" href="/css/voting-studio.css?v=vs6" />
-  <link rel="stylesheet" href="/css/ia.css?v=ia4" />
+  <link rel="stylesheet" href="/css/voting-studio.css?v=vs11" />
+  <link rel="stylesheet" href="/css/motion-import.css?v=mi1" />
+  <link rel="stylesheet" href="/css/ia.css?v=ia5" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
 </head>
@@ -29,56 +30,81 @@
     </aside>
 
     <header class="app-top" role="banner">
-      <div class="ia-top-context"><span class="ia-top-context__brand">ASAMBLEAS</span><span class="ia-top-context__path" id="ia-context-label">Votaciones</span></div>
-      <div class="cluster">
-        <span id="ia-role-chip" class="badge badge-live"></span>
-        <span id="user-chip" class="badge badge-live"></span>
+      <div class="ia-top-context">
+        <span class="ia-top-context__brand">ASAMBLEAS</span>
+        <span class="ia-top-context__path" id="ia-context-label">Votaciones</span>
+      </div>
+      <div class="cluster studio-top-cluster">
+        <span id="ia-role-chip" class="ia-role-chip" hidden></span>
+        <span id="user-chip" class="badge badge-muted"></span>
         <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
       </div>
     </header>
 
     <main id="main" class="app-workspace page-main page-main--wide studio-main">
       <div id="page-alert" class="alert" hidden role="alert"></div>
-      <div id="ia-breadcrumbs"></div>
+      <div id="ia-breadcrumbs" class="studio-crumbs"></div>
 
-      <section class="page-hero page-hero--compact">
-        <div class="ia-toolbar">
-          <div>
-            <h1 style="margin:0">Votaciones</h1>
-            <p class="lede" id="assembly-label"><span class="skeleton" style="display:inline-block;width:14rem;height:1rem"></span></p>
-          </div>
-          <div class="cluster">
-            <button type="button" class="btn btn-primary" id="btn-create">+ Crear</button>
-            <details class="ia-asm-tabs__more">
-              <summary class="btn btn-secondary" style="list-style:none;cursor:pointer">Más ▾</summary>
-              <div class="ia-asm-tabs__menu">
-                <button type="button" class="ia-asm-tab" id="btn-open-templates" style="width:100%;border:0;background:transparent;text-align:left">Plantillas</button>
-              </div>
-            </details>
-          </div>
-        </div>
-      </section>
+      <div class="ia-voting-layout is-list" id="voting-layout">
+        <!-- ═══ LIST MODE ═══ -->
+        <section class="studio-list-shell panel ia-panel--flat" id="list-panel" aria-label="Listado de votaciones">
+          <header class="studio-page-head">
+            <div class="studio-page-head__text">
+              <h1 class="studio-page-title">Votaciones</h1>
+              <p class="studio-page-lede">Administra las decisiones que serán sometidas a los propietarios.</p>
+              <p class="studio-page-meta" id="assembly-label">
+                <span class="skeleton" style="display:inline-block;width:14rem;height:1rem"></span>
+              </p>
+            </div>
+            <div class="studio-page-head__actions">
+              <button type="button" class="btn btn-primary" id="btn-create">Nueva votación</button>
+              <button type="button" class="btn btn-secondary" id="btn-import-motions">Importar preguntas</button>
+              <details class="studio-more">
+                <summary class="btn btn-ghost" aria-label="Más acciones secundarias">Más</summary>
+                <div class="studio-more__menu" role="menu">
+                  <button type="button" role="menuitem" id="btn-create-survey">Nueva encuesta</button>
+                  <button type="button" role="menuitem" id="btn-open-templates">Plantillas</button>
+                  <button type="button" role="menuitem" id="btn-bulk-publish">Publicar seleccionadas</button>
+                  <button type="button" role="menuitem" class="studio-tab-link" data-tab="surveys">Ver encuestas</button>
+                </div>
+              </details>
+            </div>
+          </header>
 
-      <div class="ia-voting-layout" id="voting-layout">
-        <section class="panel ia-panel--flat" aria-label="Listado de votaciones">
-          <div class="studio-tabs" role="tablist">
+          <div class="studio-stats" id="vote-stats" aria-live="polite">
+            <div class="studio-stat"><span class="studio-stat__value" data-stat="total">0</span><span class="studio-stat__label">Total</span></div>
+            <div class="studio-stat"><span class="studio-stat__value" data-stat="draft">0</span><span class="studio-stat__label">Borradores</span></div>
+            <div class="studio-stat"><span class="studio-stat__value" data-stat="ready">0</span><span class="studio-stat__label">Preparadas</span></div>
+            <div class="studio-stat"><span class="studio-stat__value" data-stat="live">0</span><span class="studio-stat__label">En vivo</span></div>
+            <div class="studio-stat"><span class="studio-stat__value" data-stat="closed">0</span><span class="studio-stat__label">Cerradas</span></div>
+          </div>
+
+          <div class="studio-tabs" role="tablist" aria-label="Tipo de contenido">
             <button type="button" class="studio-tab is-active" data-tab="votes" role="tab" aria-selected="true">Votaciones</button>
             <button type="button" class="studio-tab" data-tab="surveys" role="tab" aria-selected="false">Encuestas</button>
           </div>
 
           <div id="votes-panel">
-            <div class="ia-toolbar" style="margin-top:0.75rem">
-              <div class="ia-toolbar__filters" id="vote-filters" role="toolbar" aria-label="Filtrar votaciones">
+            <div class="studio-list-toolbar">
+              <div class="studio-filters" id="vote-filters" role="toolbar" aria-label="Filtrar votaciones">
                 <button type="button" data-filter="all" aria-pressed="true">Todas</button>
                 <button type="button" data-filter="draft" aria-pressed="false">Borradores</button>
                 <button type="button" data-filter="ready" aria-pressed="false">Preparadas</button>
                 <button type="button" data-filter="live" aria-pressed="false">En vivo</button>
                 <button type="button" data-filter="closed" aria-pressed="false">Cerradas</button>
               </div>
-              <label class="cluster" style="gap:0.35rem;font-size:0.875rem">
-                <span class="muted">Buscar</span>
-                <input type="search" id="vote-search" placeholder="Título…" style="min-width:10rem" />
-              </label>
+              <div class="studio-search">
+                <label class="visually-hidden" for="vote-search">Buscar votaciones</label>
+                <span class="studio-search__icon" aria-hidden="true">⌕</span>
+                <input
+                  type="search"
+                  id="vote-search"
+                  class="studio-search__input"
+                  placeholder="Buscar por título, pregunta o código"
+                  autocomplete="off"
+                />
+                <button type="button" class="studio-search__clear" id="btn-clear-search" hidden aria-label="Limpiar búsqueda">×</button>
+              </div>
             </div>
             <div id="list-votes" class="studio-list-body"></div>
           </div>
@@ -90,17 +116,26 @@
           <div id="list-templates" class="studio-list-body" hidden></div>
         </section>
 
-        <section class="panel studio-editor" id="editor-panel" hidden aria-label="Editor">
+        <!-- ═══ EDITOR MODE ═══ -->
+        <section class="panel studio-editor" id="editor-panel" hidden aria-label="Editor de votación">
           <div class="studio-editor-head">
-            <h2 id="editor-title">Crear votación</h2>
-            <span id="editor-status" class="badge">Borrador</span>
+            <div class="studio-editor-head__text">
+              <button type="button" class="btn btn-ghost studio-back" id="btn-editor-back">← Volver a votaciones</button>
+              <h2 id="editor-title">Nueva votación</h2>
+              <p class="studio-editor-lede" id="editor-lede">Configura la pregunta que se presentará a los participantes.</p>
+            </div>
+            <div class="studio-editor-head__meta">
+              <span id="editor-status" class="badge">Borrador</span>
+              <span id="editor-dirty" class="studio-dirty-flag" hidden>Cambios pendientes</span>
+            </div>
           </div>
           <div class="studio-editor-grid">
             <div class="studio-canvas" id="editor-canvas"></div>
-            <aside class="studio-config" id="editor-config" aria-label="Configuración"></aside>
+            <aside class="studio-config" id="editor-config" aria-label="Configuración y vista previa"></aside>
           </div>
-          <div class="studio-actions">
-            <button type="button" class="btn btn-ghost" id="btn-preview">Vista previa</button>
+          <div class="studio-actions" role="group" aria-label="Acciones del editor">
+            <button type="button" class="btn btn-ghost" id="btn-cancel-editor">Cancelar</button>
+            <button type="button" class="btn btn-secondary" id="btn-preview">Vista previa</button>
             <button type="button" class="btn btn-secondary" id="btn-save-draft">Guardar borrador</button>
             <button type="button" class="btn btn-primary" id="btn-publish">Publicar</button>
           </div>
@@ -152,6 +187,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/js/modules/voting-studio-app.js?v=vs6"></script>
+  <script type="module" src="/js/modules/voting-studio-app.js?v=vs11"></script>
 </body>
 </html>

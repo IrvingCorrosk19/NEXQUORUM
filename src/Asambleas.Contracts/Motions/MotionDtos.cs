@@ -47,7 +47,8 @@ public sealed record CreateMotionRequest(
     string? Instructions = null,
     string? QuestionText = null,
     bool IsSecret = false,
-    string? TemplateKey = null);
+    string? TemplateKey = null,
+    int? DisplayOrder = null);
 
 public sealed record UpdateMotionRequest(
     Guid? AgendaItemId = null,

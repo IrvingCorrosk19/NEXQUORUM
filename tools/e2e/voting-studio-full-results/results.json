@@ -1,6 +1,6 @@
 {
-  "env": "LOCALHOST",
-  "url": "https://localhost:7188",
+  "env": "VPS",
+  "url": "https://asambleas.164.68.99.83.nip.io",
   "tests": [
     {
       "id": "login",
@@ -10,12 +10,12 @@
     {
       "id": "ph",
       "pass": true,
-      "detail": "83e99ee9-13cd-4a1c-b7c4-35abdfe23b59"
+      "detail": "fc4673a5-e86b-47dd-a29d-f6f76bf60379"
     },
     {
       "id": "assembly",
       "pass": true,
-      "detail": "c5a1071a-d231-4d6d-9756-f16065c9c815"
+      "detail": "f83b5aec-0b2b-4206-bebd-e4911d925909"
     },
     {
       "id": "contrast-inputs",
