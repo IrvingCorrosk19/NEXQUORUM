@@ -17,7 +17,8 @@ public sealed record MeetingJoinRequest(
     bool CanPublish,
     bool CanSubscribe,
     bool CanPublishScreenShare = false,
-    TimeSpan? Ttl = null);
+    TimeSpan? Ttl = null,
+    string? IdentityOverride = null);
 
 public sealed record MeetingRoomInfo(
     Guid AssemblyId,

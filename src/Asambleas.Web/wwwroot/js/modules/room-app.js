@@ -5,6 +5,7 @@ import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js
 import { renderQuorum } from "./quorum.js";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, renderVotePanel, tallyFromCastReceipt } from "./voting.js";
 import { createLiveVotingWorkspace } from "./live-voting-workspace.js";
+import { createMobileVotingController } from "./mobile-voting-sheet.js";
 import {
   completeFloor,
   cancelOwnFloor,
@@ -27,6 +28,7 @@ import {
   fetchJoinToken,
   fetchRoomInfo,
   getCanPublishScreenShare,
+  getLiveKitDiagnostics,
   getLiveKitParticipantCounts,
   getLocalPublishIntent,
   getMediaConnectionState,
@@ -35,8 +37,10 @@ import {
   isLocalScreenShareActive,
   listIncidents,
   loadDevicePrefs,
+  normalizeMediaIdentity,
   releaseScreenShare,
   renderAvBlocked,
+  retryLocalMedia,
   setIncidentHandler,
   setLocalCameraEnabled,
   setLocalMicrophoneEnabled,
@@ -106,6 +110,7 @@ const state = {
   session: null,
   tally: null,
   myVote: null,
+  myVoteStatus: null,
   participants: new Map(),
   startedAtUtc: null,
   hub: null,
@@ -125,6 +130,53 @@ let handActionBusy = false;
 /** Transient UX phase: idle | requesting | cancelling | completing */
 let handPhase = "idle";
 let lastFloorToastId = null;
+let mobileVoting = null;
+
+function ensureMobileVoting() {
+  if (mobileVoting || !assemblyId) return mobileVoting;
+  mobileVoting = createMobileVotingController({
+    assemblyId,
+    getState: () => ({
+      session: state.session,
+      motion: state.motion,
+      myVote: state.myVote,
+      myVoteStatus: state.myVoteStatus,
+      viewerRole: state.viewerRole,
+      user: state.user
+    }),
+    canCastPermission: () => hasPermission(state.user, "vote:cast"),
+    onReceipt: (receipt) => {
+      if (!receipt) return;
+      if (receipt.__statusOnly) {
+        state.myVoteStatus = receipt.status || state.myVoteStatus;
+        if (receipt.evidenceId) {
+          state.myVote = {
+            evidenceId: receipt.evidenceId,
+            castAtUtc: receipt.castAtUtc
+          };
+        }
+        refreshPanels();
+        mobileVoting?.sync();
+        return;
+      }
+      state.myVote = {
+        evidenceId: receipt.evidenceId || receipt.EvidenceId,
+        castAtUtc: receipt.castAtUtc || receipt.CastAtUtc
+      };
+      state.myVoteStatus = {
+        ...(state.myVoteStatus || {}),
+        status: "ALREADY_VOTED",
+        evidenceId: state.myVote.evidenceId,
+        castAtUtc: state.myVote.castAtUtc
+      };
+      const merged = tallyFromCastReceipt(receipt, state.tally, state.session);
+      if (merged) state.tally = merged;
+      refreshPanels();
+      mobileVoting?.sync();
+    }
+  });
+  return mobileVoting;
+}
 
 const liveWorkspace = createLiveVotingWorkspace({
   getAssemblyId: () => assemblyId,
@@ -1274,6 +1326,7 @@ function renderMediaCockpit() {
   el.innerHTML = `
     <strong>${escapeHtml(t("media.liveKitLabel") || "LiveKit media")}</strong>
     <span>${escapeHtml(t("media.connected"))}: ${media.connected}</span>
+    <span>${escapeHtml(t("media.remotes") || "Remotos")}: ${media.remotes ?? 0}</span>
     <span>${escapeHtml(t("assembly.hybridPresent") || "Attendance")}: ${attendance}</span>
     <span>${escapeHtml(t("media.problems"))}: ${problems}</span>
     <span>${escapeHtml(t("media.activeMics"))}: ${media.mics}</span>
@@ -1291,8 +1344,41 @@ function renderIncidentStrip() {
   }
   el.hidden = false;
   el.innerHTML = items
-    .map((i) => `<div class="incident incident-${escapeHtml(i.severity)}">${escapeHtml(i.message)}</div>`)
+    .map((i) => {
+      const retry =
+        i.id === "local-av"
+          ? `<button type="button" class="btn btn-sm btn-secondary incident-retry" data-retry-av="1">${escapeHtml(
+              t("media.retryAv") || "Reintentar cámara/micrófono"
+            )}</button>`
+          : "";
+      return `<div class="incident incident-${escapeHtml(i.severity)}"><span>${escapeHtml(
+        i.message
+      )}</span>${retry}</div>`;
+    })
     .join("");
+  el.querySelectorAll("[data-retry-av]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        const result = await retryLocalMedia();
+        if (!result.ok) {
+          showToast(
+            result.code === "PERMISSION_DENIED"
+              ? t("media.permissionDeniedReceiveOk") || t("media.permissionDenied")
+              : t("media.publishFailedReceiveOk") || t("media.publishFailed"),
+            "warn"
+          );
+        } else {
+          showToast(t("media.devicesUpdated") || "Dispositivos actualizados", "success");
+        }
+      } finally {
+        btn.disabled = false;
+        renderIncidentStrip();
+        syncMeetingControlBar();
+        renderMediaCockpit();
+      }
+    });
+  });
 }
 
 function annotateMediaRoleBadges(items) {
@@ -1824,6 +1910,7 @@ function refreshPanels() {
           state.tally = merged;
         }
         showError("");
+        ensureMobileVoting()?.sync();
         return receipt;
       } catch (error) {
         // Strip technical codes from surface message
@@ -2000,6 +2087,25 @@ async function rehydrate() {
   await hydrateRecording();
   if (room._fallbackMessage) {
     showToast(room._fallbackMessage, "info");
+  }
+  ensureMobileVoting();
+  if (state.session?.status === "Open" && hasPermission(state.user, "vote:cast") && state.session?.id) {
+    try {
+      const st = await getMyVoteStatus(assemblyId, state.session.id);
+      state.myVoteStatus = st;
+      if (st?.evidenceId || st?.EvidenceId) {
+        state.myVote = {
+          evidenceId: st.evidenceId || st.EvidenceId,
+          castAtUtc: st.castAtUtc || st.CastAtUtc
+        };
+      }
+      refreshPanels();
+    } catch {
+      /* keep */
+    }
+    mobileVoting?.onOpened();
+  } else {
+    mobileVoting?.sync();
   }
 }
 
@@ -2192,9 +2298,17 @@ async function bootstrapMeeting() {
     await connectLiveKit(els.video, token, {
       enableCamera: wantCam && canPublish,
       enableMic: wantMic && canPublish,
-      officialSpeakerIdentity: identity
+      officialSpeakerIdentity: identity,
+      assemblyId,
+      role: state.viewerRole
     });
-    if (identity) setMediaViewMode("focus");
+    // Do not force focus on join — that hid remote tiles on mobile and looked like "solo".
+    // Focus is applied only when the floor is granted (syncPublishForFloor).
+    try {
+      window.__asambleasMediaDiagnostics = getLiveKitDiagnostics;
+    } catch {
+      /* ignore */
+    }
     syncHandTiles();
   } catch (error) {
     const msg = String(error?.message || "");
@@ -2475,6 +2589,7 @@ async function init() {
         updateMediaConnectionBanner();
         syncMeetingControlBar();
       }
+      ensureMobileVoting()?.refreshFromServer?.();
     },
     onReconnectError: (error) => showToast(error.message, "error"),
     quorumUpdated: (q) => {
@@ -2524,8 +2639,10 @@ async function init() {
       state.myVote = null;
       state.myVoteStatus = null;
       refreshPanels();
+      ensureMobileVoting();
       const finish = () => {
         if (updating) updating.hidden = true;
+        mobileVoting?.onOpened();
       };
       if (hasPermission(state.user, "vote:cast") && s?.id) {
         getMyVoteStatus(assemblyId, s.id)
@@ -2586,6 +2703,7 @@ async function init() {
       state.tally = result.tally;
       refreshPanels();
       liveWorkspace.handleRealtime("votingClosed");
+      ensureMobileVoting()?.onClosed();
     },
     votingCancelled: (session) => {
       state.session = session;
@@ -2600,6 +2718,7 @@ async function init() {
       );
       refreshPanels();
       liveWorkspace.handleRealtime("votingCancelled");
+      ensureMobileVoting()?.onCancelled();
     },
     votingVersionCreated: (motion) => {
       showToast(

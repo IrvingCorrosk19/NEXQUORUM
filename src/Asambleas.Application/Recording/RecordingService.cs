@@ -3,6 +3,7 @@ namespace Asambleas.Application.Recording;
 using System.Security.Cryptography;
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Common;
+using Asambleas.Application.Meeting;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.Recordings;
 using Asambleas.Domain.Common;
@@ -167,7 +168,7 @@ public sealed class RecordingService
         }
 
         var recordingId = Guid.NewGuid();
-        var roomName = $"assembly-{assemblyId:N}";
+        var roomName = MeetingService.CanonicalRoomName(assemblyId);
         var storageKey = $"{assembly.TenantId:N}/{assemblyId:N}/{recordingId:N}.mp4";
         var now = DateTimeOffset.UtcNow;
         var userId = TenantGuard.RequireUserId(_currentTenant);

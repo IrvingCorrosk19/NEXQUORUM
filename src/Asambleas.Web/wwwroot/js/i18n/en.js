@@ -154,10 +154,13 @@ export default {
     disconnectedGovernanceOk: "Audio/video disconnected. You can continue with agenda, quorum, and voting.",
     governanceOnly: "Governance-only mode: assembly truth remains in ASAMBLEAS.",
     publishFailed: "Could not enable camera/microphone. The intervention is not marked complete.",
+    publishFailedReceiveOk:
+      "Could not enable camera/microphone. You remain connected and can see/hear others. Use Retry.",
     floorMicEnabled: "You have the floor: microphone enabled.",
     unstableConnection: "Your connection is unstable. We are adjusting quality to keep you connected.",
     participantMediaIssue: "{name} — media issue",
     connected: "Connected (media)",
+    remotes: "Remotes (media)",
     problems: "With issues",
     activeMics: "Active mics",
     cameras: "Cameras",
@@ -168,6 +171,9 @@ export default {
     leftMedia: "Audio/video disconnected. Governance remains active.",
     fullscreenUnavailable: "Fullscreen is unavailable in this browser",
     permissionDenied: "Camera or microphone blocked by the browser. Check site settings.",
+    permissionDeniedReceiveOk:
+      "Camera/microphone blocked. You remain in the room as a receiver; tap Retry to publish.",
+    retryAv: "Retry camera/microphone",
     deviceBusy:
       "Camera/microphone blocked or in use (another app or Lenovo Privacy Mode). Close them and try again.",
     connectingMic: "Connecting microphone…",
@@ -282,6 +288,32 @@ export default {
     statusLabel: "Status"
   },
 
+  mvote: {
+    consultAssembly: "View assembly",
+    pendingTitle: "Pending vote",
+    pendingHint: "Respond before it closes",
+    voteNow: "Vote now",
+    openUntilClose: "Open until the president closes it",
+    selected: "Selected option",
+    youSelected: "You selected",
+    pickOption: "Choose an option to continue",
+    confirmTitle: "Confirm vote",
+    confirmLead: "You are about to vote:",
+    confirmWarn: "Under current rules, you cannot change this vote after submitting.",
+    confirmSend: "Confirm and send",
+    back: "Back",
+    registering: "Recording your vote…",
+    registered: "Vote recorded successfully",
+    receiptCode: "Receipt",
+    castAt: "Date and time",
+    serverConfirmed: "Confirmed by the server",
+    backToAssembly: "Back to assembly",
+    closedTitle: "Voting closed",
+    closedBeforeCast: "Voting closed before your vote could be recorded.",
+    networkUncertain: "We could not confirm your vote yet. This screen will stay open while we reconnect.",
+    retry: "Retry",
+    cancelled: "The vote was cancelled."
+  },
   voting: {
     title: "Voting",
     inFavor: "IN FAVOR",

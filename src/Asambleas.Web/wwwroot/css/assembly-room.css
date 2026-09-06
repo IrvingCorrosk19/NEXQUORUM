@@ -1338,12 +1338,21 @@
   .media-stage-grid.is-oct {
     grid-template-columns: 1fr;
   }
-  .media-stage-grid.view-focus .media-tile:not(.official-speaker):not(.is-speaking) {
-    display: none;
+  /* Focus = spotlight + filmstrip. Never hide remotes (camera-off peers must stay visible). */
+  .media-stage-grid.view-focus {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 0.35rem;
   }
   .media-stage-grid.view-focus .media-tile.official-speaker,
   .media-stage-grid.view-focus .media-tile.is-speaking {
+    grid-row: 1;
+    min-height: 0;
+  }
+  .media-stage-grid.view-focus .media-tile:not(.official-speaker):not(.is-speaking) {
     display: block;
+    max-height: clamp(3.5rem, 14vh, 5.5rem);
   }
 }
 .media-control-bar {

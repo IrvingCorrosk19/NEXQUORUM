@@ -56,6 +56,49 @@ public sealed class MeetingTokenSecurityTests
         token.Should().NotBeNull();
         // Multi-participant video: registered joiners may publish; query string cannot force false.
         token!.CanPublish.Should().BeTrue("registered participants may publish A/V; client query is ignored");
+        token.RoomName.Should().Be(Asambleas.Application.Meeting.MeetingService.CanonicalRoomName(assemblyId));
+    }
+
+    [Fact(DisplayName = "President and owner receive the same canonical LiveKit roomName")]
+    public async Task President_and_owner_share_canonical_room()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var assemblyId = DemoSeedConstants.AssemblyOceanId;
+
+        var president = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
+        (await president.PostAsync($"/api/assemblies/{assemblyId}/start-checkin")).EnsureSuccessStatusCode();
+
+        var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
+        (await owner.PostJsonAsync(
+            $"/api/assemblies/{assemblyId}/attendance/check-in",
+            new Asambleas.Contracts.Assemblies.CheckInRequest(DemoSeedConstants.Unit101Id, "Virtual")))
+            .EnsureSuccessStatusCode();
+
+        var prezTok = await president.PostAsync($"/api/assemblies/{assemblyId}/meeting/join-token");
+        var ownerTok = await owner.PostAsync($"/api/assemblies/{assemblyId}/meeting/join-token");
+
+        if (!prezTok.IsSuccessStatusCode || !ownerTok.IsSuccessStatusCode)
+        {
+            var roomPRes = await president.GetAsync($"/api/assemblies/{assemblyId}/meeting/room");
+            var roomORes = await owner.GetAsync($"/api/assemblies/{assemblyId}/meeting/room");
+            roomPRes.EnsureSuccessStatusCode();
+            roomORes.EnsureSuccessStatusCode();
+            var roomP = await roomPRes.Content.ReadFromJsonAsync<MeetingRoomInfoDto>();
+            var roomO = await roomORes.Content.ReadFromJsonAsync<MeetingRoomInfoDto>();
+            roomP!.RoomName.Should().Be(Asambleas.Application.Meeting.MeetingService.CanonicalRoomName(assemblyId));
+            roomO!.RoomName.Should().Be(roomP.RoomName);
+            return;
+        }
+
+        var p = await prezTok.Content.ReadFromJsonAsync<MeetingJoinTokenResponse>();
+        var o = await ownerTok.Content.ReadFromJsonAsync<MeetingJoinTokenResponse>();
+        p!.RoomName.Should().Be(o!.RoomName);
+        p.RoomName.Should().Be(Asambleas.Application.Meeting.MeetingService.CanonicalRoomName(assemblyId));
+        p.Identity.Should().NotBe(o.Identity);
+        Asambleas.Application.Meeting.MeetingService.BaseParticipantIdentity(p.Identity!)
+            .Should().NotBe(Asambleas.Application.Meeting.MeetingService.BaseParticipantIdentity(o.Identity!));
+        p.CanPublish.Should().BeTrue();
+        o.CanPublish.Should().BeTrue();
     }
 
     [Fact(DisplayName = "Cross-assembly meeting room info is tenant-scoped")]

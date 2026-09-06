@@ -12,6 +12,31 @@ public sealed class MeetingService
 {
     public static readonly TimeSpan DefaultTokenTtl = TimeSpan.FromMinutes(15);
 
+    /// <summary>
+    /// Canonical LiveKit room for an assembly. Role/user must never alter this value.
+    /// Format is stable for egress/recording compatibility: assembly-{guid:N}.
+    /// Assembly IDs are globally unique; tenant isolation is enforced before minting.
+    /// </summary>
+    public static string CanonicalRoomName(Guid assemblyId) => $"assembly-{assemblyId:N}";
+
+    /// <summary>
+    /// Stable user base + short per-connection suffix so two tabs of the same user
+    /// do not silently kick each other from the SFU (LiveKit replaces same identity).
+    /// </summary>
+    public static string BuildParticipantIdentity(Guid userId, string connectionSuffix) =>
+        $"{userId:N}.{connectionSuffix}";
+
+    public static string BaseParticipantIdentity(string identity)
+    {
+        if (string.IsNullOrWhiteSpace(identity))
+        {
+            return string.Empty;
+        }
+
+        var idx = identity.IndexOf('.', StringComparison.Ordinal);
+        return idx <= 0 ? identity : identity[..idx];
+    }
+
     private readonly IAsambleasDbContext _db;
     private readonly ICurrentTenant _currentTenant;
     private readonly IMeetingProvider _meetingProvider;
@@ -64,7 +89,7 @@ public sealed class MeetingService
             throw new DomainException("Meeting provider is not configured (LiveKit credentials required).");
         }
 
-        var roomName = $"assembly-{assemblyId:N}";
+        var roomName = CanonicalRoomName(assemblyId);
         var room = await _meetingProvider.EnsureRoomAsync(assemblyId, roomName, cancellationToken);
 
         if (!room.IsAvailable)
@@ -74,6 +99,8 @@ public sealed class MeetingService
 
         var canPublish = await ResolveCanPublishAsync(assemblyId, userId, participant.RoleCode, cancellationToken);
         var canScreen = CanScreenShareFromClaimsOrRole(participant.RoleCode);
+        var connectionSuffix = Guid.NewGuid().ToString("N")[..8];
+        var identity = BuildParticipantIdentity(userId, connectionSuffix);
 
         var token = await _meetingProvider.CreateParticipantTokenAsync(
             new MeetingJoinRequest(
@@ -84,7 +111,8 @@ public sealed class MeetingService
                 CanPublish: canPublish,
                 CanSubscribe: true,
                 CanPublishScreenShare: canScreen,
-                Ttl: DefaultTokenTtl),
+                Ttl: DefaultTokenTtl,
+                IdentityOverride: identity),
             cancellationToken);
 
         return new MeetingJoinTokenResponse(
@@ -95,7 +123,7 @@ public sealed class MeetingService
             token.ServerUrl,
             token.ExpiresAtUtc,
             CanPublish: canPublish,
-            Identity: userId.ToString("N"),
+            Identity: identity,
             CanPublishScreenShare: canScreen);
     }
 
@@ -112,7 +140,7 @@ public sealed class MeetingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
-        var roomName = $"assembly-{assemblyId:N}";
+        var roomName = CanonicalRoomName(assemblyId);
         var providerName = await _meetingProvider.IsConfiguredAsync(cancellationToken)
             ? (await _meetingProvider.EnsureRoomAsync(assemblyId, roomName, cancellationToken)).Provider
             : "none";

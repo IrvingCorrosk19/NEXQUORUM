@@ -153,10 +153,13 @@ export default {
     disconnectedGovernanceOk: "Audio/video desconectado. Puede continuar con agenda, quórum y votación.",
     governanceOnly: "Modo solo gobernanza: la verdad de la asamblea sigue en ASAMBLEAS.",
     publishFailed: "No se pudo activar cámara/micrófono. La intervención no se marca como finalizada.",
+    publishFailedReceiveOk:
+      "No se pudo activar cámara/micrófono. Sigue conectado: puede ver y oír a los demás. Use Reintentar.",
     floorMicEnabled: "Tiene la palabra: micrófono habilitado.",
     unstableConnection: "Tu conexión está inestable. Ajustamos la calidad para mantenerte conectado.",
     participantMediaIssue: "{name} — problema de medios",
     connected: "Conectados (media)",
+    remotes: "Remotos (media)",
     problems: "Con problema",
     activeMics: "Mic activos",
     cameras: "Cámaras",
@@ -167,6 +170,9 @@ export default {
     leftMedia: "Audio/video desconectado. La gobernanza sigue activa.",
     fullscreenUnavailable: "Pantalla completa no disponible en este navegador",
     permissionDenied: "Cámara o micrófono bloqueados por el navegador. Revise la configuración del sitio.",
+    permissionDeniedReceiveOk:
+      "Cámara/micrófono bloqueados. Sigue en la sala como receptor; pulse Reintentar para publicar.",
+    retryAv: "Reintentar cámara/micrófono",
     deviceBusy:
       "Cámara/micrófono bloqueados o en uso (otro programa o Lenovo Privacy Mode). Ciérrelos y pulse de nuevo.",
     connectingMic: "Conectando micrófono…",
@@ -282,6 +288,32 @@ export default {
     statusLabel: "Estado"
   },
 
+  mvote: {
+    consultAssembly: "Consultar asamblea",
+    pendingTitle: "Votación pendiente",
+    pendingHint: "Responde antes de que cierre",
+    voteNow: "Votar ahora",
+    openUntilClose: "Abierta hasta que el presidente la cierre",
+    selected: "Opción seleccionada",
+    youSelected: "Seleccionó",
+    pickOption: "Elija una opción para continuar",
+    confirmTitle: "Confirmar voto",
+    confirmLead: "Vas a votar:",
+    confirmWarn: "Según las reglas actuales, no podrá cambiar este voto después de enviarlo.",
+    confirmSend: "Confirmar y enviar",
+    back: "Volver",
+    registering: "Registrando tu voto…",
+    registered: "Voto registrado correctamente",
+    receiptCode: "Comprobante",
+    castAt: "Fecha y hora",
+    serverConfirmed: "Confirmado por el servidor",
+    backToAssembly: "Volver a la asamblea",
+    closedTitle: "Votación cerrada",
+    closedBeforeCast: "La votación fue cerrada antes de que pudieras registrar tu voto.",
+    networkUncertain: "No pudimos confirmar su voto todavía. Conservaremos esta pantalla mientras restablecemos la conexión.",
+    retry: "Reintentar",
+    cancelled: "La votación fue anulada."
+  },
   voting: {
     title: "Votación",
     inFavor: "A FAVOR",

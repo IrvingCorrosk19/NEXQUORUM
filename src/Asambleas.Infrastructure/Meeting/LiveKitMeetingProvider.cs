@@ -61,7 +61,9 @@ public sealed class LiveKitMeetingProvider : IMeetingProvider
         }
 
         var ttl = request.Ttl ?? TimeSpan.FromMinutes(15);
-        var identity = request.UserId.ToString("N");
+        var identity = string.IsNullOrWhiteSpace(request.IdentityOverride)
+            ? request.UserId.ToString("N")
+            : request.IdentityOverride.Trim();
         var token = LiveKitAccessToken.Create(
             _options.ApiKey,
             _options.ApiSecret,

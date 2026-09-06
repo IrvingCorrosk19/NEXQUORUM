@@ -38,6 +38,55 @@ let screenShareLayoutActive = false;
 let localScreenShareActive = false;
 let onLocalScreenShareEnded = null;
 let canPublishScreenShare = false;
+let mediaDebugEnabled = false;
+let mediaCorrelationId = null;
+
+export function normalizeMediaIdentity(id) {
+  const raw = String(id || "")
+    .replace(/-/g, "")
+    .toLowerCase()
+    .trim();
+  if (!raw) return "";
+  const dot = raw.indexOf(".");
+  return dot > 0 ? raw.slice(0, dot) : raw;
+}
+
+function isMediaDebugEnabled() {
+  if (mediaDebugEnabled) return true;
+  try {
+    if (localStorage.getItem("asambleasMediaDebug") === "1") return true;
+    if (new URLSearchParams(location.search).get("mediaDebug") === "1") return true;
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
+function mediaDebug(event, payload = {}) {
+  if (!isMediaDebugEnabled()) return;
+  const safe = {
+    event,
+    at: new Date().toISOString(),
+    correlationId: mediaCorrelationId,
+    connectionState: mediaConnectionState,
+    localIdentity: liveKitRoom?.localParticipant?.identity
+      ? normalizeMediaIdentity(liveKitRoom.localParticipant.identity)
+      : null,
+    remoteCount: liveKitRoom?.remoteParticipants?.size ?? 0,
+    roomName: liveKitRoom?.name || null,
+    roomSid: liveKitRoom?.sid || null,
+    ...payload
+  };
+  // Never log tokens/secrets.
+  delete safe.token;
+  delete safe.jwt;
+  delete safe.serverUrl;
+  console.info("[asambleas-media]", safe);
+}
+
+export function setMediaDebug(enabled) {
+  mediaDebugEnabled = Boolean(enabled);
+}
 
 export function getMediaConnectionState() {
   return mediaConnectionState;
@@ -316,17 +365,28 @@ function updateGridLayout(container) {
   container.classList.toggle("view-focus", viewMode === "focus" && !screenShareLayoutActive);
   container.classList.toggle("view-grid", viewMode === "grid" || screenShareLayoutActive);
   container.classList.toggle("screen-share-layout", screenShareLayoutActive);
+  updateEmptyHint(container);
+}
 
+/**
+ * Empty / first-participant copy must follow LiveKit remotes, not DOM tile count.
+ * A remote without camera still counts as present.
+ */
+function updateEmptyHint(container) {
+  if (!container) return;
+  const remoteCount = liveKitRoom?.remoteParticipants?.size ?? 0;
+  const connected = mediaConnectionState === "connected" || mediaConnectionState === "reconnecting";
   let empty = container.querySelector(".media-empty-hint");
-  if (n <= 1 && !screenShareLayoutActive) {
+  if (connected && remoteCount === 0 && !screenShareLayoutActive) {
     if (!empty) {
       empty = document.createElement("p");
       empty.className = "media-empty-hint";
       empty.setAttribute("role", "status");
       container.appendChild(empty);
     }
+    const localTiles = container.querySelectorAll(".media-tile.is-local").length;
     empty.textContent =
-      n === 0
+      localTiles === 0
         ? t("media.waitingParticipants") || "Esperando participantes…"
         : t("media.firstParticipant") || "Eres el primer participante. Esperando a los demás…";
   } else if (empty) {
@@ -389,7 +449,7 @@ function ensureTile(container, identity, label, { isLocal = false, isScreen = fa
       avatar.textContent = initials || "?";
     }
   }
-  if (!isScreen && officialSpeakerIdentity && identity === officialSpeakerIdentity) {
+  if (!isScreen && officialSpeakerIdentity && normalizeMediaIdentity(identity) === officialSpeakerIdentity) {
     tile.classList.add("official-speaker");
   }
   updateGridLayout(container);
@@ -431,6 +491,15 @@ function detachTrack(track) {
 }
 
 function syncParticipantPublications(container, participant) {
+  // Always materialize a tile for remotes (avatar) even before tracks arrive.
+  if (!participant.isLocal) {
+    ensureTile(
+      container,
+      participant.identity,
+      participant.name || participant.identity,
+      { isLocal: false, isScreen: false }
+    );
+  }
   for (const pub of participant.trackPublications.values()) {
     if (!pub.track) continue;
     if (!participant.isLocal && pub.isSubscribed === false) continue;
@@ -502,6 +571,19 @@ function syncParticipantPublications(container, participant) {
   if (!hasScreen) {
     container.querySelector(tileSelector(participant.identity, true))?.remove();
   }
+  updateEmptyHint(container);
+}
+
+/** Idempotent: create/update tiles for every remote already in the room + attach tracks. */
+function syncRemoteRoster(container) {
+  if (!liveKitRoom || !container) return;
+  for (const participant of liveKitRoom.remoteParticipants.values()) {
+    syncParticipantPublications(container, participant);
+  }
+  updateEmptyHint(container);
+  mediaDebug("syncRemoteRoster", {
+    remotes: [...liveKitRoom.remoteParticipants.keys()].map(normalizeMediaIdentity)
+  });
 }
 
 export function setScreenShareLayoutActive(active) {
@@ -594,14 +676,25 @@ export async function connectLiveKit(container, joinInfo, options = {}) {
 }
 
 async function connectLiveKitOnce(container, joinInfo, options = {}) {
-  const { Room, RoomEvent } = window.LivekitClient;
+  const { Room, RoomEvent, ConnectionState } = window.LivekitClient;
   await disconnectLiveKit();
 
   mediaContainer = container;
-  officialSpeakerIdentity = options.officialSpeakerIdentity || null;
+  officialSpeakerIdentity = options.officialSpeakerIdentity
+    ? normalizeMediaIdentity(options.officialSpeakerIdentity)
+    : null;
+  mediaCorrelationId =
+    joinInfo.assemblyId ||
+    joinInfo.AssemblyId ||
+    options.assemblyId ||
+    mediaCorrelationId ||
+    `media-${Date.now().toString(36)}`;
+
   liveKitRoom = new Room({
     adaptiveStream: true,
     dynacast: true,
+    // Explicit: never depend on client inventing rooms; token room grant is authoritative.
+    autoSubscribe: true,
     audioCaptureDefaults: { ...ASAMBLEAS_AUDIO_CAPTURE_DEFAULTS }
   });
 
@@ -609,8 +702,17 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
   container.innerHTML = "";
   container.classList.add("media-stage-grid", "view-grid");
   updateGridLayout(container);
+  mediaDebug("connecting", {
+    roomName: joinInfo.roomName || joinInfo.RoomName || null,
+    identity: joinInfo.identity || joinInfo.Identity || null,
+    role: options.role || null
+  });
 
   liveKitRoom.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+    mediaDebug("TrackSubscribed", {
+      identity: normalizeMediaIdentity(participant.identity),
+      kind: track.kind
+    });
     const isScreen = isScreenSharePublication(pub, track);
     if (isScreen && track.kind === "video") {
       setScreenShareLayoutActive(true);
@@ -622,9 +724,14 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
       { isScreen }
     );
     attachTrackToTile(tile, track, { mirror: false, isLocal: false });
+    updateEmptyHint(container);
   });
 
   liveKitRoom.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
+    mediaDebug("TrackUnsubscribed", {
+      identity: normalizeMediaIdentity(participant.identity),
+      kind: track.kind
+    });
     detachTrack(track);
     const isScreen = isScreenSharePublication(pub, track);
     if (isScreen) {
@@ -640,8 +747,33 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
     }
   });
 
+  liveKitRoom.on(RoomEvent.TrackPublished, (pub, participant) => {
+    if (participant.isLocal) return;
+    mediaDebug("TrackPublished", {
+      identity: normalizeMediaIdentity(participant.identity),
+      kind: pub.kind
+    });
+    ensureTile(
+      container,
+      participant.identity,
+      participant.name || participant.identity
+    );
+    if (pub.track && pub.isSubscribed !== false) {
+      syncParticipantPublications(container, participant);
+    }
+  });
+
+  liveKitRoom.on(RoomEvent.TrackMuted, (pub, participant) => {
+    syncParticipantPublications(container, participant);
+  });
+
+  liveKitRoom.on(RoomEvent.TrackUnmuted, (pub, participant) => {
+    syncParticipantPublications(container, participant);
+  });
+
   liveKitRoom.on(RoomEvent.LocalTrackPublished, (pub, participant) => {
     if (!pub.track) return;
+    mediaDebug("LocalTrackPublished", { kind: pub.kind });
     const isScreen = isScreenSharePublication(pub, pub.track);
     if (isScreen && pub.kind === "video") {
       localScreenShareActive = true;
@@ -677,11 +809,19 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
   });
 
   liveKitRoom.on(RoomEvent.ParticipantConnected, (participant) => {
+    mediaDebug("ParticipantConnected", {
+      identity: normalizeMediaIdentity(participant.identity)
+    });
     ensureTile(container, participant.identity, participant.name || participant.identity);
-    clearIncident(`media-disconnect-${participant.identity}`);
+    syncParticipantPublications(container, participant);
+    clearIncident(`media-disconnect-${normalizeMediaIdentity(participant.identity)}`);
+    updateEmptyHint(container);
   });
 
   liveKitRoom.on(RoomEvent.ParticipantDisconnected, (participant) => {
+    mediaDebug("ParticipantDisconnected", {
+      identity: normalizeMediaIdentity(participant.identity)
+    });
     container
       .querySelectorAll(`[data-identity="${CSS.escape(participant.identity)}"]`)
       .forEach((el) => el.remove());
@@ -689,16 +829,16 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
     if (!stillScreen) setScreenShareLayoutActive(false);
     updateGridLayout(container);
     pushIncident(
-      `media-disconnect-${participant.identity}`,
+      `media-disconnect-${normalizeMediaIdentity(participant.identity)}`,
       t("media.participantMediaIssue", { name: participant.name || participant.identity }),
       "warn"
     );
   });
 
   liveKitRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-    const ids = new Set(speakers.map((s) => s.identity));
+    const ids = new Set(speakers.map((s) => normalizeMediaIdentity(s.identity)));
     container.querySelectorAll(".media-tile:not(.is-screen-share)").forEach((tile) => {
-      tile.classList.toggle("is-speaking", ids.has(tile.dataset.identity));
+      tile.classList.toggle("is-speaking", ids.has(normalizeMediaIdentity(tile.dataset.identity)));
     });
   });
 
@@ -715,36 +855,56 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
 
   liveKitRoom.on(RoomEvent.Reconnecting, () => {
     setMediaState("reconnecting");
+    mediaDebug("Reconnecting");
     pushIncident("media-reconnect", t("media.reconnecting"), "warn");
   });
 
   liveKitRoom.on(RoomEvent.Reconnected, () => {
     setMediaState("connected");
     clearIncident("media-reconnect");
+    mediaDebug("Reconnected");
+    syncRemoteRoster(container);
+    if (liveKitRoom?.localParticipant) {
+      syncParticipantPublications(container, liveKitRoom.localParticipant);
+    }
   });
 
-  liveKitRoom.on(RoomEvent.Disconnected, () => {
+  liveKitRoom.on(RoomEvent.Disconnected, (reason) => {
     setMediaState("disconnected");
+    mediaDebug("Disconnected", { reason: String(reason || "") });
     pushIncident("media-down", t("media.disconnectedGovernanceOk"), "error");
   });
 
-  await liveKitRoom.connect(joinInfo.serverUrl, joinInfo.token);
+  const serverUrl = joinInfo.serverUrl || joinInfo.ServerUrl;
+  const token = joinInfo.token || joinInfo.Token;
+  if (!serverUrl || !token) {
+    throw new Error("Meeting join token is incomplete (serverUrl/token missing).");
+  }
+
+  await liveKitRoom.connect(serverUrl, token);
   setMediaState("connected");
   clearIncident("media-down");
   clearIncident("media-connect-fail");
   clearIncident("media-reconnect");
-  canPublishScreenShare = Boolean(joinInfo.canPublishScreenShare);
+  canPublishScreenShare = Boolean(
+    joinInfo.canPublishScreenShare ?? joinInfo.CanPublishScreenShare
+  );
 
   const local = liveKitRoom.localParticipant;
   ensureTile(container, local.identity, local.name || t("media.you") || "Tú", {
     isLocal: true
   });
 
-  // Attach any already-subscribed remote tracks (race after connect).
-  for (const participant of liveKitRoom.remoteParticipants.values()) {
-    syncParticipantPublications(container, participant);
-  }
+  // Critical: remotes already present (including camera-off peers) must get tiles now.
+  syncRemoteRoster(container);
   syncParticipantPublications(container, local);
+
+  mediaDebug("connected", {
+    roomName: liveKitRoom.name,
+    roomSid: liveKitRoom.sid,
+    connectionState: liveKitRoom.state ?? ConnectionState?.Connected,
+    remoteCount: liveKitRoom.remoteParticipants.size
+  });
 
   const hasRemoteScreen = [...liveKitRoom.remoteParticipants.values()].some((p) =>
     [...p.trackPublications.values()].some(
@@ -757,65 +917,161 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
     camera: Boolean(options.enableCamera),
     mic: Boolean(options.enableMic)
   };
-  if (joinInfo.canPublish) {
+  const canPublish = joinInfo.canPublish ?? joinInfo.CanPublish;
+  if (canPublish) {
+    // Publish after connect; failure must never disconnect or skip remote roster.
     await applyLocalPublish(localPublishIntent);
   } else {
-    pushIncident("no-publish", t("media.publishFailed"), "warn");
+    setLocalAvIncident(
+      t("media.publishFailed") || "No se pudo activar cámara/micrófono.",
+      "warn"
+    );
   }
 
+  // Second pass after publish settles — catches late subscriptions.
+  syncRemoteRoster(container);
   updateGridLayout(container);
   return liveKitRoom;
 }
 
+function setLocalAvIncident(message, severity = "warn") {
+  clearIncident("publish-fail");
+  clearIncident("permission-denied");
+  clearIncident("no-publish");
+  clearIncident("local-av");
+  if (message) {
+    pushIncident("local-av", message, severity);
+  }
+}
+
 async function applyLocalPublish({ camera, mic }) {
   if (!liveKitRoom) return { ok: false, error: "no-room", code: "NO_ROOM" };
-  try {
-    const prefs = loadDevicePrefs();
-    const audioOpts = {
-      ...ASAMBLEAS_AUDIO_CAPTURE_DEFAULTS,
-      ...(prefs.micId ? { deviceId: prefs.micId } : {})
-    };
-    const videoOpts = prefs.cameraId ? { deviceId: prefs.cameraId } : undefined;
-    await liveKitRoom.localParticipant.setCameraEnabled(Boolean(camera), videoOpts);
-    await liveKitRoom.localParticipant.setMicrophoneEnabled(Boolean(mic), audioOpts);
-    const tile = mediaContainer?.querySelector(
-      `[data-identity="${CSS.escape(liveKitRoom.localParticipant.identity)}"]`
-    );
-    if (tile) {
-      tile.classList.toggle("camera-off", !camera);
-      tile.classList.toggle("mic-muted", !mic);
-      if (camera) tile.classList.add("has-video");
-      else tile.classList.remove("has-video");
+  // Never disconnect the room on capture failure — remotes must keep working.
+  const prefs = loadDevicePrefs();
+  const audioOpts = {
+    ...ASAMBLEAS_AUDIO_CAPTURE_DEFAULTS,
+    ...(prefs.micId ? { deviceId: prefs.micId } : {})
+  };
+  const videoOpts = prefs.cameraId ? { deviceId: prefs.cameraId } : undefined;
+  let camOk = !camera;
+  let micOk = !mic;
+  let denied = false;
+  let busy = false;
+  let lastError = null;
+
+  if (camera) {
+    try {
+      await liveKitRoom.localParticipant.setCameraEnabled(true, videoOpts);
+      camOk = true;
+    } catch (error) {
+      lastError = error;
+      const name = error?.name || "";
+      const msg = String(error?.message || "");
+      denied =
+        denied ||
+        name === "NotAllowedError" ||
+        /Permission denied|NotAllowedError|PermissionDenied/i.test(msg);
+      busy =
+        busy ||
+        name === "NotReadableError" ||
+        name === "TrackStartError" ||
+        /Could not start video source|NotReadable/i.test(msg);
+      try {
+        await liveKitRoom.localParticipant.setCameraEnabled(false);
+      } catch {
+        /* ignore */
+      }
+      mediaDebug("localCameraFailed", { name, message: msg.slice(0, 120) });
     }
-    clearIncident("publish-fail");
-    clearIncident("permission-denied");
-    saveDevicePrefs({ cameraEnabled: Boolean(camera), micEnabled: Boolean(mic) });
-    return { ok: true };
-  } catch (error) {
-    const name = error?.name || "";
-    const msg = String(error?.message || "");
-    const denied =
-      name === "NotAllowedError" ||
-      /Permission denied|NotAllowedError|PermissionDenied/i.test(msg);
-    const busy =
-      name === "NotReadableError" ||
-      name === "TrackStartError" ||
-      /Could not start video source|Could not start audio source|NotReadable/i.test(msg);
-    if (denied) {
-      pushIncident(
-        "permission-denied",
-        t("media.permissionDenied") || "Cámara o micrófono bloqueados por el navegador.",
-        "error"
-      );
-      return { ok: false, error, code: "PERMISSION_DENIED" };
+  } else {
+    try {
+      await liveKitRoom.localParticipant.setCameraEnabled(false);
+      camOk = true;
+    } catch {
+      camOk = true;
     }
-    if (busy) {
-      pushIncident("publish-fail", t("media.deviceBusy") || t("media.publishFailed"), "error");
-      return { ok: false, error, code: "DEVICE_BUSY" };
-    }
-    pushIncident("publish-fail", t("media.publishFailed"), "error");
-    return { ok: false, error, code: "PUBLISH_FAILED" };
   }
+
+  if (mic) {
+    try {
+      await liveKitRoom.localParticipant.setMicrophoneEnabled(true, audioOpts);
+      micOk = true;
+    } catch (error) {
+      lastError = error;
+      const name = error?.name || "";
+      const msg = String(error?.message || "");
+      denied =
+        denied ||
+        name === "NotAllowedError" ||
+        /Permission denied|NotAllowedError|PermissionDenied/i.test(msg);
+      busy =
+        busy ||
+        name === "NotReadableError" ||
+        name === "TrackStartError" ||
+        /Could not start audio source|NotReadable/i.test(msg);
+      try {
+        await liveKitRoom.localParticipant.setMicrophoneEnabled(false);
+      } catch {
+        /* ignore */
+      }
+      mediaDebug("localMicFailed", { name, message: msg.slice(0, 120) });
+    }
+  } else {
+    try {
+      await liveKitRoom.localParticipant.setMicrophoneEnabled(false);
+      micOk = true;
+    } catch {
+      micOk = true;
+    }
+  }
+
+  const tile = mediaContainer?.querySelector(
+    `[data-identity="${CSS.escape(liveKitRoom.localParticipant.identity)}"]`
+  );
+  if (tile) {
+    const camOn = Boolean(
+      [...liveKitRoom.localParticipant.trackPublications.values()].some(
+        (p) => p.kind === "video" && p.track && !p.isMuted && !isScreenSharePublication(p, p.track)
+      )
+    );
+    const micOn = Boolean(
+      [...liveKitRoom.localParticipant.trackPublications.values()].some(
+        (p) => p.kind === "audio" && p.track && !p.isMuted && !isScreenSharePublication(p, p.track)
+      )
+    );
+    tile.classList.toggle("camera-off", !camOn);
+    tile.classList.toggle("mic-muted", !micOn);
+    tile.classList.toggle("has-video", camOn);
+  }
+
+  // Keep remote roster intact after local publish attempts.
+  if (mediaContainer) syncRemoteRoster(mediaContainer);
+
+  if (camOk && micOk) {
+    setLocalAvIncident(null);
+    saveDevicePrefs({ cameraEnabled: Boolean(camera && camOk), micEnabled: Boolean(mic && micOk) });
+    return { ok: true };
+  }
+
+  const msg = denied
+    ? t("media.permissionDeniedReceiveOk") ||
+      t("media.permissionDenied") ||
+      "Cámara/micrófono bloqueados. Puede ver y oír a los demás; pulse Reintentar."
+    : busy
+      ? t("media.deviceBusy") || t("media.publishFailed")
+      : t("media.publishFailedReceiveOk") || t("media.publishFailed");
+  setLocalAvIncident(msg, "warn");
+  saveDevicePrefs({
+    cameraEnabled: Boolean(camera && camOk),
+    micEnabled: Boolean(mic && micOk)
+  });
+  return {
+    ok: false,
+    error: lastError,
+    code: denied ? "PERMISSION_DENIED" : busy ? "DEVICE_BUSY" : "PUBLISH_FAILED",
+    cameraOk: camOk,
+    micOk: micOk
+  };
 }
 
 export async function setLocalCameraEnabled(enabled) {
@@ -956,11 +1212,9 @@ export function auditRealtimeAudioTopology() {
 /** Mark tiles whose LiveKit identity matches raised-hand user ids (dashless GUID). */
 export function syncHandRaisedIndicators(container, raisedUserIds = []) {
   if (!container) return;
-  const set = new Set(
-    (raisedUserIds || []).map((id) => String(id || "").replace(/-/g, "").toLowerCase())
-  );
+  const set = new Set((raisedUserIds || []).map((id) => normalizeMediaIdentity(id)));
   container.querySelectorAll(".media-tile").forEach((tile) => {
-    const id = String(tile.dataset.identity || "").replace(/-/g, "").toLowerCase();
+    const id = normalizeMediaIdentity(tile.dataset.identity);
     tile.classList.toggle("hand-raised", set.has(id));
   });
 }
@@ -1005,12 +1259,14 @@ export async function refreshMediaToken(assemblyId, container, options = {}) {
 }
 
 export function highlightOfficialSpeaker(container, identity) {
-  officialSpeakerIdentity = identity;
+  officialSpeakerIdentity = identity ? normalizeMediaIdentity(identity) : null;
   if (!container) return;
   container.querySelectorAll(".media-tile").forEach((tile) => {
-    const isOfficial = tile.dataset.identity === identity;
-    tile.classList.toggle("official-speaker", isOfficial);
-    tile.classList.toggle("is-stage", viewMode === "focus" && isOfficial);
+    const isOfficial =
+      officialSpeakerIdentity &&
+      normalizeMediaIdentity(tile.dataset.identity) === officialSpeakerIdentity;
+    tile.classList.toggle("official-speaker", Boolean(isOfficial));
+    tile.classList.toggle("is-stage", viewMode === "focus" && Boolean(isOfficial));
   });
   updateGridLayout(container);
 }
@@ -1056,7 +1312,7 @@ export function renderAvBlocked(container, reason) {
 
 export function getLiveKitParticipantCounts() {
   if (!liveKitRoom) {
-    return { connected: 0, mics: 0, cameras: 0 };
+    return { connected: 0, mics: 0, cameras: 0, remotes: 0, roomName: null, roomSid: null };
   }
   let mics = 0;
   let cameras = 0;
@@ -1064,11 +1320,43 @@ export function getLiveKitParticipantCounts() {
   for (const p of parts) {
     for (const pub of p.trackPublications.values()) {
       if (!pub.track) continue;
+      if (isScreenSharePublication(pub, pub.track)) continue;
       if (pub.kind === "audio" && !pub.isMuted) mics += 1;
       if (pub.kind === "video" && !pub.isMuted) cameras += 1;
     }
   }
-  return { connected: parts.length, mics, cameras };
+  return {
+    connected: parts.length,
+    remotes: liveKitRoom.remoteParticipants.size,
+    mics,
+    cameras,
+    roomName: liveKitRoom.name || null,
+    roomSid: liveKitRoom.sid || null
+  };
+}
+
+/** Snapshot for dual-session certification (no secrets). */
+export function getLiveKitDiagnostics() {
+  const counts = getLiveKitParticipantCounts();
+  return {
+    correlationId: mediaCorrelationId,
+    connectionState: mediaConnectionState,
+    localIdentity: liveKitRoom?.localParticipant?.identity
+      ? normalizeMediaIdentity(liveKitRoom.localParticipant.identity)
+      : null,
+    localIdentityFull: liveKitRoom?.localParticipant?.identity || null,
+    remoteIdentities: liveKitRoom
+      ? [...liveKitRoom.remoteParticipants.keys()].map(normalizeMediaIdentity)
+      : [],
+    ...counts
+  };
+}
+
+export async function retryLocalMedia() {
+  return applyLocalPublish({
+    camera: localPublishIntent.camera !== false,
+    mic: localPublishIntent.mic !== false
+  });
 }
 
 /** Unlock audio after a user gesture when browser blocks autoplay. */

@@ -1,0 +1,90 @@
+{
+  "realtime-open-api": {
+    "ok": true,
+    "note": "already open 1825d188-36be-49ab-8e49-1be323b20dfc"
+  },
+  "mobile-overlay-auto": {
+    "ok": true,
+    "note": "overlay visible"
+  },
+  "accidental-dismiss-prevented": {
+    "ok": true,
+    "note": "still open after outside/esc"
+  },
+  "explicit-minimize": {
+    "ok": true,
+    "note": "hidden=true banner=true"
+  },
+  "pending-banner-restore": {
+    "ok": true,
+    "note": ""
+  },
+  "selection-no-autosend": {
+    "ok": true,
+    "note": "confirm enabled after select"
+  },
+  "confirmation-step": {
+    "ok": true,
+    "note": ""
+  },
+  "server-confirmation": {
+    "ok": true,
+    "note": "Voto registrado correctamente\n\nComprobante\nVT-3829E0\nFecha y hora\n6/9/2026, 6:42:48 a.m.\nConfirmado por el servidor\nConfirmado por el servidor"
+  },
+  "idempotency-status": {
+    "ok": true,
+    "note": "{\"votingSessionId\":\"1825d188-36be-49ab-8e49-1be323b20dfc\",\"status\":\"ALREADY_VOTED\",\"evidenceId\":\"3829e082-6fc1-4f5f-aa06-3020a57c1e88\",\"castAtUtc\":\"2026-09-06T11:42:48.294233+00:00"
+  },
+  "banner-clears-after-vote": {
+    "ok": true,
+    "note": ""
+  },
+  "reload-after-vote": {
+    "ok": true,
+    "note": "Voto registrado correctamente\n\nComprobante\nVT-3829E0\nFecha y hora\n6/9/2026, 6:42:48 a.m.\nConfirmado por el servidor\nConfirmado por el servidor"
+  },
+  "livekit-continuity": {
+    "ok": true,
+    "note": "probe={\"hasRoom\":false,\"state\":\"n/a\"}"
+  },
+  "viewport-320x568": {
+    "ok": true,
+    "note": "ok"
+  },
+  "viewport-360x800": {
+    "ok": true,
+    "note": "ok"
+  },
+  "viewport-375x667": {
+    "ok": true,
+    "note": "ok"
+  },
+  "viewport-390x844": {
+    "ok": true,
+    "note": "ok"
+  },
+  "viewport-393x873": {
+    "ok": true,
+    "note": "ok"
+  },
+  "viewport-412x915": {
+    "ok": true,
+    "note": "ok"
+  },
+  "viewport-430x932": {
+    "ok": true,
+    "note": "ok"
+  },
+  "multiple-tabs": {
+    "ok": true,
+    "note": "Voto registrado correctamente\n\nComprobante\nVT-3829E0\nFecha y hora\n6/9/2026, 6:42:48 a.m.\nConfirmado por el servidor\nConfirmado por el servidor"
+  },
+  "close-voting": {
+    "ok": true,
+    "note": "status=200"
+  },
+  "late-vote-protection": {
+    "ok": true,
+    "note": "status=400"
+  }
+}
