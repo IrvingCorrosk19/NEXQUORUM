@@ -301,6 +301,59 @@ function revealControlBar() {
   }, 3500);
 }
 
+function wireRoomViewportChrome() {
+  const room = document.querySelector(".room--meeting-ux");
+  if (!room) return;
+
+  const toggle = qs("#btn-toggle-sidebar");
+  const applyCollapsed = (collapsed) => {
+    room.classList.toggle("sidebar-collapsed", collapsed);
+    if (toggle) {
+      toggle.setAttribute("aria-pressed", String(collapsed));
+      toggle.textContent = collapsed ? "Mostrar panel" : "Ocultar panel";
+    }
+    try {
+      localStorage.setItem("asambleas.room.sidebarCollapsed", collapsed ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  if (toggle) {
+    let collapsed = false;
+    try {
+      collapsed = localStorage.getItem("asambleas.room.sidebarCollapsed") === "1";
+    } catch {
+      collapsed = false;
+    }
+    // On very short desktop heights, start collapsed for breathing room.
+    if (!collapsed && window.matchMedia("(min-width: 768px) and (max-height: 720px)").matches) {
+      collapsed = true;
+    }
+    applyCollapsed(collapsed);
+    toggle.addEventListener("click", () => {
+      applyCollapsed(!room.classList.contains("sidebar-collapsed"));
+    });
+  }
+
+  const tabs = [...document.querySelectorAll("[data-sidebar-tab]")];
+  const panels = [...document.querySelectorAll("[data-sidebar-panel]")];
+  const activate = (key) => {
+    tabs.forEach((tab) => {
+      const on = tab.getAttribute("data-sidebar-tab") === key;
+      tab.setAttribute("aria-selected", String(on));
+    });
+    panels.forEach((panel) => {
+      const on = panel.getAttribute("data-sidebar-panel") === key;
+      panel.classList.toggle("is-mobile-active", on);
+    });
+  };
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => activate(tab.getAttribute("data-sidebar-tab") || "agenda"));
+  });
+  if (tabs.length) activate("agenda");
+}
+
 function syncMeetingControlBar() {
   const micBtn = qs("#btn-mic");
   const camBtn = qs("#btn-cam");
@@ -2601,6 +2654,7 @@ async function init() {
   tickDuration();
   wireMeetingDrawers();
   syncMeetingControlBar();
+  wireRoomViewportChrome();
 
   qs("#btn-logout")?.addEventListener("click", async () => {
     state.intentionalDisconnect = true;

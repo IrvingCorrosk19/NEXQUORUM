@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/css/components.css?v=mux4" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <link rel="stylesheet" href="/css/loading.css?v=mux4" />
-  <link rel="stylesheet" href="/css/assembly-room.css?v=panel10" />
+  <link rel="stylesheet" href="/css/assembly-room.css?v=viewport1" />
   <link rel="stylesheet" href="/css/live-voting.css?v=lv2" />
   <link rel="stylesheet" href="/css/voting-studio.css?v=vs1" />
 </head>
@@ -37,6 +37,9 @@
         <span id="assembly-title">Asamblea</span>
       </div>
       <div class="header-metrics">
+        <button type="button" id="btn-toggle-sidebar" class="sidebar-toggle" aria-pressed="false" aria-controls="governance-sidebar" title="Mostrar u ocultar panel">
+          Panel
+        </button>
         <div id="live-chip" class="live-chip" hidden>
           <span class="status-dot online" aria-hidden="true"></span>
           <span id="live-label">EN VIVO</span>
@@ -106,18 +109,25 @@
         </div>
       </main>
 
-      <aside class="sidebar" aria-label="Panel de gobernanza">
-        <section>
+      <aside id="governance-sidebar" class="sidebar" aria-label="Panel de gobernanza">
+        <div class="sidebar-tabs" role="tablist" aria-label="Secciones del panel">
+          <button type="button" class="sidebar-tab" role="tab" id="tab-agenda" aria-selected="true" aria-controls="panel-agenda" data-sidebar-tab="agenda">Agenda</button>
+          <button type="button" class="sidebar-tab" role="tab" id="tab-motion" aria-selected="false" aria-controls="panel-motion" data-sidebar-tab="motion">Moción</button>
+          <button type="button" class="sidebar-tab" role="tab" id="tab-vote" aria-selected="false" aria-controls="panel-vote" data-sidebar-tab="vote">Votación</button>
+          <button type="button" class="sidebar-tab operator-only" role="tab" id="tab-speakers" aria-selected="false" aria-controls="panel-speakers" data-sidebar-tab="speakers">Intervenciones</button>
+        </div>
+        <div class="sidebar-panels">
+        <section id="panel-agenda" role="tabpanel" aria-labelledby="tab-agenda" class="is-mobile-active" data-sidebar-panel="agenda">
           <h2 id="heading-agenda" class="section-title">Agenda</h2>
           <div id="agenda-panel"><div class="skeleton" style="height:5rem"></div></div>
         </section>
 
-        <section>
+        <section id="panel-motion" role="tabpanel" aria-labelledby="tab-motion" data-sidebar-panel="motion">
           <h2 id="heading-motion" class="section-title">Moción</h2>
           <div id="motion-panel"><div class="empty-state">Aún no hay moción presentada. Cuando se presente, aparecerá aquí.</div></div>
         </section>
 
-        <section class="vote-section" aria-labelledby="heading-vote">
+        <section id="panel-vote" class="vote-section" role="tabpanel" aria-labelledby="tab-vote" data-sidebar-panel="vote">
           <h2 id="heading-vote" class="section-title">Votación</h2>
           <div id="vote-updating" class="vote-updating" hidden role="status" aria-live="polite">Actualizando votación…</div>
           <div id="vote-panel" class="vote-panel" data-testid="vote-panel">
@@ -129,10 +139,11 @@
           </details>
         </section>
 
-        <section class="operator-only">
+        <section id="panel-speakers" class="operator-only" role="tabpanel" aria-labelledby="tab-speakers" data-sidebar-panel="speakers">
           <h2 id="heading-speakers" class="section-title">Intervenciones</h2>
           <div id="speaker-panel"><div class="skeleton" style="height:4rem"></div></div>
         </section>
+        </div>
       </aside>
     </div>
 
@@ -260,6 +271,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.9.1/dist/livekit-client.umd.min.js"></script>
-  <script type="module" src="/js/modules/room-app.js?v=direct1"></script>
+  <script type="module" src="/js/modules/room-app.js?v=viewport1"></script>
 </body>
 </html>
