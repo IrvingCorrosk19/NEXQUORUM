@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/css/base.css?v=ia1" />
   <link rel="stylesheet" href="/css/components.css?v=ia1" />
   <link rel="stylesheet" href="/css/loading.css?v=ia1" />
-  <link rel="stylesheet" href="/css/ph.css?v=units-hub1" />
+  <link rel="stylesheet" href="/css/ph.css?v=units-hub2" />
   <link rel="stylesheet" href="/css/ia.css?v=phsw2" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia4" />
@@ -195,7 +195,7 @@
           </aside>
         </section>
 
-                <section class="panel wizard-panel" data-panel="units" hidden>
+                        <section class="panel wizard-panel" data-panel="units" hidden>
           <div class="units-hub-head">
             <div>
               <h2 class="section-title" style="margin:0">Unidades</h2>
@@ -219,7 +219,7 @@
             </div>
             <p id="units-result-count" class="units-result-count muted">0 resultados</p>
           </div>
-<div id="unit-form-wrap" hidden>
+          <div id="unit-form-wrap" hidden>
             <form id="form-unit" class="form-grid" style="margin:1rem 0">
               <label>Código <input name="code" required /></label>
               <label>Torre/Bloque <input name="tower" /></label>
@@ -248,9 +248,6 @@
             </form>
             <pre id="bulk-preview" class="panel" hidden></pre>
           </div>
-          <div class="table-wrap"><table class="data-table" id="units-table"><thead><tr><th>Código</th><th>Torre</th><th>Piso</th><th>Coef.</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
-          <div id="unit-detail" class="panel" hidden style="margin-top:1rem"></div>
-          
           <div id="units-skeleton" class="units-skeleton" hidden aria-hidden="true">
             <div class="skel-row"></div><div class="skel-row"></div><div class="skel-row"></div>
           </div>
@@ -296,9 +293,10 @@
               </div>
             </form>
           </div>
-                </section>
+                
+        </section>
 
-        <section class="panel wizard-panel" data-panel="owners" hidden>
+<section class="panel wizard-panel" data-panel="owners" hidden>
           <div class="cluster" style="justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem">
             <div>
               <h2 class="section-title" style="margin:0">Propietarios</h2>
@@ -511,6 +509,6 @@
       </dialog>
     </main>
   </div>
-  <script type="module" src="/js/modules/ph-app.js?v=units-hub1"></script>
+  <script type="module" src="/js/modules/ph-app.js?v=units-hub2"></script>
 </body>
 </html>

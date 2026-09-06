@@ -282,6 +282,9 @@ export function createUnitsHub(ctx) {
   async function openUnitModal(unitId, mode = "view", tab = "info") {
     const dlg = $("#dlg-unit-hub");
     if (!dlg) return;
+    if (dlg.parentElement !== document.body) {
+      document.body.appendChild(dlg);
+    }
     modalMode = mode;
     currentUnitId = unitId || null;
     setTab(tab);
@@ -291,7 +294,7 @@ export function createUnitsHub(ctx) {
       $("#unit-hub-title").textContent = "Nueva unidad";
       $("#unit-hub-eyebrow").textContent = "Crear";
       renderCreateForm();
-      if (!dlg.open) dlg.showModal();
+      try { dlg.showModal(); } catch (_) { dlg.setAttribute("open", ""); }
       return;
     }
 
@@ -300,7 +303,7 @@ export function createUnitsHub(ctx) {
       $("#unit-hub-title").textContent = `Unidad ${currentDetail.unitCode}`;
       $("#unit-hub-eyebrow").textContent = currentDetail.isActive ? "Activa" : "Inactiva";
       renderModalBody();
-      if (!dlg.open) dlg.showModal();
+      try { dlg.showModal(); } catch (_) { dlg.setAttribute("open", ""); }
     } catch (err) {
       AppFeedback.fromError(err);
     }
@@ -722,6 +725,40 @@ export function createUnitsHub(ctx) {
   }
 
   function wire() {
+    const table = $("#units-table");
+    if (table && !table.dataset.unitsTableDelegated) {
+      table.dataset.unitsTableDelegated = "1";
+      table.addEventListener("click", (e) => {
+        const manage = e.target.closest("[data-manage-unit]");
+        if (manage) {
+          e.preventDefault();
+          e.stopPropagation();
+          openUnitModal(manage.dataset.manageUnit, "view");
+          return;
+        }
+        const menuBtn = e.target.closest("[data-unit-menu]");
+        if (menuBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeMenus();
+          const menu = document.querySelector(`[data-menu-for="${menuBtn.dataset.unitMenu}"]`);
+          if (menu) menu.hidden = !menu.hidden;
+          return;
+        }
+        const act = e.target.closest("[data-act]");
+        if (act) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeMenus();
+          handleAction(act.dataset.act, act.dataset.unit);
+          return;
+        }
+        const row = e.target.closest("tr[data-unit-id]");
+        if (row && !e.target.closest(".unit-actions-cell")) {
+          openUnitModal(row.dataset.unitId, "view");
+        }
+      });
+    }
     $("#btn-new-unit")?.addEventListener("click", () => openUnitModal(null, "create"));
     $("#btn-empty-new-unit")?.addEventListener("click", () => openUnitModal(null, "create"));
     $("#unit-hub-close")?.addEventListener("click", closeUnitModal);
