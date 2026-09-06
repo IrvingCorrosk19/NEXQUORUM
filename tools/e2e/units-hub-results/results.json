@@ -1,0 +1,102 @@
+{
+  "failed": 0,
+  "passed": 19,
+  "results": [
+    {
+      "id": "LOGIN",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "PH_EXISTS",
+      "pass": true,
+      "d": "2c590edd-2981-4818-9d0f-dfb3658e7fb6"
+    },
+    {
+      "id": "OPEN_PH_UI",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "HEADER_ACCIONES",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "ADMIN_PH_BTN",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SEARCH_DARK",
+      "pass": true,
+      "d": "rgb(11, 18, 32)"
+    },
+    {
+      "id": "CREATE_UNIT_API",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "GESTIONAR_VISIBLE",
+      "pass": true,
+      "d": "4"
+    },
+    {
+      "id": "MODAL_OPEN",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "CREATE_OWNER",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "EDIT_UNIT",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "DEACTIVATE_UNIT",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "REACTIVATE_UNIT",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "OWNERSHIP_DETAIL_ENRICHED",
+      "pass": true,
+      "d": "unitId,unitCode,tower,floor,unitType,coefficientPercent,isActive,createdAtUtc,updatedAtUtc,activeShareTotalPercent,ownershipComplete,missingSharePercent,owners"
+    },
+    {
+      "id": "UNLINK",
+      "pass": true,
+      "d": "204"
+    },
+    {
+      "id": "DELETE_EVAL",
+      "pass": true,
+      "d": "true"
+    },
+    {
+      "id": "DELETE_UNIT",
+      "pass": true,
+      "d": "204"
+    },
+    {
+      "id": "MOBILE_CARDS",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_PAGE_ERRORS",
+      "pass": true,
+      "d": ""
+    }
+  ],
+  "errors": []
+}

@@ -547,6 +547,11 @@ public sealed class PhOnboardingService
         var unit = await LoadUnitInPhAsync(propertyHorizontalId, unitId, cancellationToken);
         unit.IsActive = isActive;
         await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            isActive ? AuditEventType.UnitReactivated : AuditEventType.UnitDeactivated,
+            correlationId: unit.Id,
+            metadata: new { propertyHorizontalId, unit.Code, isActive },
+            cancellationToken: cancellationToken);
 
         return ToUnitDto(unit);
     }
@@ -1367,6 +1372,8 @@ public sealed class PhOnboardingService
             return;
         }
 
+        await EnsureNoLiveAssemblyForUnitMutationAsync(propertyHorizontalId, ownership.UnitId, cancellationToken);
+
         ownership.IsActive = false;
         ownership.EffectiveToUtc = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
@@ -1397,6 +1404,7 @@ public sealed class PhOnboardingService
         }
 
         var unit = await LoadUnitInPhAsync(propertyHorizontalId, from.UnitId, cancellationToken);
+        await EnsureNoLiveAssemblyForUnitMutationAsync(propertyHorizontalId, unit.Id, cancellationToken);
         await EnsureOwnerInPhAsync(propertyHorizontalId, request.ToOwnerId, cancellationToken);
         var toOwner = await LoadOwnerAsync(request.ToOwnerId, cancellationToken);
         var fromOwner = await LoadOwnerAsync(from.OwnerId, cancellationToken);
@@ -1512,6 +1520,20 @@ public sealed class PhOnboardingService
             select new { Ownership = own, Owner = o }
         ).ToListAsync(cancellationToken);
 
+        var ownerIds = rows.Select(r => r.Owner.Id).Distinct().ToList();
+        var siblingCodes = await (
+            from own in _db.Ownerships.AsNoTracking()
+            join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
+            where own.IsActive
+                  && ownerIds.Contains(own.OwnerId)
+                  && u.PropertyHorizontalId == propertyHorizontalId
+                  && u.Id != unit.Id
+            select new { own.OwnerId, u.Code }
+        ).ToListAsync(cancellationToken);
+        var siblingMap = siblingCodes
+            .GroupBy(x => x.OwnerId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(x => x.Code).Distinct().OrderBy(c => c).ToList());
+
         var links = rows.Select(r => new UnitOwnerLinkDto(
             r.Ownership.Id,
             r.Owner.Id,
@@ -1520,7 +1542,11 @@ public sealed class PhOnboardingService
             r.Ownership.SharePercent,
             r.Ownership.IsActive,
             r.Ownership.EffectiveFromUtc,
-            r.Ownership.EffectiveToUtc)).ToList();
+            r.Ownership.EffectiveToUtc,
+            r.Owner.Identification,
+            r.Owner.Phone,
+            r.Owner.Status.ToString(),
+            siblingMap.TryGetValue(r.Owner.Id, out var codes) ? codes : Array.Empty<string>())).ToList();
 
         var activeTotal = CoefficientValidator.Normalize(
             links.Where(x => x.IsActive).Sum(x => x.SharePercent));
@@ -1534,12 +1560,120 @@ public sealed class PhOnboardingService
             unit.Code,
             unit.Tower,
             unit.Floor,
+            unit.UnitType,
             unit.CoefficientPercent,
             unit.IsActive,
+            unit.CreatedAtUtc,
+            unit.UpdatedAtUtc,
             activeTotal,
             ownershipComplete,
             missing,
             links);
+    }
+
+    public async Task<EntityDeleteEvaluationDto> EvaluateUnitDeleteAsync(
+        Guid propertyHorizontalId,
+        Guid unitId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
+        var unit = await LoadUnitInPhAsync(propertyHorizontalId, unitId, cancellationToken);
+        var deps = await CollectUnitDependenciesAsync(unit.Id, cancellationToken);
+        var blockers = new List<string>();
+        if (deps.GetValueOrDefault("attendance") > 0
+            || deps.GetValueOrDefault("votes") > 0
+            || deps.GetValueOrDefault("participants") > 0
+            || deps.GetValueOrDefault("powers") > 0
+            || deps.GetValueOrDefault("eligibilitySnapshots") > 0
+            || deps.GetValueOrDefault("representations") > 0)
+        {
+            blockers.Add("No puedes eliminar esta unidad porque posee actividad histórica. Puedes desactivarla.");
+        }
+
+        if (deps.GetValueOrDefault("activeOwnerships") > 0)
+        {
+            blockers.Add("La unidad aún tiene propietarios vinculados. Desvincúlalos antes o desactívala.");
+        }
+
+        var canDelete = blockers.Count == 0;
+        return new EntityDeleteEvaluationDto(
+            canDelete,
+            canDelete
+                ? "Esta unidad no tiene historial operativo y puede eliminarse de forma permanente."
+                : "NO SE PUEDE ELIMINAR ESTA UNIDAD",
+            canDelete ? "DELETE" : "DEACTIVATE",
+            blockers,
+            deps);
+    }
+
+    public async Task DeleteUnitAsync(
+        Guid propertyHorizontalId,
+        Guid unitId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        await EnsurePhAdministrationAsync(propertyHorizontalId, cancellationToken);
+        var evaluation = await EvaluateUnitDeleteAsync(propertyHorizontalId, unitId, cancellationToken);
+        if (!evaluation.CanHardDelete)
+        {
+            throw new DomainException(
+                "UNIT_DELETE_BLOCKED",
+                evaluation.Summary + " " + string.Join(" ", evaluation.BlockingReasons));
+        }
+
+        var unit = await LoadUnitInPhAsync(propertyHorizontalId, unitId, cancellationToken);
+        var ownerships = await _db.Ownerships.Where(o => o.UnitId == unit.Id).ToListAsync(cancellationToken);
+        _db.Ownerships.RemoveRange(ownerships);
+        _db.Units.Remove(unit);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            AuditEventType.UnitDeleted,
+            correlationId: unitId,
+            metadata: new { propertyHorizontalId, unit.Code },
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task<Dictionary<string, int>> CollectUnitDependenciesAsync(
+        Guid unitId,
+        CancellationToken cancellationToken)
+    {
+        var attendance = await _db.AttendanceRecords.AsNoTracking().CountAsync(a => a.UnitId == unitId, cancellationToken);
+        var votes = await _db.Votes.AsNoTracking().CountAsync(v => v.UnitId == unitId, cancellationToken);
+        var participants = await _db.AssemblyParticipants.AsNoTracking().CountAsync(p => p.UnitId == unitId, cancellationToken);
+        var powers = await _db.Powers.AsNoTracking().CountAsync(p => p.UnitId == unitId, cancellationToken);
+        var eligibility = await _db.VotingEligibilitySnapshots.AsNoTracking().CountAsync(s => s.UnitId == unitId, cancellationToken);
+        var representations = await _db.AssemblyRepresentations.AsNoTracking().CountAsync(r => r.UnitId == unitId, cancellationToken);
+        var activeOwnerships = await _db.Ownerships.AsNoTracking().CountAsync(o => o.UnitId == unitId && o.IsActive, cancellationToken);
+        return new Dictionary<string, int>
+        {
+            ["attendance"] = attendance,
+            ["votes"] = votes,
+            ["participants"] = participants,
+            ["powers"] = powers,
+            ["eligibilitySnapshots"] = eligibility,
+            ["representations"] = representations,
+            ["activeOwnerships"] = activeOwnerships
+        };
+    }
+
+    private async Task EnsureNoLiveAssemblyForUnitMutationAsync(
+        Guid propertyHorizontalId,
+        Guid unitId,
+        CancellationToken cancellationToken)
+    {
+        var live = await _db.Assemblies.AsNoTracking().AnyAsync(
+            a => a.PropertyHorizontalId == propertyHorizontalId
+                 && (a.Status == AssemblyStatus.InProgress
+                     || a.Status == AssemblyStatus.Paused
+                     || a.Status == AssemblyStatus.CheckIn),
+            cancellationToken);
+        if (live)
+        {
+            throw new DomainException(
+                "UNIT_OWNERSHIP_LOCKED_LIVE_ASSEMBLY",
+                "No puedes cambiar el propietario durante una asamblea activa. Espera a que la asamblea finalice o cierra la mesa de acreditación.");
+        }
     }
 
     public async Task<CoefficientValidationDto> ValidateCoefficientsAsync(

@@ -199,15 +199,22 @@ public sealed record UnitOwnerLinkDto(
     decimal SharePercent,
     bool IsActive,
     DateTimeOffset EffectiveFromUtc,
-    DateTimeOffset? EffectiveToUtc);
+    DateTimeOffset? EffectiveToUtc,
+    string? OwnerIdentification = null,
+    string? OwnerPhone = null,
+    string OwnerStatus = "Active",
+    IReadOnlyList<string>? OtherUnitCodesInPh = null);
 
 public sealed record UnitOwnershipDetailDto(
     Guid UnitId,
     string UnitCode,
     string? Tower,
     int? Floor,
+    string? UnitType,
     decimal CoefficientPercent,
     bool IsActive,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc,
     decimal ActiveShareTotalPercent,
     bool OwnershipComplete,
     decimal MissingSharePercent,

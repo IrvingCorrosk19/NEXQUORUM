@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/css/base.css?v=ia1" />
   <link rel="stylesheet" href="/css/components.css?v=ia1" />
   <link rel="stylesheet" href="/css/loading.css?v=ia1" />
-  <link rel="stylesheet" href="/css/ph.css?v=ia1" />
+  <link rel="stylesheet" href="/css/ph.css?v=units-hub1" />
   <link rel="stylesheet" href="/css/ia.css?v=phsw2" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia4" />
@@ -79,7 +79,21 @@
       <section id="view-detail" hidden data-ph-mode="ops">
         <section class="page-hero" id="ph-hero">
           <p class="command-eyebrow">Propiedad horizontal</p>
-          <h1 id="ph-title">—</h1>
+          <div class="ph-title-row">
+            <h1 id="ph-title">—</h1>
+            <div class="ph-admin-menu-wrap">
+              <button type="button" id="btn-manage-ph" class="btn btn-secondary" aria-haspopup="menu" aria-expanded="false">Administrar PH</button>
+              <div id="ph-admin-menu" class="ph-admin-menu" hidden role="menu">
+                <button type="button" role="menuitem" data-ph-admin="edit">Editar información</button>
+                <button type="button" role="menuitem" data-ph-admin="coefficients">Administrar coeficientes</button>
+                <button type="button" role="menuitem" data-ph-admin="activate">Activar PH</button>
+                <button type="button" role="menuitem" data-ph-admin="ready">Marcar listo para asamblea</button>
+                <button type="button" role="menuitem" data-ph-admin="deactivate">Desactivar / archivar</button>
+                <button type="button" role="menuitem" data-ph-admin="reactivate">Reactivar</button>
+                <button type="button" role="menuitem" data-ph-admin="delete" class="is-danger">Eliminar PH…</button>
+              </div>
+            </div>
+          </div>
           <div class="meta-row" id="ph-meta"></div>
           <div class="cta-row" id="ph-hero-actions">
             <button type="button" id="btn-mark-ready" class="btn btn-secondary" hidden>Marcar listo para asamblea</button>
@@ -181,15 +195,31 @@
           </aside>
         </section>
 
-        <section class="panel wizard-panel" data-panel="units" hidden>
-          <h2 class="section-title">Unidades</h2>
-          <div class="cta-row">
-            <input id="unit-search" placeholder="Buscar unidad..." aria-label="Buscar unidad" />
-            <button type="button" id="btn-new-unit" class="btn btn-primary">+ Nueva unidad</button>
-            <button type="button" id="btn-bulk-units" class="btn btn-secondary">Generar unidades</button>
-            <button type="button" id="btn-units-goto-import" class="btn btn-ghost">Importar propietarios y unidades</button>
+                <section class="panel wizard-panel" data-panel="units" hidden>
+          <div class="units-hub-head">
+            <div>
+              <h2 class="section-title" style="margin:0">Unidades</h2>
+              <p class="muted" style="margin:0.35rem 0 0">Administra unidades, coeficientes y propietarios del PH seleccionado.</p>
+            </div>
+            <div class="units-hub-actions">
+              <button type="button" id="btn-new-unit" class="btn btn-primary">+ Nueva unidad</button>
+              <button type="button" id="btn-bulk-units" class="btn btn-secondary">Generar unidades</button>
+              <button type="button" id="btn-units-goto-import" class="btn btn-secondary units-import-btn">Importar propietarios y unidades</button>
+            </div>
           </div>
-          <div id="unit-form-wrap" hidden>
+          <div id="units-coeff-banner" class="units-coeff-banner" aria-live="polite"></div>
+          <div class="units-toolbar">
+            <input id="unit-search" class="units-search" type="search" placeholder="Buscar por código, torre o piso…" aria-label="Buscar unidad" />
+            <div class="units-filters" role="toolbar" aria-label="Filtrar unidades">
+              <button type="button" class="units-filter is-active" data-unit-filter="all" aria-pressed="true">Todas</button>
+              <button type="button" class="units-filter" data-unit-filter="active" aria-pressed="false">Activas</button>
+              <button type="button" class="units-filter" data-unit-filter="inactive" aria-pressed="false">Inactivas</button>
+              <button type="button" class="units-filter" data-unit-filter="with-owner" aria-pressed="false">Con propietario</button>
+              <button type="button" class="units-filter" data-unit-filter="without-owner" aria-pressed="false">Sin propietario</button>
+            </div>
+            <p id="units-result-count" class="units-result-count muted">0 resultados</p>
+          </div>
+<div id="unit-form-wrap" hidden>
             <form id="form-unit" class="form-grid" style="margin:1rem 0">
               <label>Código <input name="code" required /></label>
               <label>Torre/Bloque <input name="tower" /></label>
@@ -220,7 +250,36 @@
           </div>
           <div class="table-wrap"><table class="data-table" id="units-table"><thead><tr><th>Código</th><th>Torre</th><th>Piso</th><th>Coef.</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
           <div id="unit-detail" class="panel" hidden style="margin-top:1rem"></div>
-          <div id="transfer-dialog" hidden style="position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:rgba(0,0,0,.55);padding:1rem">
+          
+          <div id="units-skeleton" class="units-skeleton" hidden aria-hidden="true">
+            <div class="skel-row"></div><div class="skel-row"></div><div class="skel-row"></div>
+          </div>
+          <div id="units-empty" class="panel empty-hero units-empty" hidden>
+            <h3>Todavía no hay unidades</h3>
+            <p>Crea la primera unidad o importa el padrón completo.</p>
+            <div class="cta-row" style="justify-content:center">
+              <button type="button" class="btn btn-primary" id="btn-empty-new-unit">+ Nueva unidad</button>
+            </div>
+          </div>
+          <div class="table-wrap units-table-wrap">
+            <table class="data-table" id="units-table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Torre</th>
+                  <th>Piso</th>
+                  <th>Propietario</th>
+                  <th>Coef.</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="units-cards" class="units-cards" aria-live="polite"></div>
+          <div id="unit-detail" class="panel" hidden style="margin-top:1rem"></div>
+<div id="transfer-dialog" hidden style="position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:rgba(0,0,0,.55);padding:1rem">
             <form id="form-transfer" class="panel" style="max-width:28rem;width:100%;padding:1.25rem;display:grid;gap:0.75rem">
               <h3 style="margin:0">Transferir titularidad</h3>
               <p id="transfer-summary" class="muted" style="margin:0"></p>
@@ -237,7 +296,7 @@
               </div>
             </form>
           </div>
-        </section>
+                </section>
 
         <section class="panel wizard-panel" data-panel="owners" hidden>
           <div class="cluster" style="justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem">
@@ -398,6 +457,26 @@
         </section>
       </section>
 
+      
+      <dialog id="dlg-unit-hub" class="unit-hub-dialog">
+        <div class="unit-hub">
+          <header class="unit-hub__head">
+            <div>
+              <p class="command-eyebrow" id="unit-hub-eyebrow">Unidad</p>
+              <h2 id="unit-hub-title" class="section-title" style="margin:0">Gestionar unidad</h2>
+            </div>
+            <button type="button" class="btn btn-ghost" id="unit-hub-close" aria-label="Cerrar">Cerrar</button>
+          </header>
+          <nav class="unit-hub__tabs" role="tablist" aria-label="Secciones de la unidad">
+            <button type="button" class="is-active" data-unit-tab="info" role="tab" aria-selected="true">Información</button>
+            <button type="button" data-unit-tab="owner" role="tab" aria-selected="false">Propietario</button>
+            <button type="button" data-unit-tab="history" role="tab" aria-selected="false">Historial</button>
+          </nav>
+          <div class="unit-hub__body" id="unit-hub-body"></div>
+          <footer class="unit-hub__foot" id="unit-hub-foot"></footer>
+        </div>
+      </dialog>
+
       <dialog id="dlg-create-ph">
         <form id="form-create-ph" class="panel" style="min-width:min(32rem,90vw)">
           <h2 class="section-title">Crear propiedad horizontal</h2>
@@ -432,6 +511,6 @@
       </dialog>
     </main>
   </div>
-  <script type="module" src="/js/modules/ph-app.js?v=fb4"></script>
+  <script type="module" src="/js/modules/ph-app.js?v=units-hub1"></script>
 </body>
 </html>

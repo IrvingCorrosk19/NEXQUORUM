@@ -98,6 +98,25 @@ public sealed class PhOnboardingController : ControllerBase
         CancellationToken cancellationToken) =>
         _ph.SetUnitActiveAsync(propertyHorizontalId, unitId, request.IsActive, cancellationToken);
 
+    [HttpGet("{propertyHorizontalId:guid}/units/{unitId:guid}/delete-evaluation")]
+    [Authorize(Policy = Permissions.UnitManage)]
+    public Task<EntityDeleteEvaluationDto> EvaluateUnitDelete(
+        Guid propertyHorizontalId,
+        Guid unitId,
+        CancellationToken cancellationToken) =>
+        _ph.EvaluateUnitDeleteAsync(propertyHorizontalId, unitId, cancellationToken);
+
+    [HttpDelete("{propertyHorizontalId:guid}/units/{unitId:guid}")]
+    [Authorize(Policy = Permissions.UnitManage)]
+    public async Task<IActionResult> DeleteUnit(
+        Guid propertyHorizontalId,
+        Guid unitId,
+        CancellationToken cancellationToken)
+    {
+        await _ph.DeleteUnitAsync(propertyHorizontalId, unitId, cancellationToken);
+        return NoContent();
+    }
+
     [HttpPost("{propertyHorizontalId:guid}/units/bulk-generate")]
     [Authorize(Policy = Permissions.UnitManage)]
     public Task<BulkGenerateUnitsResultDto> BulkGenerate(

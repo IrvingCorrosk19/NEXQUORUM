@@ -7,6 +7,7 @@ import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton } from "./loading.js";
 import { startHybridShell } from "./hybrid-router.js";
+import { createUnitsHub } from "./ph-units-hub.js";
 
 const STEP_LABELS = [
   "Información",
@@ -32,6 +33,7 @@ const phTabFreshAt = new Map();
 const PH_TAB_TTL_MS = 8000;
 let unitSearchTimer = 0;
 let ownerSearchTimer = 0;
+let unitsHub = null;
 
 function phTabKey(kind) {
   return `${currentPhId || ""}:${kind}`;
@@ -193,8 +195,8 @@ function applyPhMode(ph) {
   if (wizard) wizard.hidden = !onboarding;
   if (progress) {
     progress.hidden = !onboarding;
-    const step = Math.min(Math.max(Number(ph.onboardingStep) || 1, 1), 7);
-    progress.textContent = `Paso ${step} de 7`;
+    const step = Math.min(Math.max(Number(ph.onboardingStep) || 1, 1), STEP_LABELS.length);
+    progress.textContent = `Paso ${step} de ${STEP_LABELS.length}`;
   }
 
   const inactive = ph.status === "Inactive";
@@ -206,6 +208,33 @@ function applyPhMode(ph) {
   $("#btn-reactivate-ph").hidden = !inactive;
   $("#btn-activate-ph").disabled = inactive;
   $("#btn-mark-ready").disabled = inactive;
+  const activateBtn = $("#btn-activate-ph");
+  if (activateBtn) {
+    activateBtn.title = inactive
+      ? "Reactiva el PH antes de activarlo"
+      : "Activa el PH cuando coeficientes y preparacion esten completos";
+  }
+  const readyBtn = $("#btn-mark-ready");
+  if (readyBtn) {
+    readyBtn.title = "Marca el PH como listo para asamblea cuando no haya bloqueos de preparacion";
+  }
+  const contBtn = $("#btn-continue-onboarding");
+  if (contBtn) {
+    contBtn.title = "Continua el asistente de configuracion inicial";
+  }
+  const adminMenu = $("#ph-admin-menu");
+  if (adminMenu) {
+    const setItem = (act, hidden, title) => {
+      const b = adminMenu.querySelector(`[data-ph-admin="${act}"]`);
+      if (!b) return;
+      b.hidden = !!hidden;
+      if (title) b.title = title;
+    };
+    setItem("activate", !($("#btn-activate-ph") && !$("#btn-activate-ph").hidden), activateBtn?.title);
+    setItem("ready", !($("#btn-mark-ready") && !$("#btn-mark-ready").hidden), readyBtn?.title);
+    setItem("deactivate", inactive, "Archiva el PH: deja de operar pero conserva historial");
+    setItem("reactivate", !inactive, "Vuelve a poner el PH en operacion");
+  }
 }
 
 function canCreatePh() {
@@ -240,6 +269,17 @@ function openCreatePhDialog() {
 }
 
 function wireUi() {
+  unitsHub = createUnitsHub({
+    get user() { return user; },
+    get currentPhId() { return currentPhId; },
+    get currentPh() { return currentPh; },
+    canAdministerCurrentPh,
+    isPhTabFresh,
+    markPhTabFresh,
+    switchTab,
+  });
+  unitsHub.wire();
+
   applyCreatePhGate();
   $("#btn-create-ph").addEventListener("click", openCreatePhDialog);
   $("#btn-create-first")?.addEventListener("click", openCreatePhDialog);
@@ -1206,53 +1246,11 @@ async function onSavePh(ev) {
 }
 
 async function loadUnits({ soft = false } = {}) {
-  if (!currentPhId) return;
-  const search = $("#unit-search").value.trim();
-  const q = search ? `?search=${encodeURIComponent(search)}` : "";
-  const path = `/api/ph/${currentPhId}/units${q}`;
-  if (soft && !search && isPhTabFresh("units")) return;
-  const units = await api(path, { dedupeKey: `ph-units:${currentPhId}` });
-  if (!search) markPhTabFresh("units");
-  const tbody = $("#units-table tbody");
-  tbody.innerHTML = units
-    .map(
-      (u) => `<tr data-unit-id="${u.id}" style="cursor:pointer">
-      <td>${escapeHtml(u.code)}</td>
-      <td>${escapeHtml(u.tower || "—")}</td>
-      <td>${u.floor ?? "—"}</td>
-      <td>${Number(u.coefficientPercent).toFixed(4)}%</td>
-      <td>${u.isActive ? "Activa" : "Inactiva"}</td>
-      <td><button type="button" class="btn btn-ghost" data-open-unit="${u.id}">Ver</button></td>
-    </tr>`
-    )
-    .join("");
-  tbody.querySelectorAll("[data-open-unit]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      showUnit(btn.dataset.openUnit);
-    });
-  });
-  tbody.querySelectorAll("tr[data-unit-id]").forEach((tr) => {
-    tr.addEventListener("click", () => showUnit(tr.dataset.unitId));
-  });
-
-  const select = $("#owner-unit-select");
-  const current = select.value;
-  select.innerHTML =
-    `<option value="">— asociar después —</option>` +
-    units.map((u) => `<option value="${u.id}">${escapeHtml(u.code)}</option>`).join("");
-  select.value = current;
-
-  const towerSelect = $("#filter-tower");
-  if (towerSelect) {
-    const towers = [...new Set(units.map((u) => u.tower).filter(Boolean))].sort();
-    const prev = towerSelect.value;
-    towerSelect.innerHTML = `<option value="">Torre</option>` + towers.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
-    towerSelect.value = prev;
-  }
+  if (unitsHub) return unitsHub.loadUnits({ soft });
 }
 
 async function showUnit(unitId) {
+  if (unitsHub) return unitsHub.showUnit(unitId);
   const detail = await api(`/api/ph/${currentPhId}/units/${unitId}/ownerships`);
   const el = $("#unit-detail");
   el.hidden = false;

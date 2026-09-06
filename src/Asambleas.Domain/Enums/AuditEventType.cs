@@ -81,6 +81,10 @@ public static class AuditEventType
     public const string PhReactivated = "PH_REACTIVATED";
     public const string PhDeleted = "PH_DELETED";
 
+    public const string UnitDeleted = "UNIT_DELETED";
+    public const string UnitDeactivated = "UNIT_DEACTIVATED";
+    public const string UnitReactivated = "UNIT_REACTIVATED";
+
     public const string OwnerCreated = "OWNER_CREATED";
     public const string OwnerUpdated = "OWNER_UPDATED";
     public const string OwnerDeactivated = "OWNER_DEACTIVATED";
