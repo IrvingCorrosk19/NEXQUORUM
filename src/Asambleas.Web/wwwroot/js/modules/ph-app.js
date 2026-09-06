@@ -223,7 +223,7 @@ function applyCreatePhGate() {
   const emptyCopy = $("#ph-empty-copy");
   if (emptyCopy) {
     emptyCopy.textContent = can
-      ? "Configura tu propiedad horizontal para comenzar a organizar propietarios y asambleas."
+      ? "Primero debes crear o seleccionar una propiedad horizontal para continuar."
       : "Tu usuario puede ver propiedades, pero no crearlas. Usa una cuenta con permiso «Administrar PH» (Administrador PH o Presidente).";
   }
 }

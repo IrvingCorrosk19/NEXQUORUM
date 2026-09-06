@@ -239,14 +239,12 @@ public sealed class AuthController : ControllerBase
             claims.Add(new Claim(AsambleasClaimTypes.OrganizationId, orgId.ToString("D")));
         }
 
+        // Do not silently assign a demo PH. Only carry an explicit stored claim.
+        // PlatformAdmin/global users may have zero PH selected until they create/switch one.
         var phClaim = existingClaims.FirstOrDefault(c => c.Type == AsambleasClaimTypes.PropertyHorizontalId);
-        if (phClaim is not null)
+        if (phClaim is not null && !string.IsNullOrWhiteSpace(phClaim.Value))
         {
             claims.Add(new Claim(AsambleasClaimTypes.PropertyHorizontalId, phClaim.Value));
-        }
-        else if (user.TenantId == DemoSeedConstants.TenantOceanId)
-        {
-            claims.Add(new Claim(AsambleasClaimTypes.PropertyHorizontalId, DemoSeedConstants.PhOceanId.ToString("D")));
         }
 
         foreach (var role in roles)

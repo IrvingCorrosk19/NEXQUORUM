@@ -1,0 +1,8 @@
+{
+  "login": 200,
+  "email": "president@ocean.demo",
+  "roles": [
+    "PlatformAdmin"
+  ],
+  "ph": 0
+}

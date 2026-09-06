@@ -1,0 +1,13 @@
+{
+  "loginStatus": 200,
+  "me": {
+    "status": 200,
+    "email": "president@ocean.demo",
+    "roles": [
+      "PlatformAdmin"
+    ]
+  },
+  "phListEmpty": true,
+  "emptyMsg": true,
+  "phCount": 0
+}

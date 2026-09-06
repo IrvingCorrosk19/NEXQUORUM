@@ -1,0 +1,50 @@
+{
+  "results": [
+    {
+      "id": "ME_200",
+      "pass": true,
+      "d": "{\"email\":\"president@ocean.demo\",\"roles\":[\"PlatformAdmin\"]}"
+    },
+    {
+      "id": "ROLE_PLATFORM",
+      "pass": true,
+      "d": "PlatformAdmin"
+    },
+    {
+      "id": "EMPTY_MSG",
+      "pass": true,
+      "d": "Saltar al contenido ASAMBLEAS OCEAN INICIO Propiedades Calendario Histórico ASAMBLEAS ASAMBLEAS ADMIN PH PRESIDENTE ASAMBLEA Salir Propiedades PROPIEDADES HORIZONTALES Propiedades Selecciona un "
+    },
+    {
+      "id": "PH_LIST_EMPTY",
+      "pass": true,
+      "d": "n=0 status=200"
+    },
+    {
+      "id": "CREATE_PH",
+      "pass": true,
+      "d": "status=200"
+    },
+    {
+      "id": "CREATE_UNIT",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "CREATE_OWNER",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "CREATE_ASM",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "NO_PAGE_ERRORS",
+      "pass": true,
+      "d": ""
+    }
+  ],
+  "errors": []
+}
