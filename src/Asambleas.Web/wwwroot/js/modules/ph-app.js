@@ -7,7 +7,7 @@ import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton } from "./loading.js";
 import { startHybridShell } from "./hybrid-router.js";
-import { createUnitsHub } from "./ph-units-hub.js";
+import { createUnitsHub } from "./ph-units-hub.js?v=units-hub3";
 
 const STEP_LABELS = [
   "Información",
@@ -616,6 +616,16 @@ async function openPh(id, preferredTab = null) {
   currentPh = ph;
   $("#view-list").hidden = true;
   $("#view-detail").hidden = false;
+  // Keep deep-link URL in sync so sidebar Unidades stays on the premium hub path.
+  try {
+    const u = new URL(location.href);
+    if (u.searchParams.get("phId") !== String(id)) {
+      u.searchParams.set("phId", String(id));
+      const hash = preferredTab ? `#${preferredTab}` : (u.hash || "#resumen");
+      history.replaceState({ hybrid: true, page: "ph.html" }, document.title, `${u.pathname}?${u.searchParams.toString()}${hash.startsWith("#") ? hash : "#" + hash}`);
+    }
+  } catch { /* ignore */ }
+
   $("#ph-title").textContent = ph.name;
   const statusBadge = escapeHtml(phLifecycleLabel(ph.status));
   const prepHint =
@@ -819,7 +829,7 @@ function switchTab(tab) {
   document.querySelectorAll(".wizard-panel").forEach((p) => {
     p.hidden = p.dataset.panel !== tab;
   });
-  if (tab === "units") loadUnits({ soft: true });
+  if (tab === "units") loadUnits({ soft: false });
   if (tab === "owners") loadOwners({ soft: true });
   if (tab === "coefficients") loadCoefficients({ soft: true });
   if (tab === "readiness") loadReadiness({ soft: true });
@@ -859,8 +869,17 @@ function switchTab(tab) {
   }
 
   const desiredHash = tab === "info" ? "info" : tab;
-  if (location.hash.replace("#", "") !== desiredHash) {
-    history.replaceState({}, "", `${location.pathname}${location.search}#${desiredHash}`);
+  try {
+    const u = new URL(location.href);
+    if (currentPhId) u.searchParams.set("phId", String(currentPhId));
+    const next = `${u.pathname}?${u.searchParams.toString()}#${desiredHash}`;
+    if (location.pathname + location.search + location.hash !== next) {
+      history.replaceState({ hybrid: true, page: "ph.html" }, document.title, next);
+    }
+  } catch {
+    if (location.hash.replace("#", "") !== desiredHash) {
+      history.replaceState({}, "", `${location.pathname}${location.search}#${desiredHash}`);
+    }
   }
 }
 
@@ -2279,7 +2298,25 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+
+async function handlePhUrl(urlLike) {
+  const u = typeof urlLike === "string" ? new URL(urlLike, location.origin) : urlLike;
+  const phId = u.searchParams.get("phId");
+  const tab = (u.hash || "").replace(/^#/, "") || null;
+  if (phId) {
+    await openPh(phId, tab || "resumen");
+    return;
+  }
+  currentPhId = null;
+  currentPh = null;
+  $("#view-detail").hidden = true;
+  $("#view-list").hidden = false;
+  mountPhListShell();
+  await loadList();
+}
+
 export async function mount(ctx = {}) {
+  window.__asambleasHandlePhUrl = handlePhUrl;
   await init();
   await startHybridShell({
     mount,
@@ -2290,7 +2327,16 @@ export async function mount(ctx = {}) {
   void ctx;
 }
 
-export async function unmount() {}
+export async function unmount() {
+  try {
+    unitsHub = null;
+  } catch { /* ignore */ }
+  currentPhId = null;
+  currentPh = null;
+  phFormBinder?.destroy?.();
+  phFormBinder = null;
+  window.__asambleasHandlePhUrl = handlePhUrl;
+}
 
 export async function canLeave() {
   return true;

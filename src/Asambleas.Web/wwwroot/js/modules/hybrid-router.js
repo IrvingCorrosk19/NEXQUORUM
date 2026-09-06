@@ -19,7 +19,7 @@ const SOFT_PAGES = new Set([
 
 const MODULE_LOADERS = {
   "dashboard.html": () => import("./dashboard-app.js"),
-  "ph.html": () => import("./ph-app.js"),
+  "ph.html": () => import("./ph-app.js?v=units-hub3"),
   "agenda.html": () => import("./agenda-app.js"),
   "checkin.html": () => import("./checkin-app.js"),
   "voting-studio.html": () => import("./voting-studio-app.js"),
@@ -28,7 +28,7 @@ const MODULE_LOADERS = {
 
 const PAGE_STYLES = {
   "dashboard.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
-  "ph.html": ["/css/ph.css?v=ia1", "/css/ia.css?v=phsw2", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia4", "/css/ph-roster-import.css?v=pri1"],
+  "ph.html": ["/css/ph.css?v=units-hub3", "/css/ia.css?v=phsw2", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia4", "/css/ph-roster-import.css?v=pri1", "/css/feedback.css?v=fb1"],
   "agenda.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
   "checkin.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
   "voting-studio.html": ["/css/voting-studio.css?v=vs1", "/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
@@ -252,6 +252,20 @@ function onDocumentClick(ev) {
     return;
   }
 
+  // ph.html → ph.html (add/change phId or hash): stay in-page, do not soft-remount.
+  // Soft remount re-imports a differently-cached module URL and can revive the legacy units table.
+  if (here === "ph.html" && targetPage === "ph.html") {
+    ev.preventDefault();
+    const next = url.pathname + url.search + url.hash;
+    history.pushState({ hybrid: true, page: "ph.html" }, document.title, next);
+    if (typeof window.__asambleasHandlePhUrl === "function") {
+      Promise.resolve(window.__asambleasHandlePhUrl(url)).catch(() => location.assign(next));
+    } else {
+      location.assign(next);
+    }
+    return;
+  }
+
   // Room boundary: leave room via hard navigation after module dispose if room exposes it.
   if (here === "assembly.html" && SOFT_PAGES.has(targetPage)) {
     ev.preventDefault();
@@ -289,6 +303,11 @@ function onPopState() {
   const page = pageName(location.pathname);
   if (!SOFT_PAGES.has(page)) {
     location.reload();
+    return;
+  }
+  // Keep ph.html history transitions in-page (same reason as click handler above).
+  if (page === "ph.html" && currentPage === "ph.html" && typeof window.__asambleasHandlePhUrl === "function") {
+    Promise.resolve(window.__asambleasHandlePhUrl(new URL(location.href))).catch(() => location.reload());
     return;
   }
   softNavigate(location.pathname + location.search + location.hash, { replace: true }).catch(() => location.reload());
