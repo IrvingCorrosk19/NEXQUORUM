@@ -1,124 +1,174 @@
 # INCIDENTE P0 — SALA VPS VIDEO / PRESENCIA
 
-## Hora del incidente
-
-- Reporte usuario: 2026-09-06 ~09:29 America/Panama (UTC-5)
-- Evidencia VPS capturada: 2026-09-06 14:30–14:42 UTC
-- Contención desplegada: 2026-09-06 14:40 UTC (commit `16827093a4e3753d8593cc0addb9cd01f0d564e0`)
-
-## Versión desplegada (antes / después)
-
-| Momento | Commit | Contenedor |
-|---------|--------|------------|
-| Despliegue navegación híbrida | `f5c1b56` | asambleas_web recreado ~13:59 UTC |
-| Contención P0 caché módulos | `16827093a4e3753d8593cc0addb9cd01f0d564e0` (`1682709`) | asambleas_web recreado ~14:40 UTC |
-
-Worktree de publicación: `git archive HEAD` vía `Publish-AsambleasVps` (no worktree sucio).
-
-Último release funcional anterior identificable: `6041908` (pre-híbrido). No se ejecutó rollback de aplicación porque la sala respondía en hard-nav tras autenticación API; el defecto reproducible era de **caché/versionado de assets** + UX de media denegada.
-
-## Topología VPS confirmada
-
-- Docker Compose proyecto `asambleas`
-- Contenedores: `asambleas_web`, `asambleas_livekit`, `asambleas_egress`, `asambleas_postgres`, `asambleas_redis`
-- systemd: unidad `asambleas` activa; Nginx reverse proxy
-- Health: `/health/ready` = Healthy
-- Evidencia cruda (sanitizada): `tools/e2e/incidente-p0-sala-20260906_093020/vps/`
-
-## Síntomas reproducidos / no reproducidos
-
-URL: `https://asambleas.164.68.99.83.nip.io/assembly.html?assemblyId=768822c2-e34c-446e-9b02-78e8c157dca8`
-
-| Síntoma reportado | Hallazgo en VPS (Playwright) |
-|-------------------|------------------------------|
-| HTML/CSS cargan, video vacío | Con media denegada: tiles iniciales + banner “No se pudo activar cámara/micrófono”; con fake-device: **video local+remoto** |
-| Presidente no ve propietario | **Falso en verificación controlada**: `remotes=1` mutuo |
-| Propietario no entra a LiveKit | **Falso**: WSS LiveKit abre; mismo `roomName` |
-| Placeholders `...` | Estado Check-In (“todavía no ha comenzado”) + agenda/moción vacías de datos, no fallo de boot |
-| Peor tras híbrido | Relacionado con **caché immutable** de `room-app.js?v=mobile-vote5` sin bump |
-
-## Evidencias navegador (sanitizadas)
-
-Archivos:
-
-- `browser-report-api.json`
-- `lk-diagnostics.json` (post-fix también)
-- `nomedia-remotes.json`
-- `token-room-compare.json`
-- capturas `03-pres-api.png`, `04-owner-api.png`
-
-Resultados clave post-contención:
-
-- Presidente y propietario: `connectionState=connected`, `remotes=1`, `cameras=2`, `mics=2`
-- `roomName` idéntico: `assembly-768822c2e34c446e9b0278e8c157dca8`
-- Tokens: mismo room grant; identities distintas (sin secretos en este doc)
-- SignalR: 1 hub WSS por usuario; LiveKit: 1 WSS RTC por usuario
-- 0 pageerrors JS; 0 API 4xx/5xx en boot autenticado
-- Entrada desde Dashboard híbrido: hard navigation a `assembly.html` (shell híbrido no persiste en sala)
-
-## Evidencias VPS
-
-- `assembly.html` / `room-app.js` / `hybrid-router.js` checksums en `vps/asset-checksums.txt`
-- Headers **antes**: `room-app.js?v=mobile-vote5` → `Cache-Control: public,max-age=31536000,immutable`
-- Headers **después**: `/js/modules/*.js` → `Cache-Control: no-cache` (también con `?v=p0sala20260906a`)
-- HTML sigue `no-cache`
-- Logs 30m capturados (tokens redactados) en `vps/web-logs-30m.txt`, `vps/livekit-logs-30m.txt`, `vps/nginx-*.txt`
-
-## Causa raíz exacta
-
-1. **Primaria (despliegue/caché):** `Program.cs` marcaba como `immutable` cualquier estático con query `?v=`, incluidos labels débiles (`mobile-vote5`). Se modificó `room-app.js` (híbrido) **sin cambiar** el fingerprint en `assembly.html`. Los navegadores podían conservar un grafo ES congelado / mezclado tras el deploy, produciendo sala “media rota” o boot inconsistente sin Ctrl+F5.
-2. **Secundaria (percepción):** sin permiso de cámara/micrófono la UI muestra banner de fallo y tiles sin `<video>`; si el remoto aún no aparece, el copy “Eres el primer participante” refuerza la sensación de sala inoperativa aunque SignalR/LiveKit estén vivos.
-3. **No es causa:** soft-router montando la sala. `assembly.html` / `lobby.html` ya eran hard-nav; verificado que el shell híbrido no permanece dentro de la sala.
-
-## Relación con navegación híbrida
-
-- **Indirecta:** el deploy híbrido cambió `room-app.js` y activó la política de caché agresiva sin bump de `?v=`.
-- **Directa (DOM/lifecycle soft-mount de sala):** **no confirmada**. Hard navigation directa funciona; entrada desde Dashboard también fuerza hard load.
-
-## Archivos modificados (contención)
-
-- `src/Asambleas.Web/Program.cs` — `no-cache` para `/js/modules` salvo fingerprint fuerte
-- `src/Asambleas.Web/wwwroot/assembly.html` — `room-app.js?v=p0sala20260906a`
-- `src/Asambleas.Web/wwwroot/js/modules/hybrid-router.js` — hard-nav explícita hacia sala/lobby; no soft desde páginas no-soft
-
-Sin cambios de negocio, DB, migraciones ni secretos LiveKit.
-
-## Corrección aplicada
-
-1. Eliminar `immutable` sobre módulos ES con version labels débiles.
-2. Bust de query de `room-app` en HTML.
-3. Redesplegar VPS (`DEPLOY_OK`).
-4. Reverificar presidente+propietario con fake media: video mutuo y presencia mutua.
-
-## Pruebas presidente / propietario (VPS)
-
-| Caso | Resultado |
-|------|-----------|
-| Hard URL directa, ambos autenticados | PASS conectividad |
-| Fake media: video mutuo | PASS |
-| Sin permisos media: tiles mutuos camera-off | PASS |
-| Dashboard híbrido → sala | PASS hard nav + boot |
-| Presentar moción / abrir votación / votar | **NO reejecutado en este incidente** |
-| Móvil físico | NO |
-| Aislamiento otra asamblea | NO |
-
-## Estado SignalR / LiveKit / cámara / roster
-
-- SignalR: conectado, frames recibidos
-- LiveKit: connected, mismo room, remotes=1
-- Cámara/mic: OK con fake-device; denegado muestra banner + tiles sin video
-- Roster media: tiles local+remoto presentes tras contención
-
-## Riesgos pendientes
-
-1. Clientes que aún tengan `room-app.js?v=mobile-vote5` en disk cache **immutable** necesitan **una** recarga dura o esperar a que el HTML nuevo (no-cache) apunte a `p0sala20260906a`.
-2. Matriz completa de votación P0 no re-corrida en asamblea `768822c2-…`.
-3. Quórum `10% / 190.50%` en UI sugiere dato de asamblea de prueba anómalo (no tratado aquí).
-
 ## Veredicto
 
-**P0 OPEN — NO CERTIFIED**
+**P0 SOFTWARE RESOLVED — HUMAN MEDIA VERIFICATION PENDING**
 
-Motivo: la inoperatividad de sala (SignalR/LiveKit/presencia/video) quedó **contenida y verificada en VPS**, pero el criterio de cierre exige también **votación real presidente/propietario** en el VPS, que no se reejecutó completa en esta ventana.
+La causa raíz de caché/versionado quedó contenida y verificada en VPS. Presencia mutua, video con fake media, SignalR/LiveKit (1 conexión por usuario), matriz de votación completa en asamblea E2E aislada, idempotencia, voto tardío, coeficiente y aislamiento pasaron. La prueba humana con cámara/micrófono físicos **no** se ejecutó: permanece `HUMAN VERIFICATION REQUIRED` (fake media no certifica hardware).
 
-Para pasar a `P0 RESOLVED AND VPS VERIFIED` falta cerrar la matriz de votación (presentar → abrir → votar → ver resultado → cerrar) en la URL afectada tras hard-refresh.
+**Software: CIERRE COMPLETO** (caché, presencia, votación, regresiones, build, smoke).
+
+No declarar `P0 RESOLVED AND VPS VERIFIED` hasta completar la checklist humana de A/V real.
+
+## Hora del incidente / cierre funcional
+
+- Reporte usuario: 2026-09-06 ~09:29 America/Panama (UTC-5) — **válido y compatible con la causa raíz** (HTML nuevo + módulos JS antiguos por caché `immutable`).
+- Contención desplegada: 2026-09-06 14:40 UTC (commit `1682709`)
+- Cierre funcional VPS (este documento): 2026-09-06 ~15:56 UTC — software completo; solo pendiente A/V humana
+
+## Corrección de redacción (obligatoria)
+
+| Antes (incorrecto) | Después |
+|--------------------|---------|
+| “Falso en verificación controlada” | **No reproducido después de la contención** |
+| “Falso: WSS LiveKit abre” | **Funcionamiento confirmado después de la corrección** |
+
+El reporte original del usuario no se invalida: es coherente con mezcla HTML/módulos por caché immutable de `?v=` débil.
+
+## Clasificación asamblea `768822c2-…` (protección de datos)
+
+| Campo | Valor |
+|-------|--------|
+| Id | `768822c2-e34c-446e-9b02-78e8c157dca8` |
+| Título | Asamblea Ordinaria — Septiembre 2026 |
+| Tenant | Ocean Tower Demo Tenant (`11111111-…1101`) |
+| PH | **PH Studio UI 39571313** / `STU-39571313` |
+| Creada | 2026-09-06 04:05 UTC |
+| Uso en este cierre | **Solo read-only** (conexión/presencia/render). **Sin** presentar mociones, abrir/cerrar votos, emitir votos, alterar asistencia/quórum/propietarios/coeficientes ni borrar evidencias. |
+
+Clasificación: **asamblea de Studio UI en tenant demo**, no PH OCEAN canónico. Aun así se trató como no mutable por posible uso de sesión real en Studio.
+
+**Hallazgo de datos (no mutado):** en OCEAN-PH, owners seed `…6101` / `…6102` tienen correos personales en VPS. La E2E usó **`owner103@ocean.demo`** (ownership demo intacto). No se reescribieron owners 101/102.
+
+## Asamblea E2E de certificación
+
+| Campo | Valor |
+|-------|--------|
+| Título | `E2E-P0-VPS-VIDEO-VOTACION` |
+| Id | `05643270-c60e-4f12-9dfc-13f71e6a5dfe` |
+| PH | `33333333-…3301` PH DEMO OCEAN TOWER (`OCEAN-PH`) — reactivado solo para certificación |
+| Actores | `president@ocean.demo` + `owner103@ocean.demo` |
+| Evidencia | `tools/e2e/incidente-p0-cierre-20260906_095533/` |
+
+Sin convocatorias reales ni correos reales.
+
+## Fase 1 — Contención de caché (VPS)
+
+Evidencia: `fase1-cache.json`
+
+| Comprobación | Resultado |
+|--------------|-----------|
+| `assembly.html` → `Cache-Control: no-cache` | PASS |
+| `room-app.js?v=p0sala20260906a` → `no-cache`, no `immutable` | PASS |
+| `?v=mobile-vote5` ya **no** es `immutable` | PASS |
+| HTML carga `room-app.js?v=p0sala20260906a` (no `mobile-vote5` como primario) | PASS |
+| Módulos no sirven `text/html` | PASS |
+| Sin imports 404 | PASS |
+| Sin Service Worker controlando assets | PASS |
+| Incógnito = misma versión `p0sala20260906a` | PASS |
+| Recarga normal obtiene HTML actualizado (`no-cache`) | PASS |
+
+Ctrl+F5 **no** es la solución permanente; solo excepción para pestañas que conservaron el asset immutable previo.
+
+## Fase 2 — Quórum `10% / 190.50%` (read-only)
+
+Evidencia: `quorum-19050-analysis.json`
+
+| Concepto | Valor |
+|----------|--------|
+| UI | `formatPct(currentCoefficient)` / `formatPct(requiredCoefficient)` — sufijo `%` sobre **coeficientes**, no “% de progreso” |
+| Presente | `10.00` = unidad FARID (`CoefficientSnapshot`) |
+| Requerido | `190.50` = Σ coeficientes elegibles × (`RequiredQuorumPercent`/100) |
+| Σ unidades PH Studio | **381.00** (100+100+100+50+10+21) |
+| `RequiredQuorumPercent` | 50 → 381 × 0.50 = **190.50** |
+
+**Clasificación:** dato de prueba inválido / PH Studio con coeficientes no normalizados a ~100. **No** es doble conteo de agregación ni defecto que haga a un PH íntegro mostrar >100 incorrectamente.
+
+Contraste E2E OCEAN: UI mostró **`14.00% / 50.00%`** (unidad 103 coeff 14; quórum 50% de Σ=100).
+
+## Fase 3 — Matriz de votación (asamblea E2E)
+
+Evidencia: `matrix.json`, `tally-closed.json`, capturas `matrix-*.png`, `bags.json`
+
+| # | Caso | Resultado |
+|---|------|-----------|
+| 1–2 | Presidente / propietario entran | PASS |
+| 3 | Presencia mutua | PASS (`presence-rediag.json`: remotes=1 ambos; probe inicial falló por API de diagnóstico, reconfirmado) |
+| 4–5 | SignalR / LiveKit 1 conn/usuario | PASS |
+| 6–7 | Mismo `roomName`, identities distintas | PASS `assembly-05643270c60e4f129dfc13f71e6a5dfe` |
+| 8–9 | Presentar moción / propietario la recibe | PASS |
+| 10–11 | Abrir votación / overlay móvil auto | PASS |
+| 12–13 | Minimizar “Consultar asamblea” / banner | PASS |
+| 14–17 | Selección → confirmar → emitir → éxito post-servidor | PASS (`VT-DE7255`) |
+| 18–19 | Doble voto bloqueado | PASS (HTTP 400) |
+| 20–22 | Presidente actualiza; participación; coeficiente | PASS cerrado: `votesCast=1`, `inFavorCoefficient=14`, `participatingCoefficient=14` |
+| 23–25 | Cerrar / voto tardío rechazado | PASS (HTTP 400) |
+| 26–27 | Reload estado final | PASS |
+| 28–29 | Aislamiento otra asamblea / cross-PH room distinto | PASS (+ tests CrossTenant 6/6) |
+
+## Fase 4 — Video real (hardware)
+
+| Caso | Resultado |
+|------|----------|
+| Fake media transporte/render | PASS (videos locales; LiveKit multiparticipante remotes=1) |
+| Cámara/micrófono físicos humanos | **HUMAN VERIFICATION REQUIRED** — no ejecutado |
+
+## Fase 5 — Permisos denegados
+
+| Caso | Resultado |
+|------|----------|
+| Conectado pese a media denegada | PASS (sesión previa incidente + fase5) |
+| No afirmar “primer participante” con remoto | PASS cuando remotes≥1 (`fase5-no-false-first-participant`) |
+| Banner / tiles sin video | PASS (contención previa) |
+
+## Fase 6 — Regresión mínima (COMPLETA)
+
+| Suite | Resultado |
+|-------|-----------|
+| mobile-voting-cert (E2E + owner103, API login) | **PASS 22/22** |
+| LiveKit multiparticipante VPS | **PASS** |
+| VotingTransaction + MotionStudioIsolation | **PASS 6/6** Integration |
+| SignalR reconnect (offline→online) | **PASS** |
+| MeetingRoomNaming Unit | **PASS 3/3** |
+| CrossTenant + MeetingToken Security | **PASS 6/6** |
+| Build Release completo | **PASS** 0 warnings / 0 errors |
+| Smoke VPS | asambleas_web **healthy**; HTML/JS no-cache |
+
+Resumen: tools/e2e/incidente-p0-cierre-20260906_095533/fase6-final-summary.json
+
+## Verificación humana de medios (ÚNICO PENDIENTE)
+
+Estado: HUMAN VERIFICATION REQUIRED
+
+URL E2E: https://asambleas.164.68.99.83.nip.io/assembly.html?assemblyId=05643270-c60e-4f12-9dfc-13f71e6a5dfe
+
+Checklist (2 equipos reales):
+1. Presidente (president@ocean.demo) con cámara/mic físicos y permisos OK
+2. Propietario (owner103@ocean.demo) en otro equipo/teléfono con cámara/mic físicos
+3. Video remoto visible en ambos lados
+4. Audio remoto confirmado en ambos lados
+5. Apagar/encender cámara
+6. Silenciar/activar micrófono
+7. Propietario sin cámara: tile visible; sigue recibiendo remoto
+8. Salir detiene cámara y micrófono
+
+Al completar esta checklist, el veredicto puede subir a: P0 RESOLVED AND VPS VERIFIED.
+
+## Criterios de cierre vs veredicto
+
+| Criterio | Estado |
+|----------|--------|
+| Caché/versionado permanente | Cumple |
+| Entrada directa / Dashboard hard-nav | Cumple (previo + E2E) |
+| Presencia mutua | Cumple |
+| Video mutuo fake media | Cumple |
+| Video/audio humano real | **Pendiente** |
+| 1× SignalR + 1× LiveKit / usuario | Cumple |
+| Matriz votación + idempotencia + tardío | Cumple |
+| Participación / coeficiente | Cumple (14) |
+| Cross-PH / cross-tenant | Cumple |
+| Quórum 190.50% explicado, no defecto de fórmula | Cumple |
+| Build Release | Cumple |
+| Sin mutar datos reales de `768822c2` | Cumple |
+
+**Veredicto exacto:** `P0 SOFTWARE RESOLVED — HUMAN MEDIA VERIFICATION PENDING`

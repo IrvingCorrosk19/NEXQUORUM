@@ -20,15 +20,18 @@ public sealed class AssemblyAccessLinkService
     private readonly IAsambleasDbContext _db;
     private readonly IPublicBaseUrlProvider _publicBaseUrl;
     private readonly TimeProvider _clock;
+    private readonly IVerifiedJoinProofService _verifiedJoinProofs;
 
     public AssemblyAccessLinkService(
         IAsambleasDbContext db,
         IPublicBaseUrlProvider publicBaseUrl,
-        TimeProvider clock)
+        TimeProvider clock,
+        IVerifiedJoinProofService verifiedJoinProofs)
     {
         _db = db;
         _publicBaseUrl = publicBaseUrl;
         _clock = clock;
+        _verifiedJoinProofs = verifiedJoinProofs;
     }
 
     public async Task<(string RawToken, string AbsoluteUrl, AssemblyAccessLink Link)> IssueAsync(
@@ -67,6 +70,7 @@ public sealed class AssemblyAccessLinkService
         {
             old.RevokedAtUtc = now;
             old.RevocationReason ??= revokeReason;
+            InvalidateProofForLink(old);
         }
 
         var raw = CreateOpaqueToken();
@@ -142,6 +146,7 @@ public sealed class AssemblyAccessLinkService
         {
             link.RevokedAtUtc = now;
             link.RevocationReason = reason;
+            InvalidateProofForLink(link);
         }
 
         return openLinks.Count;
@@ -164,6 +169,7 @@ public sealed class AssemblyAccessLinkService
         {
             link.RevokedAtUtc = now;
             link.RevocationReason = reason;
+            InvalidateProofForLink(link);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -274,7 +280,16 @@ public sealed class AssemblyAccessLinkService
             ?? throw new DomainException("ACCESS_LINK_NOT_FOUND", "Enlace de acceso no encontrado.");
         link.RevokedAtUtc = _clock.GetUtcNow();
         link.RevocationReason ??= reason;
+        InvalidateProofForLink(link);
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private void InvalidateProofForLink(AssemblyAccessLink link)
+    {
+        if (link.UserId is Guid uid && uid != Guid.Empty)
+        {
+            _verifiedJoinProofs.InvalidateAssemblyUser(link.AssemblyId, uid);
+        }
     }
 
     /// <summary>

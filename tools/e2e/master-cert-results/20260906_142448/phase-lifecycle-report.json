@@ -1,0 +1,24 @@
+{
+  "summary": {
+    "stamp": "E2E-CERT-MASTER-20260906_142448",
+    "base": "https://localhost:7188",
+    "at": "2026-09-06T19:41:32.867Z",
+    "PASS": 31,
+    "FAIL": 0,
+    "PENDING": 80,
+    "BLOCKED": 1,
+    "SKIP": 0
+  },
+  "verdict": {
+    "verdict": "PARTIALLY CERTIFIED",
+    "pass": 31,
+    "fail": 0,
+    "pending": 80,
+    "blocked": 1,
+    "openP0": 0,
+    "openP1": 0,
+    "openP2": 0
+  },
+  "phId": "abd18dde-0523-4639-8fd3-ecea11db1a24",
+  "assemblyId": "b4b922db-cb5f-499e-87cf-7faa39dc0819"
+}

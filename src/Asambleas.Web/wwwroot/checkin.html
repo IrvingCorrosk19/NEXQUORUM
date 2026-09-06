@@ -90,11 +90,49 @@
     .conflict-box ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
     .recent-list { display: grid; gap: 0.35rem; font-size: 0.95rem; }
     .sr-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .checkin-summary {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 0.55rem;
+    }
+    .checkin-summary .chip {
+      padding: 0.55rem 0.7rem;
+      background: color-mix(in srgb, var(--color-ink) 4%, transparent);
+    }
+    .checkin-summary .chip strong { display: block; font-family: "Source Serif 4", Georgia, serif; font-size: 1.25rem; }
+    .checkin-summary .chip span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
+    .bulk-toolbar {
+      position: sticky; top: 0; z-index: 2;
+      display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center;
+      padding: 0.65rem 0.75rem;
+      background: color-mix(in srgb, var(--color-surface) 92%, var(--brand-teal-500, #1a5f4a) 8%);
+      border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
+    }
+    .bulk-select { display: inline-flex; gap: 0.4rem; align-items: center; }
+    .checkin-filters { display: grid; gap: 0.65rem; }
+    @media (min-width: 720px) {
+      .checkin-filters { grid-template-columns: minmax(0,1fr) 10rem 7rem; align-items: end; }
+    }
+    .accreditation-table-wrap { overflow: auto; max-height: min(70vh, 42rem); border-top: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent); }
+    .accreditation-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    .accreditation-table th, .accreditation-table td {
+      padding: 0.55rem 0.45rem; text-align: left; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
+      vertical-align: top;
+    }
+    .accreditation-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; position: sticky; top: 0; background: var(--color-surface, #f7f4ef); }
+    .accreditation-table tr.is-accredited { background: color-mix(in srgb, var(--brand-teal-500, #1a5f4a) 6%, transparent); }
+    .quorum-config-warn { color: #9b2c2c; font-size: 0.85rem; margin: 0.35rem 0 0; }
+    .alert-warn { border-left: 3px solid #9b2c2c; padding: 0.75rem 0.9rem; background: color-mix(in srgb, #9b2c2c 8%, transparent); }
+    @media (max-width: 720px) {
+      .accreditation-table thead { display: none; }
+      .accreditation-table tr { display: grid; gap: 0.25rem; padding: 0.75rem 0; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent); }
+      .accreditation-table td { border: 0; padding: 0.1rem 0; }
+      .accreditation-table td::before { content: attr(data-label); display: block; font-size: 0.68rem; text-transform: uppercase; opacity: 0.65; }
+    }
   </style>
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/ia.css?v=ia2" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
+  <link rel="stylesheet" href="/css/contextual-guide.css?v=cx2" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -119,6 +157,7 @@
     </header><main id="main" class="page-main">
       <div id="ia-breadcrumbs"></div>
       <div id="page-alert" class="alert" hidden role="alert"></div>
+      <div id="contextual-guide" class="cx-guide" role="region" aria-live="polite"></div>
       <p id="sr-announcer" class="sr-live" aria-live="polite"></p>
       <section class="page-hero">
         <h1 id="page-title">Acreditación</h1>
@@ -126,17 +165,67 @@
       </section>
       <div id="desk-banner" class="checkin-banner" hidden>
         <p class="banner-text" id="desk-banner-text"></p>
-        <button type="button" id="btn-open-desk" class="btn btn-primary" hidden>Abrir mesa de acreditación</button>
+        <div class="cluster">
+          <button type="button" id="btn-open-desk" class="btn btn-primary" hidden>Abrir mesa de acreditación</button>
+          <button type="button" id="btn-close-desk" class="btn btn-secondary" hidden>Cerrar mesa</button>
+        </div>
       </div>
+      <div id="coeff-warn" class="alert alert-warn" hidden role="alert"></div>
       <div class="checkin-shell">
         <div class="stack">
-          <div class="field checkin-search">
-            <label for="participant-filter">Buscar nombre, unidad…</label>
-            <input id="participant-filter" type="search" autocomplete="off" enterkeyhint="search" />
+          <div id="checkin-summary" class="checkin-summary" aria-label="Resumen de acreditación"></div>
+          <div class="bulk-toolbar" id="bulk-toolbar" hidden>
+            <label class="bulk-select">
+              <input type="checkbox" id="chk-select-visible" />
+              <span>Seleccionar visibles</span>
+            </label>
+            <button type="button" id="btn-select-filtered" class="btn btn-secondary">Seleccionar filtrados</button>
+            <span id="selected-count" class="muted">0 seleccionados</span>
+            <button type="button" id="btn-bulk-selected" class="btn btn-primary">Acreditar seleccionados verificados</button>
+            <button type="button" id="btn-bulk-deaccredit" class="btn btn-secondary">Quitar acreditación</button>
+            <button type="button" id="btn-bulk-accredit" class="btn btn-secondary" hidden title="Excepcional: requiere permiso administrativo">Acreditar ausentes (excepción)</button>
           </div>
-          <div id="cards-root" class="grid-cards"><div class="skeleton" style="height:10rem"></div></div>
+          <div class="checkin-filters">
+            <div class="field checkin-search">
+              <label for="participant-filter">Buscar nombre, unidad…</label>
+              <input id="participant-filter" type="search" autocomplete="off" enterkeyhint="search" />
+            </div>
+            <div class="field">
+              <label for="status-filter">Estado</label>
+              <select id="status-filter">
+                <option value="all">Todos</option>
+                <option value="invited">Invitados</option>
+                <option value="accredited">Acreditados</option>
+                <option value="present">Presentes</option>
+                <option value="observed">Observados</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="page-size">Filas</label>
+              <select id="page-size">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="250">250</option>
+              </select>
+            </div>
+          </div>
+          <div id="cards-root" class="accreditation-table-wrap"><div class="skeleton" style="height:10rem"></div></div>
+          <div class="pager cluster" id="pager" hidden>
+            <button type="button" class="btn btn-secondary" id="btn-page-prev">Anterior</button>
+            <span id="page-label" class="muted"></span>
+            <button type="button" class="btn btn-secondary" id="btn-page-next">Siguiente</button>
+          </div>
+          <section class="exceptions-tray" aria-labelledby="exceptions-title" style="margin-top:1rem">
+            <div class="cluster" style="justify-content:space-between;align-items:center">
+              <h3 id="exceptions-title" style="margin:0;font-size:1rem">Bandeja de observados / excepciones</h3>
+              <div class="cluster">
+                <button type="button" id="btn-reload-exceptions" class="btn btn-secondary">Actualizar</button>
+                <a id="link-padron-csv" class="btn btn-secondary" href="#">Exportar padrón CSV</a>
+              </div>
+            </div>
+            <div id="exceptions-root" class="muted" style="margin-top:.5rem">Sin excepciones cargadas.</div>
+          </section>
           <div class="cta-row">
-            <button type="button" id="btn-bulk-accredit" class="btn btn-gold" hidden>Acreditar elegibles</button>
             <button type="button" id="btn-self-checkin" class="btn btn-primary">Registrar mi asistencia</button>
             <a id="link-lobby" class="btn btn-gold" href="#">Ir al lobby</a>
           </div>
@@ -175,7 +264,22 @@
     </div>
   </dialog>
 
+  <dialog id="bulk-preview-dialog" class="owner-dialog" aria-labelledby="bulk-preview-title">
+    <div class="owner-sheet">
+      <header>
+        <p class="owner-label">Acreditación masiva</p>
+        <h2 id="bulk-preview-title">Previsualización</h2>
+        <p class="subtitle" id="bulk-preview-summary"></p>
+      </header>
+      <div id="bulk-preview-body"></div>
+      <div class="cta-row">
+        <button type="button" id="btn-bulk-preview-cancel" class="btn btn-secondary">Cancelar</button>
+        <button type="button" id="btn-bulk-preview-confirm" class="btn btn-primary">Confirmar acreditación</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/js/modules/checkin-app.js?v=accredit2"></script>
+  <script type="module" src="/js/modules/checkin-app.js?v=accredit6"></script>
 </body>
 </html>

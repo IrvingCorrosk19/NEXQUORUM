@@ -72,6 +72,62 @@ public sealed class AuditService : IAuditService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task WriteManyAsync(
+        IReadOnlyList<(string EventType, Guid? AssemblyId, Guid? CorrelationId, object? Metadata)> events,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        if (events is null || events.Count == 0)
+        {
+            return;
+        }
+
+        Guid? propertyHorizontalId = _currentTenant.PropertyHorizontalId;
+        Guid? organizationId = _currentTenant.OrganizationId;
+        var assemblyId = events.Select(e => e.AssemblyId).FirstOrDefault(id => id is not null);
+        if (assemblyId is Guid aid)
+        {
+            var assembly = await _db.Assemblies
+                .AsNoTracking()
+                .Where(a => a.Id == aid)
+                .Select(a => new { a.TenantId, a.PropertyHorizontalId })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (assembly is not null)
+            {
+                TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+                propertyHorizontalId ??= assembly.PropertyHorizontalId;
+                if (organizationId is null)
+                {
+                    organizationId = await _db.PropertyHorizontals
+                        .AsNoTracking()
+                        .Where(p => p.Id == assembly.PropertyHorizontalId)
+                        .Select(p => (Guid?)p.OrganizationId)
+                        .FirstOrDefaultAsync(cancellationToken);
+                }
+            }
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var e in events)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(e.EventType);
+            _db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = _currentTenant.TenantId,
+                OrganizationId = organizationId,
+                PropertyHorizontalId = propertyHorizontalId,
+                AssemblyId = e.AssemblyId,
+                UserId = _currentTenant.UserId,
+                EventType = e.EventType,
+                CorrelationId = e.CorrelationId ?? Guid.NewGuid(),
+                OccurredAtUtc = now,
+                MetadataJson = Mapping.ToJson(e.Metadata)
+            });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task WriteSystemAsync(
         Guid tenantId,
         string eventType,

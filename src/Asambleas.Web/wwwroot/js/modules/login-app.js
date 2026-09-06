@@ -122,7 +122,7 @@ function goHome(user) {
     location.assign("/owner.html");
     return;
   }
-  // Operators land on PH home — not a mixed assembly command panel.
+  // Operators/president land on Propiedades (catalog) — not a PH resumen.
   if (hasPermission(user, "ph:view") || isOperator(user)) {
     location.assign("/ph.html");
     return;

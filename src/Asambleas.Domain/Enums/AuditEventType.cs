@@ -9,6 +9,9 @@ public static class AuditEventType
     public const string AssemblyJoin = "ASSEMBLY_JOIN";
     public const string CheckIn = "CHECK_IN";
     public const string ParticipantAccredited = "PARTICIPANT_ACCREDITED";
+    public const string ParticipantDeaccredited = "PARTICIPANT_DEACCREDITED";
+    public const string BulkAccreditation = "BULK_ACCREDITATION";
+    public const string CheckInDeskClosed = "CHECKIN_DESK_CLOSED";
     public const string ParticipantRejected = "PARTICIPANT_REJECTED";
     public const string ParticipantLeft = "PARTICIPANT_LEFT";
     public const string ParticipantReturned = "PARTICIPANT_RETURNED";

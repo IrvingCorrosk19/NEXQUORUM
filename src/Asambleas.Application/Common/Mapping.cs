@@ -58,7 +58,10 @@ internal static class Mapping
         bool quorumReached,
         int presentUnits,
         int eligibleUnits,
-        DateTimeOffset calculatedAtUtc) =>
+        DateTimeOffset calculatedAtUtc,
+        decimal eligibleCoefficientTotal = 0m,
+        bool coefficientConfigurationInvalid = false,
+        string? coefficientConfigurationMessage = null) =>
         new(
             assemblyId,
             currentCoefficient,
@@ -70,7 +73,10 @@ internal static class Mapping
             calculatedAtUtc,
             MissingCoefficient: quorumReached
                 ? 0m
-                : Math.Max(0m, Math.Round(requiredCoefficient - currentCoefficient, 4, MidpointRounding.AwayFromZero)));
+                : Math.Max(0m, Math.Round(requiredCoefficient - currentCoefficient, 4, MidpointRounding.AwayFromZero)),
+            EligibleCoefficientTotal: eligibleCoefficientTotal,
+            CoefficientConfigurationInvalid: coefficientConfigurationInvalid,
+            CoefficientConfigurationMessage: coefficientConfigurationMessage);
 
     public static async Task<string?> ResolveUnitCodeAsync(
         IAsambleasDbContext db,

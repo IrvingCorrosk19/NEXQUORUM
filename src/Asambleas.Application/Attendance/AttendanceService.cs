@@ -12,7 +12,7 @@ using Asambleas.Domain.Enums;
 using Asambleas.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
-public sealed class AttendanceService
+public sealed partial class AttendanceService
 {
     private readonly IAsambleasDbContext _db;
     private readonly ICurrentTenant _currentTenant;
@@ -20,6 +20,7 @@ public sealed class AttendanceService
     private readonly IAssemblyRealtimePublisher _realtime;
     private readonly QuorumService _quorum;
     private readonly IAssemblyRepresentationService _representation;
+    private readonly IVerifiedJoinProofService _verifiedJoinProofs;
 
     public AttendanceService(
         IAsambleasDbContext db,
@@ -27,7 +28,8 @@ public sealed class AttendanceService
         IAuditService audit,
         IAssemblyRealtimePublisher realtime,
         QuorumService quorum,
-        IAssemblyRepresentationService representation)
+        IAssemblyRepresentationService representation,
+        IVerifiedJoinProofService verifiedJoinProofs)
     {
         _db = db;
         _currentTenant = currentTenant;
@@ -35,6 +37,7 @@ public sealed class AttendanceService
         _realtime = realtime;
         _quorum = quorum;
         _representation = representation;
+        _verifiedJoinProofs = verifiedJoinProofs;
     }
 
     /// <summary>Self check-in / accreditation for the current user.</summary>
@@ -44,11 +47,29 @@ public sealed class AttendanceService
         CancellationToken cancellationToken = default)
     {
         var userId = TenantGuard.RequireUserId(_currentTenant);
+        var method = string.IsNullOrWhiteSpace(request.Method) ? "SelfCheckIn" : request.Method.Trim();
+
+        // VerifiedJoinLink is only valid with a server-issued redeem proof scoped to this assembly/user.
+        if (string.Equals(method, "VerifiedJoinLink", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!_verifiedJoinProofs.TryConsume(
+                    _currentTenant.TenantId, assemblyId, userId, out var linkId))
+            {
+                // Never trust client-only flags — fall back to explicit self check-in method for audit honesty.
+                method = "SelfCheckIn";
+            }
+            else
+            {
+                // Proof consumed (single-use). Link id retained only in audit metadata below via method string.
+                _ = linkId;
+            }
+        }
+
         return AccreditInternalAsync(
             assemblyId,
             userId,
             request.PresenceType,
-            method: "SelfCheckIn",
+            method: method,
             clientUnitId: request.UnitId,
             cancellationToken);
     }
@@ -69,111 +90,124 @@ public sealed class AttendanceService
             cancellationToken);
     }
 
-    /// <summary>Operator bulk accreditation of eligible participants.</summary>
-    public async Task<BulkAccreditResponse> AccreditBulkAsync(
+    public async Task<DeaccreditResponse> DeaccreditAsync(
         Guid assemblyId,
-        BulkAccreditRequest request,
+        Guid targetUserId,
+        DeaccreditRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length < 5)
+        {
+            throw new DomainException("DEACCREDIT_REASON_REQUIRED", "Indique un motivo de al menos 5 caracteres.");
+        }
+
         TenantGuard.EnsureAuthenticated(_currentTenant);
+        var actorUserId = TenantGuard.RequireUserId(_currentTenant);
 
         var assembly = await _db.Assemblies
-            .AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
             ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
-        if (assembly.Status is not (AssemblyStatus.CheckIn or AssemblyStatus.InProgress or AssemblyStatus.Paused))
+        if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
         {
             throw new DomainException(
                 AttendanceCodes.AssemblyNotOpen,
-                "La mesa de acreditación no está abierta. Un operador debe iniciar el check-in desde el panel de la asamblea.");
+                "No se puede corregir acreditación en una asamblea cerrada o cancelada.");
         }
 
-        if (!request.AllEligible && (request.UserIds is null || request.UserIds.Count == 0))
+        if (assembly.Status is AssemblyStatus.InProgress or AssemblyStatus.Paused or AssemblyStatus.CheckIn)
         {
-            throw new DomainException(
-                "BULK_ACCREDIT_EMPTY",
-                "Indique UserIds o Active AllEligible=true para acreditar en masa.");
-        }
-
-        List<Guid> targets;
-        if (request.AllEligible)
-        {
-            targets = await _db.AssemblyParticipants.AsNoTracking()
-                .Where(p => p.AssemblyId == assemblyId && !p.IsAccredited)
-                .OrderBy(p => p.DisplayName)
-                .Select(p => p.UserId)
-                .ToListAsync(cancellationToken);
+            var openVoting = await _db.VotingSessions.AnyAsync(
+                s => s.AssemblyId == assemblyId && s.Status == VotingSessionStatus.Open,
+                cancellationToken);
+            if (openVoting)
+            {
+                throw new DomainException(
+                    AttendanceCodes.DeaccreditBlockedVoting,
+                    "No se puede quitar la acreditación mientras hay una votación abierta.");
+            }
         }
         else
         {
-            targets = request.UserIds!.Distinct().ToList();
+            throw new DomainException(
+                AttendanceCodes.AssemblyNotOpen,
+                "La mesa no admite correcciones de acreditación en el estado actual.");
         }
 
-        var names = await _db.AssemblyParticipants.AsNoTracking()
-            .Where(p => p.AssemblyId == assemblyId && targets.Contains(p.UserId))
-            .ToDictionaryAsync(p => p.UserId, p => p.DisplayName, cancellationToken);
+        var participant = await _db.AssemblyParticipants
+            .FirstOrDefaultAsync(p => p.AssemblyId == assemblyId && p.UserId == targetUserId, cancellationToken)
+            ?? throw new DomainException("El participante no está inscrito en esta asamblea.");
 
-        var presence = string.IsNullOrWhiteSpace(request.PresenceType) ? "InPerson" : request.PresenceType;
-        var method = string.IsNullOrWhiteSpace(request.Method) ? "OperatorBulkCheckIn" : request.Method;
-        var items = new List<BulkAccreditItemDto>(targets.Count);
-        var succeeded = 0;
-        var failed = 0;
-        var skipped = 0;
-
-        foreach (var userId in targets)
+        if (!participant.IsAccredited)
         {
-            var displayName = names.GetValueOrDefault(userId, userId.ToString("D"));
-            try
-            {
-                var preview = await _representation.PreviewAsync(assemblyId, userId, cancellationToken);
-                if (preview.IsAccredited)
-                {
-                    skipped++;
-                    items.Add(new BulkAccreditItemDto(
-                        userId, displayName, Success: true, Skipped: true,
-                        AttendanceCodes.AlreadyCheckedIn, "Ya acreditado",
-                        preview.EffectiveCoefficientPercent));
-                    continue;
-                }
-
-                if (!preview.CanAccredit)
-                {
-                    failed++;
-                    items.Add(new BulkAccreditItemDto(
-                        userId, displayName, Success: false, Skipped: false,
-                        preview.BlockReasonCode ?? AttendanceCodes.NoEligibleRepresentation,
-                        preview.BlockReasonMessage ?? "No elegible para acreditar",
-                        null));
-                    continue;
-                }
-
-                var result = await AccreditInternalAsync(
-                    assemblyId,
-                    userId,
-                    presence,
-                    method,
-                    clientUnitId: null,
-                    cancellationToken);
-                succeeded++;
-                items.Add(new BulkAccreditItemDto(
-                    userId, displayName, Success: true, Skipped: false,
-                    null, null, result.EffectiveCoefficientPercent));
-            }
-            catch (DomainException ex)
-            {
-                failed++;
-                items.Add(new BulkAccreditItemDto(
-                    userId, displayName, Success: false, Skipped: false,
-                    ex.Code, ex.Message, null));
-            }
+            throw new DomainException(
+                AttendanceCodes.NotAccreditedForDeaccredit,
+                "El participante no está acreditado.");
         }
 
-        return new BulkAccreditResponse(succeeded, failed, skipped, items);
+        var previousCoeff = participant.EffectiveCoefficientPercent;
+        await _representation.RevokeActiveForUserAsync(assemblyId, targetUserId, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        participant.IsAccredited = false;
+        participant.AccreditedAtUtc = null;
+        participant.AccreditedByUserId = null;
+        participant.EffectiveCoefficientPercent = 0m;
+        participant.AttendanceStatus = AttendanceStatus.Registered;
+        participant.CheckedInAtUtc = null;
+        participant.PresenceType = null;
+        participant.UpdatedAtUtc = now;
+
+        _db.AttendanceRecords.Add(new AttendanceRecord
+        {
+            TenantId = assembly.TenantId,
+            AssemblyId = assemblyId,
+            UserId = targetUserId,
+            UnitId = participant.UnitId,
+            PresenceType = PresenceType.InPerson,
+            Status = AttendanceStatus.Registered,
+            TimestampUtc = now
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.WriteAsync(
+            AuditEventType.ParticipantDeaccredited,
+            assemblyId,
+            metadata: new
+            {
+                TargetUserId = targetUserId,
+                DeaccreditedBy = actorUserId,
+                Reason = request.Reason.Trim(),
+                Method = request.Method ?? "OperatorDeaccredit",
+                PreviousCoefficient = previousCoeff
+            },
+            cancellationToken: cancellationToken);
+
+        var unitCode = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);
+        await _realtime.PublishAttendanceAsync(
+            assemblyId,
+            Mapping.ToParticipantDto(participant, unitCode, 0m, 0),
+            cancellationToken);
+
+        var quorum = await _quorum.RecalculateAndSnapshotAsync(assemblyId, "Deaccredit", cancellationToken);
+
+        return new DeaccreditResponse(
+            participant.Id,
+            participant.AttendanceStatus.ToString(),
+            false,
+            previousCoeff,
+            quorum.CurrentCoefficient,
+            quorum.RequiredCoefficient,
+            quorum.QuorumReached);
     }
 
+    /// <summary>
+    /// After a verified personal join link is redeemed/claimed and the desk is open, accredit once.
+    /// Conflicts → no silent accredit (returns RequiresMesaValidation). Invitation alone never calls this.
+    /// </summary>
     public Task<RepresentationPreviewDto> PreviewAsync(
         Guid assemblyId,
         Guid userId,

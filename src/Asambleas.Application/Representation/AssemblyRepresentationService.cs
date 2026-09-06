@@ -260,6 +260,102 @@ public sealed class AssemblyRepresentationService : IAssemblyRepresentationServi
         return snapshots;
     }
 
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<AssemblyRepresentationSnapshot>>> ResolveEligibleClaimsBulkAsync(
+        Guid assemblyId,
+        IReadOnlyCollection<Guid> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var assembly = await RequireAssemblyAsync(assemblyId, cancellationToken);
+        var ids = userIds.Distinct().ToList();
+        var result = ids.ToDictionary(id => id, _ => (IReadOnlyList<AssemblyRepresentationSnapshot>)Array.Empty<AssemblyRepresentationSnapshot>());
+        if (ids.Count == 0)
+        {
+            return result;
+        }
+
+        var owners = await _db.Owners.AsNoTracking()
+            .Where(o => o.TenantId == assembly.TenantId
+                        && o.UserId != null
+                        && ids.Contains(o.UserId.Value)
+                        && (o.Status == OwnerLifecycleStatus.Active || o.Status == OwnerLifecycleStatus.Invited))
+            .Select(o => new { o.Id, UserId = o.UserId!.Value })
+            .ToListAsync(cancellationToken);
+        var ownerIds = owners.Select(o => o.Id).ToList();
+
+        var ownershipRows = ownerIds.Count == 0
+            ? []
+            : await (
+                from own in _db.Ownerships.AsNoTracking()
+                join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
+                where ownerIds.Contains(own.OwnerId)
+                      && own.IsActive
+                      && u.IsActive
+                      && u.PropertyHorizontalId == assembly.PropertyHorizontalId
+                      && u.TenantId == assembly.TenantId
+                select new { own.OwnerId, u.Id, u.Code, u.CoefficientPercent }
+            ).ToListAsync(cancellationToken);
+
+        var powerRows = await (
+            from p in _db.Powers.AsNoTracking()
+            join u in _db.Units.AsNoTracking() on p.UnitId equals u.Id
+            where p.AssemblyId == assembly.Id
+                  && ids.Contains(p.RepresentativeUserId)
+                  && p.Status == PowerStatus.Approved
+            select new { p.RepresentativeUserId, PowerId = p.Id, UnitId = u.Id, u.Code, u.CoefficientPercent }
+        ).ToListAsync(cancellationToken);
+
+        var buckets = ids.ToDictionary(id => id, _ => new List<AssemblyRepresentationSnapshot>());
+        var userByOwner = owners.ToDictionary(o => o.Id, o => o.UserId);
+        foreach (var row in ownershipRows)
+        {
+            if (!userByOwner.TryGetValue(row.OwnerId, out var userId))
+            {
+                continue;
+            }
+
+            buckets[userId].Add(new AssemblyRepresentationSnapshot(
+                row.Id, row.Code, row.CoefficientPercent, RepresentationSource.Ownership.ToString(), null));
+        }
+
+        foreach (var row in powerRows)
+        {
+            if (buckets[row.RepresentativeUserId].Any(c => c.UnitId == row.UnitId))
+            {
+                continue;
+            }
+
+            buckets[row.RepresentativeUserId].Add(new AssemblyRepresentationSnapshot(
+                row.UnitId, row.Code, row.CoefficientPercent, RepresentationSource.Power.ToString(), row.PowerId));
+        }
+
+        return buckets.ToDictionary(
+            kv => kv.Key,
+            kv => (IReadOnlyList<AssemblyRepresentationSnapshot>)kv.Value);
+    }
+
+    public async Task<int> RevokeActiveForUserAsync(
+        Guid assemblyId,
+        Guid targetUserId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        _ = await RequireAssemblyAsync(assemblyId, cancellationToken);
+
+        var active = await _db.AssemblyRepresentations
+            .Where(r => r.AssemblyId == assemblyId
+                        && r.RepresentativeUserId == targetUserId
+                        && r.IsActive)
+            .ToListAsync(cancellationToken);
+
+        foreach (var row in active)
+        {
+            row.IsActive = false;
+        }
+
+        return active.Count;
+    }
+
     private async Task<(string Code, string Message)> DiagnoseIneligibilityAsync(
         Domain.Entities.Assembly assembly,
         Guid userId,

@@ -94,10 +94,13 @@ public sealed class AssemblyService
     }
 
     public Task<AssemblySummaryDto> StartCheckInAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
-        TransitionAsync(assemblyId, AssemblyStatus.CheckIn, AuditEventType.AssemblyJoin, cancellationToken);
+        TransitionAsync(assemblyId, AssemblyStatus.CheckIn, AuditEventType.AssemblyJoin, cancellationToken, validateCoefficients: true);
+
+    public Task<AssemblySummaryDto> CloseCheckInAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
+        TransitionAsync(assemblyId, AssemblyStatus.Scheduled, AuditEventType.CheckInDeskClosed, cancellationToken);
 
     public Task<AssemblySummaryDto> StartAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
-        TransitionAsync(assemblyId, AssemblyStatus.InProgress, AuditEventType.AssemblyStarted, cancellationToken);
+        TransitionAsync(assemblyId, AssemblyStatus.InProgress, AuditEventType.AssemblyStarted, cancellationToken, validateCoefficients: true);
 
     public Task<AssemblySummaryDto> PauseAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
         TransitionAsync(assemblyId, AssemblyStatus.Paused, AuditEventType.AssemblyPaused, cancellationToken);
@@ -141,7 +144,8 @@ public sealed class AssemblyService
         Guid assemblyId,
         AssemblyStatus target,
         string auditEventType,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool validateCoefficients = false)
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
 
@@ -153,6 +157,11 @@ public sealed class AssemblyService
 
         var from = assembly.Status;
         AssemblyLifecycle.EnsureCanTransition(from, target);
+
+        if (validateCoefficients)
+        {
+            await _quorum.EnsureCoefficientConfigurationAllowsProgressAsync(assemblyId, cancellationToken);
+        }
 
         if (target == AssemblyStatus.Completed)
         {

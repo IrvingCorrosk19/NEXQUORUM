@@ -119,7 +119,12 @@ async function init() {
         }
         return;
       }
-      // Global PH switch while on this page: clear stale list then reopen.
+      // Catalog / post-login: do not auto-open the claim's PH — operators pick from Propiedades.
+      const urlPhNow = new URLSearchParams(location.search).get("phId");
+      const onCatalog = !urlPhNow && Boolean($("#view-detail")?.hidden);
+      if (onCatalog) return;
+
+      // Global PH switch while already in a PH detail: clear stale list then reopen.
       phAssemblies = [];
       const host = $("#ph-assemblies-list");
       if (host) host.innerHTML = `<div class="skeleton" style="height:4rem">Cambiando de PH…</div>`;
@@ -135,6 +140,10 @@ async function init() {
     const desiredHash = (location.hash || "").replace("#", "");
     await openPh(urlPh, desiredHash || null);
   } else {
+    // Landing without phId = property picker (president / operators).
+    if (location.hash) {
+      history.replaceState({}, "", `${location.pathname}${location.search}`);
+    }
     mountPhListShell();
   }
 }

@@ -4,8 +4,9 @@ import { escapeHtml } from "./ui.js";
 const lastValues = new WeakMap();
 
 /**
- * Quorum visualization: current %, required %, reached status.
- * Subtle numeric transition when coefficient changes (respects reduced motion).
+ * Quorum visualization: current / required coefficient points of the PH.
+ * Values are coefficient percent-points (Σ units ≈ 100), NOT a progress bar percent.
+ * When EligibleCoefficientTotal ≠ 100, surfaces CoefficientConfigurationInvalid.
  */
 export function renderQuorum(root, quorum, { compact = false } = {}) {
   if (!root) {
@@ -19,7 +20,9 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
 
   const current = Number(quorum.currentCoefficient ?? 0);
   const required = Number(quorum.requiredCoefficient ?? 0);
-  const pctOfRequired = required > 0 ? Math.min(100, Math.round((current / required) * 100)) : 0;
+  const requiredPct = Number(quorum.requiredPercent ?? 0);
+  const eligibleTotal = Number(quorum.eligibleCoefficientTotal ?? 0);
+  const configInvalid = Boolean(quorum.coefficientConfigurationInvalid);
   const trackPct = required > 0 ? Math.min(100, (current / required) * 100) : 0;
   const reached = Boolean(quorum.quorumReached);
   const prev = lastValues.get(root);
@@ -27,13 +30,18 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
     prev != null && !prev.reached && reached && Number.isFinite(prev.current);
   lastValues.set(root, { current, reached });
 
-  const currentLabel = formatPct(current);
-  const requiredLabel = formatPct(required);
+  const currentLabel = formatCoeff(current);
+  const requiredLabel = formatCoeff(required);
   const missing = Number(quorum.missingCoefficient ?? Math.max(0, required - current));
   const statusBadge = `
     <span class="badge ${reached ? "badge-live" : "badge-warn"}">
       ${escapeHtml(reached ? t("quorum.reached") : t("quorum.notReached"))}
     </span>`;
+  const configBanner = configInvalid
+    ? `<p class="quorum-config-warn" role="alert">${escapeHtml(
+        quorum.coefficientConfigurationMessage || t("quorum.configInvalid")
+      )}</p>`
+    : "";
 
   if (compact) {
     root.innerHTML = `
@@ -42,6 +50,10 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
         <strong class="metric-number" data-quorum-current>${currentLabel}</strong>
         <span> / ${requiredLabel}</span>
       </span>
+      <p class="muted quorum-coeff-hint" style="margin:0.25rem 0 0;font-size:0.8rem">
+        ${escapeHtml(t("quorum.coeffHint", { pct: requiredPct.toFixed(0), total: eligibleTotal.toFixed(2) }))}
+      </p>
+      ${configBanner}
     `;
     animateIfNeeded(root.querySelector("[data-quorum-current]"), prev?.current, current);
     return;
@@ -49,7 +61,7 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
 
   const missingBlock = reached
     ? ""
-    : `<p class="quorum-missing"><span class="muted">${escapeHtml(t("quorum.missing") || "Falta")}</span> <strong>${formatPct(missing)}</strong></p>`;
+    : `<p class="quorum-missing"><span class="muted">${escapeHtml(t("quorum.missing") || "Falta")}</span> <strong>${formatCoeff(missing)}</strong></p>`;
 
   root.innerHTML = `
     <div class="quorum-meter ${crossed ? "quorum-just-reached" : ""}" role="group"
@@ -61,6 +73,10 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
           <span class="quorum-required"> ${escapeHtml(t("quorum.required"))} ${requiredLabel}</span>
         </span>
       </div>
+      <p class="muted quorum-coeff-hint" style="margin:0.35rem 0 0;font-size:0.85rem">
+        ${escapeHtml(t("quorum.coeffHint", { pct: requiredPct.toFixed(0), total: eligibleTotal.toFixed(2) }))}
+      </p>
+      ${configBanner}
       <div class="quorum-meter-track" aria-hidden="true">
         <div class="quorum-meter-fill ${reached ? "reached" : ""}" style="width:${trackPct}%"></div>
       </div>
@@ -79,10 +95,10 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
   `;
 
   animateIfNeeded(root.querySelector("[data-quorum-current]"), prev?.current, current);
-  void pctOfRequired;
 }
 
-function formatPct(n) {
+/** Coefficient percent-points of the PH (expected Σ ≈ 100). */
+export function formatCoeff(n) {
   return `${Number(n).toFixed(2)}%`;
 }
 
@@ -90,7 +106,7 @@ function animateIfNeeded(el, from, to) {
   if (!el || from == null || from === to) return;
   const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   if (reduce) {
-    el.textContent = formatPct(to);
+    el.textContent = formatCoeff(to);
     return;
   }
   const start = performance.now();
@@ -99,7 +115,7 @@ function animateIfNeeded(el, from, to) {
     const t = Math.min(1, (now - start) / duration);
     const eased = 1 - (1 - t) * (1 - t);
     const value = from + (to - from) * eased;
-    el.textContent = formatPct(value);
+    el.textContent = formatCoeff(value);
     if (t < 1) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);

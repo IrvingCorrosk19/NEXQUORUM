@@ -1,6 +1,35 @@
 import { api } from "./api.js";
+import { explainBlockCode } from "./contextual-guide.js";
 import { t } from "../i18n/i18n.js";
 import { escapeHtml } from "./ui.js";
+
+export function mapOpenVotingError(error) {
+  const code = String(error?.code || error?.payload?.extensions?.code || "").toUpperCase();
+  const msg = String(error?.message || "");
+  const block = explainBlockCode(code, msg);
+  if (code && block?.title) {
+    return `${block.title}. ${block.explanation} ${block.next}`;
+  }
+  if (code === "COEFFICIENT_CONFIGURATION_INVALID") {
+    return (
+      msg ||
+      "No se puede abrir la votación porque la suma de coeficientes del PH es inválida. Debe corregirse a 100.00%."
+    );
+  }
+  if (code === "MOTION_NOT_PRESENTED" || code === "MOTION_INVALID") {
+    return msg || "La pregunta debe estar Presentada antes de abrir la votación.";
+  }
+  if (code === "ASSEMBLY_NOT_ACTIVE") {
+    return msg || "La asamblea debe estar En curso para abrir votación.";
+  }
+  if (code === "OPEN_VOTING_EXISTS") {
+    return msg || "Ya hay una votación abierta. Ciérrela antes de abrir otra.";
+  }
+  if (code === "NOT_ELIGIBLE") {
+    return msg || "No hay propietarios acreditados elegibles para abrir la votación.";
+  }
+  return msg || "No se pudo abrir la votación.";
+}
 
 export async function openVoting(
   assemblyId,
@@ -12,10 +41,19 @@ export async function openVoting(
   if (resultVisibilityPolicy) {
     body.resultVisibilityPolicy = resultVisibilityPolicy;
   }
-  return api(`/api/assemblies/${assemblyId}/voting/open`, {
-    method: "POST",
-    body
-  });
+  try {
+    return await api(`/api/assemblies/${assemblyId}/voting/open`, {
+      method: "POST",
+      body
+    });
+  } catch (error) {
+    const human = mapOpenVotingError(error);
+    const err = new Error(human);
+    err.status = error?.status;
+    err.code = error?.code;
+    err.payload = error?.payload;
+    throw err;
+  }
 }
 
 export async function castVote(assemblyId, votingSessionId, choice, unitId = null, clientRequestId = null) {

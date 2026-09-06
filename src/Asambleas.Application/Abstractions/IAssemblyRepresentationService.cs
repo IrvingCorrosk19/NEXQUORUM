@@ -37,6 +37,18 @@ public interface IAssemblyRepresentationService
         Guid targetUserId,
         Guid accreditedByUserId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Bulk claim resolution (ownership + approved powers) without N+1.</summary>
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<AssemblyRepresentationSnapshot>>> ResolveEligibleClaimsBulkAsync(
+        Guid assemblyId,
+        IReadOnlyCollection<Guid> userIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Deactivate active representation rows for a user (deaccreditation).</summary>
+    Task<int> RevokeActiveForUserAsync(
+        Guid assemblyId,
+        Guid targetUserId,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record AssemblyRepresentationSnapshot(

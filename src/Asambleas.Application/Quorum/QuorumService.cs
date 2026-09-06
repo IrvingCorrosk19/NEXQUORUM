@@ -3,6 +3,7 @@ namespace Asambleas.Application.Quorum;
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Common;
 using Asambleas.Contracts.Quorum;
+using Asambleas.Domain.Attendance;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
 using Asambleas.Domain.Enums;
@@ -220,7 +221,10 @@ public sealed class QuorumService
             calculation.QuorumReached,
             calculation.PresentUnits,
             calculation.EligibleUnits,
-            now);
+            now,
+            calculation.EligibleCoefficientTotal,
+            calculation.CoefficientConfigurationInvalid,
+            calculation.CoefficientConfigurationMessage);
 
         await _audit.WriteAsync(
             AuditEventType.QuorumChanged,
@@ -257,6 +261,10 @@ public sealed class QuorumService
             ? 0m
             : Math.Max(0m, Math.Round(snapshot.RequiredCoefficient - snapshot.PresentCoefficient, 4, MidpointRounding.AwayFromZero));
 
+        var (invalid, message) = DiagnoseCoefficientConfiguration(
+            eligibleTotal: null,
+            requiredPercent: assembly.RequiredQuorumPercent);
+
         return new QuorumDto(
             assembly.Id,
             snapshot.PresentCoefficient,
@@ -266,7 +274,10 @@ public sealed class QuorumService
             snapshot.PresentUnits,
             snapshot.EligibleUnits,
             snapshot.TimestampUtc,
-            missing);
+            missing,
+            EligibleCoefficientTotal: 0m,
+            CoefficientConfigurationInvalid: invalid,
+            CoefficientConfigurationMessage: message);
     }
 
     private async Task<QuorumDto> CalculateReadOnlyAsync(
@@ -287,20 +298,33 @@ public sealed class QuorumService
             calculation.PresentUnits,
             calculation.EligibleUnits,
             DateTimeOffset.UtcNow,
-            missing);
+            missing,
+            calculation.EligibleCoefficientTotal,
+            calculation.CoefficientConfigurationInvalid,
+            calculation.CoefficientConfigurationMessage);
     }
 
     /// <summary>
     /// Quorum from active AssemblyRepresentation rows whose representative is accredited and present.
     /// Unit coefficients are never double-counted (unique active representation per unit).
     /// </summary>
-    private async Task<(decimal CurrentCoefficient, decimal RequiredCoefficient, bool QuorumReached, int PresentUnits, int EligibleUnits)> CalculateInternalAsync(
+    private async Task<(
+        decimal CurrentCoefficient,
+        decimal RequiredCoefficient,
+        bool QuorumReached,
+        int PresentUnits,
+        int EligibleUnits,
+        decimal EligibleCoefficientTotal,
+        bool CoefficientConfigurationInvalid,
+        string? CoefficientConfigurationMessage)> CalculateInternalAsync(
         Domain.Entities.Assembly assembly,
         CancellationToken cancellationToken)
     {
         var eligibleUnits = await _db.Units
             .AsNoTracking()
-            .Where(u => u.TenantId == assembly.TenantId && u.PropertyHorizontalId == assembly.PropertyHorizontalId)
+            .Where(u => u.TenantId == assembly.TenantId
+                        && u.PropertyHorizontalId == assembly.PropertyHorizontalId
+                        && u.IsActive)
             .Select(u => new { u.Id, u.CoefficientPercent })
             .ToListAsync(cancellationToken);
 
@@ -347,11 +371,179 @@ public sealed class QuorumService
             presentCoefficients,
             assembly.RequiredQuorumPercent);
 
+        var (invalid, message) = DiagnoseCoefficientConfiguration(
+            calculation.EligibleCoefficientTotal,
+            assembly.RequiredQuorumPercent);
+
         return (
             calculation.CurrentCoefficient,
             calculation.RequiredCoefficient,
             calculation.QuorumReached,
             calculation.PresentUnits,
-            eligibleUnits.Count);
+            eligibleUnits.Count,
+            calculation.EligibleCoefficientTotal,
+            invalid,
+            message);
+    }
+
+    /// <summary>
+    /// PH unit coefficients must sum to ~100%. RequiredQuorumPercent is 0–100 of that total.
+    /// When Σ≠100, required coefficient points can exceed 100 (e.g. 381×50%=190.50) — invalid config, not double-count.
+    /// </summary>
+    public static (bool Invalid, string? Message) DiagnoseCoefficientConfiguration(
+        decimal? eligibleTotal,
+        decimal requiredPercent)
+    {
+        if (requiredPercent is < 0 or > 100)
+        {
+            return (true,
+                $"El porcentaje de quórum requerido ({requiredPercent:0.####}%) está fuera del rango 0–100.");
+        }
+
+        if (eligibleTotal is null)
+        {
+            return (false, null);
+        }
+
+        if (!PhOnboarding.CoefficientValidator.IsComplete(eligibleTotal.Value))
+        {
+            var delta = PhOnboarding.CoefficientValidator.Delta(eligibleTotal.Value);
+            return (true,
+                $"La suma de coeficientes de las unidades activas es {eligibleTotal.Value:0.####}%. " +
+                $"Debe ser 100.00% antes de iniciar la asamblea (diferencia {delta:0.####}%). " +
+                "Esto no es el quórum legal requerido — es un padrón inválido.");
+        }
+
+        return (false, null);
+    }
+
+    public async Task EnsureCoefficientConfigurationAllowsProgressAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        var assembly = await _db.Assemblies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+
+        var total = await _db.Units.AsNoTracking()
+            .Where(u => u.TenantId == assembly.TenantId
+                        && u.PropertyHorizontalId == assembly.PropertyHorizontalId
+                        && u.IsActive)
+            .SumAsync(u => u.CoefficientPercent, cancellationToken);
+
+        var (invalid, message) = DiagnoseCoefficientConfiguration(total, assembly.RequiredQuorumPercent);
+        if (invalid)
+        {
+            throw new DomainException(
+                AttendanceCodes.CoefficientConfigurationInvalid,
+                message ?? "Configuración de coeficientes / quórum inválida.");
+        }
+    }
+
+    public async Task<CoefficientPadronDiagnosticDto> GetCoefficientPadronDiagnosticAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var assembly = await _db.Assemblies.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        var units = await _db.Units.AsNoTracking()
+            .Where(u => u.TenantId == assembly.TenantId
+                        && u.PropertyHorizontalId == assembly.PropertyHorizontalId)
+            .OrderBy(u => u.Code)
+            .ToListAsync(cancellationToken);
+
+        var unitIds = units.Select(u => u.Id).ToList();
+        var ownershipCounts = unitIds.Count == 0
+            ? new Dictionary<Guid, int>()
+            : await _db.Ownerships.AsNoTracking()
+                .Where(o => o.IsActive && unitIds.Contains(o.UnitId))
+                .GroupBy(o => o.UnitId)
+                .Select(g => new { UnitId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.UnitId, x => x.Count, cancellationToken);
+
+        var codeGroups = units
+            .GroupBy(u => u.Code.Trim().ToUpperInvariant())
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var activeSum = PhOnboarding.CoefficientValidator.Normalize(
+            units.Where(u => u.IsActive).Sum(u => u.CoefficientPercent));
+        var (invalid, message) = DiagnoseCoefficientConfiguration(activeSum, assembly.RequiredQuorumPercent);
+        var delta = PhOnboarding.CoefficientValidator.Delta(activeSum);
+
+        var rows = units.Select(u =>
+        {
+            var dup = codeGroups.Contains(u.Code.Trim().ToUpperInvariant());
+            string? obs = null;
+            if (!u.IsActive) obs = "Unidad inactiva";
+            else if (u.CoefficientPercent < 0) obs = "Coeficiente negativo";
+            else if (dup) obs = "Código duplicado";
+            else if (ownershipCounts.GetValueOrDefault(u.Id, 0) == 0) obs = "Sin ownership activo";
+
+            return new CoefficientPadronRowDto(
+                u.Id,
+                u.Code,
+                u.CoefficientPercent,
+                u.IsActive,
+                ownershipCounts.GetValueOrDefault(u.Id, 0),
+                dup,
+                obs);
+        }).ToList();
+
+        return new CoefficientPadronDiagnosticDto(
+            assembly.PropertyHorizontalId,
+            assemblyId,
+            activeSum,
+            PhOnboarding.CoefficientValidator.ExpectedTotal,
+            delta,
+            invalid,
+            message ?? (invalid ? "Padrón inválido" : "Padrón válido (suma ≈ 100%)"),
+            PhOnboarding.CoefficientValidator.Tolerance,
+            rows);
+    }
+
+    public async Task<string> ExportCoefficientPadronCsvAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        var diag = await GetCoefficientPadronDiagnosticAsync(assemblyId, cancellationToken);
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("UnitCode,CoefficientPercent,IsActive,ActiveOwnershipCount,PossibleDuplicate,Observation,SumActive,DeltaFrom100,IsInvalid");
+        foreach (var r in diag.Rows)
+        {
+            sb.Append(CsvEscape(r.UnitCode)).Append(',')
+                .Append(r.CoefficientPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                .Append(r.IsActive ? "true" : "false").Append(',')
+                .Append(r.ActiveOwnershipCount).Append(',')
+                .Append(r.PossibleDuplicateCode ? "true" : "false").Append(',')
+                .Append(CsvEscape(r.Observation)).Append(',')
+                .Append(diag.SumActiveCoefficients.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                .Append(diag.DeltaFrom100.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                .Append(diag.IsInvalid ? "true" : "false")
+                .AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
+    private static string CsvEscape(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+        {
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
+        }
+
+        return value;
     }
 }

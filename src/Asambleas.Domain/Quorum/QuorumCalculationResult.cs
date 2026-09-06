@@ -7,4 +7,5 @@ public sealed record QuorumCalculationResult(
     decimal CurrentCoefficient,
     decimal RequiredCoefficient,
     bool QuorumReached,
-    int PresentUnits);
+    int PresentUnits,
+    decimal EligibleCoefficientTotal = 0m);

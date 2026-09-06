@@ -14,4 +14,10 @@ public static class AttendanceCodes
     public const string Unauthorized = "UNAUTHORIZED_ACCREDITATION";
     public const string InvalidUnit = "INVALID_UNIT";
     public const string AssemblyNotOpen = "ASSEMBLY_NOT_OPEN_FOR_CHECKIN";
+    public const string BulkConfirmAbsentRequired = "BULK_CONFIRM_ABSENT_REQUIRED";
+    public const string DeaccreditBlockedVoting = "DEACCREDIT_BLOCKED_VOTING_OPEN";
+    public const string DeaccreditBlockedInProgress = "DEACCREDIT_BLOCKED_ASSEMBLY_IN_PROGRESS";
+    public const string NotAccreditedForDeaccredit = "NOT_ACCREDITED";
+    public const string CoefficientConfigurationInvalid = "COEFFICIENT_CONFIGURATION_INVALID";
+    public const string RequiresMesaValidation = "REQUIRES_MESA_VALIDATION";
 }

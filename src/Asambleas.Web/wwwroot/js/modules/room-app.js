@@ -3,9 +3,10 @@ import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { renderQuorum } from "./quorum.js";
-import { castVote, closeVoting, getMyVoteStatus, openVoting, renderVotePanel, tallyFromCastReceipt } from "./voting.js";
+import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt } from "./voting.js";
 import { createLiveVotingWorkspace } from "./live-voting-workspace.js";
 import { createMobileVotingController } from "./mobile-voting-sheet.js";
+import { resolveContextualGuide, renderContextualGuide, explainBlockCode } from "./contextual-guide.js";
 import {
   completeFloor,
   cancelOwnFloor,
@@ -115,6 +116,7 @@ const state = {
   startedAtUtc: null,
   hub: null,
   intentionalDisconnect: false,
+  connectionStatus: "connecting",
   recording: null,
   recordingStartedAt: null,
   screenShare: null,
@@ -187,12 +189,21 @@ const liveWorkspace = createLiveVotingWorkspace({
   getMotion: () => state.motion,
   refreshRoom: async () => {
     try {
-      const room = await api(`/api/assemblies/${assemblyId}/room-state`);
+      const room = await hydrateRoomState(assemblyId, {
+        userId: state.user?.userId || state.user?.id
+      });
       if (room?.motion) state.motion = room.motion;
       if (room?.session) state.session = room.session;
       if (room?.agenda) state.agenda = room.agenda;
-      const motions = await fetchAssemblyMotions().catch(() => null);
+      if (room?.tally) state.tally = room.tally;
+      if (room?.myVote) state.myVote = room.myVote;
+      const motions = await fetchAssemblyMotions({ force: true }).catch(() => null);
       if (Array.isArray(motions)) state.motions = motions;
+      if (room?.session?.status === "Open" || room?.session?.Status === "Open") {
+        ensureMobileVoting()?.onOpened();
+      } else {
+        ensureMobileVoting()?.sync();
+      }
     } catch {
       /* keep local */
     }
@@ -287,15 +298,32 @@ function mapSpeakerError(error) {
 
 function mapCastError(error) {
   const code = String(error?.code || error?.payload?.extensions?.code || "").toUpperCase();
-  if (code === "ALREADY_VOTED" || /already voted|doble voto/i.test(String(error?.message || ""))) {
+  const msg = String(error?.message || "");
+  const block = explainBlockCode(code, msg);
+  if ([
+    "NOT_ACCREDITED","NOT_ELIGIBLE","NOT_PARTICIPANT","VOTING_NOT_OPEN","MOTION_NOT_PRESENTED",
+    "VOTING_CLOSED","COEFFICIENT_CONFIGURATION_INVALID","ASSEMBLY_CLOSED","ASSEMBLY_NOT_ACTIVE"
+  ].includes(code)) {
+    return `${block.title}. ${block.explanation} ${block.next}`;
+  }
+  if (code === "ALREADY_VOTED" || /already voted|doble voto/i.test(msg)) {
     return t("voting.alreadyRegistered");
   }
   if (code === "NOT_ACCREDITED") return t("voting.notAccredited");
   if (code === "NOT_ELIGIBLE" || code === "NOT_PARTICIPANT") return t("voting.notEligible");
-  if (code === "VOTING_CLOSED" || /cerrad|closed/i.test(String(error?.message || ""))) {
+  if (code === "VOTING_NOT_OPEN" || code === "MOTION_NOT_PRESENTED") {
+    return t("voting.notOpenYet") || "La votación todavía no está abierta. Espere a que la mesa la abra.";
+  }
+  if (code === "VOTING_CLOSED" || /cerrad|closed/i.test(msg)) {
     return t("voting.votingFinished");
   }
-  return t("voting.castFailed");
+  if (code === "COEFFICIENT_CONFIGURATION_INVALID") {
+    return msg || t("voting.coeffBlocked") || "No se puede votar: el padrón de coeficientes del PH es inválido.";
+  }
+  if (code === "ASSEMBLY_CLOSED" || code === "ASSEMBLY_NOT_ACTIVE") {
+    return t("voting.assemblyNotActive") || "La asamblea no admite votación en este momento.";
+  }
+  return msg || t("voting.castFailed");
 }
 
 async function hydrateSpeakerQueue() {
@@ -1110,6 +1138,7 @@ function showError(message) {
 }
 
 function setConnectionState(status) {
+  state.connectionStatus = status;
   const label =
     {
       connected: t("connection.online"),
@@ -1121,6 +1150,12 @@ function setConnectionState(status) {
     <span class="status-dot ${status === "connected" ? "online" : status === "reconnecting" ? "degraded" : "offline"}" aria-hidden="true"></span>
     <span>${escapeHtml(label)}</span>
   `;
+
+  try {
+    syncContextualGuide();
+  } catch {
+    /* guide mount may not exist yet during boot */
+  }
 
   // Keep the room usable during SignalR reconnect — fullscreen only on hard drop.
   if (connectionLostTimer) {
@@ -1749,6 +1784,7 @@ function syncOperationalPriority() {
   syncContextPriority();
   syncLiveMode();
   syncOperatorActions();
+  syncContextualGuide();
   syncFloorBanner();
 }
 
@@ -1778,6 +1814,96 @@ async function fetchAssemblyMotions({ force = false } = {}) {
   const cacheKey = `GET:${path}`;
   if (force) invalidateCachedGet(cacheKey);
   return cachedGet(path, { ttlMs: 2500, cacheKey });
+}
+
+
+function findSelfParticipant() {
+  const uid = state.user?.userId || state.user?.id;
+  if (!uid) return null;
+  const list = state.participants instanceof Map
+    ? [...state.participants.values()]
+    : Array.isArray(state.participants)
+      ? state.participants
+      : [];
+  return (
+    list.find(
+      (p) =>
+        String(p.userId || p.UserId || "").toLowerCase() === String(uid).toLowerCase()
+    ) || null
+  );
+}
+
+function syncContextualGuide() {
+  const guideRoot = qs("#contextual-guide");
+  const stageRoot = qs("#contextual-guide-stage");
+  if (!guideRoot && !stageRoot) return;
+
+  const guide = resolveContextualGuide({
+    role: state.viewerRole === "Operator" ? "Operator" : "Owner",
+    user: state.user,
+    assembly: state.assembly,
+    motion: state.motion,
+    motions: state.motions || [],
+    session: state.session,
+    quorum: state.quorum,
+    self: findSelfParticipant(),
+    participants:
+      state.participants instanceof Map
+        ? [...state.participants.values()]
+        : state.participants || [],
+    myVote: state.myVote,
+    myVoteStatus: state.myVoteStatus,
+    connection: state.connectionStatus,
+    assemblyId,
+    phId: state.assembly?.propertyHorizontalId || null
+  });
+
+  const onAction = async (actionId) => {
+    try {
+      if (actionId === "reload") { location.reload(); return; }
+      if (actionId === "go-checkin") { location.href = `/checkin.html?assemblyId=${assemblyId}`; return; }
+      if (actionId === "padron-diagnostic") {
+        window.open(`/api/assemblies/${assemblyId}/quorum/padron-diagnostic`, "_blank", "noopener");
+        return;
+      }
+      if (actionId === "start-assembly") { qs("#btn-start")?.click(); return; }
+      if (actionId === "resume-assembly") { qs("#btn-resume")?.click(); return; }
+      if (actionId === "focus-vote" || actionId === "open-voting" || actionId === "close-voting") {
+        qs("#tab-vote")?.click();
+        qs("#governance-sidebar")?.classList.add("is-open");
+        if (actionId === "open-voting") qs('[data-action="open-vote"]')?.click();
+        if (actionId === "close-voting") qs('[data-action="close-vote"]')?.click();
+        return;
+      }
+      if (actionId === "present-motion" || actionId === "quick-question") {
+        qs("#tab-vote")?.click();
+        qs("#governance-sidebar")?.classList.add("is-open");
+        if (actionId === "quick-question") qs('[data-lv="quick"]')?.click();
+        else {
+          const presentBtn = qs('[data-lq="present"]') || qs("[data-action='present-motion']") || qs('[data-lv="pick"]');
+          presentBtn?.click();
+        }
+      }
+    } catch (error) {
+      const block = explainBlockCode(error?.code, error?.message);
+      showError(`${block.title}: ${block.explanation}`);
+    }
+  };
+
+  if (guideRoot) renderContextualGuide(guideRoot, guide, { onAction });
+
+  if (stageRoot) {
+    const operator = state.viewerRole === "Operator";
+    const showStage =
+      !operator &&
+      (String(guide.id).includes("owner") || guide.severity === "danger" || guide.severity === "warning") &&
+      guide.id !== "owner-can-vote";
+    if (showStage) renderContextualGuide(stageRoot, guide, { onAction });
+    else {
+      stageRoot.hidden = true;
+      stageRoot.innerHTML = "";
+    }
+  }
 }
 
 /** Coalesce SignalR/UI bursts into one paint per animation frame. */
@@ -1968,6 +2094,10 @@ function refreshPanelsNow() {
         showError(t("assembly.noMotion"));
         return;
       }
+      if (state.motion.status === "Draft") {
+        showError("La pregunta está en borrador. Preséntela antes de abrir la votación.");
+        return;
+      }
       const ok = await confirmDialog({
         title: t("assembly.openVoting"),
         body: t("assembly.confirmOpenVoting"),
@@ -1976,17 +2106,26 @@ function refreshPanelsNow() {
       });
       if (!ok) return;
       const hidePartial = policy !== "LiveResults";
-      state.session = await openVoting(assemblyId, state.motion.id, hidePartial, policy);
-      state.tally = {
-        votesCast: 0,
-        eligibleVoters: state.session.eligibleVoters,
-        eligibleCoefficient: state.session.eligibleCoefficient,
-        trendHidden: policy !== "LiveResults",
-        resultVisibilityPolicy: policy
-      };
-      state.myVote = null;
-      state.myVoteStatus = null;
-      refreshPanels();
+      try {
+        invalidateCachedGet(`/api/assemblies/${assemblyId}/`);
+        state.session = await openVoting(assemblyId, state.motion.id, hidePartial, policy);
+        state.tally = {
+          votesCast: 0,
+          eligibleVoters: state.session.eligibleVoters,
+          eligibleCoefficient: state.session.eligibleCoefficient,
+          trendHidden: policy !== "LiveResults",
+          resultVisibilityPolicy: policy
+        };
+        state.myVote = null;
+        state.myVoteStatus = null;
+        refreshPanels();
+        ensureMobileVoting()?.onOpened();
+      } catch (error) {
+        const mapped = mapOpenVotingError(error);
+        const block = explainBlockCode(error?.code, mapped);
+        showError(`${block.title}. ${block.explanation} ${block.next}`);
+        syncContextualGuide();
+      }
     },
     onClose: async () => {
       const cast = state.tally?.votesCast ?? 0;

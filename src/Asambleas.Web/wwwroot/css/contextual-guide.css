@@ -1,0 +1,155 @@
+/* Contextual guidance — assembly room */
+.cx-guide {
+  margin: 0 0 var(--space-3, 0.75rem);
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--color-border, #d5d0c8);
+  background: linear-gradient(165deg, #fbfaf7 0%, #f3f0ea 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+}
+
+.cx-guide--info {
+  border-color: #c5d4e8;
+  background: linear-gradient(165deg, #f5f8fc 0%, #eef3f9 100%);
+}
+.cx-guide--success {
+  border-color: #b7d4be;
+  background: linear-gradient(165deg, #f4faf5 0%, #e8f3ea 100%);
+}
+.cx-guide--warning {
+  border-color: #e2c58a;
+  background: linear-gradient(165deg, #fffaf0 0%, #f8efd8 100%);
+}
+.cx-guide--danger {
+  border-color: #e0a8a8;
+  background: linear-gradient(165deg, #fff6f6 0%, #f8e8e8 100%);
+}
+
+.cx-guide__eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted, #6b655c);
+  font-weight: 600;
+}
+
+.cx-guide__title {
+  margin: 0 0 0.45rem;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-ink, #1c1915);
+}
+
+.cx-guide__explain {
+  margin: 0 0 0.65rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--color-ink, #1c1915);
+}
+
+.cx-guide__steps {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.cx-guide__steps li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.cx-guide__step-n {
+  flex: 0 0 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(28, 25, 21, 0.08);
+  color: var(--color-ink, #1c1915);
+}
+
+.cx-guide__who {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  color: var(--color-muted, #6b655c);
+}
+
+.cx-guide__cta {
+  width: 100%;
+  margin-bottom: 0.65rem;
+}
+
+.cx-guide__details {
+  border-top: 1px solid rgba(28, 25, 21, 0.08);
+  padding-top: 0.45rem;
+}
+
+.cx-guide__details summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-muted, #6b655c);
+  list-style: none;
+}
+.cx-guide__details summary::-webkit-details-marker { display: none; }
+.cx-guide__details summary::before {
+  content: "▸ ";
+  display: inline-block;
+}
+.cx-guide__details[open] summary::before { content: "▾ "; }
+
+.cx-guide__facts {
+  margin: 0.5rem 0 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.cx-guide__fact {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+.cx-guide__fact dt {
+  margin: 0;
+  color: var(--color-muted, #6b655c);
+  font-weight: 600;
+}
+.cx-guide__fact dd {
+  margin: 0;
+  color: var(--color-ink, #1c1915);
+}
+.cx-guide__fact.is-danger dd {
+  color: #8a2f2f;
+  font-weight: 600;
+}
+
+/* Compact stage twin for owners */
+.cx-guide-stage {
+  margin: 0 0 0.75rem;
+}
+.cx-guide-stage[hidden] { display: none !important; }
+
+@media (max-width: 900px) {
+  .cx-guide__fact {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+  .cx-guide {
+    margin-inline: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cx-guide { transition: none; }
+}

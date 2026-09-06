@@ -42,6 +42,7 @@ public static class QuorumEngine
             CurrentCoefficient: currentCoefficient,
             RequiredCoefficient: requiredCoefficient,
             QuorumReached: currentCoefficient >= requiredCoefficient,
-            PresentUnits: present.Length);
+            PresentUnits: present.Length,
+            EligibleCoefficientTotal: Math.Round(eligibleTotal, 4, MidpointRounding.AwayFromZero));
     }
 }

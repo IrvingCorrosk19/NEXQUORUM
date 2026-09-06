@@ -1,8 +1,8 @@
-import { api } from "./api.js";
+import { api, invalidateCachedGet } from "./api.js";
 import { escapeHtml, confirmDialog, showToast, qs } from "./ui.js";
 import { showGlobalLoader, hideGlobalLoader, forceHideGlobalLoader, setGlobalLoaderMessage } from "./loading.js";
 import { hasPermission } from "./auth.js";
-import { openVoting, closeVoting } from "./voting.js";
+import { openVoting, closeVoting, mapOpenVotingError } from "./voting.js";
 
 /** Deterministic question order: DisplayOrder → CreatedAt → Id. */
 function sortMotionsDeterministic(motions) {
@@ -21,20 +21,20 @@ function humanQuestionStatus(m, activeMotionId, session) {
   const sid = session?.motionId || session?.MotionId;
   const sessionOpen = session?.status === "Open" || session?.Status === "Open";
   if (sessionOpen && sid && sid === m.id) {
-    return { key: "active", label: "Activa — votación abierta" };
+    return { key: "active", label: "Votación abierta" };
   }
   if (m.status === "Voting" && (!sid || sid === m.id)) {
-    return { key: "active", label: "Activa — votación abierta" };
+    return { key: "active", label: "Votación abierta" };
   }
   if (m.status === "Approved" || m.status === "Rejected") {
     return { key: "answered", label: "Respondida" };
   }
   if (m.status === "Cancelled") return { key: "closed", label: "Anulada" };
   if (m.status === "Closed") return { key: "closed", label: "Cerrada" };
-  if (m.id === activeMotionId || m.status === "Presented" || m.status === "Published") {
-    return { key: "pending", label: "Pendiente" };
+  if (m.status === "Presented" || (m.id === activeMotionId && m.status !== "Draft")) {
+    return { key: "pending", label: "Presentada — falta abrir votación" };
   }
-  if (m.status === "Draft") return { key: "pending", label: "Preparada" };
+  if (m.status === "Draft") return { key: "pending", label: "Borrador — falta presentar" };
   return { key: "pending", label: m.status || "Pendiente" };
 }
 
@@ -144,6 +144,21 @@ export function createLiveVotingWorkspace({
                 ${
                   manage
                     ? `<span class="lq-ops">
+                        ${
+                          m.status === "Draft"
+                            ? `<button type="button" class="btn btn-secondary btn-xs" data-lq="present" data-id="${m.id}">Presentar pregunta</button>`
+                            : ""
+                        }
+                        ${
+                          m.status === "Presented" && !isActive
+                            ? `<button type="button" class="btn btn-primary btn-xs" data-lq="open" data-id="${m.id}">Abrir votación</button>`
+                            : ""
+                        }
+                        ${
+                          isActive
+                            ? `<button type="button" class="btn btn-danger btn-xs" data-lq="close" data-id="${m.id}">Cerrar votación</button>`
+                            : ""
+                        }
                         <button type="button" class="btn btn-ghost btn-xs" data-lq="up" data-id="${m.id}" title="Subir" ${n <= 1 ? "disabled" : ""}>↑</button>
                         <button type="button" class="btn btn-ghost btn-xs" data-lq="down" data-id="${m.id}" title="Bajar" ${n >= allOrdered.length ? "disabled" : ""}>↓</button>
                         <button type="button" class="btn btn-ghost btn-xs" data-lq="archive" data-id="${m.id}" title="Eliminar" ${m.status === "Draft" || m.status === "Presented" ? "" : "hidden"}>✕</button>
@@ -258,8 +273,11 @@ export function createLiveVotingWorkspace({
         try {
           if (action === "archive") await archiveMotion(id);
           if (action === "up" || action === "down") await moveMotion(id, action);
+          if (action === "present") await presentMotionById(id);
+          if (action === "open") await openMotionVoting(id);
+          if (action === "close") await closeActiveVoting();
         } catch (err) {
-          showToast(err.message || "Error", "error");
+          showToast(mapOpenVotingError(err) || err.message || "Error", "error");
         }
       });
     });
@@ -379,8 +397,9 @@ export function createLiveVotingWorkspace({
       </label>
       <footer class="live-vote-dialog-actions">
         <button type="submit" class="btn btn-secondary" value="cancel">Cancelar</button>
-        <button type="submit" class="btn btn-primary" value="save">Guardar</button>
-        <button type="submit" class="btn btn-primary" value="open">Guardar y abrir</button>
+        <button type="submit" class="btn btn-secondary" value="save">Guardar borrador</button>
+        <button type="submit" class="btn btn-primary" value="present">Guardar y presentar</button>
+        <button type="submit" class="btn btn-primary" value="open">Guardar, presentar y abrir</button>
       </footer>
     `);
     if (!ui) return;
@@ -409,30 +428,55 @@ export function createLiveVotingWorkspace({
         defaultResultVisibilityPolicy: String(fd.get("vis")),
         optionsJson: JSON.stringify(["A favor", "En contra", "Abstención"])
       };
-      showGlobalLoader("Guardando votación…", { immediate: true });
+      if (action === "open") {
+        const ok = await confirmDialog({
+          title: "Guardar, presentar y abrir",
+          body: "Se creará la pregunta, se presentará y se abrirá la votación en tres pasos. Si alguno falla, se detiene el flujo.",
+          confirmLabel: "Continuar"
+        });
+        if (!ok) return;
+      }
+      showGlobalLoader("Guardando pregunta…", { immediate: true });
       try {
+        invalidateCachedGet(`/api/assemblies/${getAssemblyId()}/`);
         const created = await api(`/api/assemblies/${getAssemblyId()}/motions`, { method: "POST", body });
         await api(`/api/assemblies/${getAssemblyId()}/motions/${created.id}/publish`, { method: "POST" });
+
+        if (action === "save") {
+          ui.dialog.close();
+          showToast("Borrador guardado. Presente la pregunta y luego abra la votación.", "success");
+          await refreshRoom?.();
+          onMotionChanged?.();
+          return;
+        }
+
+        setGlobalLoaderMessage("Presentando pregunta…");
         await api(`/api/assemblies/${getAssemblyId()}/motions/present`, {
           method: "POST",
           body: { motionId: created.id }
         });
-        if (action === "open") {
-          // Swap message — do NOT nest another showGlobalLoader (depth leak → stuck overlay).
-          setGlobalLoaderMessage("Abriendo votación…");
-          await openVoting(
-            getAssemblyId(),
-            created.id,
-            body.defaultResultVisibilityPolicy !== "LiveResults",
-            body.defaultResultVisibilityPolicy
-          );
+
+        if (action === "present") {
+          ui.dialog.close();
+          showToast("Pregunta presentada. Falta abrir la votación.", "success");
+          await refreshRoom?.();
+          onMotionChanged?.();
+          return;
         }
+
+        setGlobalLoaderMessage("Abriendo votación…");
+        await openVoting(
+          getAssemblyId(),
+          created.id,
+          body.defaultResultVisibilityPolicy !== "LiveResults",
+          body.defaultResultVisibilityPolicy
+        );
         ui.dialog.close();
-        showToast("Votación lista", "success");
+        showToast("Votación abierta. Los participantes ya pueden votar.", "success");
         await refreshRoom?.();
         onMotionChanged?.();
       } catch (err) {
-        showToast(err.message, "error");
+        showToast(mapOpenVotingError(err) || err.message, "error");
       } finally {
         forceHideGlobalLoader();
       }
@@ -485,7 +529,7 @@ export function createLiveVotingWorkspace({
         });
         ui.dialog.close();
         await refreshRoom?.();
-        showToast("Moción presentada", "success");
+        showToast("Pregunta presentada. Falta abrir la votación.", "success");
       } catch (err) {
         showToast(err.message, "error");
       } finally {

@@ -77,6 +77,11 @@ public sealed class AssembliesController : ControllerBase
     public Task<AssemblySummaryDto> StartCheckIn(Guid assemblyId, CancellationToken cancellationToken) =>
         _assemblies.StartCheckInAsync(assemblyId, cancellationToken);
 
+    [HttpPost("{assemblyId:guid}/close-checkin")]
+    [Authorize(Policy = Permissions.AssemblyStart)]
+    public Task<AssemblySummaryDto> CloseCheckIn(Guid assemblyId, CancellationToken cancellationToken) =>
+        _assemblies.CloseCheckInAsync(assemblyId, cancellationToken);
+
     [HttpPost("{assemblyId:guid}/start")]
     [Authorize(Policy = Permissions.AssemblyStart)]
     public Task<AssemblySummaryDto> Start(Guid assemblyId, CancellationToken cancellationToken) =>

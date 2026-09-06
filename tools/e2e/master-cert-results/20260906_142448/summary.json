@@ -1,0 +1,10 @@
+{
+  "stamp": "E2E-CERT-MASTER-20260906_142448",
+  "base": "https://localhost:7188",
+  "at": "2026-09-06T19:43:01.052931+00:00",
+  "PASS": 34,
+  "FAIL": 0,
+  "PENDING": 77,
+  "BLOCKED": 1,
+  "SKIP": 0
+}

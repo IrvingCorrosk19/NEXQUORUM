@@ -1,0 +1,32 @@
+{
+  "stamp": "E2E-CERT-MASTER-20260906_142448",
+  "base": "https://localhost:7188",
+  "summary": {
+    "stamp": "E2E-CERT-MASTER-20260906_142448",
+    "base": "https://localhost:7188",
+    "at": "2026-09-06T19:42:14.264Z",
+    "PASS": 31,
+    "FAIL": 0,
+    "PENDING": 80,
+    "BLOCKED": 1,
+    "SKIP": 0
+  },
+  "verdict": {
+    "verdict": "PARTIALLY CERTIFIED",
+    "pass": 31,
+    "fail": 0,
+    "pending": 80,
+    "blocked": 1,
+    "openP0": 0,
+    "openP1": 0,
+    "openP2": 0
+  },
+  "e2ePhId": "cbbb01ce-d43a-4d9d-bcb0-d401d67675e4",
+  "consoleErrors": [
+    {
+      "tag": "AUTH-01",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    }
+  ],
+  "defectsOpen": 0
+}

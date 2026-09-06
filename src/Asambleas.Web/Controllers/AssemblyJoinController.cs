@@ -2,12 +2,14 @@ namespace Asambleas.Web.Controllers;
 
 using System.Security.Claims;
 using Asambleas.Application.Abstractions;
+using Asambleas.Application.Attendance;
 using Asambleas.Application.Communications;
 using Asambleas.Application.Security;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Enums;
 using Asambleas.Infrastructure.Identity;
 using Asambleas.Infrastructure.Seed;
+using Asambleas.Infrastructure.Tenancy;
 using Asambleas.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -24,6 +26,9 @@ public sealed class AssemblyJoinController : ControllerBase
     private readonly IOwnerPortalIdentityService _identity;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly AttendanceService _attendance;
+    private readonly ICurrentTenant _currentTenant;
+    private readonly IVerifiedJoinProofService _verifiedJoinProofs;
     private readonly ILogger<AssemblyJoinController> _logger;
 
     public AssemblyJoinController(
@@ -32,6 +37,9 @@ public sealed class AssemblyJoinController : ControllerBase
         IOwnerPortalIdentityService identity,
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
+        AttendanceService attendance,
+        ICurrentTenant currentTenant,
+        IVerifiedJoinProofService verifiedJoinProofs,
         ILogger<AssemblyJoinController> logger)
     {
         _links = links;
@@ -39,6 +47,9 @@ public sealed class AssemblyJoinController : ControllerBase
         _identity = identity;
         _userManager = userManager;
         _signInManager = signInManager;
+        _attendance = attendance;
+        _currentTenant = currentTenant;
+        _verifiedJoinProofs = verifiedJoinProofs;
         _logger = logger;
     }
 
@@ -224,8 +235,16 @@ public sealed class AssemblyJoinController : ControllerBase
         var (assemblyId, redirect) = await _links.ClaimAsync(request.Token, userId, recipient.Email, cancellationToken);
         await _links.MarkRedeemedAsync(link.Id, cancellationToken);
 
+        // Server-scoped redeem proof (not sessionStorage). Single-use at check-in; never auto-accredits.
+        _verifiedJoinProofs.Issue(
+            link.TenantId,
+            link.PropertyHorizontalId,
+            assemblyId,
+            userId,
+            link.Id);
+
         _logger.LogInformation(
-            "Join redeem ok linkId={LinkId} assemblyId={AssemblyId} userId={UserId}",
+            "Join redeem ok linkId={LinkId} assemblyId={AssemblyId} userId={UserId} (no auto-accredit; verified-join proof issued)",
             link.Id, assemblyId, userId);
 
         return Ok(new JoinClaimDto(assemblyId, redirect));
@@ -255,7 +274,18 @@ public sealed class AssemblyJoinController : ControllerBase
 
         try
         {
+            var peek = await _links.PeekValidAsync(request.Token, cancellationToken);
             var (assemblyId, redirect) = await _links.ClaimAsync(request.Token, userId, email, cancellationToken);
+            if (peek is not null)
+            {
+                _verifiedJoinProofs.Issue(
+                    peek.TenantId,
+                    peek.PropertyHorizontalId,
+                    assemblyId,
+                    userId,
+                    peek.Id);
+            }
+
             return Ok(new JoinClaimDto(assemblyId, redirect));
         }
         catch (DomainException ex) when (ex.Code is "INVALID_OR_EXPIRED" or "AUTH_REQUIRED" or "JOIN_EMAIL_MISMATCH")
@@ -346,6 +376,28 @@ public sealed class AssemblyJoinController : ControllerBase
             _logger.LogWarning(ex, "Join resend request failed (soft)");
             return Ok(new { message = okMsg });
         }
+    }
+
+    private void BindTenantContext(
+        Guid tenantId,
+        Guid propertyHorizontalId,
+        Guid userId,
+        string displayName,
+        IReadOnlyList<string> roles,
+        IReadOnlyList<string> permissions)
+    {
+        if (_currentTenant is not CurrentTenant live)
+        {
+            return;
+        }
+
+        live.TenantId = tenantId;
+        live.PropertyHorizontalId = propertyHorizontalId;
+        live.UserId = userId;
+        live.IsAuthenticated = true;
+        live.DisplayName = displayName;
+        live.Roles = roles.ToList();
+        live.Permissions = permissions.ToList();
     }
 
     private async Task<List<string>> ResolveEffectiveRolesAsync(ApplicationUser user, CancellationToken cancellationToken)

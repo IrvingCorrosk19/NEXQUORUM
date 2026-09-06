@@ -25,17 +25,20 @@ public sealed class AuthController : ControllerBase
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly OwnerPasswordResetService _passwordResets;
     private readonly IAsambleasDbContext _db;
+    private readonly IVerifiedJoinProofService _verifiedJoinProofs;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         OwnerPasswordResetService passwordResets,
-        IAsambleasDbContext db)
+        IAsambleasDbContext db,
+        IVerifiedJoinProofService verifiedJoinProofs)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _passwordResets = passwordResets;
         _db = db;
+        _verifiedJoinProofs = verifiedJoinProofs;
     }
 
     [AllowAnonymous]
@@ -104,6 +107,11 @@ public sealed class AuthController : ControllerBase
         var extraClaims = BuildClaims(user, roles, permissions, existingClaims);
 
         // Mitigate session fixation: clear any prior cookie before issuing a new identity.
+        if (Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var priorUserId) && priorUserId != Guid.Empty)
+        {
+            _verifiedJoinProofs.InvalidateUser(priorUserId);
+        }
+
         await _signInManager.SignOutAsync();
         await _signInManager.SignInWithClaimsAsync(user, isPersistent: false, extraClaims);
 
@@ -122,6 +130,11 @@ public sealed class AuthController : ControllerBase
     [IgnoreAntiforgeryToken]
     public async Task<ActionResult<LogoutResponse>> Logout()
     {
+        if (Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) && userId != Guid.Empty)
+        {
+            _verifiedJoinProofs.InvalidateUser(userId);
+        }
+
         await _signInManager.SignOutAsync();
         return Ok(new LogoutResponse(true));
     }

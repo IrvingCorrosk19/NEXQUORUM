@@ -10,6 +10,13 @@ public interface IAuditService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Enqueues multiple audit rows and persists them in a single SaveChanges (bulk accreditation).
+    /// </summary>
+    Task WriteManyAsync(
+        IReadOnlyList<(string EventType, Guid? AssemblyId, Guid? CorrelationId, object? Metadata)> events,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Writes an audit event with an explicit tenant (anonymous flows such as invitation activation).
     /// </summary>
     Task WriteSystemAsync(

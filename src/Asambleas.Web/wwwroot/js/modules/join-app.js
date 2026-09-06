@@ -116,6 +116,16 @@ async function redeemAndGo(token, title, body, actions, alert) {
       method: "POST",
       body: { token }
     });
+    try {
+      // UX-only assembly hint. Audit method VerifiedJoinLink requires server proof for this user.
+      if (claimed.assemblyId) {
+        sessionStorage.setItem(`asambleas.vjl:${claimed.assemblyId}`, "1");
+      }
+      sessionStorage.removeItem("asambleas.verifiedJoinLink");
+      sessionStorage.removeItem("asambleas.verifiedJoinAssemblyId");
+    } catch {
+      /* ignore */
+    }
     const target = claimed.redirectPath || `/assembly.html?assemblyId=${claimed.assemblyId}`;
     title.textContent = "Entrando a la asamblea…";
     body.textContent = "";

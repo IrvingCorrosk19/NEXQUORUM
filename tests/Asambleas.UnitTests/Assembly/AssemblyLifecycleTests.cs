@@ -18,6 +18,7 @@ public sealed class AssemblyLifecycleTests
     [InlineData(AssemblyStatus.Draft, AssemblyStatus.Cancelled)]
     [InlineData(AssemblyStatus.Scheduled, AssemblyStatus.Cancelled)]
     [InlineData(AssemblyStatus.CheckIn, AssemblyStatus.Cancelled)]
+    [InlineData(AssemblyStatus.CheckIn, AssemblyStatus.Scheduled)]
     public void Allows_valid_transitions(AssemblyStatus from, AssemblyStatus to)
     {
         AssemblyLifecycle.CanTransition(from, to).Should().BeTrue();

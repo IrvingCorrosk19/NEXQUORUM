@@ -13,6 +13,8 @@ public static class Permissions
 
     public const string AttendanceView = "attendance:view";
     public const string AttendanceManage = "attendance:manage";
+    /// <summary>Exceptional: accredit Registered invitees with no attendance evidence.</summary>
+    public const string AttendanceForceAbsent = "attendance:force-absent";
 
     public const string QuorumView = "quorum:view";
 
@@ -78,6 +80,7 @@ public static class Permissions
         CalendarView,
         AttendanceView,
         AttendanceManage,
+        AttendanceForceAbsent,
         QuorumView,
         AgendaView,
         AgendaManage,

@@ -9,7 +9,10 @@ public sealed record QuorumStateDto(
     int PresentUnits,
     int EligibleUnits,
     DateTimeOffset CalculatedAtUtc,
-    decimal MissingCoefficient = 0m);
+    decimal MissingCoefficient = 0m,
+    decimal EligibleCoefficientTotal = 0m,
+    bool CoefficientConfigurationInvalid = false,
+    string? CoefficientConfigurationMessage = null);
 
 /// <summary>
 /// Read model for room hydrate / dashboard (aligned with <see cref="QuorumStateDto"/>).
@@ -23,7 +26,10 @@ public sealed record QuorumDto(
     int PresentUnits,
     int EligibleUnits,
     DateTimeOffset CalculatedAtUtc,
-    decimal MissingCoefficient = 0m);
+    decimal MissingCoefficient = 0m,
+    decimal EligibleCoefficientTotal = 0m,
+    bool CoefficientConfigurationInvalid = false,
+    string? CoefficientConfigurationMessage = null);
 
 public sealed record QuorumSnapshotDto(
     Guid Id,

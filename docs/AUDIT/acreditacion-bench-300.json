@@ -1,0 +1,10 @@
+{
+  "operation": "accredit-bulk",
+  "records": 300,
+  "previewMs": 255,
+  "accreditMs": 495,
+  "seedMs": 268,
+  "saveChanges": 1,
+  "provider": "PostgreSQL",
+  "atUtc": "2026-09-06T17:54:35.0939546+00:00"
+}

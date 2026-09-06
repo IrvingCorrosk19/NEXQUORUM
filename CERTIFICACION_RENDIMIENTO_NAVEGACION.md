@@ -1,0 +1,9 @@
+# CERTIFICACION_RENDIMIENTO_NAVEGACION
+
+**Stamp:** E2E-CERT-MASTER-20260906_142448
+
+**Estado:** PARTIALLY CERTIFIED / PENDING gates
+
+PENDING — nav-perf no reejecutado en esta ola.
+
+Ver `CERTIFICACION_FINAL_MASTER_BROWSER_E2E.md` para veredicto calculado.

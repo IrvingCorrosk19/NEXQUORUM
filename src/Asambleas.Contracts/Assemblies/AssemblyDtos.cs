@@ -59,7 +59,7 @@ public sealed record AssemblyParticipantDto(
     int RepresentationCount = 0,
     string? PresenceType = null);
 
-public sealed record CheckInRequest(Guid? UnitId, string PresenceType);
+public sealed record CheckInRequest(Guid? UnitId, string PresenceType, string? Method = null);
 
 public sealed record CheckInResponse(
     Guid ParticipantId,

@@ -53,16 +53,26 @@ function isCompactViewport() {
 }
 
 function mapCastError(error) {
-  const code = String(error?.code || error?.message || "").toUpperCase();
+  const code = String(error?.code || error?.payload?.extensions?.code || error?.message || "").toUpperCase();
   const status = error?.status;
+  const msg = String(error?.message || "");
   if (code.includes("ALREADY_VOTED") || status === 409) {
     return t("voting.alreadyVoted") || "Ya registró su voto en esta votación.";
+  }
+  if (code.includes("VOTING_NOT_OPEN") || code.includes("MOTION_NOT_PRESENTED")) {
+    return t("voting.notOpenYet") || "La votación todavía no está abierta. Espere a que la mesa la abra.";
   }
   if (code.includes("CLOSED") || code.includes("VOTING_CLOSED")) {
     return t("mvote.closedBeforeCast") || "La votación fue cerrada antes de registrar su voto.";
   }
-  if (code.includes("NOT_ELIGIBLE") || code.includes("NOT_ACCREDITED") || status === 403) {
+  if (code.includes("NOT_ACCREDITED")) {
+    return t("voting.notAccredited") || "Su participación todavía no ha sido acreditada por la mesa.";
+  }
+  if (code.includes("NOT_ELIGIBLE") || code.includes("NOT_PARTICIPANT") || status === 403) {
     return t("voting.notEligible") || "No está habilitado para votar en esta ronda.";
+  }
+  if (code.includes("COEFFICIENT_CONFIGURATION_INVALID")) {
+    return msg || t("voting.coeffBlocked") || "El padrón de coeficientes del PH es inválido.";
   }
   if (code.includes("FAILED TO FETCH") || code.includes("NETWORK")) {
     return (
@@ -70,7 +80,7 @@ function mapCastError(error) {
       "No pudimos confirmar su voto todavía. Conservaremos esta pantalla mientras restablecemos la conexión."
     );
   }
-  return error?.message || t("voting.castFailed") || "No se pudo registrar el voto.";
+  return msg || t("voting.castFailed") || "No se pudo registrar el voto.";
 }
 
 /**

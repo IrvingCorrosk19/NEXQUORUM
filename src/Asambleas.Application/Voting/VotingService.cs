@@ -7,6 +7,7 @@ using Asambleas.Contracts.Voting;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
 using Asambleas.Domain.Enums;
+using Asambleas.Domain.Attendance;
 using Asambleas.Domain.Voting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -54,6 +55,22 @@ public sealed class VotingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
+        {
+            var coeffTotal = await _db.Units.AsNoTracking()
+                .Where(u => u.TenantId == assembly.TenantId
+                            && u.PropertyHorizontalId == assembly.PropertyHorizontalId
+                            && u.IsActive)
+                .SumAsync(u => u.CoefficientPercent, cancellationToken);
+            var (coeffInvalid, _) = QuorumService.DiagnoseCoefficientConfiguration(
+                coeffTotal, assembly.RequiredQuorumPercent);
+            if (coeffInvalid)
+            {
+                throw new DomainException(
+                    AttendanceCodes.CoefficientConfigurationInvalid,
+                    $"No se puede abrir la votación porque la suma de coeficientes del PH es {coeffTotal:0.00}%. Debe corregirse a 100.00%.");
+            }
+        }
+
         if (assembly.Status != AssemblyStatus.InProgress)
         {
             throw new DomainException(
@@ -69,9 +86,10 @@ public sealed class VotingService
 
         if (motion.Status is not MotionStatus.Presented)
         {
-            throw new DomainException(
-                VotingCodes.MotionInvalid,
-                "Voting can only be opened for a presented motion.");
+            var hint = motion.Status == MotionStatus.Draft
+                ? "La pregunta aún está en borrador. Preséntela antes de abrir la votación."
+                : $"La pregunta está en estado '{motion.Status}'. Solo se puede abrir votación cuando está Presentada.";
+            throw new DomainException(VotingCodes.MotionNotPresented, hint);
         }
 
         if (motion.InstrumentKind == VotingDesignCodes.Instrument.Survey)
@@ -280,9 +298,13 @@ public sealed class VotingService
 
         if (session.Status != VotingSessionStatus.Open)
         {
-            throw new DomainException(
-                VotingCodes.VotingClosed,
-                "Votes can only be cast while the voting session is open.");
+            var code = session.Status == VotingSessionStatus.Draft
+                ? VotingCodes.VotingNotOpen
+                : VotingCodes.VotingClosed;
+            var msg = session.Status == VotingSessionStatus.Draft
+                ? "La votación todavía no está abierta."
+                : "La votación ya no está abierta.";
+            throw new DomainException(code, msg);
         }
 
         // Idempotent replay by client request id (before participant checks for speed).

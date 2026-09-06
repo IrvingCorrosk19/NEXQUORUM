@@ -17,5 +17,6 @@ public static class VotingCodes
     public const string SessionNotFound = "SESSION_NOT_FOUND";
     public const string OpenVotingExists = "OPEN_VOTING_EXISTS";
     public const string MotionInvalid = "MOTION_INVALID";
+    public const string MotionNotPresented = "MOTION_NOT_PRESENTED";
     public const string ConflictChoice = "VOTE_CHOICE_CONFLICT";
 }

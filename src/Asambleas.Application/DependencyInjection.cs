@@ -18,6 +18,7 @@ using Asambleas.Application.Speaker;
 using Asambleas.Application.Surveys;
 using Asambleas.Application.Voting;
 using Asambleas.Domain.Voting;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -28,6 +29,8 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton(TimeProvider.System);
+        services.AddMemoryCache();
+        services.AddSingleton<IVerifiedJoinProofService, VerifiedJoinProofService>();
 
         services.AddScoped<AuditService>();
         services.AddScoped<IAuditService>(sp => sp.GetRequiredService<AuditService>());

@@ -1,0 +1,25 @@
+{
+  "name": "nexquorum",
+  "version": "1.0.0",
+  "description": "**PH Governance & Assembly Intelligence Platform** — EO-001: Enterprise Foundation + Virtual Assembly POC (8 participants).",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IrvingCorrosk19/NEXQUORUM.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/IrvingCorrosk19/NEXQUORUM/issues"
+  },
+  "homepage": "https://github.com/IrvingCorrosk19/NEXQUORUM#readme"
+}

@@ -35,4 +35,19 @@ public sealed class QuorumController : ControllerBase
         Guid assemblyId,
         CancellationToken cancellationToken) =>
         _quorum.ListSnapshotsAsync(assemblyId, cancellationToken);
+
+    [HttpGet("padron-diagnostic")]
+    [Authorize(Policy = Permissions.QuorumView)]
+    public Task<CoefficientPadronDiagnosticDto> PadronDiagnostic(
+        Guid assemblyId,
+        CancellationToken cancellationToken) =>
+        _quorum.GetCoefficientPadronDiagnosticAsync(assemblyId, cancellationToken);
+
+    [HttpGet("padron.csv")]
+    [Authorize(Policy = Permissions.QuorumView)]
+    public async Task<IActionResult> PadronCsv(Guid assemblyId, CancellationToken cancellationToken)
+    {
+        var csv = await _quorum.ExportCoefficientPadronCsvAsync(assemblyId, cancellationToken);
+        return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", $"padron-{assemblyId:N}.csv");
+    }
 }

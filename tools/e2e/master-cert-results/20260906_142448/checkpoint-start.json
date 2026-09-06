@@ -1,0 +1,9 @@
+{
+    "note":  "Historical CERTIFICACION_* docs are NOT accepted as current PASS.",
+    "stamp":  "E2E-CERT-MASTER-20260906_142448",
+    "baseUrlDefault":  "https://asambleas.164.68.99.83.nip.io",
+    "branch":  "master",
+    "initialSha":  "8e5c74f23d54a8f3c4be2f6ae146dfaece9546ef",
+    "startedAt":  "2026-09-06T14:24:48.3007443-05:00",
+    "worktree":  "C:/Proyectos/NEXQUORUM"
+}
