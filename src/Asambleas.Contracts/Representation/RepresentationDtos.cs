@@ -26,7 +26,9 @@ public sealed record RepresentationPreviewDto(
     bool CanAccredit,
     IReadOnlyList<RepresentationConflictDto> Conflicts,
     bool IsAccredited,
-    string AttendanceStatus);
+    string AttendanceStatus,
+    string? BlockReasonCode = null,
+    string? BlockReasonMessage = null);
 
 public sealed record AccreditRequest(
     string PresenceType,
@@ -44,6 +46,27 @@ public sealed record AccreditResponse(
     decimal CurrentQuorumCoefficient,
     decimal RequiredQuorumCoefficient,
     bool IdempotentReplay);
+
+public sealed record BulkAccreditRequest(
+    IReadOnlyList<Guid>? UserIds = null,
+    bool AllEligible = false,
+    string PresenceType = "InPerson",
+    string? Method = null);
+
+public sealed record BulkAccreditItemDto(
+    Guid UserId,
+    string DisplayName,
+    bool Success,
+    bool Skipped,
+    string? Code,
+    string? Message,
+    decimal? EffectiveCoefficientPercent);
+
+public sealed record BulkAccreditResponse(
+    int Succeeded,
+    int Failed,
+    int Skipped,
+    IReadOnlyList<BulkAccreditItemDto> Items);
 
 public sealed record PowerDto(
     Guid Id,

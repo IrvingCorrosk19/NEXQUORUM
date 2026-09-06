@@ -59,6 +59,18 @@ function errorMessage(error) {
   if (code === "ASSEMBLY_NOT_OPEN_FOR_CHECKIN") {
     return t("checkin.deskClosed", { status: assemblyStatus || "—" });
   }
+  if (code === "OWNER_DRAFT") {
+    return "El propietario está en borrador y sin unidades elegibles. Asigne unidad y actívelo.";
+  }
+  if (code === "OWNER_MISSING_UNITS") {
+    return "El propietario no tiene unidades activas en esta PH. Asigne al menos una unidad.";
+  }
+  if (code === "OWNER_INACTIVE") {
+    return "El propietario está inactivo y no puede acreditarse.";
+  }
+  if (code === "NO_ELIGIBLE_REPRESENTATION") {
+    return error?.message || "Sin ownership ni poder aprobado para acreditar.";
+  }
   return error?.message || t("networkError");
 }
 
@@ -242,7 +254,11 @@ function renderOwnerModalBody(preview, participant) {
         ? `<div class="conflict-box" role="alert"><strong>${escapeHtml(t("checkin.conflictTitle"))}</strong><ul>${conflicts
             .map((c) => `<li>${escapeHtml(c.message)}</li>`)
             .join("")}</ul></div>`
-        : ""
+        : !preview.isAccredited && !preview.canAccredit && preview.blockReasonMessage
+          ? `<div class="conflict-box" role="alert"><strong>${escapeHtml(t("checkin.notEligible"))}</strong><p style="margin:0.4rem 0 0">${escapeHtml(
+              preview.blockReasonMessage
+            )}</p></div>`
+          : ""
     }
   `;
 }
@@ -400,6 +416,48 @@ async function confirmAccredit() {
   }
 }
 
+async function bulkAccreditEligible() {
+  if (!isOperator(user) || !hasPermission(user, "attendance:manage")) {
+    showError("No tiene permiso para acreditar en masa.");
+    return;
+  }
+  if (!window.confirm(t("checkin.bulkAccreditConfirm"))) return;
+
+  const btn = qs("#btn-bulk-accredit");
+  const { setButtonLoading } = await import("./loading.js");
+  setButtonLoading(btn, true, "Acreditando…");
+  showError("");
+  try {
+    await ensureDeskOpen();
+    const result = await api(`/api/assemblies/${assemblyId}/attendance/accredit-bulk`, {
+      method: "POST",
+      body: { allEligible: true, presenceType: "InPerson", method: "OperatorBulkCheckIn" }
+    });
+    const msg = t("checkin.bulkAccreditDone", {
+      ok: result?.succeeded ?? 0,
+      fail: result?.failed ?? 0,
+      skip: result?.skipped ?? 0
+    });
+    announce(msg);
+    showToast({ title: "Acreditación masiva", message: msg, variant: result?.failed ? "warning" : "success" });
+    if (Array.isArray(result?.items)) {
+      for (const item of result.items.filter((i) => i.success && !i.skipped).slice(0, 6)) {
+        recent.unshift({
+          name: item.displayName,
+          unit: "",
+          coeff: item.effectiveCoefficientPercent ?? 0
+        });
+      }
+    }
+    await reloadParticipants();
+    await reloadQuorum();
+  } catch (error) {
+    showError(errorMessage(error));
+  } finally {
+    setButtonLoading(btn, false);
+  }
+}
+
 async function selfCheckIn() {
   try {
     const meId = user?.userId;
@@ -468,6 +526,10 @@ async function init() {
   qs("#btn-dialog-close").textContent = t("checkin.close");
   qs("#btn-dialog-accredit").textContent = t("checkin.confirmAccredit");
   qs("#btn-open-desk").textContent = t("checkin.openDesk");
+  const bulkBtn = qs("#btn-bulk-accredit");
+  if (bulkBtn) {
+    bulkBtn.textContent = t("checkin.bulkAccredit");
+  }
 
   const filter = qs("#participant-filter");
   filter.placeholder = t("checkin.searchPlaceholder");
@@ -487,6 +549,12 @@ async function init() {
   } catch {
     location.href = "/";
     return;
+  }
+
+  if (bulkBtn) {
+    const canBulk = isOperator(user) && hasPermission(user, "attendance:manage");
+    bulkBtn.hidden = !canBulk;
+    if (canBulk) bulkBtn.addEventListener("click", bulkAccreditEligible);
   }
 
   await bootIaPage({ current: "asm-checkin", pageLabel: "Acreditación" });

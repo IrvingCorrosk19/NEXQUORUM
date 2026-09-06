@@ -93,7 +93,12 @@ export default {
     cancel: "Cancel",
     close: "Close",
     alreadyAccredited: "Already accredited",
-    assemblyStatus: "Assembly status"
+    assemblyStatus: "Assembly status",
+    bulkAccredit: "Accredit eligible",
+    bulkAccreditConfirm: "Accredit all eligible participants who are not yet accredited?",
+    bulkAccreditDone: "Bulk: {ok} ok, {fail} failed, {skip} skipped",
+    notEligible: "Not accreditable",
+    blockReason: "Reason"
   },
 
   lobby: {

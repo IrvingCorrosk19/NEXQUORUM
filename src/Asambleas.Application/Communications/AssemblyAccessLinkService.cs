@@ -5,6 +5,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Asambleas.Application.Abstractions;
+using Asambleas.Domain.Attendance;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
 using Asambleas.Domain.Enums;
@@ -329,9 +330,33 @@ public sealed class AssemblyAccessLinkService
         if (owner is not null)
         {
             owner.UserId ??= userId;
-            if (owner.Status == OwnerLifecycleStatus.Invited)
+            if (owner.Status is OwnerLifecycleStatus.Invited or OwnerLifecycleStatus.Draft)
             {
+                // Draft with units becomes Active on first successful join.
+                // Draft without units is rejected below.
+                var hasOwnershipOnPh = await (
+                    from own in _db.Ownerships.AsNoTracking()
+                    join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
+                    where own.OwnerId == owner.Id
+                          && own.IsActive
+                          && u.IsActive
+                          && u.PropertyHorizontalId == link.PropertyHorizontalId
+                    select own.Id).AnyAsync(cancellationToken);
+
+                if (!hasOwnershipOnPh)
+                {
+                    throw new DomainException(
+                        AttendanceCodes.OwnerMissingUnits,
+                        "No puede ingresar a la asamblea: el propietario no tiene unidades asignadas en esta propiedad. Un administrador debe vincular al menos una unidad.");
+                }
+
                 owner.Status = OwnerLifecycleStatus.Active;
+            }
+            else if (owner.Status == OwnerLifecycleStatus.Inactive)
+            {
+                throw new DomainException(
+                    AttendanceCodes.OwnerInactive,
+                    "Este propietario está inactivo y no puede ingresar a la asamblea.");
             }
         }
 

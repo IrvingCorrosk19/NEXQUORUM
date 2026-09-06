@@ -970,6 +970,16 @@ public sealed class PhOnboardingService
                 unit.Id, owner.Id, sharePercent, cancellationToken);
             await UpsertOwnershipAsync(unit, owner.Id, sharePercent, null, cancellationToken);
             await EnsureActiveShareTotalAsync(unit.Id, excludeOwnershipId: null, cancellationToken);
+
+            // With a unit assigned the owner is convocable / accreditable after invite or join.
+            if (owner.Status == OwnerLifecycleStatus.Draft)
+            {
+                owner.Status = OwnerLifecycleStatus.Invited;
+            }
+        }
+        else if (owner.Status == OwnerLifecycleStatus.Draft)
+        {
+            // Creating without a unit is allowed as Draft, but cannot join or be convocated until a unit is linked.
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -1274,6 +1284,10 @@ public sealed class PhOnboardingService
         var ownership = await UpsertOwnershipAsync(
             unit, request.OwnerId, sharePercent, request.EffectiveFromUtc, cancellationToken);
         await EnsureActiveShareTotalAsync(unit.Id, excludeOwnershipId: null, cancellationToken);
+        if (owner.Status == OwnerLifecycleStatus.Draft)
+        {
+            owner.Status = OwnerLifecycleStatus.Invited;
+        }
         await _db.SaveChangesAsync(cancellationToken);
 
         await _audit.WriteAsync(

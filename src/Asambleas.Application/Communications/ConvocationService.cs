@@ -745,25 +745,18 @@ public sealed class ConvocationService
         IReadOnlyList<CommunicationChannel> channels,
         CancellationToken cancellationToken)
     {
-        // Include owners linked to units of this PH AND owners registered to the PH
-        // before unit assignment (RegisteredPropertyHorizontalId).
-        var viaOwnership = await (
+        // Only owners with Active/Invited status AND at least one active ownership on this PH.
+        // Draft owners registered without units must not enter convocations (blocks empty accreditation).
+        var owners = await (
             from o in _db.Owners.AsNoTracking()
             join own in _db.Ownerships.AsNoTracking() on o.Id equals own.OwnerId
             join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
             where u.PropertyHorizontalId == convocation.PropertyHorizontalId
-            select o.Id)
+                  && own.IsActive
+                  && u.IsActive
+                  && (o.Status == OwnerLifecycleStatus.Active || o.Status == OwnerLifecycleStatus.Invited)
+            select o)
             .Distinct()
-            .ToListAsync(cancellationToken);
-
-        var viaRegistration = await _db.Owners.AsNoTracking()
-            .Where(o => o.RegisteredPropertyHorizontalId == convocation.PropertyHorizontalId)
-            .Select(o => o.Id)
-            .ToListAsync(cancellationToken);
-
-        var ownerIds = viaOwnership.Union(viaRegistration).ToList();
-        var owners = await _db.Owners.AsNoTracking()
-            .Where(o => ownerIds.Contains(o.Id) && o.Status != OwnerLifecycleStatus.Inactive)
             .ToListAsync(cancellationToken);
 
         foreach (var owner in owners)

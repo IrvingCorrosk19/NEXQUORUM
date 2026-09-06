@@ -7,6 +7,9 @@ public static class AttendanceCodes
     public const string RepresentationConflict = "REPRESENTATION_CONFLICT";
     public const string PowerNotApproved = "POWER_NOT_APPROVED";
     public const string NoEligibleRepresentation = "NO_ELIGIBLE_REPRESENTATION";
+    public const string OwnerDraft = "OWNER_DRAFT";
+    public const string OwnerInactive = "OWNER_INACTIVE";
+    public const string OwnerMissingUnits = "OWNER_MISSING_UNITS";
     public const string NotAccredited = "NOT_ACCREDITED";
     public const string Unauthorized = "UNAUTHORIZED_ACCREDITATION";
     public const string InvalidUnit = "INVALID_UNIT";

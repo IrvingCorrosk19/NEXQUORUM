@@ -69,6 +69,111 @@ public sealed class AttendanceService
             cancellationToken);
     }
 
+    /// <summary>Operator bulk accreditation of eligible participants.</summary>
+    public async Task<BulkAccreditResponse> AccreditBulkAsync(
+        Guid assemblyId,
+        BulkAccreditRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+
+        var assembly = await _db.Assemblies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        if (assembly.Status is not (AssemblyStatus.CheckIn or AssemblyStatus.InProgress or AssemblyStatus.Paused))
+        {
+            throw new DomainException(
+                AttendanceCodes.AssemblyNotOpen,
+                "La mesa de acreditación no está abierta. Un operador debe iniciar el check-in desde el panel de la asamblea.");
+        }
+
+        if (!request.AllEligible && (request.UserIds is null || request.UserIds.Count == 0))
+        {
+            throw new DomainException(
+                "BULK_ACCREDIT_EMPTY",
+                "Indique UserIds o Active AllEligible=true para acreditar en masa.");
+        }
+
+        List<Guid> targets;
+        if (request.AllEligible)
+        {
+            targets = await _db.AssemblyParticipants.AsNoTracking()
+                .Where(p => p.AssemblyId == assemblyId && !p.IsAccredited)
+                .OrderBy(p => p.DisplayName)
+                .Select(p => p.UserId)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            targets = request.UserIds!.Distinct().ToList();
+        }
+
+        var names = await _db.AssemblyParticipants.AsNoTracking()
+            .Where(p => p.AssemblyId == assemblyId && targets.Contains(p.UserId))
+            .ToDictionaryAsync(p => p.UserId, p => p.DisplayName, cancellationToken);
+
+        var presence = string.IsNullOrWhiteSpace(request.PresenceType) ? "InPerson" : request.PresenceType;
+        var method = string.IsNullOrWhiteSpace(request.Method) ? "OperatorBulkCheckIn" : request.Method;
+        var items = new List<BulkAccreditItemDto>(targets.Count);
+        var succeeded = 0;
+        var failed = 0;
+        var skipped = 0;
+
+        foreach (var userId in targets)
+        {
+            var displayName = names.GetValueOrDefault(userId, userId.ToString("D"));
+            try
+            {
+                var preview = await _representation.PreviewAsync(assemblyId, userId, cancellationToken);
+                if (preview.IsAccredited)
+                {
+                    skipped++;
+                    items.Add(new BulkAccreditItemDto(
+                        userId, displayName, Success: true, Skipped: true,
+                        AttendanceCodes.AlreadyCheckedIn, "Ya acreditado",
+                        preview.EffectiveCoefficientPercent));
+                    continue;
+                }
+
+                if (!preview.CanAccredit)
+                {
+                    failed++;
+                    items.Add(new BulkAccreditItemDto(
+                        userId, displayName, Success: false, Skipped: false,
+                        preview.BlockReasonCode ?? AttendanceCodes.NoEligibleRepresentation,
+                        preview.BlockReasonMessage ?? "No elegible para acreditar",
+                        null));
+                    continue;
+                }
+
+                var result = await AccreditInternalAsync(
+                    assemblyId,
+                    userId,
+                    presence,
+                    method,
+                    clientUnitId: null,
+                    cancellationToken);
+                succeeded++;
+                items.Add(new BulkAccreditItemDto(
+                    userId, displayName, Success: true, Skipped: false,
+                    null, null, result.EffectiveCoefficientPercent));
+            }
+            catch (DomainException ex)
+            {
+                failed++;
+                items.Add(new BulkAccreditItemDto(
+                    userId, displayName, Success: false, Skipped: false,
+                    ex.Code, ex.Message, null));
+            }
+        }
+
+        return new BulkAccreditResponse(succeeded, failed, skipped, items);
+    }
+
     public Task<RepresentationPreviewDto> PreviewAsync(
         Guid assemblyId,
         Guid userId,

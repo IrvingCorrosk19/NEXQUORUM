@@ -93,7 +93,12 @@ export default {
     cancel: "Cancelar",
     close: "Cerrar",
     alreadyAccredited: "Ya acreditado",
-    assemblyStatus: "Estado de asamblea"
+    assemblyStatus: "Estado de asamblea",
+    bulkAccredit: "Acreditar elegibles",
+    bulkAccreditConfirm: "¿Acreditar a todos los participantes elegibles que aún no están acreditados?",
+    bulkAccreditDone: "Masiva: {ok} ok, {fail} fallaron, {skip} omitidos",
+    notEligible: "No acreditables",
+    blockReason: "Motivo"
   },
 
   lobby: {

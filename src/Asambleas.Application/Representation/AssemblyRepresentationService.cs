@@ -98,6 +98,22 @@ public sealed class AssemblyRepresentationService : IAssemblyRepresentationServi
             effective = participant.EffectiveCoefficientPercent;
         }
 
+        string? blockCode = null;
+        string? blockMessage = null;
+        if (!participant.IsAccredited && !canAccredit)
+        {
+            if (conflicts.Count > 0)
+            {
+                blockCode = AttendanceCodes.RepresentationConflict;
+                blockMessage = conflicts[0].Message;
+            }
+            else
+            {
+                (blockCode, blockMessage) = await DiagnoseIneligibilityAsync(
+                    assembly, userId, isOperatorRole, cancellationToken);
+            }
+        }
+
         return new RepresentationPreviewDto(
             userId,
             participant.DisplayName,
@@ -108,7 +124,9 @@ public sealed class AssemblyRepresentationService : IAssemblyRepresentationServi
             canAccredit,
             conflicts,
             participant.IsAccredited,
-            participant.AttendanceStatus.ToString());
+            participant.AttendanceStatus.ToString(),
+            blockCode,
+            blockMessage);
     }
 
     public async Task<IReadOnlyList<AssemblyRepresentationSnapshot>> GetActiveForUserAsync(
@@ -199,9 +217,9 @@ public sealed class AssemblyRepresentationService : IAssemblyRepresentationServi
 
         if (claims.Count == 0 && !IsOperatorRole(participant.RoleCode))
         {
-            throw new DomainException(
-                AttendanceCodes.NoEligibleRepresentation,
-                "No eligible ownership or approved power found for accreditation.");
+            var (code, message) = await DiagnoseIneligibilityAsync(
+                assembly, targetUserId, isOperatorRole: false, cancellationToken);
+            throw new DomainException(code, message);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -240,6 +258,65 @@ public sealed class AssemblyRepresentationService : IAssemblyRepresentationServi
         }
 
         return snapshots;
+    }
+
+    private async Task<(string Code, string Message)> DiagnoseIneligibilityAsync(
+        Domain.Entities.Assembly assembly,
+        Guid userId,
+        bool isOperatorRole,
+        CancellationToken cancellationToken)
+    {
+        if (isOperatorRole)
+        {
+            return (
+                AttendanceCodes.NoEligibleRepresentation,
+                "No hay representación elegible para acreditar.");
+        }
+
+        var owner = await _db.Owners
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.UserId == userId && o.TenantId == assembly.TenantId, cancellationToken);
+
+        if (owner is null)
+        {
+            return (
+                AttendanceCodes.NoEligibleRepresentation,
+                "Este usuario no tiene ficha de propietario vinculada. Asigne unidad y active el propietario antes de acreditar.");
+        }
+
+        if (owner.Status == OwnerLifecycleStatus.Draft)
+        {
+            return (
+                AttendanceCodes.OwnerDraft,
+                "El propietario está en borrador (Draft) y no tiene unidades activas elegibles. Asigne una unidad y actívelo (Invitado/Activo) antes de acreditar.");
+        }
+
+        if (owner.Status == OwnerLifecycleStatus.Inactive)
+        {
+            return (
+                AttendanceCodes.OwnerInactive,
+                "El propietario está inactivo y no puede acreditarse.");
+        }
+
+        var hasOwnership = await (
+            from own in _db.Ownerships.AsNoTracking()
+            join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
+            where own.OwnerId == owner.Id
+                  && own.IsActive
+                  && u.IsActive
+                  && u.PropertyHorizontalId == assembly.PropertyHorizontalId
+            select own.Id).AnyAsync(cancellationToken);
+
+        if (!hasOwnership)
+        {
+            return (
+                AttendanceCodes.OwnerMissingUnits,
+                "El propietario no tiene unidades activas en esta propiedad horizontal. Asigne al menos una unidad antes de acreditar.");
+        }
+
+        return (
+            AttendanceCodes.NoEligibleRepresentation,
+            "No hay ownership ni poder aprobado elegible para acreditar.");
     }
 
     private async Task<List<EligibleClaim>> ResolveEligibleClaimsAsync(

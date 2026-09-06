@@ -481,6 +481,10 @@ public sealed class PhImportService
                 _db.Ownerships.Add(ownership);
                 ownershipsCreated++;
                 createdOwnershipIds.Add(ownership.Id);
+                if (isActive && owner.Status == OwnerLifecycleStatus.Draft)
+                {
+                    owner.Status = OwnerLifecycleStatus.Invited;
+                }
             }
 
             // Validate share totals for units we touched

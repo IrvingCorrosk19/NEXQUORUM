@@ -59,4 +59,12 @@ public sealed class AttendanceController : ControllerBase
         [FromBody] AccreditRequest request,
         CancellationToken cancellationToken) =>
         _attendance.AccreditAsync(assemblyId, userId, request, cancellationToken);
+
+    [HttpPost("accredit-bulk")]
+    [Authorize(Policy = Permissions.AttendanceManage)]
+    public Task<BulkAccreditResponse> AccreditBulk(
+        Guid assemblyId,
+        [FromBody] BulkAccreditRequest request,
+        CancellationToken cancellationToken) =>
+        _attendance.AccreditBulkAsync(assemblyId, request, cancellationToken);
 }
