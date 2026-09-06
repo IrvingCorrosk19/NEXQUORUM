@@ -89,36 +89,108 @@ async function ensureOpenVoting(pCtx) {
     return sess;
   }
 
-  const motionsRes = await api(pCtx, "GET", `/api/assemblies/${AID}/motions`);
-  const motions = motionsRes.ok() ? await motionsRes.json() : [];
-  let m =
-    (motions || []).find((x) => x.status === "Presented" || x.status === "Voting") ||
-    (motions || []).find((x) => x.status === "Draft" && x.designStatus === "Ready") ||
-    (motions || []).find((x) => x.status === "Ready" || x.status === "Draft");
-
-  if (!m) {
-    mark("realtime-open-api", false, "no motion available");
-    return null;
+  async function loadMotions() {
+    const motionsRes = await api(pCtx, "GET", `/api/assemblies/${AID}/motions`);
+    const raw = motionsRes.ok() ? await motionsRes.json() : [];
+    return Array.isArray(raw) ? raw : raw.items || raw.motions || [];
   }
 
-  if (m.status === "Draft" || m.status === "Ready") {
+  function isPresentable(m) {
+    if (!m) return false;
+    const status = String(m.status || "");
+    const design = String(m.designStatus || "");
+    if (design === "Archived") return false;
+    if (status === "Cancelled" || status === "Approved" || status === "Rejected" || status === "Voting") return false;
+    return status === "Draft" || status === "Presented" || status === "Ready";
+  }
+
+  async function ensureReadyMotion() {
+    let motions = await loadMotions();
+    let m =
+      motions.find((x) => String(x.status) === "Presented") ||
+      motions.find((x) => String(x.status) === "Draft" && String(x.designStatus) === "Ready") ||
+      motions.find((x) => isPresentable(x) && String(x.designStatus) !== "Archived");
+
+    if (m) return m;
+
+    const agendaRes = await api(pCtx, "GET", `/api/assemblies/${AID}/agenda`);
+    const agendaRaw = agendaRes.ok() ? await agendaRes.json() : [];
+    const agenda = Array.isArray(agendaRaw) ? agendaRaw : agendaRaw.items || [];
+    const item = agenda[0];
+    if (!item?.id) {
+      mark("realtime-open-api", false, "no agenda item to create motion");
+      return null;
+    }
+    const code = `MV-${Date.now().toString(36).slice(-6)}`;
+    const created = await api(pCtx, "POST", `/api/assemblies/${AID}/motions`, {
+      agendaItemId: item.id,
+      code,
+      title: `Mobile voting cert ${code}`,
+      body: "Pregunta de certificación móvil (fixture).",
+      designStatus: "Ready",
+      instrumentKind: "FormalVote",
+      ballotKind: "FavorAgainstAbstain",
+      calculationMethod: "Coefficient",
+      decisionRuleCode: "SimpleMajority",
+      questionText: "¿Aprueba la moción de certificación móvil?",
+    });
+    if (!created.ok()) {
+      mark("realtime-open-api", false, `create motion ${created.status()} ${(await created.text()).slice(0, 160)}`);
+      return null;
+    }
+    const dto = await created.json();
+    return dto;
+  }
+
+  let m = await ensureReadyMotion();
+  if (!m) return null;
+
+  // Business rule: voting open requires Presented — fixture must present, never skip.
+  if (String(m.status) !== "Presented") {
     const pr = await api(pCtx, "POST", `/api/assemblies/${AID}/motions/present`, { motionId: m.id });
     if (!pr.ok()) {
       const t = await pr.text();
-      // If another open session blocks present, try close via room and retry once
       mark("realtime-open-api", false, `present ${pr.status()} ${t.slice(0, 160)}`);
       return null;
     }
+    const presented = await pr.json().catch(() => null);
+    m = presented || (await loadMotions()).find((x) => x.id === m.id);
+    if (!m || String(m.status) !== "Presented") {
+      // re-fetch list in case present body shape differs
+      const again = (await loadMotions()).find((x) => String(x.status) === "Presented");
+      if (!again) {
+        mark("realtime-open-api", false, "present succeeded but motion not Presented");
+        return null;
+      }
+      m = again;
+    }
   }
 
-  const openRes = await api(pCtx, "POST", `/api/assemblies/${AID}/voting/open`, {
+  let openRes = await api(pCtx, "POST", `/api/assemblies/${AID}/voting/open`, {
     motionId: m.id,
     hidePartialResults: true,
     resultVisibilityPolicy: "HiddenUntilClose",
   });
-  const txt = openRes.ok() ? "" : await openRes.text();
-  mark("realtime-open-api", openRes.ok(), openRes.ok() ? `opened` : `status=${openRes.status()} ${txt.slice(0, 180)}`);
-  if (!openRes.ok()) return null;
+  if (!openRes.ok()) {
+    const txt = await openRes.text();
+    // One retry after re-present if race left motion non-presented.
+    if (/presented motion/i.test(txt)) {
+      const pr2 = await api(pCtx, "POST", `/api/assemblies/${AID}/motions/present`, { motionId: m.id });
+      if (pr2.ok()) {
+        openRes = await api(pCtx, "POST", `/api/assemblies/${AID}/voting/open`, {
+          motionId: m.id,
+          hidePartialResults: true,
+          resultVisibilityPolicy: "HiddenUntilClose",
+        });
+      }
+    }
+    if (!openRes.ok()) {
+      const txt2 = await openRes.text().catch(() => txt);
+      mark("realtime-open-api", false, `status=${openRes.status()} ${String(txt2 || txt).slice(0, 180)}`);
+      return null;
+    }
+  }
+  mark("realtime-open-api", true, "opened");
   return openRes.json();
 }
 

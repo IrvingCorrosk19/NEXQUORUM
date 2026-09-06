@@ -3,11 +3,16 @@
  * sessionStorage key asambleas.ia.context remains the sticky mirror;
  * this module owns versioning, switch orchestration, and guards.
  */
-import { api } from "./api.js";
+import { api, cachedGet, invalidateCachedGet } from "./api.js";
 import { me } from "./auth.js";
 import { confirmDialog, notify } from "./ui.js";
 import { readIaContext, writeIaContext } from "./ia-context.js";
 import { startTopProgress, stopTopProgress } from "./loading.js";
+import {
+  invalidateShellSessionCache,
+  peekMemberships,
+  rememberMemberships
+} from "./session-shell-cache.js";
 
 const RECENT_KEY = "asambleas.ph.recent";
 const MAX_RECENT = 6;
@@ -145,14 +150,22 @@ export function hydratePhContext({
 }
 
 export async function loadMyMemberships() {
-  const memberships = await api("/api/ph/memberships/mine");
+  const warm = peekMemberships(state.user);
+  if (warm) {
+    state.memberships = warm;
+    return state.memberships;
+  }
+  const memberships = await cachedGet("/api/ph/memberships/mine", {
+    ttlMs: 5000,
+    cacheKey: "GET:/api/ph/memberships/mine"
+  });
   let list = Array.isArray(memberships) ? memberships : [];
 
   // Tenant/PH managers may administer PHs beyond explicit membership rows.
   const canManageAll = Boolean(state.user?.permissions?.includes("ph:manage"));
   if (canManageAll) {
     try {
-      const all = await api("/api/ph");
+      const all = await cachedGet("/api/ph", { ttlMs: 5000, cacheKey: "GET:/api/ph" });
       const byId = new Map(list.map((m) => [String(m.propertyHorizontalId), m]));
       for (const p of all || []) {
         const id = String(p.id);
@@ -173,6 +186,7 @@ export async function loadMyMemberships() {
   }
 
   state.memberships = list;
+  rememberMemberships(list, state.user);
   const current =
     state.memberships.find((m) => m.isCurrent) ||
     state.memberships.find((m) => String(m.propertyHorizontalId) === String(state.phId));
@@ -338,8 +352,17 @@ export async function switchPh(propertyHorizontalId, { targetUrl = null, silent 
       signal: switchAbort.signal
     });
 
+    invalidateCachedGet("GET:/api/ph/memberships/mine");
+    invalidateCachedGet("GET:/api/ph");
+    invalidateShellSessionCache("ph-switch");
+    try {
+      window.dispatchEvent(new CustomEvent("asam:ph-switched"));
+    } catch {
+      /* ignore */
+    }
+
     // Refresh auth session (claim + permissions mirror).
-    const user = await me();
+    const user = await me({ force: true });
     const memberships = await api("/api/ph/memberships/mine");
     const list = Array.isArray(memberships) ? memberships : [];
     const current = list.find((m) => String(m.propertyHorizontalId) === nextId) || membership;

@@ -1,6 +1,12 @@
 import { api } from "./api.js";
+import {
+  invalidateShellSessionCache,
+  peekMe,
+  rememberMe
+} from "./session-shell-cache.js";
 
 const STORAGE_KEY = "asambleas.session";
+let meInflight = null;
 
 export async function login(email, password) {
   const user = await api("/api/auth/login", {
@@ -8,6 +14,7 @@ export async function login(email, password) {
     body: { email, password }
   });
   // Persist identity metadata only — never the password.
+  rememberMe(user);
   sessionStorage.setItem(
     STORAGE_KEY,
     JSON.stringify({
@@ -29,25 +36,56 @@ export async function logout() {
     await api("/api/auth/logout", { method: "POST" });
   } finally {
     sessionStorage.removeItem(STORAGE_KEY);
+    invalidateShellSessionCache("logout");
+    meInflight = null;
+    try {
+      window.dispatchEvent(new CustomEvent("asam:logout"));
+    } catch {
+      /* ignore */
+    }
   }
 }
 
-export async function me() {
-  const user = await api("/api/auth/me");
-  sessionStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      userId: user.userId,
-      displayName: user.displayName,
-      email: user.email,
-      tenantId: user.tenantId,
-      tenantCode: user.tenantCode,
-      propertyHorizontalId: user.propertyHorizontalId,
-      roles: user.roles,
-      permissions: user.permissions
+/**
+ * @param {{ force?: boolean }} [opts]
+ */
+export async function me(opts = {}) {
+  if (!opts.force) {
+    const warm = peekMe();
+    if (warm) return warm;
+    if (meInflight) return meInflight;
+  }
+
+  meInflight = api("/api/auth/me")
+    .then((user) => {
+      rememberMe(user);
+      sessionStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          userId: user.userId,
+          displayName: user.displayName,
+          email: user.email,
+          tenantId: user.tenantId,
+          tenantCode: user.tenantCode,
+          propertyHorizontalId: user.propertyHorizontalId,
+          roles: user.roles,
+          permissions: user.permissions
+        })
+      );
+      return user;
     })
-  );
-  return user;
+    .catch((err) => {
+      if (err?.status === 401 || err?.status === 403) {
+        invalidateShellSessionCache("auth-error");
+        sessionStorage.removeItem(STORAGE_KEY);
+      }
+      throw err;
+    })
+    .finally(() => {
+      meInflight = null;
+    });
+
+  return meInflight;
 }
 
 export function cachedUser() {

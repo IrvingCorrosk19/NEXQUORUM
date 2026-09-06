@@ -168,22 +168,25 @@ export async function mountGlobalPhSwitcher(host = null) {
 
   mountedRoot = root;
 
-  const trigger = root.querySelector(".ph-switcher-trigger");
-  trigger?.addEventListener("click", (ev) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    if (open) closePopover();
-    else openPopover();
-  });
+  if (!root.dataset.phSwitcherBound) {
+    root.dataset.phSwitcherBound = "1";
+    const trigger = root.querySelector(".ph-switcher-trigger");
+    trigger?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (open) closePopover();
+      else openPopover();
+    });
 
-  root.querySelector(".ph-switcher-pop")?.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-  });
+    root.querySelector(".ph-switcher-pop")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+    });
 
-  root.querySelector("[data-ph-search]")?.addEventListener("input", (e) => {
-    searchQuery = e.target.value || "";
-    renderList();
-  });
+    root.querySelector("[data-ph-search]")?.addEventListener("input", (e) => {
+      searchQuery = e.target.value || "";
+      renderList();
+    });
+  }
 
   if (!boundDocClick) {
     boundDocClick = (ev) => {

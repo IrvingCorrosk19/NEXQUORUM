@@ -10,6 +10,7 @@ import { bootIaPage } from "./ia-page.js";
 import { readIaContext } from "./ia-context.js";
 import { phHref } from "./ia-nav.js";
 import { openMotionImportWizard } from "./motion-import.js";
+import { startHybridShell } from "./hybrid-router.js";
 
 const showLoader = (msg) => showGlobalLoader(msg, { immediate: true });
 const hideLoader = () => hideGlobalLoader();
@@ -171,7 +172,7 @@ function truncateText(value, max = 80) {
 /** Repair classic UTF-8-as-Latin1 mojibake in seeded/legacy strings. */
 function repairMojibake(value) {
   const s = String(value ?? "");
-  // Ã³ / Â / â€" (em-dash) and similar double-encoded UTF-8 sequences
+  // encoding-safe helpers
   if (!/[ÃÂâ]/.test(s)) return s;
   try {
     const bytes = Uint8Array.from(s, (ch) => ch.charCodeAt(0) & 0xff);
@@ -1424,7 +1425,11 @@ async function init() {
   if (!ctx) return;
 
   state.user = ctx.user;
-  assemblyId = assemblyId || ctx.assemblyId || readIaContext().assemblyId;
+  assemblyId =
+    new URLSearchParams(location.search).get("assemblyId") ||
+    ctx.assemblyId ||
+    assemblyId ||
+    readIaContext().assemblyId;
   softenRoleChip();
 
   if (!assemblyId) {
@@ -1583,4 +1588,30 @@ async function init() {
   }
 }
 
-init();
+export async function mount(ctx = {}) {
+  await init();
+  await startHybridShell({
+    mount,
+    unmount,
+    canLeave,
+    dispose: unmount
+  });
+  void ctx;
+}
+
+export async function unmount() {}
+
+export async function canLeave() {
+  return true;
+}
+
+export async function dispose() {
+  await unmount();
+}
+
+if (!window.__ASAM_SOFT_MOUNTING__ && !window.__ASAM_HYBRID__) {
+  mount().catch((error) => {
+    console.error(error);
+    showPageError(error.message || String(error));
+  });
+}

@@ -1,4 +1,4 @@
-import { api, ensureAntiforgery } from "./api.js";
+import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
 import { mountIaShell, phHref } from "./ia-nav.js";
 import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
@@ -6,6 +6,7 @@ import { formatDateTime, confirmDialog, notify } from "./ui.js";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton } from "./loading.js";
+import { startHybridShell } from "./hybrid-router.js";
 
 const STEP_LABELS = [
   "Información",
@@ -26,6 +27,34 @@ let myMemberships = [];
 let phAssemblies = [];
 let asmFilter = "upcoming";
 let phFormBinder = null;
+/** @type {Map<string, number>} */
+const phTabFreshAt = new Map();
+const PH_TAB_TTL_MS = 8000;
+let unitSearchTimer = 0;
+let ownerSearchTimer = 0;
+
+function phTabKey(kind) {
+  return `${currentPhId || ""}:${kind}`;
+}
+
+function isPhTabFresh(kind) {
+  const at = phTabFreshAt.get(phTabKey(kind));
+  return Boolean(at && Date.now() - at < PH_TAB_TTL_MS);
+}
+
+function markPhTabFresh(kind) {
+  if (!currentPhId) return;
+  phTabFreshAt.set(phTabKey(kind), Date.now());
+}
+
+function invalidatePhTabData(phId = currentPhId) {
+  if (!phId) return;
+  const prefix = `${phId}:`;
+  for (const key of [...phTabFreshAt.keys()]) {
+    if (key.startsWith(prefix)) phTabFreshAt.delete(key);
+  }
+  invalidateCachedGet(`/api/ph/${phId}/`);
+}
 
 const $ = (sel) => document.querySelector(sel);
 const alertEl = $("#page-alert");
@@ -94,7 +123,8 @@ async function init() {
       phAssemblies = [];
       const host = $("#ph-assemblies-list");
       if (host) host.innerHTML = `<div class="skeleton" style="height:4rem">Cambiando de PH…</div>`;
-      openPh(next, (location.hash || "").replace("#", "") || "assemblies").catch(() => {});
+      const hashTab = (location.hash || "").replace("#", "");
+      openPh(next, hashTab || "resumen").catch(() => {});
     });
   } catch {
     /* optional */
@@ -271,7 +301,10 @@ function wireUi() {
     e.preventDefault();
     runBulk(false);
   });
-  $("#unit-search").addEventListener("input", () => loadUnits());
+  $("#unit-search").addEventListener("input", () => {
+    window.clearTimeout(unitSearchTimer);
+    unitSearchTimer = window.setTimeout(() => loadUnits(), 250);
+  });
   $("#form-transfer")?.addEventListener("submit", onTransferOwnership);
   $("#btn-cancel-transfer")?.addEventListener("click", () => {
     const dlg = $("#transfer-dialog");
@@ -300,7 +333,10 @@ function wireUi() {
   });
   $("#form-owner").addEventListener("submit", onSaveOwner);
   $("#owner-unit-select")?.addEventListener("change", () => syncOwnerShareForSelectedUnit());
-  $("#owner-search")?.addEventListener("input", () => loadOwners());
+  $("#owner-search")?.addEventListener("input", () => {
+    window.clearTimeout(ownerSearchTimer);
+    ownerSearchTimer = window.setTimeout(() => loadOwners(), 250);
+  });
   $("#btn-owner-filters")?.addEventListener("click", () => {
     const pop = $("#owner-filters-popover");
     if (!pop) return;
@@ -373,7 +409,7 @@ async function onSwitchPh(_ev) {
 
 async function loadList() {
   clearAlert();
-  const list = await api("/api/ph");
+  const list = await cachedGet("/api/ph", { ttlMs: 5000, cacheKey: "GET:/api/ph" });
   const root = $("#ph-list");
   const empty = $("#ph-empty");
   if (!list.length) {
@@ -495,6 +531,8 @@ async function onCreatePh(ev) {
 
     $("#dlg-create-ph").close();
     form.reset();
+    invalidateCachedGet("GET:/api/ph");
+    invalidateCachedGet("GET:/api/ph/memberships/mine");
     AppFeedback.success(`${created.name} está listo para comenzar.`, { title: "PH creado" });
     await refreshSwitcher();
     currentPhId = created.id;
@@ -518,10 +556,14 @@ async function onCreatePh(ev) {
   }
 }
 
+let openPhSeq = 0;
+
 async function openPh(id, preferredTab = null) {
+  const seq = ++openPhSeq;
   clearAlert();
   currentPhId = id;
   const ph = await api(`/api/ph/${id}`);
+  if (seq !== openPhSeq) return;
   currentPh = ph;
   $("#view-list").hidden = true;
   $("#view-detail").hidden = false;
@@ -543,7 +585,7 @@ async function openPh(id, preferredTab = null) {
   let coefficientsComplete = ph.coefficientsComplete;
   if (unitCount == null || ownerCount == null) {
     try {
-      const list = await api("/api/ph");
+      const list = await cachedGet("/api/ph", { ttlMs: 5000, cacheKey: "GET:/api/ph" });
       const row = (list || []).find((p) => String(p.id) === String(id));
       if (row) {
         unitCount = row.unitCount;
@@ -563,6 +605,7 @@ async function openPh(id, preferredTab = null) {
       /* ignore */
     }
   }
+  if (seq !== openPhSeq) return;
 
   $("#ph-stat-strip").innerHTML = `
     <div class="ia-stat"><div class="ia-stat__value">${unitCount ?? 0}</div><div class="ia-stat__label">Unidades</div></div>
@@ -632,6 +675,7 @@ async function openPh(id, preferredTab = null) {
   } catch {
     /* ignore */
   }
+  if (seq !== openPhSeq) return;
 
   window.__asambleasOpenPh = (phId) => openPh(phId, (location.hash || "").replace("#", "") || null);
 
@@ -655,12 +699,12 @@ async function openPh(id, preferredTab = null) {
   $("#btn-template").href = `/api/ph/${id}/import/template`;
   const initialTab = preferredTab || (isOnboardingMode(ph) ? "info" : "resumen");
   const allowed = new Set(["resumen", "info", "assemblies", "units", "owners", "coefficients", "import", "readiness"]);
+  invalidatePhTabData(id);
+  // Lazy-load only the active tab (switchTab). Avoids 5 parallel GETs on every PH open.
   switchTab(allowed.has(initialTab) ? initialTab : isOnboardingMode(ph) ? "info" : "resumen");
-  await Promise.all([loadUnits(), loadOwners(), loadCoefficients(), loadReadiness(), loadAssemblies()]);
-  await renderAttentionAndPrep(ph);
   setupPhFormBinder();
   await refreshPhDeleteAvailability();
-  // Link next assembly to concrete event when available
+  // Enrich next-assembly CTA when calendar rows are already warm (assemblies tab).
   const nextBtn = $("#btn-view-next-assembly");
   const upcoming = phAssemblies.find((e) => assemblyListBucket(e.status) === "upcoming" || assemblyListBucket(e.status) === "live");
   if (nextBtn && upcoming) {
@@ -726,10 +770,15 @@ function switchTab(tab) {
   document.querySelectorAll(".wizard-panel").forEach((p) => {
     p.hidden = p.dataset.panel !== tab;
   });
-  if (tab === "coefficients") loadCoefficients();
-  if (tab === "readiness") loadReadiness();
-  if (tab === "assemblies") loadAssemblies();
+  if (tab === "units") loadUnits({ soft: true });
+  if (tab === "owners") loadOwners({ soft: true });
+  if (tab === "coefficients") loadCoefficients({ soft: true });
+  if (tab === "readiness") loadReadiness({ soft: true });
+  if (tab === "assemblies") loadAssemblies({ soft: true });
   if (tab === "resumen") renderAttentionAndPrep(currentPh);
+  if (tab === "import") {
+    /* import wizard is on-demand */
+  }
 
   const currentMap = {
     resumen: "ph-overview",
@@ -820,13 +869,17 @@ async function renderAttentionAndPrep(ph) {
     </ul>`;
 }
 
-async function loadAssemblies() {
+async function loadAssemblies({ soft = false } = {}) {
   if (!currentPhId) {
     const host = $("#ph-assemblies-list");
     if (host) {
       host.innerHTML = `<div class="ia-empty-state"><p>Selecciona un PH para ver sus asambleas.</p></div>`;
     }
     phAssemblies = [];
+    return;
+  }
+  if (soft && isPhTabFresh("assemblies") && phAssemblies.length) {
+    renderAssembliesList();
     return;
   }
   const host = $("#ph-assemblies-list");
@@ -839,7 +892,8 @@ async function loadAssemblies() {
     const to = new Date();
     to.setMonth(to.getMonth() + 12);
     const data = await api(
-      `/api/calendar/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&propertyHorizontalId=${encodeURIComponent(requestPh)}`
+      `/api/calendar/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&propertyHorizontalId=${encodeURIComponent(requestPh)}`,
+      { dedupeKey: `ph-assemblies:${requestPh}` }
     );
     // Drop stale responses after a PH switch.
     if (String(currentPhId) !== requestPh) return;
@@ -848,6 +902,7 @@ async function loadAssemblies() {
     phAssemblies = phAssemblies.filter(
       (e) => String(e.propertyHorizontalId || "") === requestPh
     );
+    markPhTabFresh("assemblies");
     renderAssembliesList();
   } catch (err) {
     if (String(currentPhId) !== requestPh) return;
@@ -1141,11 +1196,14 @@ async function onSavePh(ev) {
   }
 }
 
-async function loadUnits() {
+async function loadUnits({ soft = false } = {}) {
   if (!currentPhId) return;
   const search = $("#unit-search").value.trim();
   const q = search ? `?search=${encodeURIComponent(search)}` : "";
-  const units = await api(`/api/ph/${currentPhId}/units${q}`);
+  const path = `/api/ph/${currentPhId}/units${q}`;
+  if (soft && !search && isPhTabFresh("units")) return;
+  const units = await api(path, { dedupeKey: `ph-units:${currentPhId}` });
+  if (!search) markPhTabFresh("units");
   const tbody = $("#units-table tbody");
   tbody.innerHTML = units
     .map(
@@ -1391,7 +1449,7 @@ async function runBulk(previewOnly) {
   }
 }
 
-async function loadOwners() {
+async function loadOwners({ soft = false } = {}) {
   if (!currentPhId) return;
   const params = new URLSearchParams();
   const search = $("#owner-search")?.value.trim();
@@ -1407,10 +1465,15 @@ async function loadOwners() {
   const invited = $("#filter-invited")?.value;
   if (invited) params.set("invited", invited);
   const q = params.toString() ? `?${params}` : "";
-  const owners = await api(`/api/ph/${currentPhId}/owners${q}`);
+  const hasFilters = !!(search || tower || status || hasEmail || accessStatus || invited);
+  if (soft && !hasFilters && isPhTabFresh("owners")) return;
+  const owners = await api(`/api/ph/${currentPhId}/owners${q}`, {
+    dedupeKey: `ph-owners:${currentPhId}`
+  });
+  if (!hasFilters) markPhTabFresh("owners");
   const empty = $("#owners-empty");
   const tableWrap = $("#owners-table")?.closest(".table-wrap");
-  if (!owners.length && !search && !tower && !status && !hasEmail && !accessStatus && !invited) {
+  if (!owners.length && !hasFilters) {
     empty.hidden = false;
     if (tableWrap) tableWrap.hidden = true;
   } else {
@@ -1418,7 +1481,6 @@ async function loadOwners() {
     if (tableWrap) tableWrap.hidden = false;
   }
   const tbody = $("#owners-table tbody");
-  const hasFilters = !!(search || tower || status || hasEmail || accessStatus || invited);
   if (!owners.length && hasFilters) {
     tbody.innerHTML =
       '<tr><td colspan="6" class="muted" style="text-align:center;padding:1.5rem">Ningún propietario coincide con los filtros aplicados.</td></tr>';
@@ -2148,9 +2210,15 @@ function maskEmail(email) {
   return `${local.slice(0, visible)}******@${domain}`;
 }
 
-async function loadCoefficients() {
+async function loadCoefficients({ soft = false } = {}) {
   if (!currentPhId) return;
-  const c = await api(`/api/ph/${currentPhId}/coefficients`);
+  if (soft && isPhTabFresh("coefficients")) return;
+  const path = `/api/ph/${currentPhId}/coefficients`;
+  if (!soft) invalidateCachedGet(`GET:${path}`);
+  const c = soft
+    ? await cachedGet(path, { ttlMs: PH_TAB_TTL_MS, cacheKey: `GET:${path}` })
+    : await api(path);
+  markPhTabFresh("coefficients");
   $("#coeff-panel").innerHTML = `
     <p><strong>${Number(c.totalPercent).toFixed(4)}%</strong> / ${Number(c.expectedPercent).toFixed(4)}%</p>
     <p>${c.isComplete ? "✓ Coeficientes completos" : `⚠ Delta: ${Number(c.deltaPercent).toFixed(4)}%`}</p>
@@ -2158,9 +2226,15 @@ async function loadCoefficients() {
     <p>${c.activeUnitCount} unidades activas</p>`;
 }
 
-async function loadReadiness() {
+async function loadReadiness({ soft = false } = {}) {
   if (!currentPhId) return;
-  const r = await api(`/api/ph/${currentPhId}/readiness`);
+  if (soft && isPhTabFresh("readiness")) return;
+  const path = `/api/ph/${currentPhId}/readiness`;
+  if (!soft) invalidateCachedGet(`GET:${path}`);
+  const r = soft
+    ? await cachedGet(path, { ttlMs: PH_TAB_TTL_MS, cacheKey: `GET:${path}` })
+    : await api(path);
+  markPhTabFresh("readiness");
   const bannerClass = r.readyForAssembly ? "is-ready" : "is-blocked";
   const bannerText = r.readyForAssembly ? "READY FOR ASSEMBLY" : "NO LISTO PARA ASAMBLEA";
   $("#readiness-panel").innerHTML = `
@@ -2184,6 +2258,7 @@ async function openRosterImport() {
     phId: currentPhId,
     phName: currentPh?.name || "",
     onImported: async () => {
+      invalidatePhTabData(currentPhId);
       await Promise.all([loadUnits(), loadOwners(), loadCoefficients(), loadReadiness()]);
     }
   });
@@ -2197,4 +2272,27 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-init().catch((err) => AppFeedback.fromError(err));
+export async function mount(ctx = {}) {
+  await init();
+  await startHybridShell({
+    mount,
+    unmount,
+    canLeave,
+    dispose: unmount
+  });
+  void ctx;
+}
+
+export async function unmount() {}
+
+export async function canLeave() {
+  return true;
+}
+
+export async function dispose() {
+  await unmount();
+}
+
+if (!window.__ASAM_SOFT_MOUNTING__ && !window.__ASAM_HYBRID__) {
+  mount().catch((err) => AppFeedback.fromError(err));
+}

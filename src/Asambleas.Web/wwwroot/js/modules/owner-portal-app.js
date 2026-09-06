@@ -5,6 +5,7 @@ import { escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { mountIaShell } from "./ia-nav.js?v=own3";
 import { utcIsoToPhLocalParts } from "./schedule-time.js";
+import { startHybridShell } from "./hybrid-router.js";
 
 const VIEWS = {
   home: { id: "view-home", nav: "owner-home", label: "Inicio", crumb: "Inicio" },
@@ -519,7 +520,19 @@ async function init() {
   }
 
   if (isOperator(user) || hasPermission(user, "ph:manage") || hasPermission(user, "assembly:manage")) {
-    location.href = "/dashboard.html";
+    const dest = "/dashboard.html";
+    if (window.__ASAM_HYBRID__) {
+      // Keep the hybrid shell; hard location.assign would destroy shell ID.
+      queueMicrotask(() => {
+        import("./hybrid-router.js")
+          .then((m) => m.softNavigate(dest))
+          .catch(() => {
+            location.href = dest;
+          });
+      });
+      return;
+    }
+    location.href = dest;
     return;
   }
 
@@ -537,4 +550,31 @@ async function init() {
   await loadPortalData();
 }
 
-init().catch((err) => showError(err.message || String(err)));
+export async function mount(ctx = {}) {
+  await init();
+  await startHybridShell({
+    mount,
+    unmount,
+    canLeave,
+    dispose: unmount
+  });
+  void ctx;
+}
+
+export async function unmount() {
+  /* page-level listeners are wiped with #main swap; abort in-flight via hybrid */
+}
+
+export async function canLeave() {
+  return true;
+}
+
+export async function dispose() {
+  await unmount();
+}
+
+if (!window.__ASAM_SOFT_MOUNTING__ && !window.__ASAM_HYBRID__) {
+  mount().catch((error) => {
+    console.error(error);
+  });
+}

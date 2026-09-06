@@ -118,3 +118,53 @@ export async function api(path, options = {}) {
     }
   }
 }
+
+/** Short-lived GET cache + single-flight (same key shares one in-flight promise). */
+const getResourceCache = new Map();
+
+/**
+ * Cached GET for navigation/hot paths. Never use for user-secret payloads that must
+ * not be shared across tenants in the same tab — keys must include tenant/resource ids.
+ * @param {string} path
+ * @param {{ ttlMs?: number, cacheKey?: string } & Parameters<typeof api>[1]} [options]
+ */
+export async function cachedGet(path, options = {}) {
+  const ttlMs = options.ttlMs ?? 2500;
+  const cacheKey = options.cacheKey || `GET:${path}`;
+  const now = Date.now();
+  const hit = getResourceCache.get(cacheKey);
+  if (hit && hit.value !== undefined && hit.expires > now) {
+    return hit.value;
+  }
+  if (hit?.promise) {
+    return hit.promise;
+  }
+
+  const { ttlMs: _t, cacheKey: _k, ...apiOptions } = options;
+  const promise = api(path, { ...apiOptions, method: "GET" })
+    .then((value) => {
+      getResourceCache.set(cacheKey, { expires: Date.now() + ttlMs, value });
+      return value;
+    })
+    .catch((error) => {
+      getResourceCache.delete(cacheKey);
+      throw error;
+    });
+
+  getResourceCache.set(cacheKey, { expires: 0, promise });
+  return promise;
+}
+
+/** Invalidate by exact key or prefix (e.g. `/api/assemblies/{id}/`). */
+export function invalidateCachedGet(keyOrPrefix) {
+  if (!keyOrPrefix) {
+    getResourceCache.clear();
+    return;
+  }
+  for (const key of [...getResourceCache.keys()]) {
+    if (key === keyOrPrefix || key.startsWith(keyOrPrefix) || key.includes(keyOrPrefix)) {
+      getResourceCache.delete(key);
+    }
+  }
+}
+

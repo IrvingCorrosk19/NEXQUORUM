@@ -9,6 +9,7 @@ import { renderQuorum } from "./quorum.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js";
+import { startHybridShell } from "./hybrid-router.js";
 
 let assemblyId = assemblyIdFromUrl();
 let participants = [];
@@ -18,6 +19,8 @@ let recent = [];
 let quorum = null;
 let assembly = null;
 let assemblyStatus = null;
+let hubConn = null;
+let mountAbort = null;
 
 const OPEN_STATUSES = new Set(["CheckIn", "InProgress", "Paused"]);
 
@@ -510,9 +513,19 @@ async function reloadQuorum() {
 }
 
 async function init() {
+  if (mountAbort) {
+    mountAbort.abort();
+    mountAbort = null;
+  }
+  mountAbort = new AbortController();
+  const { signal } = mountAbort;
+
+  assemblyId = assemblyIdFromUrl() || assemblyId;
   await initI18n();
-  qs("#page-title").textContent = t("checkin.title");
-  qs("#btn-self-checkin").textContent = t("checkin.selfCheckIn");
+  const pageTitle = qs("#page-title");
+  if (pageTitle) pageTitle.textContent = t("checkin.title");
+  const selfBtn = qs("#btn-self-checkin");
+  if (selfBtn) selfBtn.textContent = t("checkin.selfCheckIn");
   const linkLobby = qs("#link-lobby");
   if (linkLobby) {
     linkLobby.textContent = t("dashboard.linkLobby");
@@ -523,17 +536,21 @@ async function init() {
     linkDash.href = `/dashboard.html?assemblyId=${assemblyId}`;
     linkDash.textContent = t("back");
   }
-  qs("#btn-dialog-close").textContent = t("checkin.close");
-  qs("#btn-dialog-accredit").textContent = t("checkin.confirmAccredit");
-  qs("#btn-open-desk").textContent = t("checkin.openDesk");
+  const btnClose = qs("#btn-dialog-close");
+  if (btnClose) btnClose.textContent = t("checkin.close");
+  const btnAccredit = qs("#btn-dialog-accredit");
+  if (btnAccredit) btnAccredit.textContent = t("checkin.confirmAccredit");
+  const btnOpenDesk = qs("#btn-open-desk");
+  if (btnOpenDesk) btnOpenDesk.textContent = t("checkin.openDesk");
   const bulkBtn = qs("#btn-bulk-accredit");
   if (bulkBtn) {
     bulkBtn.textContent = t("checkin.bulkAccredit");
   }
 
   const filter = qs("#participant-filter");
-  filter.placeholder = t("checkin.searchPlaceholder");
-  qs("label[for='participant-filter']").textContent = t("checkin.searchLabel");
+  if (filter) filter.placeholder = t("checkin.searchPlaceholder");
+  const filterLabel = qs("label[for='participant-filter']");
+  if (filterLabel) filterLabel.textContent = t("checkin.searchLabel");
 
   if (!assemblyId) {
     assemblyId = await ensureAssemblyIdOrRedirect();
@@ -554,7 +571,7 @@ async function init() {
   if (bulkBtn) {
     const canBulk = isOperator(user) && hasPermission(user, "attendance:manage");
     bulkBtn.hidden = !canBulk;
-    if (canBulk) bulkBtn.addEventListener("click", bulkAccreditEligible);
+    if (canBulk) bulkBtn.addEventListener("click", bulkAccreditEligible, { signal });
   }
 
   await bootIaPage({ current: "asm-checkin", pageLabel: "Acreditación" });
@@ -562,7 +579,8 @@ async function init() {
   try {
     assembly = await api(`/api/assemblies/${assemblyId}`);
     assemblyStatus = assembly.status;
-    qs("#assembly-label").textContent = `${assembly.propertyHorizontalName || ""} · ${assembly.title || ""}`;
+    const label = qs("#assembly-label");
+    if (label) label.textContent = `${assembly.propertyHorizontalName || ""} · ${assembly.title || ""}`;
   } catch {
     // ignore
   }
@@ -571,27 +589,32 @@ async function init() {
   await reloadParticipants();
   await reloadQuorum();
 
-  filter.addEventListener("input", () => renderCards(filter.value));
-  qs("#btn-self-checkin").addEventListener("click", selfCheckIn);
-  qs("#btn-dialog-close").addEventListener("click", closeOwnerModal);
-  qs("#btn-dialog-accredit").addEventListener("click", confirmAccredit);
-  qs("#btn-open-desk").addEventListener("click", async () => {
+  filter?.addEventListener("input", () => renderCards(filter.value), { signal });
+  selfBtn?.addEventListener("click", selfCheckIn, { signal });
+  btnClose?.addEventListener("click", closeOwnerModal, { signal });
+  btnAccredit?.addEventListener("click", confirmAccredit, { signal });
+  btnOpenDesk?.addEventListener("click", async () => {
     try {
       await ensureDeskOpen();
     } catch (error) {
       showError(errorMessage(error));
     }
-  });
-  qs("#owner-dialog").addEventListener("close", () => {
+  }, { signal });
+  const ownerDialog = qs("#owner-dialog");
+  ownerDialog?.addEventListener("close", () => {
     pendingPreview = null;
-  });
-  qs("#owner-dialog").addEventListener("click", (e) => {
-    if (e.target === qs("#owner-dialog")) closeOwnerModal();
-  });
+  }, { signal });
+  ownerDialog?.addEventListener("click", (e) => {
+    if (e.target === ownerDialog) closeOwnerModal();
+  }, { signal });
 
   try {
     if (window.signalR) {
-      const hub = createAssemblyConnection({
+      if (hubConn) {
+        try { await hubConn.stop?.(assemblyId); } catch { /* ignore */ }
+        hubConn = null;
+      }
+      hubConn = createAssemblyConnection({
         quorumUpdated: (q) => {
           quorum = q;
           updateLive();
@@ -607,14 +630,50 @@ async function init() {
           }
         }
       });
-      await hub.start(assemblyId);
+      await hubConn.start(assemblyId);
     }
   } catch {
     // SignalR optional for check-in page
   }
 }
 
-init().catch((error) => {
-  console.error(error);
-  showError(error.message || t("networkError"));
-});
+export async function mount(ctx = {}) {
+  await init();
+  await startHybridShell({
+    mount,
+    unmount,
+    canLeave,
+    dispose: unmount
+  });
+  void ctx;
+}
+
+export async function unmount() {
+  if (mountAbort) {
+    mountAbort.abort();
+    mountAbort = null;
+  }
+  if (hubConn) {
+    try {
+      await hubConn.stop?.(assemblyId);
+    } catch {
+      /* ignore */
+    }
+    hubConn = null;
+  }
+  pendingPreview = null;
+}
+
+export async function canLeave() {
+  return true;
+}
+
+export async function dispose() {
+  await unmount();
+}
+
+if (!window.__ASAM_SOFT_MOUNTING__ && !window.__ASAM_HYBRID__) {
+  mount().catch((error) => {
+    console.error(error);
+  });
+}

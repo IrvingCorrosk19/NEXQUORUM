@@ -7,6 +7,7 @@ import { ensureAssemblyIdInUrl } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";
+import { startHybridShell } from "./hybrid-router.js";
 
 let assemblyId = assemblyIdFromUrl();
 let dirty = false;
@@ -71,6 +72,7 @@ async function saveAgendaItem() {
 
 async function init() {
   await initI18n();
+  assemblyId = assemblyIdFromUrl() || assemblyId;
 
   if (!assemblyId) {
     showError("Falta assemblyId");
@@ -130,4 +132,45 @@ async function init() {
   }
 }
 
-init().catch((e) => showError(e.message));
+export async function mount(ctx = {}) {
+  await init();
+  await startHybridShell({
+    mount,
+    unmount,
+    canLeave,
+    dispose: unmount
+  });
+  void ctx;
+}
+
+export async function unmount() {
+  /* page-level listeners are wiped with #main swap; abort in-flight via hybrid */
+}
+
+export async function canLeave() {
+  if (!dirty) return true;
+  try {
+    const { confirmDialog } = await import("./ui.js");
+    return Boolean(
+      await confirmDialog({
+        title: "Cambios sin guardar",
+        body: "Hay cambios sin guardar en la agenda. ¿Salir de todas formas?",
+        confirmLabel: "Salir",
+        cancelLabel: "Seguir editando",
+        danger: true
+      })
+    );
+  } catch {
+    return true;
+  }
+}
+
+export async function dispose() {
+  await unmount();
+}
+
+if (!window.__ASAM_SOFT_MOUNTING__ && !window.__ASAM_HYBRID__) {
+  mount().catch((error) => {
+    console.error(error);
+  });
+}

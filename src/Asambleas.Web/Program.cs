@@ -204,7 +204,42 @@ try
         app.UseHttpsRedirection();
     }
     app.UseDefaultFiles();
-    app.UseStaticFiles();
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        OnPrepareResponse = ctx =>
+        {
+            var path = ctx.File.Name;
+            var reqPath = ctx.Context.Request.Path.Value ?? string.Empty;
+            // Fingerprinted / versioned assets (?v= or hashed names) — long cache, immutable.
+            var hasVersionQuery = ctx.Context.Request.Query.ContainsKey("v");
+            var isVersionedAsset =
+                hasVersionQuery
+                || reqPath.Contains(".css", StringComparison.OrdinalIgnoreCase)
+                || reqPath.Contains(".js", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".woff", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".ico", StringComparison.OrdinalIgnoreCase);
+
+            // Never cache HTML shells (hybrid deep-links must revalidate).
+            if (reqPath.EndsWith(".html", StringComparison.OrdinalIgnoreCase) || reqPath is "/" or "")
+            {
+                ctx.Context.Response.Headers.CacheControl = "no-cache";
+                return;
+            }
+
+            if (isVersionedAsset && hasVersionQuery)
+            {
+                ctx.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";
+            }
+            else if (isVersionedAsset)
+            {
+                ctx.Context.Response.Headers.CacheControl = "public,max-age=86400";
+            }
+        }
+    });
 
     // If login JS is blocked, a native form POST must not blank-404/405 the site root.
     app.Use(async (context, next) =>

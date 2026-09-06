@@ -1,4 +1,4 @@
-import { api } from "./api.js";
+import { api, cachedGet, invalidateCachedGet } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
@@ -191,7 +191,7 @@ const liveWorkspace = createLiveVotingWorkspace({
       if (room?.motion) state.motion = room.motion;
       if (room?.session) state.session = room.session;
       if (room?.agenda) state.agenda = room.agenda;
-      const motions = await api(`/api/assemblies/${assemblyId}/motions`).catch(() => null);
+      const motions = await fetchAssemblyMotions().catch(() => null);
       if (Array.isArray(motions)) state.motions = motions;
     } catch {
       /* keep local */
@@ -1265,9 +1265,11 @@ function ensureRecordingPoll(needed) {
   }, 4000);
 }
 
-async function hydrateRecording() {
+async function hydrateRecording({ force = false } = {}) {
   try {
-    const list = await api(`/api/assemblies/${assemblyId}/recordings`);
+    const path = `/api/assemblies/${assemblyId}/recordings`;
+    if (force) invalidateCachedGet(`GET:${path}`);
+    const list = await cachedGet(path, { ttlMs: 2000, cacheKey: `GET:${path}` });
     const rows = (list || []).map(normalizeRecording);
     state.recording =
       rows.find((r) => isRecordingActive(r)) ||
@@ -1715,7 +1717,7 @@ function wirePresentMotion() {
 
 async function presentMotionFlow() {
   try {
-    const motions = await api(`/api/assemblies/${assemblyId}/motions`);
+    const motions = await fetchAssemblyMotions({ force: true });
     const list = Array.isArray(motions) ? motions : motions?.items || [];
     const draft =
       list.find((m) => m.status === "Draft") ||
@@ -1735,6 +1737,7 @@ async function presentMotionFlow() {
       method: "POST",
       body: { motionId: draft.id }
     });
+    invalidateCachedGet(`/api/assemblies/${assemblyId}/motions`);
     showToast(t("assembly.motionPresented") || "Moción presentada", "success");
     refreshPanels();
   } catch (error) {
@@ -1768,7 +1771,25 @@ function tickDuration() {
   els.duration.textContent = formatDuration(Date.now() - new Date(state.startedAtUtc).getTime());
 }
 
+let refreshPanelsRaf = 0;
+
+async function fetchAssemblyMotions({ force = false } = {}) {
+  const path = `/api/assemblies/${assemblyId}/motions`;
+  const cacheKey = `GET:${path}`;
+  if (force) invalidateCachedGet(cacheKey);
+  return cachedGet(path, { ttlMs: 2500, cacheKey });
+}
+
+/** Coalesce SignalR/UI bursts into one paint per animation frame. */
 function refreshPanels() {
+  if (refreshPanelsRaf) return;
+  refreshPanelsRaf = requestAnimationFrame(() => {
+    refreshPanelsRaf = 0;
+    refreshPanelsNow();
+  });
+}
+
+function refreshPanelsNow() {
   const sidebar = els.room?.querySelector(".sidebar");
   const preservedScrollTop = sidebar?.scrollTop ?? 0;
   const operator = state.viewerRole === "Operator";
@@ -2079,7 +2100,7 @@ async function rehydrate() {
   });
   applyRoomState(room);
   try {
-    const motions = await api(`/api/assemblies/${assemblyId}/motions`);
+    const motions = await fetchAssemblyMotions();
     if (Array.isArray(motions)) state.motions = motions;
   } catch {
     /* optional */
@@ -2462,7 +2483,7 @@ ${t("assembly.endPrecheck", {
         showToast(`Grabación: ${status || "actualizada"}`, "info");
       }
     } catch (error) {
-      await hydrateRecording();
+      await hydrateRecording({ force: true });
       showError(error.message);
       showToast({ title: "Grabación no iniciada", message: error.message, variant: "error" });
     } finally {
@@ -2614,7 +2635,7 @@ async function init() {
     motionUpdated: async (m) => {
       state.motion = m;
       try {
-        const motions = await api(`/api/assemblies/${assemblyId}/motions`);
+        const motions = await fetchAssemblyMotions({ force: true });
         if (Array.isArray(motions)) state.motions = motions;
       } catch {
         /* keep */
@@ -2748,25 +2769,15 @@ async function init() {
       assemblyId,
       status: state.assembly?.status,
       leave: async () => {
-        state.intentionalDisconnect = true;
-        try {
-          await state.hub?.stop(assemblyId);
-        } catch {
-          /* ignore */
-        }
-        try {
-          await disconnectLiveKit();
-        } catch {
-          /* ignore */
-        }
+        await disposeRoomConnections();
         clearLiveSessionGuard();
       }
     });
   } catch {
     /* ignore */
   }
-  refreshPanels();
-  await hydrateRecording();
+  // Hub joined — refresh once; recordings use short TTL cache (no duplicate network).
+  await rehydrate();
   await bootstrapMeeting();
 
   durationTimer = window.setInterval(tickDuration, 1000);
@@ -2776,10 +2787,7 @@ async function init() {
   wireRoomViewportChrome();
 
   qs("#btn-logout")?.addEventListener("click", async () => {
-    state.intentionalDisconnect = true;
-    setConnectionLostVisible(false);
-    await state.hub?.stop(assemblyId);
-    await disconnectLiveKit();
+    await disposeRoomConnections();
     await logout();
     location.href = "/";
   });
@@ -2789,7 +2797,60 @@ async function init() {
   }
 }
 
-init().catch((error) => {
-  console.error(error);
-  showError(error.message || t("networkError"));
-});
+async function disposeRoomConnections() {
+  state.intentionalDisconnect = true;
+  setConnectionLostVisible(false);
+  try {
+    await state.hub?.stop(assemblyId);
+  } catch {
+    /* ignore */
+  }
+  state.hub = null;
+  try {
+    await disconnectLiveKit();
+  } catch {
+    /* ignore */
+  }
+  if (durationTimer) {
+    window.clearInterval(durationTimer);
+    durationTimer = null;
+  }
+  if (recordingPollTimer) {
+    window.clearInterval(recordingPollTimer);
+    recordingPollTimer = null;
+  }
+}
+
+/** Explicit leave for hybrid soft-nav outbound from room. */
+export async function disposeForHybridLeave() {
+  try {
+    const { clearLiveSessionGuard } = await import("./ph-context.js");
+    clearLiveSessionGuard();
+  } catch {
+    /* ignore */
+  }
+  await disposeRoomConnections();
+}
+
+export async function mount() {
+  await init();
+}
+
+export async function unmount() {
+  await disposeForHybridLeave();
+}
+
+export async function canLeave() {
+  return true;
+}
+
+export async function dispose() {
+  await disposeForHybridLeave();
+}
+
+if (!window.__ASAM_SOFT_MOUNTING__) {
+  init().catch((error) => {
+    console.error(error);
+    showError(error.message || t("networkError"));
+  });
+}

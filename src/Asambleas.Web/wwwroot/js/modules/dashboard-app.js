@@ -22,6 +22,7 @@ import {
 } from "./readiness-workflow.js";
 import { writeIaContext } from "./ia-context.js";
 import { historicalOverviewUrl, isTerminalStatus, renderHistoricalBanner } from "./assembly-lifecycle.js";
+import { startHybridShell, softNavigate } from "./hybrid-router.js";
 
 let assemblyId = assemblyIdFromUrl();
 
@@ -53,7 +54,16 @@ async function runPrimaryAction(action, operator) {
       return;
     }
   }
-  location.href = action.href;
+  if (action.href) {
+    const href = action.href;
+    if (/\/(dashboard|ph|agenda|checkin|voting-studio|owner)\.html/i.test(href)) {
+      softNavigate(href).catch(() => {
+        location.href = href;
+      });
+    } else {
+      location.href = href;
+    }
+  }
 }
 
 async function loadReadinessData() {
@@ -206,7 +216,31 @@ async function init() {
   });
 }
 
-init().catch((error) => {
-  console.error(error);
-  showError(error.message || t("networkError"));
-});
+export async function mount(ctx = {}) {
+  await init();
+  await startHybridShell({
+    mount,
+    unmount,
+    canLeave,
+    dispose: unmount
+  });
+  void ctx;
+}
+
+export async function unmount() {
+  /* page-level listeners are wiped with #main swap; abort in-flight via hybrid */
+}
+
+export async function canLeave() {
+  return true;
+}
+
+export async function dispose() {
+  await unmount();
+}
+
+if (!window.__ASAM_SOFT_MOUNTING__ && !window.__ASAM_HYBRID__) {
+  mount().catch((error) => {
+    console.error(error);
+  });
+}
