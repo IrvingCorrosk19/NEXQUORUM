@@ -269,13 +269,15 @@ function onDocumentClick(ev) {
     return;
   }
 
-  // Enter room: controlled hard navigation (different chrome).
+  // Enter room / lobby: always native hard navigation (never soft-route).
+  // Soft-routing assembly.html risks DOM/lifecycle races with LiveKit+SignalR.
   if (targetPage === "assembly.html" || targetPage === "lobby.html") {
     return;
   }
 
+  // Leaving soft cluster toward a hard page: allow native navigation.
   if (!SOFT_PAGES.has(targetPage)) return;
-  if (!SOFT_PAGES.has(here) && here !== "assembly.html") return;
+  if (!SOFT_PAGES.has(here)) return;
 
   ev.preventDefault();
   softNavigate(url.pathname + url.search + url.hash).catch(() => {

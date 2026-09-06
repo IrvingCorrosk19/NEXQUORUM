@@ -208,20 +208,17 @@ try
     {
         OnPrepareResponse = ctx =>
         {
-            var path = ctx.File.Name;
             var reqPath = ctx.Context.Request.Path.Value ?? string.Empty;
-            // Fingerprinted / versioned assets (?v= or hashed names) — long cache, immutable.
             var hasVersionQuery = ctx.Context.Request.Query.ContainsKey("v");
-            var isVersionedAsset =
+            var version = hasVersionQuery ? ctx.Context.Request.Query["v"].ToString() : string.Empty;
+            // Strong fingerprints only (content hash / long opaque id). Labels like "mobile-vote5" must NOT be immutable.
+            var strongFingerprint =
                 hasVersionQuery
-                || reqPath.Contains(".css", StringComparison.OrdinalIgnoreCase)
-                || reqPath.Contains(".js", StringComparison.OrdinalIgnoreCase)
-                || reqPath.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase)
-                || reqPath.EndsWith(".woff", StringComparison.OrdinalIgnoreCase)
-                || reqPath.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
-                || reqPath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
-                || reqPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
-                || reqPath.EndsWith(".ico", StringComparison.OrdinalIgnoreCase);
+                && (System.Text.RegularExpressions.Regex.IsMatch(version, "^[a-fA-F0-9]{8,}$")
+                    || version.Length >= 16);
+
+            var isModuleJs = reqPath.Contains("/js/modules/", StringComparison.OrdinalIgnoreCase)
+                && reqPath.EndsWith(".js", StringComparison.OrdinalIgnoreCase);
 
             // Never cache HTML shells (hybrid deep-links must revalidate).
             if (reqPath.EndsWith(".html", StringComparison.OrdinalIgnoreCase) || reqPath is "/" or "")
@@ -230,11 +227,34 @@ try
                 return;
             }
 
-            if (isVersionedAsset && hasVersionQuery)
+            // ES modules are a dependency graph: immutable on a weak ?v= freezes broken mixes after deploys.
+            if (isModuleJs)
+            {
+                ctx.Context.Response.Headers.CacheControl = strongFingerprint
+                    ? "public,max-age=31536000,immutable"
+                    : "no-cache";
+                return;
+            }
+
+            var isStaticAsset =
+                reqPath.Contains(".css", StringComparison.OrdinalIgnoreCase)
+                || reqPath.Contains(".js", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".woff", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                || reqPath.EndsWith(".ico", StringComparison.OrdinalIgnoreCase);
+
+            if (isStaticAsset && strongFingerprint)
             {
                 ctx.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";
             }
-            else if (isVersionedAsset)
+            else if (isStaticAsset && hasVersionQuery)
+            {
+                ctx.Context.Response.Headers.CacheControl = "public,max-age=300,must-revalidate";
+            }
+            else if (isStaticAsset)
             {
                 ctx.Context.Response.Headers.CacheControl = "public,max-age=86400";
             }
