@@ -1,7 +1,7 @@
 {
   "realtime-open-api": {
     "ok": true,
-    "note": "already open 1825d188-36be-49ab-8e49-1be323b20dfc"
+    "note": "already open 97f4106b-5fce-472f-a848-3df1efaa75eb"
   },
   "mobile-overlay-auto": {
     "ok": true,
@@ -29,11 +29,11 @@
   },
   "server-confirmation": {
     "ok": true,
-    "note": "Voto registrado correctamente\n\nComprobante\nVT-3829E0\nFecha y hora\n6/9/2026, 6:42:48 a.m.\nConfirmado por el servidor\nConfirmado por el servidor"
+    "note": "Voto registrado correctamente\n\nComprobante\nVT-967502\nFecha y hora\n6/9/2026, 6:50:45 a.m.\nConfirmado por el servidor\nConfirmado por el servidor"
   },
   "idempotency-status": {
     "ok": true,
-    "note": "{\"votingSessionId\":\"1825d188-36be-49ab-8e49-1be323b20dfc\",\"status\":\"ALREADY_VOTED\",\"evidenceId\":\"3829e082-6fc1-4f5f-aa06-3020a57c1e88\",\"castAtUtc\":\"2026-09-06T11:42:48.294233+00:00"
+    "note": "{\"votingSessionId\":\"97f4106b-5fce-472f-a848-3df1efaa75eb\",\"status\":\"ALREADY_VOTED\",\"evidenceId\":\"967502e7-6300-4f30-9a85-8715d15d80b6\",\"castAtUtc\":\"2026-09-06T11:50:45.319916+00:00"
   },
   "banner-clears-after-vote": {
     "ok": true,
@@ -41,7 +41,7 @@
   },
   "reload-after-vote": {
     "ok": true,
-    "note": "Voto registrado correctamente\n\nComprobante\nVT-3829E0\nFecha y hora\n6/9/2026, 6:42:48 a.m.\nConfirmado por el servidor\nConfirmado por el servidor"
+    "note": "Voto registrado correctamente\n\nComprobante\nVT-967502\nFecha y hora\n6/9/2026, 6:50:45 a.m.\nConfirmado por el servidor\nConfirmado por el servidor"
   },
   "livekit-continuity": {
     "ok": true,
@@ -77,7 +77,7 @@
   },
   "multiple-tabs": {
     "ok": true,
-    "note": "Voto registrado correctamente\n\nComprobante\nVT-3829E0\nFecha y hora\n6/9/2026, 6:42:48 a.m.\nConfirmado por el servidor\nConfirmado por el servidor"
+    "note": "Voto registrado correctamente\n\nComprobante\nVT-967502\nFecha y hora\n6/9/2026, 6:50:45 a.m.\nConfirmado por el servidor\nConfirmado por el servidor"
   },
   "close-voting": {
     "ok": true,

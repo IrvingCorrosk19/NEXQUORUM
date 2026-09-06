@@ -104,12 +104,15 @@ export function createMobileVotingController(options) {
   let selected = null;
   let clientRequestId = null;
   let lastAlertedSessionId = null;
+  let boundSessionId = null;
   let focusReturnEl = null;
   let submitting = false;
   let destroyed = false;
+  let crossTab = null;
 
   const overlay = ensureOverlay();
   const banner = ensureBanner();
+  wireGlobalGuards();
 
   function log(event, payload = {}) {
     if (!debug && localStorage.getItem("asambleasVoteDebug") !== "1") return;
@@ -155,15 +158,78 @@ export function createMobileVotingController(options) {
       </div>`;
     document.body.appendChild(el);
 
-    // Block accidental dismiss: no backdrop click close.
+    // Block accidental dismiss: no backdrop click / swipe-to-dismiss.
     el.addEventListener("click", (e) => {
       if (e.target === el) {
         e.preventDefault();
         e.stopPropagation();
       }
     });
+    el.addEventListener(
+      "touchmove",
+      (e) => {
+        if (e.target === el) e.preventDefault();
+      },
+      { passive: false }
+    );
     el.querySelector("[data-mvo-minimize]")?.addEventListener("click", () => minimize());
     return el;
+  }
+
+  function wireGlobalGuards() {
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (destroyed) return;
+        if (e.key !== "Escape") return;
+        if (overlay.hidden && banner.hidden) return;
+        // Never dismiss voting UI with Escape — only explicit minimize.
+        e.preventDefault();
+        e.stopPropagation();
+      },
+      true
+    );
+    document.addEventListener("visibilitychange", () => {
+      if (destroyed || document.visibilityState !== "visible") return;
+      if (!sessionIdOf(getState().session)) return;
+      refreshFromServer();
+    });
+    window.addEventListener("pageshow", () => {
+      if (destroyed) return;
+      if (!sessionIdOf(getState().session)) return;
+      refreshFromServer();
+    });
+    try {
+      crossTab = new BroadcastChannel(`asambleas.vote.${assemblyId}`);
+      crossTab.onmessage = (ev) => {
+        const data = ev?.data;
+        if (!data || data.type !== "voted") return;
+        const sid = sessionIdOf(getState().session);
+        if (!sid || String(data.sessionId) !== String(sid)) return;
+        refreshFromServer();
+      };
+    } catch {
+      crossTab = null;
+    }
+  }
+
+  function publishVoted(sid) {
+    try {
+      crossTab?.postMessage({ type: "voted", sessionId: sid, at: Date.now() });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function bindSession(sid) {
+    if (!sid) return;
+    if (boundSessionId && String(boundSessionId) !== String(sid)) {
+      // New voting round: do not reuse prior selection / idempotency key.
+      selected = null;
+      clientRequestId = null;
+      lastAlertedSessionId = null;
+    }
+    boundSessionId = sid;
   }
 
   function ensureBanner() {
@@ -638,6 +704,7 @@ export function createMobileVotingController(options) {
       showOverlay(true);
       showBanner(false);
       announce(t("mvote.registered") || "Voto registrado correctamente");
+      publishVoted(sid);
       log("castAccepted", { sessionId: sid, replay: Boolean(receipt.idempotentReplay) });
     } catch (error) {
       lastErrorMsg = mapCastError(error);
@@ -705,6 +772,12 @@ export function createMobileVotingController(options) {
     }
     setPhase("full");
     render();
+    queueMicrotask(() => {
+      overlay.querySelector("#mvo-title")?.focus?.({ preventScroll: true });
+      if (focusReturnEl && typeof focusReturnEl.focus === "function" && phase === "minimized") {
+        /* kept for minimize path; restore focuses the sheet title */
+      }
+    });
     log("restored");
   }
 
@@ -739,6 +812,7 @@ export function createMobileVotingController(options) {
   function onOpened() {
     if (!shouldUseSheet()) return;
     const sid = sessionIdOf(getState().session);
+    bindSession(sid);
     restoreDraft(sid);
     setPhase("full");
     refreshFromServer();
@@ -792,6 +866,11 @@ export function createMobileVotingController(options) {
   function destroy() {
     destroyed = true;
     hideAll();
+    try {
+      crossTab?.close?.();
+    } catch {
+      /* ignore */
+    }
     overlay.remove();
     banner.remove();
     delete document.documentElement.dataset.mobileVoting;
