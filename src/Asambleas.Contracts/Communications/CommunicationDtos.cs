@@ -113,7 +113,15 @@ public sealed record CreateConvocationRequest(
     string BodyText,
     IReadOnlyList<string> Channels,
     Guid? TemplateId,
-    string? IdempotencyKey);
+    string? IdempotencyKey,
+    /// <summary>
+    /// When provided, only these owners are added as recipients (must be Active/Invited with unit on the PH).
+    /// When null, all eligible owners of the PH are preloaded (legacy). Prefer explicit selection from UI.
+    /// </summary>
+    IReadOnlyList<Guid>? OwnerIds = null);
+
+public sealed record AddConvocationRecipientsRequest(
+    IReadOnlyList<Guid> OwnerIds);
 
 public sealed record SendConvocationRequest(
     bool Confirmed = false,

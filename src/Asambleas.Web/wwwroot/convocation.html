@@ -60,6 +60,17 @@
               <label><input type="checkbox" name="ch" value="WhatsApp" /> WhatsApp</label>
               <label><input type="checkbox" name="ch" value="Sms" /> SMS</label>
             </fieldset>
+            <div class="field full">
+              <div class="cluster" style="justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.35rem">
+                <strong>Destinatarios (obligatorio)</strong>
+                <div class="cta-row" style="margin:0">
+                  <button type="button" class="btn btn-ghost" id="btn-create-select-all">Todos</button>
+                  <button type="button" class="btn btn-ghost" id="btn-create-select-none">Ninguno</button>
+                </div>
+              </div>
+              <p class="muted" style="margin:0 0 0.5rem">Solo se convocará a los propietarios que marques. No se incluyen automáticamente.</p>
+              <div id="create-owner-picker"><div class="skeleton" style="height:4rem"></div></div>
+            </div>
             <div class="cta-row">
               <button type="submit" class="btn btn-primary">Crear borrador</button>
             </div>
@@ -83,6 +94,6 @@
       </div>
     </main>
   </div>
-  <script type="module" src="/js/modules/convocation-app.js?v=fb1"></script>
+  <script type="module" src="/js/modules/convocation-app.js?v=invite2"></script>
 </body>
 </html>

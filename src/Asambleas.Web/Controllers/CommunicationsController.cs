@@ -167,6 +167,14 @@ public sealed class ConvocationsController : ControllerBase
     public Task<ConvocationDetailDto> Get(Guid convocationId, CancellationToken cancellationToken) =>
         _convocations.GetAsync(convocationId, cancellationToken);
 
+    [HttpPost("{convocationId:guid}/recipients")]
+    [Authorize(Policy = Permissions.ConvocationsCreate)]
+    public Task<ConvocationDetailDto> AddRecipients(
+        Guid convocationId,
+        [FromBody] AddConvocationRecipientsRequest request,
+        CancellationToken cancellationToken) =>
+        _convocations.AddRecipientsAsync(convocationId, request, cancellationToken);
+
     [HttpPost("{convocationId:guid}/validate")]
     [Authorize(Policy = Permissions.ConvocationsCreate)]
     public Task<ConvocationDetailDto> Validate(Guid convocationId, CancellationToken cancellationToken) =>

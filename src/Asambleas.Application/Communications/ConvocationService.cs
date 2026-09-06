@@ -154,7 +154,7 @@ public sealed class ConvocationService
         }
 
         _db.Convocations.Add(entity);
-        await PopulateRecipientsAsync(entity, channels, cancellationToken);
+        await PopulateRecipientsAsync(entity, channels, request.OwnerIds, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         await _audit.WriteAsync(
@@ -743,10 +743,10 @@ public sealed class ConvocationService
     private async Task PopulateRecipientsAsync(
         Convocation convocation,
         IReadOnlyList<CommunicationChannel> channels,
+        IReadOnlyList<Guid>? ownerIdsFilter,
         CancellationToken cancellationToken)
     {
         // Only owners with Active/Invited status AND at least one active ownership on this PH.
-        // Draft owners registered without units must not enter convocations (blocks empty accreditation).
         var owners = await (
             from o in _db.Owners.AsNoTracking()
             join own in _db.Ownerships.AsNoTracking() on o.Id equals own.OwnerId
@@ -759,23 +759,146 @@ public sealed class ConvocationService
             .Distinct()
             .ToListAsync(cancellationToken);
 
+        if (ownerIdsFilter is { Count: > 0 })
+        {
+            var wanted = ownerIdsFilter.Where(id => id != Guid.Empty).Distinct().ToHashSet();
+            var matched = owners.Where(o => wanted.Contains(o.Id)).ToList();
+            var missing = wanted.Except(matched.Select(o => o.Id)).ToList();
+            if (missing.Count > 0)
+            {
+                throw new DomainException(
+                    "OWNER_NOT_ELIGIBLE",
+                    "Uno o más propietarios no son elegibles para convocatoria. Deben estar Activo o Invitado y tener al menos una unidad activa en esta PH.");
+            }
+
+            owners = matched;
+        }
+        else if (ownerIdsFilter is { Count: 0 })
+        {
+            throw new DomainException(
+                "OWNER_IDS_REQUIRED",
+                "Selecciona al menos un propietario destinatario.");
+        }
+
         foreach (var owner in owners)
         {
-            var recipient = new ConvocationRecipient
-            {
-                TenantId = convocation.TenantId,
-                ConvocationId = convocation.Id,
-                OwnerId = owner.Id,
-                UserId = owner.UserId,
-                DisplayName = owner.DisplayName,
-                Email = string.IsNullOrWhiteSpace(owner.Email) ? null : owner.Email.Trim(),
-                ChannelsJson = JsonSerializer.Serialize(channels.Select(c => c.ToString()), JsonOptions)
-            };
-            var issues = ValidateRecipient(recipient, channels);
-            recipient.IsValid = issues.Count == 0;
-            recipient.ValidationIssuesJson = issues.Count == 0 ? null : JsonSerializer.Serialize(issues, JsonOptions);
-            _db.ConvocationRecipients.Add(recipient);
+            AddRecipientEntity(convocation, owner, channels);
         }
+    }
+
+    /// <summary>
+    /// Adds missing eligible owners to an existing convocation (draft or already sent) so they can be invited/resent.
+    /// </summary>
+    public async Task<ConvocationDetailDto> AddRecipientsAsync(
+        Guid convocationId,
+        AddConvocationRecipientsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+
+        if (request.OwnerIds is null || request.OwnerIds.Count == 0)
+        {
+            throw new DomainException("OWNER_IDS_REQUIRED", "Selecciona al menos un propietario destinatario.");
+        }
+
+        var c = await _db.Convocations.FirstOrDefaultAsync(x => x.Id == convocationId, cancellationToken)
+            ?? throw new DomainException("CONVOCATION_NOT_FOUND", "Convocation not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, c.TenantId);
+
+        if (c.Status == ConvocationStatus.Sending)
+        {
+            throw new DomainException("SEND_IN_PROGRESS", "Hay un envío en curso. Espera a que termine.");
+        }
+
+        var assemblyStatus = await _db.Assemblies.AsNoTracking()
+            .Where(a => a.Id == c.AssemblyId)
+            .Select(a => (AssemblyStatus?)a.Status)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (assemblyStatus is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
+        {
+            throw new DomainException(
+                "ASSEMBLY_SEALED",
+                "No se pueden agregar destinatarios a una asamblea finalizada o cancelada.");
+        }
+
+        var channels = ParseChannels(c.ChannelsJson);
+        var wanted = request.OwnerIds.Where(id => id != Guid.Empty).Distinct().ToList();
+
+        var eligible = await (
+            from o in _db.Owners.AsNoTracking()
+            join own in _db.Ownerships.AsNoTracking() on o.Id equals own.OwnerId
+            join u in _db.Units.AsNoTracking() on own.UnitId equals u.Id
+            where u.PropertyHorizontalId == c.PropertyHorizontalId
+                  && own.IsActive
+                  && u.IsActive
+                  && wanted.Contains(o.Id)
+                  && (o.Status == OwnerLifecycleStatus.Active || o.Status == OwnerLifecycleStatus.Invited)
+            select o)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var missing = wanted.Except(eligible.Select(o => o.Id)).ToList();
+        if (missing.Count > 0)
+        {
+            throw new DomainException(
+                "OWNER_NOT_ELIGIBLE",
+                "Uno o más propietarios no son elegibles (Activo/Invitado con unidad en esta PH).");
+        }
+
+        var existingOwnerIds = await _db.ConvocationRecipients
+            .Where(r => r.ConvocationId == convocationId && r.OwnerId != null)
+            .Select(r => r.OwnerId!.Value)
+            .ToListAsync(cancellationToken);
+        var existing = existingOwnerIds.ToHashSet();
+
+        var added = 0;
+        foreach (var owner in eligible)
+        {
+            if (existing.Contains(owner.Id))
+            {
+                continue;
+            }
+
+            AddRecipientEntity(c, owner, channels);
+            added++;
+        }
+
+        if (added == 0)
+        {
+            return await GetAsync(convocationId, cancellationToken);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            "convocation.recipients.added",
+            assemblyId: c.AssemblyId,
+            correlationId: c.Id,
+            metadata: new { OwnerIds = eligible.Select(o => o.Id).ToArray(), Added = added },
+            cancellationToken: cancellationToken);
+
+        return await GetAsync(convocationId, cancellationToken);
+    }
+
+    private void AddRecipientEntity(
+        Convocation convocation,
+        Owner owner,
+        IReadOnlyList<CommunicationChannel> channels)
+    {
+        var recipient = new ConvocationRecipient
+        {
+            TenantId = convocation.TenantId,
+            ConvocationId = convocation.Id,
+            OwnerId = owner.Id,
+            UserId = owner.UserId,
+            DisplayName = owner.DisplayName,
+            Email = string.IsNullOrWhiteSpace(owner.Email) ? null : owner.Email.Trim(),
+            ChannelsJson = JsonSerializer.Serialize(channels.Select(ch => ch.ToString()), JsonOptions)
+        };
+        var issues = ValidateRecipient(recipient, channels);
+        recipient.IsValid = issues.Count == 0;
+        recipient.ValidationIssuesJson = issues.Count == 0 ? null : JsonSerializer.Serialize(issues, JsonOptions);
+        _db.ConvocationRecipients.Add(recipient);
     }
 
     private async Task<SendPreviewDto> BuildPreviewAsync(

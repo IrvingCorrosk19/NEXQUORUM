@@ -12,6 +12,8 @@ let assemblyId = assemblyIdFromUrl();
 let selectedId = null;
 let selectedPreview = null;
 let currentRecipients = [];
+let createOwners = [];
+let phId = null;
 
 function showError(message) {
   showPageError(message, "error");
@@ -28,6 +30,62 @@ function statusEs(status) {
     Failed: "Fallida"
   };
   return map[status] || status || "—";
+}
+
+function normalizeOwnerList(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data.owners)) return data.owners;
+  return [];
+}
+
+async function loadCreateOwnerPicker() {
+  const host = qs("#create-owner-picker");
+  if (!host || !phId) {
+    if (host) host.innerHTML = `<p class="muted">No se pudo cargar el PH.</p>`;
+    return;
+  }
+  try {
+    const [active, invited] = await Promise.all([
+      api(`/api/ph/${phId}/owners?status=Active`),
+      api(`/api/ph/${phId}/owners?status=Invited`).catch(() => [])
+    ]);
+    const map = new Map();
+    for (const o of [...normalizeOwnerList(active), ...normalizeOwnerList(invited)]) {
+      if (o?.id) map.set(String(o.id), o);
+    }
+    createOwners = [...map.values()].sort((a, b) =>
+      String(a.displayName || "").localeCompare(String(b.displayName || ""), "es")
+    );
+    if (!createOwners.length) {
+      host.innerHTML = `<p class="muted">No hay propietarios Activo/Invitado con unidad. Asigna unidades antes de convocar.</p>`;
+      return;
+    }
+    host.innerHTML = `
+      <ul class="blocker-list" style="list-style:none;padding:0;margin:0;display:grid;gap:0.35rem;max-height:16rem;overflow:auto">
+        ${createOwners
+          .map(
+            (o) => `
+          <li style="display:flex;align-items:center;gap:0.65rem;padding:0.45rem 0.55rem;border:1px solid rgba(255,255,255,.08);border-radius:0.5rem">
+            <input type="checkbox" class="create-owner-check" value="${escapeHtml(o.id)}" data-name="${escapeHtml(o.displayName || "")}" />
+            <span style="flex:1">
+              <strong>${escapeHtml(o.displayName || "—")}</strong>
+              <span class="muted"> · ${escapeHtml(o.email || "sin email")}</span>
+              <span class="muted"> · ${(o.unitCodes || []).join(", ") || "sin unidad"}</span>
+            </span>
+            <span class="badge">${escapeHtml(o.status || "")}</span>
+          </li>`
+          )
+          .join("")}
+      </ul>`;
+  } catch (e) {
+    host.innerHTML = `<p class="muted">${escapeHtml(e.message || "Error al cargar propietarios.")}</p>`;
+  }
+}
+
+function selectedCreateOwnerIds() {
+  return [...document.querySelectorAll(".create-owner-check:checked")].map((el) => el.value);
 }
 
 async function refreshList() {
@@ -59,19 +117,20 @@ function renderRecipientPicker(recipients) {
   }
   return `
     <div class="conv-recipients" style="margin-top:1rem">
-      <div class="cluster" style="justify-content:space-between;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.5rem">
-        <strong>Destinatarios</strong>
+        <div class="cluster" style="justify-content:space-between;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.5rem">
+        <strong>Destinatarios a enviar</strong>
         <div class="cta-row" style="margin:0">
           <button type="button" class="btn btn-ghost" id="btn-select-all">Seleccionar todos</button>
           <button type="button" class="btn btn-ghost" id="btn-select-none">Ninguno</button>
         </div>
       </div>
+      <p class="muted" style="margin:0 0 0.5rem">Marca solo a quienes quieres notificar ahora.</p>
       <ul class="blocker-list" id="recipient-list" style="list-style:none;padding:0;margin:0;display:grid;gap:0.35rem">
         ${valid
           .map(
             (r) => `
           <li style="display:flex;align-items:center;gap:0.65rem;padding:0.45rem 0.55rem;border:1px solid rgba(255,255,255,.08);border-radius:0.5rem">
-            <input type="checkbox" class="rcpt-check" value="${escapeHtml(r.id)}" checked data-name="${escapeHtml(r.displayName)}" />
+            <input type="checkbox" class="rcpt-check" value="${escapeHtml(r.id)}" data-name="${escapeHtml(r.displayName)}" />
             <span style="flex:1">
               <strong>${escapeHtml(r.displayName)}</strong>
               <span class="muted"> · ${escapeHtml(r.email || "sin email")}</span>
@@ -212,8 +271,81 @@ async function renderDeliveryPanel(convocationId) {
     document.querySelectorAll("[data-resend-one]").forEach((btn) => {
       btn.addEventListener("click", () => resendOne(btn.getAttribute("data-resend-one")));
     });
+
+    // Offer adding owners who are not yet on this convocation.
+    if (phId) {
+      const presentOwnerEmails = new Set(
+        rows.map((r) => String(r.email || "").trim().toLowerCase()).filter(Boolean)
+      );
+      const missing = createOwners.filter(
+        (o) => o.email && !presentOwnerEmails.has(String(o.email).trim().toLowerCase())
+      );
+      if (missing.length) {
+        host.insertAdjacentHTML(
+          "beforeend",
+          `
+          <div style="margin-top:1.25rem" id="add-recipients-box">
+            <strong>Agregar destinatarios faltantes</strong>
+            <p class="muted">Marca propietarios elegibles que no están en esta convocatoria y reenvía solo a ellos.</p>
+            <ul style="list-style:none;padding:0;margin:0.5rem 0;display:grid;gap:0.35rem;max-height:12rem;overflow:auto">
+              ${missing
+                .map(
+                  (o) => `
+                <li style="display:flex;align-items:center;gap:0.65rem">
+                  <input type="checkbox" class="add-owner-check" value="${escapeHtml(o.id)}" />
+                  <span>${escapeHtml(o.displayName || "—")} · ${escapeHtml(o.email || "")}</span>
+                </li>`
+                )
+                .join("")}
+            </ul>
+            <button type="button" class="btn btn-primary" id="btn-add-and-resend">Agregar y reenviar</button>
+          </div>`
+        );
+        qs("#btn-add-and-resend")?.addEventListener("click", addAndResend);
+      }
+    }
   } catch (e) {
     host.insertAdjacentHTML("beforeend", `<p class="muted">${escapeHtml(e.message || "No se pudo cargar el historial.")}</p>`);
+  }
+}
+
+async function addAndResend() {
+  if (!selectedId) return;
+  const ownerIds = [...document.querySelectorAll(".add-owner-check:checked")].map((el) => el.value);
+  if (!ownerIds.length) {
+    AppFeedback.warning("Selecciona al menos un propietario para agregar.", { title: "Sin selección" });
+    return;
+  }
+  try {
+    const detail = await api(`/api/convocations/${selectedId}/recipients`, {
+      method: "POST",
+      body: { ownerIds }
+    });
+    const added = (detail.recipients || []).filter((r) =>
+      ownerIds.includes(String(r.ownerId || ""))
+    );
+    // Match by email if ownerId casing differs
+    const emails = new Set(
+      createOwners.filter((o) => ownerIds.includes(String(o.id))).map((o) => String(o.email || "").toLowerCase())
+    );
+    const recipientIds = (detail.recipients || [])
+      .filter((r) => emails.has(String(r.email || "").toLowerCase()) || ownerIds.includes(String(r.ownerId || "")))
+      .map((r) => r.id);
+    if (!recipientIds.length) {
+      AppFeedback.warning("Se agregaron, pero no hay IDs de destinatario para reenviar. Abre el detalle e intenta reenviar.", {
+        title: "Destinatarios agregados"
+      });
+      await openDetail(selectedId);
+      return;
+    }
+    await doResend({ recipientIds, onlyFailedOrPending: false });
+    AppFeedback.success(`Se agregó y notificó a ${recipientIds.length} destinatario(s).`, {
+      title: "Invitación enviada"
+    });
+    await openDetail(selectedId);
+    await refreshList();
+  } catch (e) {
+    AppFeedback.fromError(e, "No se pudieron agregar los destinatarios.");
   }
 }
 
@@ -306,6 +438,14 @@ async function init() {
     location.href = "/";
   });
 
+  try {
+    const assembly = await api(`/api/assemblies/${assemblyId}`);
+    phId = assembly.propertyHorizontalId || assembly.propertyHorizontal?.id || null;
+  } catch {
+    phId = null;
+  }
+  await loadCreateOwnerPicker();
+
   qs("#create-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     if (!hasPermission(user, "convocations:create")) {
@@ -316,6 +456,11 @@ async function init() {
     const title = qs("#c-title").value.trim();
     const subject = qs("#c-subject").value.trim() || title;
     const notes = qs("#c-html").value.trim();
+    const ownerIds = selectedCreateOwnerIds();
+    if (!ownerIds.length) {
+      AppFeedback.warning("Selecciona al menos un propietario destinatario.", { title: "Destinatarios requeridos" });
+      return;
+    }
     try {
       const created = await api(`/api/assemblies/${assemblyId}/convocations`, {
         method: "POST",
@@ -326,15 +471,30 @@ async function init() {
           bodyHtml: notes || "<p>Convocatoria institucional (plantilla premium al enviar).</p>",
           bodyText: notes || "Convocatoria institucional.",
           channels,
+          ownerIds,
           idempotencyKey: `ui-${Date.now()}`
         }
       });
-      AppFeedback.success("La convocatoria quedó guardada como borrador.", { title: "Convocatoria creada" });
+      AppFeedback.success(
+        `Borrador creado con ${ownerIds.length} destinatario(s) seleccionado(s).`,
+        { title: "Convocatoria creada" }
+      );
       await refreshList();
       await openDetail(created.id);
     } catch (e) {
       AppFeedback.fromError(e, "No pudimos crear la convocatoria.");
     }
+  });
+
+  qs("#btn-create-select-all")?.addEventListener("click", () => {
+    document.querySelectorAll(".create-owner-check").forEach((el) => {
+      el.checked = true;
+    });
+  });
+  qs("#btn-create-select-none")?.addEventListener("click", () => {
+    document.querySelectorAll(".create-owner-check").forEach((el) => {
+      el.checked = false;
+    });
   });
 
   qs("#btn-validate")?.addEventListener("click", async () => {
