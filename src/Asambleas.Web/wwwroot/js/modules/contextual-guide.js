@@ -225,7 +225,7 @@ export function resolveContextualGuide(ctx) {
         severity: "info",
         title: "Mesa de acreditación abierta",
         explanation:
-          "Los propietarios deben acreditarse antes de votar. Cuando esté listo, inicie la asamblea y luego presente/abra cada pregunta.",
+          "Acredite a los propietarios en la mesa antes de votar. Cuando esté listo, inicie la asamblea y luego presente/abra cada pregunta.",
         steps: [
           "Acredite a los propietarios en la mesa",
           "Inicie la asamblea",
@@ -244,8 +244,8 @@ export function resolveContextualGuide(ctx) {
       severity: accredited ? "success" : "warning",
       title: accredited ? "Ya está acreditado — espere el inicio" : "Participación pendiente de validación",
       explanation: accredited
-        ? "Su acreditación está aprobada. La asamblea aún no ha iniciado. Cuando se inicie y abra una votación, podrá emitir su voto aquí."
-        : "Su participación está pendiente de validación por la administración. No necesita realizar ninguna acción. Esta pantalla se actualizará automáticamente.",
+        ? "Su participación fue aprobada. Ya puede ingresar y votar cuando se habilite una votación."
+        : "Su participación está siendo validada. No necesita realizar ninguna acción. Esta pantalla se actualizará automáticamente.",
       steps: accredited
         ? ["Espere a que la mesa inicie la asamblea"]
         : ["Espere la validación de la mesa"],
@@ -302,7 +302,7 @@ export function resolveContextualGuide(ctx) {
         severity: "danger",
         title: "Participación pendiente de validación",
         explanation:
-          "Hay una votación abierta, pero su participación todavía está pendiente de validación administrativa. No necesita realizar ninguna acción; esta pantalla se actualizará automáticamente.",
+          "Hay una votación abierta, pero su participación todavía está siendo validada. No necesita realizar ninguna acción; esta pantalla se actualizará automáticamente.",
         steps: ["Espere la acreditación de la mesa"],
         responsible: "Mesa",
         nextActionLabel: null,
@@ -469,9 +469,9 @@ export function explainBlockCode(code, fallbackMessage = "") {
       next: "Espere la siguiente pregunta."
     },
     NOT_ACCREDITED: {
-      title: "Participación pendiente de validación",
-      explanation: "Su participación todavía está pendiente de validación administrativa.",
-      next: "No necesita realizar ninguna acción. Esta pantalla se actualizará automáticamente."
+      title: "Participación en validación",
+      explanation: "Su participación está siendo validada. No necesita realizar ninguna acción.",
+      next: "Esta pantalla se actualizará automáticamente."
     },
     NOT_ELIGIBLE: {
       title: "Sin derecho a voto",

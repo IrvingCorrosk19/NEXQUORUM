@@ -1,0 +1,133 @@
+/* Owner lobby — compact mobile accreditation status */
+body.is-fullscreen-ops {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+.lobby-main {
+  width: min(720px, 100%);
+  margin-inline: auto;
+  box-sizing: border-box;
+  padding-inline: max(0.75rem, env(safe-area-inset-left));
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+.app-top,
+.ia-breadcrumbs,
+.ia-asm-nav,
+.ia-asm-tabs {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ia-breadcrumbs {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+#accreditation-banner {
+  margin: 0.75rem 0 0;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md, 0.75rem);
+  line-height: 1.45;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+#accreditation-banner.alert-success {
+  border: 1px solid color-mix(in srgb, var(--brand-teal-400, #2dd4bf) 45%, transparent);
+  background: color-mix(in srgb, var(--brand-teal-700, #0f766e) 18%, transparent);
+}
+
+.lobby-hero h1 {
+  font-size: clamp(1.35rem, 4.5vw, 1.85rem);
+  line-height: 1.2;
+  margin-bottom: 0.35rem;
+}
+
+.lobby-stack .panel {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+.accreditation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem 0.85rem;
+}
+
+.device-selectors select,
+.device-selectors .input,
+#preview-video,
+#preview-fallback {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 430px) {
+  .accreditation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .accreditation-grid dt {
+    font-size: 0.75rem;
+  }
+
+  .accreditation-grid dd {
+    font-size: 0.95rem;
+    word-break: break-word;
+  }
+
+  #btn-enter {
+    min-height: 3rem;
+    font-size: 1rem;
+  }
+
+  .device-toggles,
+  .device-selectors {
+    gap: 0.85rem !important;
+  }
+
+  .device-toggle .btn,
+  .device-selectors .input,
+  .device-selectors select {
+    min-height: 2.75rem;
+    width: 100%;
+  }
+
+  .app-top .cluster {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .app-top .btn {
+    min-height: 2.75rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .lobby-main {
+    padding-inline: 0.5rem;
+  }
+
+  #accreditation-banner {
+    font-size: 0.9rem;
+    padding: 0.75rem 0.85rem;
+  }
+
+  .lobby-hero h1 {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .lobby-main {
+    padding-inline: 0.4rem;
+  }
+
+  .app-top {
+    padding-inline: 0.4rem;
+  }
+}

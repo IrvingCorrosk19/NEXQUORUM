@@ -1,0 +1,165 @@
+{
+  "at": "2026-09-08T03:03:38.326Z",
+  "base": "https://localhost:7188",
+  "stamp": "36595138",
+  "passed": 31,
+  "failed": 0,
+  "verdict": "CERTIFICADO",
+  "results": [
+    {
+      "id": "ASM",
+      "pass": true,
+      "d": "ade458cc-a24a-4b61-9abe-67b978d6c65b"
+    },
+    {
+      "id": "OWNER_EMAIL",
+      "pass": true,
+      "d": "omc.36595138@sandbox.test"
+    },
+    {
+      "id": "OWNER_USER",
+      "pass": true,
+      "d": "b70bac9e-3ffc-429a-b6fe-2abd070913da"
+    },
+    {
+      "id": "OWNER_CHECKIN_REDIRECT",
+      "pass": true,
+      "d": "https://localhost:7188/lobby.html?assemblyId=ade458cc-a24a-4b61-9abe-67b978d6c65b"
+    },
+    {
+      "id": "NO_SELF_ACCREDIT_UI",
+      "pass": true,
+      "d": "{\"tabs\":[\"Resumen\",\"Sala\",\"Agenda\",\"Acta\",\"Preparación\",\"Expediente\"],\"hasBad\":false,\"hasCheckinTab\":false}"
+    },
+    {
+      "id": "PENDING_COPY",
+      "pass": true,
+      "d": "Su participación está siendo validada. No necesita realizar ninguna acción. Esta pantalla se actualizará automáticamente.\nSu participación está siendo validada. No necesita realizar ninguna acción. Es"
+    },
+    {
+      "id": "API_403",
+      "pass": true,
+      "d": "403"
+    },
+    {
+      "id": "ADMIN_ACCREDIT",
+      "pass": true,
+      "d": "200 {\"participantId\":\"c7315930-5e36-4e56-b5a1-8204e07b67cf\",\"attendanceStatus\":\"Registered\",\"isAccredited\":true,\"accreditedA"
+    },
+    {
+      "id": "RT_APPROVED_NO_RELOAD",
+      "pass": true,
+      "d": "live-update"
+    },
+    {
+      "id": "APPROVED_COPY",
+      "pass": true,
+      "d": "Su participación fue aprobada. Ya puede ingresar y votar cuando se habilite una votación. Su participación fue aprobada. Ya puede ingresar y votar cuando se habilite una votación."
+    },
+    {
+      "id": "OVERFLOW_LOBBY_320",
+      "pass": true,
+      "d": "{\"scrollWidth\":320,\"clientWidth\":320,\"overflow\":0}"
+    },
+    {
+      "id": "OVERFLOW_LOBBY_360",
+      "pass": true,
+      "d": "{\"scrollWidth\":360,\"clientWidth\":360,\"overflow\":0}"
+    },
+    {
+      "id": "OVERFLOW_LOBBY_390",
+      "pass": true,
+      "d": "{\"scrollWidth\":390,\"clientWidth\":390,\"overflow\":0}"
+    },
+    {
+      "id": "OVERFLOW_LOBBY_412",
+      "pass": true,
+      "d": "{\"scrollWidth\":412,\"clientWidth\":412,\"overflow\":0}"
+    },
+    {
+      "id": "OVERFLOW_LOBBY_tablet",
+      "pass": true,
+      "d": "{\"scrollWidth\":768,\"clientWidth\":768,\"overflow\":0}"
+    },
+    {
+      "id": "OVERFLOW_LOBBY_desktop",
+      "pass": true,
+      "d": "{\"scrollWidth\":1366,\"clientWidth\":1366,\"overflow\":0}"
+    },
+    {
+      "id": "PRESENCE_BEFORE_VOTE",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "ASM_START",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "MOTION",
+      "pass": true,
+      "d": "200"
+    },
+    {
+      "id": "VOTE_OPEN",
+      "pass": true,
+      "d": "200 {\"id\":\"8d242828-4682-4b55-bf2d-75a197f33451\",\"assemblyId\":\"ade458cc-a24a-4b61-9abe-67b978d6c65b\",\"motionId\":\"d063d9de-8e"
+    },
+    {
+      "id": "OVERFLOW_ROOM_390",
+      "pass": true,
+      "d": "{\"scrollWidth\":390,\"clientWidth\":390,\"overflow\":0}"
+    },
+    {
+      "id": "ROOM_NO_SELF_ACCREDIT",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "TOUCH_TARGETS",
+      "pass": true,
+      "d": "[]"
+    },
+    {
+      "id": "OVERFLOW_VOTE_390",
+      "pass": true,
+      "d": "{\"scrollWidth\":390,\"clientWidth\":390,\"overflow\":0}"
+    },
+    {
+      "id": "VOTE_SHEET_VISIBLE",
+      "pass": true,
+      "d": "{\"sheet\":true,\"options\":3,\"minH\":59.171875,\"labels\":[\"○\\n            ✓\\n            A FAVOR\",\"○\\n            ✕\\n            EN CONTRA\",\"○\\n            –\\n            ABSTENCIÓN\"]}"
+    },
+    {
+      "id": "VOTE_OPTIONS_TOUCH",
+      "pass": true,
+      "d": "{\"sheet\":true,\"options\":3,\"minH\":59.171875,\"labels\":[\"○\\n            ✓\\n            A FAVOR\",\"○\\n            ✕\\n            EN CONTRA\",\"○\\n            –\\n            ABSTENCIÓN\"]}"
+    },
+    {
+      "id": "VOTE_CAST_UI",
+      "pass": true,
+      "d": "ui-receipt"
+    },
+    {
+      "id": "VOTE_DUP_BLOCKED",
+      "pass": true,
+      "d": "400"
+    },
+    {
+      "id": "OVERFLOW_ROOM_320",
+      "pass": true,
+      "d": "{\"scrollWidth\":320,\"clientWidth\":320,\"overflow\":0}"
+    },
+    {
+      "id": "OVERFLOW_ROOM_360",
+      "pass": true,
+      "d": "{\"scrollWidth\":360,\"clientWidth\":360,\"overflow\":0}"
+    },
+    {
+      "id": "OVERFLOW_ROOM_412",
+      "pass": true,
+      "d": "{\"scrollWidth\":412,\"clientWidth\":412,\"overflow\":0}"
+    }
+  ]
+}

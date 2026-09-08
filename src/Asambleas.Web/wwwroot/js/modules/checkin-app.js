@@ -996,6 +996,12 @@ async function init() {
     return;
   }
 
+  // Owners must not use the accreditation desk — send them to lobby.
+  if (!isOperator(user) || !hasPermission(user, "attendance:manage")) {
+    location.replace(`/lobby.html?assemblyId=${encodeURIComponent(assemblyId)}`);
+    return;
+  }
+
   if (bulkBtn) {
     const canBulk = isOperator(user) && hasPermission(user, "attendance:manage");
     const canForceAbsent = hasPermission(user, "attendance:force-absent");

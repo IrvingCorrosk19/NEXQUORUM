@@ -421,8 +421,8 @@ public sealed partial class AttendanceService
         var dto = Mapping.ToParticipantDto(participant, unitCode, effective, snapshots.Count);
         await _realtime.PublishAttendanceAsync(assemblyId, dto, cancellationToken);
 
-        const string ownerMessage =
-            "Su acreditación fue aprobada. Ya puede participar en la asamblea y votar cuando se habilite una votación.";
+const string ownerMessage =
+            "Su participación fue aprobada. Ya puede ingresar y votar cuando se habilite una votación.";
         await _realtime.PublishAccreditationChangedAsync(
             assemblyId,
             new AccreditationChangedDto(

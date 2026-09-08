@@ -272,7 +272,7 @@ public sealed partial class AttendanceService
                         IsAccredited: true,
                         AttendanceStatus: AttendanceStatus.Registered.ToString(),
                         EffectiveCoefficientPercent: item.EffectiveCoefficientPercent ?? 0m,
-                        Message: "Su acreditación fue aprobada. Ya puede participar en la asamblea y votar cuando se habilite una votación.",
+                        Message: "Su participación fue aprobada. Ya puede ingresar y votar cuando se habilite una votación.",
                         AccreditedByUserId: actorUserId,
                         AccreditedAtUtc: now),
                     cancellationToken);

@@ -84,11 +84,10 @@ function resolveSelf(room, user) {
   );
 }
 
-function updateAccreditationBanner(self, assembly) {
+function updateAccreditationBanner(self, _assembly) {
   const banner = qs("#accreditation-banner");
   if (!banner) return;
   const accredited = Boolean(self?.isAccredited);
-  const status = assembly?.status || "";
   banner.hidden = false;
   if (!accredited) {
     banner.className = "alert";
@@ -96,11 +95,11 @@ function updateAccreditationBanner(self, assembly) {
     return;
   }
   banner.className = "alert alert-success";
-  if (["Draft", "Scheduled", "CheckIn"].includes(status)) {
-    banner.textContent = t("lobby.accreditedWaitingStart");
-  } else {
-    banner.textContent = t("lobby.accreditationApproved");
-  }
+  banner.textContent = t("lobby.accreditationApproved");
+}
+
+function selfUserId(user) {
+  return String(user?.userId || user?.id || "").toLowerCase();
 }
 
 function updateEnterGate(self, assembly) {
@@ -125,21 +124,46 @@ function updateEnterGate(self, assembly) {
   } else if (!joinable) {
     hint.textContent = t("lobby.assemblyNotJoinable", { status });
   } else if (["Draft", "Scheduled", "CheckIn"].includes(status)) {
-    hint.textContent = t("lobby.accreditedWaitingStart");
+    hint.textContent = t("lobby.accreditationApproved");
   } else if (!meetingAvailable) {
     hint.textContent = t("lobby.enterGovernanceOnly");
   } else {
-    hint.textContent = "";
+    hint.textContent = t("lobby.accreditationApproved");
+  }
+
+  const statusEl = qs("#lobby-status");
+  if (statusEl) {
+    if (!accredited) {
+      statusEl.hidden = true;
+      statusEl.textContent = "";
+    } else if (["Draft", "Scheduled", "CheckIn"].includes(status)) {
+      statusEl.hidden = false;
+      statusEl.textContent = t("lobby.accreditationApproved");
+    }
   }
 }
 
 function applySelfUpdate(participant) {
   if (!participant || !currentUser) return;
-  const uid = String(currentUser?.id || currentUser?.userId || "").toLowerCase();
-  const pid = String(participant.userId || "").toLowerCase();
+  const uid = selfUserId(currentUser);
+  const pid = String(participant.userId || participant.UserId || "").toLowerCase();
   if (!uid || uid !== pid) return;
   const wasAccredited = Boolean(currentSelf?.isAccredited);
-  currentSelf = { ...(currentSelf || {}), ...participant };
+  currentSelf = {
+    ...(currentSelf || {}),
+    ...participant,
+    userId: participant.userId || participant.UserId || currentSelf?.userId,
+    isAccredited: Boolean(
+      participant.isAccredited === true ||
+        participant.IsAccredited === true ||
+        (participant.isAccredited !== false &&
+          participant.IsAccredited !== false &&
+          (participant.isAccredited || participant.IsAccredited))
+    )
+  };
+  if (participant.isAccredited === false || participant.IsAccredited === false) {
+    currentSelf.isAccredited = false;
+  }
   updateEnterGate(currentSelf, currentAssembly);
   if (!wasAccredited && currentSelf.isAccredited) {
     showToast({
@@ -360,12 +384,18 @@ async function init() {
   }
 
   const statusEl = qs("#lobby-status");
-  if (assembly?.status && assembly.status !== "InProgress") {
-    statusEl.hidden = false;
-    statusEl.textContent =
-      assembly.status === "CheckInOpen" || assembly.status === "Scheduled" || assembly.status === "CheckIn"
-        ? t("lobby.notStarted")
-        : t("lobby.assemblyStatus", { status: assembly.status });
+  if (statusEl) {
+    const accredited = Boolean(self?.isAccredited);
+    if (!accredited) {
+      statusEl.hidden = true;
+      statusEl.textContent = "";
+    } else if (assembly?.status && assembly.status !== "InProgress") {
+      statusEl.hidden = false;
+      statusEl.textContent =
+        assembly.status === "CheckInOpen" || assembly.status === "Scheduled" || assembly.status === "CheckIn"
+          ? t("lobby.accreditationApproved")
+          : t("lobby.assemblyStatus", { status: assembly.status });
+    }
   }
 
   const dts = qs("#participant-facts").querySelectorAll("dt");
@@ -389,19 +419,21 @@ async function init() {
     hub = createAssemblyConnection({
       participantUpdated: (p) => applySelfUpdate(p),
       accreditationChanged: (chg) => {
-        const uid = String(currentUser?.id || currentUser?.userId || "").toLowerCase();
-        if (String(chg?.userId || "").toLowerCase() !== uid) return;
+        const uid = selfUserId(currentUser);
+        const chgUid = String(chg?.userId || chg?.UserId || "").toLowerCase();
+        if (!uid || chgUid !== uid) return;
         applySelfUpdate({
-          userId: chg.userId,
-          isAccredited: chg.isAccredited,
-          attendanceStatus: chg.attendanceStatus,
-          effectiveCoefficientPercent: chg.effectiveCoefficientPercent
+          userId: chg.userId || chg.UserId,
+          isAccredited: chg.isAccredited ?? chg.IsAccredited,
+          attendanceStatus: chg.attendanceStatus || chg.AttendanceStatus,
+          effectiveCoefficientPercent: chg.effectiveCoefficientPercent ?? chg.EffectiveCoefficientPercent
         });
-        if (chg?.message) {
+        if (chg?.message || chg?.Message) {
+          const accreditedNow = Boolean(chg.isAccredited ?? chg.IsAccredited);
           showToast({
-            title: chg.isAccredited ? t("lobby.accredited") : t("lobby.notAccredited"),
-            message: chg.message,
-            variant: chg.isAccredited ? "success" : "warning"
+            title: accreditedNow ? t("lobby.accredited") : t("lobby.notAccredited"),
+            message: chg.message || chg.Message,
+            variant: accreditedNow ? "success" : "warning"
           });
         }
       },
@@ -412,8 +444,33 @@ async function init() {
       }
     });
     await hub.start(assemblyId);
+    document.documentElement.dataset.lobbyHub = "connected";
   } catch (err) {
     console.warn("Lobby SignalR unavailable", err);
+    document.documentElement.dataset.lobbyHub = "offline";
+  }
+
+  // Safety net: poll accreditation until approved (covers missed SignalR frames).
+  if (!Boolean(currentSelf?.isAccredited)) {
+    const pollStarted = Date.now();
+    const pollId = window.setInterval(async () => {
+      if (Boolean(currentSelf?.isAccredited) || Date.now() - pollStarted > 120000) {
+        window.clearInterval(pollId);
+        return;
+      }
+      try {
+        const snap = await hydrateRoomState(assemblyId, {
+          userId: selfUserId(currentUser)
+        });
+        const next = resolveSelf(snap, currentUser);
+        if (next?.isAccredited) {
+          applySelfUpdate(next);
+          window.clearInterval(pollId);
+        }
+      } catch {
+        /* ignore transient poll errors */
+      }
+    }, 2500);
   }
 
   qs("#toggle-camera").addEventListener("click", () => {

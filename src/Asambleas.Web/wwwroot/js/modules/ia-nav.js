@@ -142,7 +142,11 @@ export function buildAssemblyTabsHtml(ctx) {
           canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente", more: true } : null
         ];
 
-  const filtered = tabs.filter(Boolean);
+  const filtered = tabs.filter(Boolean).filter((t) => {
+    // Owners never see accreditation / check-in desk tabs.
+    if (t.id === "asm-checkin" && roleFamily(ctx.user) === "owner") return false;
+    return true;
+  });
   const primary = filtered.filter((t) => !t.more);
   const more = filtered.filter((t) => t.more);
 

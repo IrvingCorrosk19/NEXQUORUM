@@ -6,6 +6,8 @@
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   padding: 0.65rem 1.1rem;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
   cursor: pointer;
   transition: background var(--motion-fast) var(--ease-out),
     border-color var(--motion-fast) var(--ease-out),
@@ -317,6 +319,8 @@
   padding: var(--space-5);
   max-width: 28rem;
   width: calc(100% - 2rem);
+  max-height: min(90dvh, 40rem);
+  overflow: auto;
   background: var(--color-surface-elevated);
   box-shadow: var(--shadow-soft);
   color: var(--color-ink);
@@ -342,6 +346,10 @@
   gap: var(--space-3);
   justify-content: flex-end;
   margin-top: var(--space-4);
+  position: sticky;
+  bottom: 0;
+  background: var(--color-surface-elevated);
+  padding-top: var(--space-3);
 }
 
 .dialog-choice {
