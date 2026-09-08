@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/css/components.css?v=owner-m1" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <link rel="stylesheet" href="/css/loading.css?v=owner-m1" />
-  <link rel="stylesheet" href="/css/assembly-room.css?v=owner-m1" />
+  <link rel="stylesheet" href="/css/assembly-room.css?v=console10" />
   <link rel="stylesheet" href="/css/live-voting.css?v=lv2" />
   <link rel="stylesheet" href="/css/voting-studio.css?v=vs1" />
   <link rel="stylesheet" href="/css/mobile-voting.css?v=owner-m1" />
@@ -86,8 +86,12 @@
 
         <section aria-label="Participantes (operación)" class="operator-only operator-cockpit">
           <h2 class="sr-only">Cockpit de operación</h2>
-          <div id="hybrid-cockpit" class="hybrid-cockpit" hidden></div>
-          <div id="media-cockpit" class="media-cockpit" hidden></div>
+          <div id="presence-summary" class="presence-summary" hidden></div>
+          <details id="ops-diagnostics" class="ops-diagnostics" hidden>
+            <summary>Diagnóstico de conexión</summary>
+            <div id="hybrid-cockpit" class="hybrid-cockpit" hidden></div>
+            <div id="media-cockpit" class="media-cockpit" hidden></div>
+          </details>
           <div id="participant-strip" class="participant-strip" hidden></div>
         </section>
 
@@ -154,6 +158,7 @@
 
     <!-- Meeting drawers -->
     <div id="meeting-drawer-backdrop" class="meeting-drawer-backdrop" hidden></div>
+    <button type="button" id="ops-panel-backdrop" class="ops-panel-backdrop" hidden aria-label="Cerrar panel operativo"></button>
 
     <aside id="participants-drawer" class="meeting-drawer" hidden aria-labelledby="participants-drawer-title" role="dialog">
       <header class="meeting-drawer__header">
@@ -182,6 +187,8 @@
         <button type="button" id="btn-device-settings" class="meeting-more-item">Dispositivos</button>
         <button type="button" id="btn-view-grid" class="meeting-more-item" aria-pressed="true">Vista cuadrícula</button>
         <button type="button" id="btn-view-focus" class="meeting-more-item" aria-pressed="false">Vista enfoque</button>
+        <button type="button" id="btn-more-screen" class="meeting-more-item">Compartir pantalla</button>
+        <button type="button" id="btn-more-queue" class="meeting-more-item operator-only">Cola de palabra</button>
         <button type="button" id="btn-media-fullscreen" class="meeting-more-item">Pantalla completa</button>
         <button type="button" id="btn-leave-media" class="meeting-more-item">Desconectar A/V</button>
         <a id="more-link-dashboard" class="meeting-more-item" href="#">Panel de control</a>
@@ -276,6 +283,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.9.1/dist/livekit-client.umd.min.js"></script>
-  <script type="module" src="/js/modules/room-app.js?v=cxguide2"></script>
+  <script type="module" src="/js/modules/room-app.js?v=console9"></script>
 </body>
 </html>

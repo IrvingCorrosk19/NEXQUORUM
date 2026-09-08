@@ -44,15 +44,16 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
     : "";
 
   if (compact) {
+    const statusText = reached
+      ? t("quorum.reachedShort") || "Quórum OK"
+      : t("quorum.notReachedShort") || "Sin quórum";
     root.innerHTML = `
-      ${statusBadge}
-      <span class="quorum-meter-values">
-        <strong class="metric-number" data-quorum-current>${currentLabel}</strong>
-        <span> / ${requiredLabel}</span>
-      </span>
-      <p class="muted quorum-coeff-hint" style="margin:0.25rem 0 0;font-size:0.8rem">
-        ${escapeHtml(t("quorum.coeffHint", { pct: requiredPct.toFixed(0), total: eligibleTotal.toFixed(2) }))}
-      </p>
+      <div class="quorum-chip-inner" title="${escapeHtml(t("quorum.minimumShort") || "Mín.")} ${requiredLabel}">
+        <span class="badge ${reached ? "badge-live" : "badge-warn"}">${escapeHtml(statusText)}</span>
+        <span class="quorum-chip-values">
+          <strong class="metric-number" data-quorum-current>${currentLabel}</strong>
+        </span>
+      </div>
       ${configBanner}
     `;
     animateIfNeeded(root.querySelector("[data-quorum-current]"), prev?.current, current);

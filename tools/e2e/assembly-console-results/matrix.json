@@ -1,0 +1,484 @@
+{
+  "at": "2026-09-08T10:19:46.210Z",
+  "base": "https://localhost:7188",
+  "passed": 95,
+  "failed": 0,
+  "verdict": "CERTIFICADO",
+  "results": [
+    {
+      "id": "ASM",
+      "pass": true,
+      "d": "ade458cc-a24a-4b61-9abe-67b978d6c65b"
+    },
+    {
+      "id": "OVERFLOW_320x568",
+      "pass": true,
+      "d": "{\"scrollWidth\":320,\"clientWidth\":320,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_320x568",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":56.1875,\"barH\":63,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_320x568",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_320x568",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_320x568",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_320x568",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":56.1875,\"barH\":63}"
+    },
+    {
+      "id": "HEADER_COMPACT_320x568",
+      "pass": true,
+      "d": "{\"headerH\":56.1875}"
+    },
+    {
+      "id": "BAR_COMPACT_320x568",
+      "pass": true,
+      "d": "{\"barH\":63}"
+    },
+    {
+      "id": "OVERFLOW_360x800",
+      "pass": true,
+      "d": "{\"scrollWidth\":360,\"clientWidth\":360,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_360x800",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":56.1875,\"barH\":63,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_360x800",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_360x800",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_360x800",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_360x800",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":56.1875,\"barH\":63}"
+    },
+    {
+      "id": "HEADER_COMPACT_360x800",
+      "pass": true,
+      "d": "{\"headerH\":56.1875}"
+    },
+    {
+      "id": "BAR_COMPACT_360x800",
+      "pass": true,
+      "d": "{\"barH\":63}"
+    },
+    {
+      "id": "OVERFLOW_390x844",
+      "pass": true,
+      "d": "{\"scrollWidth\":390,\"clientWidth\":390,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_390x844",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":56.1875,\"barH\":63,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_390x844",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_390x844",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_390x844",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_390x844",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":56.1875,\"barH\":63}"
+    },
+    {
+      "id": "HEADER_COMPACT_390x844",
+      "pass": true,
+      "d": "{\"headerH\":56.1875}"
+    },
+    {
+      "id": "BAR_COMPACT_390x844",
+      "pass": true,
+      "d": "{\"barH\":63}"
+    },
+    {
+      "id": "OVERFLOW_412x915",
+      "pass": true,
+      "d": "{\"scrollWidth\":412,\"clientWidth\":412,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_412x915",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":56.1875,\"barH\":63,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_412x915",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_412x915",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_412x915",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_412x915",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":56.1875,\"barH\":63}"
+    },
+    {
+      "id": "HEADER_COMPACT_412x915",
+      "pass": true,
+      "d": "{\"headerH\":56.1875}"
+    },
+    {
+      "id": "BAR_COMPACT_412x915",
+      "pass": true,
+      "d": "{\"barH\":63}"
+    },
+    {
+      "id": "OVERFLOW_768x1024",
+      "pass": true,
+      "d": "{\"scrollWidth\":768,\"clientWidth\":768,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_768x1024",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":59.640625,\"barH\":76.15625,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_768x1024",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_768x1024",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_768x1024",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_768x1024",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":59.640625,\"barH\":76.15625}"
+    },
+    {
+      "id": "HEADER_COMPACT_768x1024",
+      "pass": true,
+      "d": "{\"headerH\":59.640625}"
+    },
+    {
+      "id": "BAR_COMPACT_768x1024",
+      "pass": true,
+      "d": "{\"barH\":76.15625}"
+    },
+    {
+      "id": "OVERFLOW_1024x768",
+      "pass": true,
+      "d": "{\"scrollWidth\":1024,\"clientWidth\":1024,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_1024x768",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":59.640625,\"barH\":76.15625,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_1024x768",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_1024x768",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_1024x768",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_1024x768",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":59.640625,\"barH\":76.15625}"
+    },
+    {
+      "id": "HEADER_COMPACT_1024x768",
+      "pass": true,
+      "d": "{\"headerH\":59.640625}"
+    },
+    {
+      "id": "BAR_COMPACT_1024x768",
+      "pass": true,
+      "d": "{\"barH\":76.15625}"
+    },
+    {
+      "id": "OVERFLOW_1280x720",
+      "pass": true,
+      "d": "{\"scrollWidth\":1280,\"clientWidth\":1280,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_1280x720",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":59.640625,\"barH\":76.15625,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_1280x720",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_1280x720",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_1280x720",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_1280x720",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":59.640625,\"barH\":76.15625}"
+    },
+    {
+      "id": "HEADER_COMPACT_1280x720",
+      "pass": true,
+      "d": "{\"headerH\":59.640625}"
+    },
+    {
+      "id": "BAR_COMPACT_1280x720",
+      "pass": true,
+      "d": "{\"barH\":76.15625}"
+    },
+    {
+      "id": "OVERFLOW_1366x768",
+      "pass": true,
+      "d": "{\"scrollWidth\":1366,\"clientWidth\":1366,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_1366x768",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":59.640625,\"barH\":76.15625,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_1366x768",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_1366x768",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_1366x768",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_1366x768",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":59.640625,\"barH\":76.15625}"
+    },
+    {
+      "id": "HEADER_COMPACT_1366x768",
+      "pass": true,
+      "d": "{\"headerH\":59.640625}"
+    },
+    {
+      "id": "BAR_COMPACT_1366x768",
+      "pass": true,
+      "d": "{\"barH\":76.15625}"
+    },
+    {
+      "id": "OVERFLOW_1440x900",
+      "pass": true,
+      "d": "{\"scrollWidth\":1440,\"clientWidth\":1440,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_1440x900",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":59.640625,\"barH\":76.15625,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_1440x900",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_1440x900",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_1440x900",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_1440x900",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":59.640625,\"barH\":76.15625}"
+    },
+    {
+      "id": "HEADER_COMPACT_1440x900",
+      "pass": true,
+      "d": "{\"headerH\":59.640625}"
+    },
+    {
+      "id": "BAR_COMPACT_1440x900",
+      "pass": true,
+      "d": "{\"barH\":76.15625}"
+    },
+    {
+      "id": "OVERFLOW_1920x1080",
+      "pass": true,
+      "d": "{\"scrollWidth\":1920,\"clientWidth\":1920,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_1920x1080",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":59.640625,\"barH\":76.15625,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_1920x1080",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_1920x1080",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_1920x1080",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_1920x1080",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":59.640625,\"barH\":76.15625}"
+    },
+    {
+      "id": "HEADER_COMPACT_1920x1080",
+      "pass": true,
+      "d": "{\"headerH\":59.640625}"
+    },
+    {
+      "id": "BAR_COMPACT_1920x1080",
+      "pass": true,
+      "d": "{\"barH\":76.15625}"
+    },
+    {
+      "id": "OVERFLOW_2048x1152",
+      "pass": true,
+      "d": "{\"scrollWidth\":2048,\"clientWidth\":2048,\"overflow\":0}"
+    },
+    {
+      "id": "QUORUM_IN_2048x1152",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":59.640625,\"barH\":76.15625,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "SIDEBAR_IN_2048x1152",
+      "pass": true,
+      "d": "{\"cut\":false}"
+    },
+    {
+      "id": "BAR_2048x1152",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "NO_BAD_TERMS_2048x1152",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SOLO_TILE_2048x1152",
+      "pass": true,
+      "d": "{\"solo\":true,\"headerH\":59.640625,\"barH\":76.15625}"
+    },
+    {
+      "id": "HEADER_COMPACT_2048x1152",
+      "pass": true,
+      "d": "{\"headerH\":59.640625}"
+    },
+    {
+      "id": "BAR_COMPACT_2048x1152",
+      "pass": true,
+      "d": "{\"barH\":76.15625}"
+    },
+    {
+      "id": "ZOOM_100",
+      "pass": true,
+      "d": "{\"scrollWidth\":1366,\"clientWidth\":1366,\"overflow\":0}"
+    },
+    {
+      "id": "ZOOM_125",
+      "pass": true,
+      "d": "{\"scrollWidth\":1366,\"clientWidth\":1366,\"overflow\":0}"
+    },
+    {
+      "id": "ZOOM_150",
+      "pass": true,
+      "d": "{\"scrollWidth\":1366,\"clientWidth\":1366,\"overflow\":0}"
+    },
+    {
+      "id": "PRESENCE_SUMMARY",
+      "pass": true,
+      "d": "{\"badTerms\":false,\"soloTileFills\":true,\"hasPresence\":true,\"quorumOverflow\":false,\"sidebarCut\":false,\"barVisible\":true,\"headerH\":59.640625,\"barH\":76.15625,\"headerOk\":true,\"barOk\":true,\"startBtn\":true}"
+    },
+    {
+      "id": "START_PRIMARY",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "SMOKE_STRUCTURE",
+      "pass": true,
+      "d": "{\"videoMount\":true,\"quorum\":true,\"controlBar\":true,\"diagnostics\":true}"
+    }
+  ]
+}

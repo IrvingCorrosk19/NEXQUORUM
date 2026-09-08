@@ -431,10 +431,21 @@ function ensureTile(container, identity, label, { isLocal = false, isScreen = fa
   tile.classList.toggle("is-screen-share", isScreen);
   tile.classList.toggle("is-stage", isScreen && screenShareLayoutActive);
   const labelEl = tile.querySelector(".media-tile-label");
-  const baseLabel = label || identity.slice(0, 8);
+  let baseLabel = label || identity.slice(0, 8);
+  // Prefer human labels over technical usernames.
+  if (/^(president|secretary|owner|admin)\b/i.test(String(baseLabel))) {
+    const map = {
+      president: t("assembly.operatorRoleChip") || "Presidente",
+      secretary: t("roles.secretary") || "Secretario",
+      owner: t("assembly.ownerRoleChip") || "Propietario",
+      admin: t("roles.admin") || "Administrador"
+    };
+    const key = String(baseLabel).toLowerCase().split(/[\s@._-]/)[0];
+    baseLabel = map[key] || baseLabel;
+  }
   const display = isScreen
     ? `🖥 ${baseLabel}`
-    : (isLocal ? `${t("media.you") || "Tú"} · ` : "") + baseLabel;
+    : (isLocal ? `${t("media.you") || "Usted"} · ` : "") + baseLabel;
   if (labelEl) labelEl.textContent = display;
   const avatar = tile.querySelector(".media-tile-avatar");
   if (avatar) {

@@ -386,12 +386,27 @@ function wireRoomViewportChrome() {
   if (!room) return;
 
   const toggle = qs("#btn-toggle-sidebar");
+  const backdrop = qs("#ops-panel-backdrop");
+  const sidebar = qs("#governance-sidebar");
+  const mqDrawer = window.matchMedia("(max-width: 1279px)");
+
+  const syncBackdrop = () => {
+    if (!backdrop) return;
+    const show = mqDrawer.matches && !room.classList.contains("sidebar-collapsed");
+    backdrop.hidden = !show;
+  };
+
   const applyCollapsed = (collapsed) => {
     room.classList.toggle("sidebar-collapsed", collapsed);
     if (toggle) {
-      toggle.setAttribute("aria-pressed", String(collapsed));
-      toggle.textContent = collapsed ? "Mostrar panel" : "Ocultar panel";
+      toggle.setAttribute("aria-pressed", String(!collapsed));
+      toggle.textContent = collapsed ? "Panel" : "Cerrar";
+      toggle.setAttribute("aria-expanded", String(!collapsed));
     }
+    if (sidebar) {
+      sidebar.setAttribute("aria-hidden", String(collapsed && mqDrawer.matches));
+    }
+    syncBackdrop();
     try {
       localStorage.setItem("asambleas.room.sidebarCollapsed", collapsed ? "1" : "0");
     } catch {
@@ -406,15 +421,35 @@ function wireRoomViewportChrome() {
     } catch {
       collapsed = false;
     }
-    // On very short desktop heights, start collapsed for breathing room.
-    if (!collapsed && window.matchMedia("(min-width: 768px) and (max-height: 720px)").matches) {
+    // Below desktop console width, start with the ops drawer closed.
+    if (mqDrawer.matches) {
+      collapsed = true;
+    } else if (!collapsed && window.matchMedia("(min-width: 1280px) and (max-height: 720px)").matches) {
       collapsed = true;
     }
     applyCollapsed(collapsed);
     toggle.addEventListener("click", () => {
       applyCollapsed(!room.classList.contains("sidebar-collapsed"));
+      if (!room.classList.contains("sidebar-collapsed") && mqDrawer.matches) {
+        sidebar?.querySelector(".sidebar-tab, .section-title, button, a")?.focus?.();
+      } else {
+        toggle.focus();
+      }
     });
   }
+
+  backdrop?.addEventListener("click", () => applyCollapsed(true));
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    if (!mqDrawer.matches) return;
+    if (room.classList.contains("sidebar-collapsed")) return;
+    applyCollapsed(true);
+    toggle?.focus();
+  });
+  mqDrawer.addEventListener?.("change", () => {
+    if (mqDrawer.matches) applyCollapsed(true);
+    else syncBackdrop();
+  });
 
   const tabs = [...document.querySelectorAll("[data-sidebar-tab]")];
   const panels = [...document.querySelectorAll("[data-sidebar-panel]")];
@@ -577,7 +612,7 @@ function syncGovernanceSpeakerChip() {
   chip.hidden = false;
   chip.innerHTML = `
     <span class="gsc-eyebrow">${escapeHtml(t("assembly.hasFloor") || "TIENE LA PALABRA")}</span>
-    <strong>${escapeHtml(current.displayName)}</strong>
+    <strong>${escapeHtml(friendlyParticipantName(participant || current))}</strong>
     <span class="gsc-meta">${escapeHtml(participant?.unitCode || "")}</span>`;
 }
 
@@ -887,7 +922,7 @@ function renderParticipantsDrawer() {
           const role = p.role || p.assemblyRole || p.presenceType || "";
           return `<li class="${hasFloor ? "has-floor" : ""} ${hand ? "hand-up" : ""}">
             <div>
-              <strong>${escapeHtml(p.displayName || "—")}</strong>
+              <strong>${escapeHtml(friendlyParticipantName(p))}</strong>
               <span class="muted">${escapeHtml(p.unitCode || "—")} · ${escapeHtml(role || "—")}</span>
             </div>
             <div class="meeting-people-flags" aria-label="Estados">
@@ -986,6 +1021,15 @@ function wireMeetingDrawers() {
     openMeetingDrawer("#speaker-queue-drawer");
   });
   qs("#btn-more")?.addEventListener("click", () => openMeetingDrawer("#more-menu-drawer"));
+  qs("#btn-more-screen")?.addEventListener("click", () => {
+    closeMeetingDrawers();
+    qs("#btn-screen")?.click();
+  });
+  qs("#btn-more-queue")?.addEventListener("click", () => {
+    closeMeetingDrawers();
+    renderQueueDrawer();
+    openMeetingDrawer("#speaker-queue-drawer");
+  });
   qs("#btn-hand")?.addEventListener("click", async () => {
     if (handActionBusy) return;
     handActionBusy = true;
@@ -1185,6 +1229,16 @@ function applyRoleChrome() {
   document.querySelectorAll(".owner-only").forEach((el) => {
     el.hidden = operator;
   });
+  if (els.userChip && state.user?.displayName) {
+    const name = state.user.displayName;
+    if (operator) {
+      els.userChip.textContent = /presidente|president/i.test(name)
+        ? name
+        : `${t("assembly.operatorRoleChip") || "Presidente"} · ${name}`;
+    } else {
+      els.userChip.textContent = `${t("assembly.ownerRoleChip") || "Propietario"} · ${name}`;
+    }
+  }
   const recControls = qs("#recording-controls");
   if (recControls) {
     recControls.hidden = !hasPermission(state.user, "recording:control");
@@ -1316,12 +1370,64 @@ async function hydrateRecording({ force = false } = {}) {
   }
 }
 
+function friendlyParticipantName(p) {
+  const raw = String(p?.displayName || p?.name || "").trim();
+  const role = String(p?.roleCode || "").toLowerCase();
+  if (!raw || /^(president|secretary|owner\d*|admin|phadmin)$/i.test(raw)) {
+    if (role.includes("president")) return t("assembly.operatorRoleChip") || "Presidente";
+    if (role.includes("secretary")) return "Secretario";
+    if (role.includes("owner")) return t("assembly.ownerRoleChip") || "Propietario";
+  }
+  return raw || "Participante";
+}
+
 function syncParticipantsFromList(list) {
   state.participants.clear();
   for (const p of list || []) {
     const key = p.userId || p.id;
     if (key) state.participants.set(key, p);
   }
+}
+
+function renderPresenceSummary(items) {
+  const el = qs("#presence-summary");
+  const diagnostics = qs("#ops-diagnostics");
+  if (!el) return;
+  if (state.viewerRole !== "Operator") {
+    el.hidden = true;
+    if (diagnostics) diagnostics.hidden = true;
+    return;
+  }
+  let accredited = 0;
+  let present = 0;
+  let represented = 0;
+  for (const p of items) {
+    if (p.isAccredited) accredited += 1;
+    const st = String(p.attendanceStatus || "").toLowerCase();
+    if (st === "present" || st === "checkedin") present += 1;
+    represented += Number(p.representationCount || 0);
+  }
+  const media = getLiveKitParticipantCounts();
+  const connected = Number(media.connected || 0);
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="presence-summary__item">
+      <span class="presence-summary__label">${escapeHtml(t("assembly.accreditedCount") || "Acreditados")}</span>
+      <span class="presence-summary__value">${accredited}</span>
+    </div>
+    <div class="presence-summary__item">
+      <span class="presence-summary__label">${escapeHtml(t("assembly.presentCount") || "Presentes")}</span>
+      <span class="presence-summary__value">${present}</span>
+    </div>
+    <div class="presence-summary__item">
+      <span class="presence-summary__label">${escapeHtml(t("assembly.connectedCount") || "Conectados a la sala")}</span>
+      <span class="presence-summary__value">${connected}</span>
+    </div>
+    <div class="presence-summary__item">
+      <span class="presence-summary__label">${escapeHtml(t("assembly.representedCount") || "Representados")}</span>
+      <span class="presence-summary__value">${represented}</span>
+    </div>`;
+  if (diagnostics) diagnostics.hidden = false;
 }
 
 function renderHybridCockpit(items) {
@@ -1342,11 +1448,11 @@ function renderHybridCockpit(items) {
   }
   el.hidden = false;
   el.innerHTML = `
-    <strong>${escapeHtml(t("assembly.hybridPresent"))}</strong>
+    <strong>${escapeHtml(t("assembly.presenceDetail") || "Detalle de presencia")}</strong>
     <span>${escapeHtml(t("assembly.hybridInPerson"))}: ${inPerson}</span>
     <span>${escapeHtml(t("assembly.hybridVirtual"))}: ${virtual}</span>
     <span>${escapeHtml(t("assembly.hybridRepresented"))}: ${represented}</span>
-    <span>${escapeHtml(t("assembly.hybridLogical"))}: ${items.length}</span>`;
+    <span>${escapeHtml(t("assembly.enrolledTotal") || "Inscritos")}: ${items.length}</span>`;
 }
 
 function renderMediaCockpit() {
@@ -1361,10 +1467,10 @@ function renderMediaCockpit() {
   const problems = listIncidents().length;
   el.hidden = false;
   el.innerHTML = `
-    <strong>${escapeHtml(t("media.liveKitLabel") || "LiveKit media")}</strong>
+    <strong>${escapeHtml(t("media.diagnosticsLabel") || "Medios de la sala")}</strong>
     <span>${escapeHtml(t("media.connected"))}: ${media.connected}</span>
     <span>${escapeHtml(t("media.remotes") || "Remotos")}: ${media.remotes ?? 0}</span>
-    <span>${escapeHtml(t("assembly.hybridPresent") || "Attendance")}: ${attendance}</span>
+    <span>${escapeHtml(t("assembly.enrolledTotal") || "Inscritos")}: ${attendance}</span>
     <span>${escapeHtml(t("media.problems"))}: ${problems}</span>
     <span>${escapeHtml(t("media.activeMics"))}: ${media.mics}</span>
     <span>${escapeHtml(t("media.cameras"))}: ${media.cameras}</span>`;
@@ -1426,12 +1532,18 @@ function annotateMediaRoleBadges(items) {
     const tile = els.video.querySelector(`[data-identity="${CSS.escape(identity)}"]`);
     if (!tile) continue;
     const role = String(p.roleCode || "").toLowerCase();
+    const labelEl = tile.querySelector(".media-tile-label");
+    const niceName = friendlyParticipantName(p);
+    if (niceName && labelEl) {
+      const isLocal = tile.classList.contains("is-local");
+      const prefix = isLocal ? `${t("media.you") || "Usted"} · ` : "";
+      labelEl.textContent = prefix + niceName;
+      labelEl.removeAttribute("data-role-label");
+    }
     if (role.includes("president")) {
       tile.dataset.role = "president";
-      tile.querySelector(".media-tile-label")?.setAttribute("data-role-label", "· Presidente");
     } else if (role.includes("secretary")) {
       tile.dataset.role = "secretary";
-      tile.querySelector(".media-tile-label")?.setAttribute("data-role-label", "· Secretario");
     }
   }
 }
@@ -1446,6 +1558,7 @@ function renderParticipants() {
     els.participantCount.textContent = `${t("assembly.participants")}: ${count}`;
   }
 
+  renderPresenceSummary(items);
   renderHybridCockpit(items);
   renderMediaCockpit();
   annotateMediaRoleBadges(items);
@@ -1461,16 +1574,17 @@ function renderParticipants() {
 
   els.participants.innerHTML = items
     .map((p) => {
-      const initials = (p.displayName || "?")
+      const name = friendlyParticipantName(p);
+      const initials = (name || "?")
         .split(/\s+/)
         .slice(0, 2)
         .map((w) => w[0]?.toUpperCase() || "")
         .join("");
       return `
-      <article class="participant" aria-label="${escapeHtml(p.displayName)}">
+      <article class="participant" aria-label="${escapeHtml(name)}">
         <span class="avatar" aria-hidden="true">${escapeHtml(initials)}</span>
         <div class="participant-meta">
-          <strong>${escapeHtml(p.displayName)}</strong>
+          <strong>${escapeHtml(name)}</strong>
           <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(p.attendanceStatus || "")} · ${escapeHtml(p.presenceType || "—")}</span>
         </div>
       </article>`;
@@ -1632,9 +1746,18 @@ function renderQuorumDetails() {
   const q = state.quorum;
   details.innerHTML = `
     <dl class="quorum-details-list">
-      <div><dt>${escapeHtml(t("quorum.presentUnits"))}</dt><dd>${q.presentUnits ?? "—"}</dd></div>
+      <div><dt>${escapeHtml(t("quorum.status") || "Estado")}</dt><dd>${escapeHtml(
+        q.quorumReached ? t("quorum.reached") : t("quorum.notReached")
+      )}</dd></div>
       <div><dt>${escapeHtml(t("quorum.coefficient"))}</dt><dd class="metric-number">${Number(q.currentCoefficient ?? 0).toFixed(2)}%</dd></div>
-      <div><dt>${escapeHtml(t("quorum.required"))}</dt><dd class="metric-number">${Number(q.requiredCoefficient ?? 0).toFixed(2)}%</dd></div>
+      <div><dt>${escapeHtml(t("quorum.requiredMinimum") || "Mínimo requerido")}</dt><dd class="metric-number">${Number(q.requiredCoefficient ?? 0).toFixed(2)}%</dd></div>
+      <div><dt>${escapeHtml(t("quorum.presentUnits"))}</dt><dd>${q.presentUnits ?? "—"}</dd></div>
+      <div><dt>${escapeHtml(t("quorum.coeffBasis") || "Base del PH")}</dt><dd>${escapeHtml(
+        t("quorum.coeffHint", {
+          pct: Number(q.requiredPercent ?? 0).toFixed(0),
+          total: Number(q.eligibleCoefficientTotal ?? 0).toFixed(2)
+        })
+      )}</dd></div>
       <div><dt>${escapeHtml(t("quorum.lastUpdate"))}</dt><dd>${escapeHtml(
         q.capturedAtUtc || q.updatedAtUtc
           ? new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(
