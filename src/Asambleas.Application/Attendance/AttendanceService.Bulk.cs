@@ -21,7 +21,7 @@ public sealed partial class AttendanceService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        TenantGuard.EnsureAuthenticated(_currentTenant);
+        EnsureCanManageAttendance();
         var actorUserId = TenantGuard.RequireUserId(_currentTenant);
 
         var assembly = await _db.Assemblies
@@ -118,7 +118,7 @@ public sealed partial class AttendanceService
                 continue;
             }
 
-            if (participant.IsAccredited && Mapping.CountsTowardQuorum(participant.AttendanceStatus))
+            if (participant.IsAccredited)
             {
                 skipped++;
                 items.Add(new BulkAccreditItemDto(
@@ -203,26 +203,15 @@ public sealed partial class AttendanceService
             }
 
             var effective = Math.Round(claims.Sum(c => c.CoefficientPercent), 4, MidpointRounding.AwayFromZero);
+            var previousStatus = participant.AttendanceStatus.ToString();
             participant.IsAccredited = true;
             participant.AccreditedAtUtc ??= now;
             participant.AccreditedByUserId ??= actorUserId;
             participant.EffectiveCoefficientPercent = effective;
-            participant.AttendanceStatus = AttendanceStatus.CheckedIn;
-            participant.CheckedInAtUtc ??= now;
+            // Accreditation must not invent presence / quorum contribution.
             participant.PresenceType = presenceType;
             participant.UnitId = claims.FirstOrDefault()?.UnitId ?? participant.UnitId;
             participant.UpdatedAtUtc = now;
-
-            _db.AttendanceRecords.Add(new AttendanceRecord
-            {
-                TenantId = assembly.TenantId,
-                AssemblyId = assemblyId,
-                UserId = userId,
-                UnitId = participant.UnitId,
-                PresenceType = presenceType,
-                Status = AttendanceStatus.CheckedIn,
-                TimestampUtc = now
-            });
 
             succeeded++;
             items.Add(new BulkAccreditItemDto(userId, displayName, true, false, null, null, effective));
@@ -236,7 +225,11 @@ public sealed partial class AttendanceService
                     BatchId = batchId,
                     Method = method,
                     EffectiveCoefficient = effective,
-                    Units = claims.Select(c => c.UnitCode).ToArray()
+                    Units = claims.Select(c => c.UnitCode).ToArray(),
+                    PreviousAttendanceStatus = previousStatus,
+                    NewAttendanceStatus = participant.AttendanceStatus.ToString(),
+                    PreviousIsAccredited = false,
+                    NewIsAccredited = true
                 }));
         }
 
@@ -263,10 +256,27 @@ public sealed partial class AttendanceService
                 }));
             await _audit.WriteManyAsync(auditEvents, cancellationToken);
 
-            var quorum = await _quorum.RecalculateAndSnapshotAsync(assemblyId, "BulkCheckIn", cancellationToken);
+            var quorum = await _quorum.RecalculateAndSnapshotAsync(assemblyId, "BulkAccredit", cancellationToken);
             await tx.CommitAsync(cancellationToken);
 
             await _realtime.PublishQuorumAsync(assemblyId, quorum, cancellationToken);
+
+            // Notify each newly accredited owner in real time (no presence invented).
+            foreach (var item in items.Where(i => i.Success && !i.Skipped))
+            {
+                await _realtime.PublishAccreditationChangedAsync(
+                    assemblyId,
+                    new Asambleas.Contracts.Realtime.AccreditationChangedDto(
+                        assemblyId,
+                        item.UserId,
+                        IsAccredited: true,
+                        AttendanceStatus: AttendanceStatus.Registered.ToString(),
+                        EffectiveCoefficientPercent: item.EffectiveCoefficientPercent ?? 0m,
+                        Message: "Su acreditación fue aprobada. Ya puede participar en la asamblea y votar cuando se habilite una votación.",
+                        AccreditedByUserId: actorUserId,
+                        AccreditedAtUtc: now),
+                    cancellationToken);
+            }
 
             return new BulkAccreditResponse(
                 batchId,
@@ -491,6 +501,21 @@ public sealed partial class AttendanceService
             var quorum = await _quorum.RecalculateAndSnapshotAsync(assemblyId, "BulkDeaccredit", cancellationToken);
             await tx.CommitAsync(cancellationToken);
             await _realtime.PublishQuorumAsync(assemblyId, quorum, cancellationToken);
+
+            foreach (var item in items.Where(i => i.Success && !i.Skipped))
+            {
+                await _realtime.PublishAccreditationChangedAsync(
+                    assemblyId,
+                    new Asambleas.Contracts.Realtime.AccreditationChangedDto(
+                        assemblyId,
+                        item.UserId,
+                        IsAccredited: false,
+                        AttendanceStatus: AttendanceStatus.Registered.ToString(),
+                        EffectiveCoefficientPercent: 0m,
+                        Message: "Su acreditación fue retirada por la administración. No podrá votar hasta una nueva validación.",
+                        Reason: request.Reason.Trim()),
+                    cancellationToken);
+            }
 
             return new BulkDeaccreditResponse(
                 batchId,

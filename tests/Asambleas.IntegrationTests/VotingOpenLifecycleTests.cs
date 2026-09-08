@@ -25,10 +25,9 @@ public sealed class VotingOpenLifecycleTests
         var president = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start-checkin"))
             .EnsureSuccessStatusCode();
-        (await president.PostJsonAsync(
-                $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-                new CheckInRequest(null, PresenceType.Virtual.ToString())))
-            .EnsureSuccessStatusCode();
+        await AttendanceTestHelpers.AccreditAsync(
+            president, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserPresidentId);
+        await AttendanceTestHelpers.MarkPresentAsync(president, DemoSeedConstants.AssemblyOceanId);
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start"))
             .EnsureSuccessStatusCode();
 
@@ -62,10 +61,8 @@ public sealed class VotingOpenLifecycleTests
             .EnsureSuccessStatusCode();
 
         var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
-        (await owner.PostJsonAsync(
-                $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-                new CheckInRequest(DemoSeedConstants.Unit101Id, PresenceType.Virtual.ToString())))
-            .EnsureSuccessStatusCode();
+        await AttendanceTestHelpers.AccreditAndPresentAsync(
+            president, owner, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserOwner101Id);
 
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start"))
             .EnsureSuccessStatusCode();

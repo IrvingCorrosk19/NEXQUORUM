@@ -242,17 +242,17 @@ export function resolveContextualGuide(ctx) {
     return base({
       id: "owner-checkin",
       severity: accredited ? "success" : "warning",
-      title: accredited ? "Ya está acreditado — espere el inicio" : "Debe acreditarse para poder votar",
+      title: accredited ? "Ya está acreditado — espere el inicio" : "Participación pendiente de validación",
       explanation: accredited
-        ? "La mesa aún no ha iniciado la asamblea. Cuando la inicie y abra una votación, podrá emitir su voto aquí."
-        : "Complete su acreditación (check-in) o solicite a la mesa que lo acredite. Sin acreditación no podrá votar.",
+        ? "Su acreditación está aprobada. La asamblea aún no ha iniciado. Cuando se inicie y abra una votación, podrá emitir su voto aquí."
+        : "Su participación está pendiente de validación por la administración. No necesita realizar ninguna acción. Esta pantalla se actualizará automáticamente.",
       steps: accredited
         ? ["Espere a que la mesa inicie la asamblea"]
-        : ["Registre su asistencia / pida acreditación", "Espere el inicio de la asamblea"],
-      responsible: accredited ? "Mesa" : "Usted / mesa",
-      nextActionLabel: accredited ? null : "Ir a acreditarme",
-      actionId: accredited ? null : "go-checkin",
-      actionHref: accredited ? null : `/checkin.html?assemblyId=${ctx.assemblyId}`
+        : ["Espere la validación de la mesa"],
+      responsible: "Mesa",
+      nextActionLabel: null,
+      actionId: null,
+      actionHref: null
     });
   }
 
@@ -300,13 +300,14 @@ export function resolveContextualGuide(ctx) {
       return base({
         id: "owner-not-accredited-live",
         severity: "danger",
-        title: "No puede votar: no está acreditado",
-        explanation: "Hay una votación abierta, pero su participación no está acreditada. Solicite a la mesa que lo acredite.",
-        steps: ["Contacte a la mesa", "Una vez acreditado, recargue o espere la actualización"],
+        title: "Participación pendiente de validación",
+        explanation:
+          "Hay una votación abierta, pero su participación todavía está pendiente de validación administrativa. No necesita realizar ninguna acción; esta pantalla se actualizará automáticamente.",
+        steps: ["Espere la acreditación de la mesa"],
         responsible: "Mesa",
-        nextActionLabel: "Ir a acreditación",
-        actionId: "go-checkin",
-        actionHref: `/checkin.html?assemblyId=${ctx.assemblyId}`
+        nextActionLabel: null,
+        actionId: null,
+        actionHref: null
       });
     }
     if (voteStatus === "NOT_ELIGIBLE" || voteStatus === "NOT_PARTICIPANT") {
@@ -458,28 +459,28 @@ export function explainBlockCode(code, fallbackMessage = "") {
       next: "Revise si está en borrador; preséntela primero."
     },
     VOTING_NOT_OPEN: {
-      title: "La votación no está abierta",
-      explanation: "Todavía no puede emitir su voto.",
+      title: "Sin votación abierta",
+      explanation: "No existe una votación abierta en este momento.",
       next: "Espere a que la mesa abra la votación."
     },
     VOTING_CLOSED: {
-      title: "La votación ya cerró",
-      explanation: "No se aceptan más votos en esta ronda.",
+      title: "Votación cerrada",
+      explanation: "Esta votación ya fue cerrada.",
       next: "Espere la siguiente pregunta."
     },
     NOT_ACCREDITED: {
-      title: "No está acreditado",
-      explanation: "Sin acreditación no puede votar.",
-      next: "Solicite acreditación a la mesa."
+      title: "Participación pendiente de validación",
+      explanation: "Su participación todavía está pendiente de validación administrativa.",
+      next: "No necesita realizar ninguna acción. Esta pantalla se actualizará automáticamente."
     },
     NOT_ELIGIBLE: {
-      title: "No es votante elegible",
-      explanation: "No figura con derecho a voto en esta ronda.",
+      title: "Sin derecho a voto",
+      explanation: "No tiene derecho a voto para esta moción.",
       next: "Consulte a la mesa si cree que es un error."
     },
     ALREADY_VOTED: {
-      title: "Ya votó",
-      explanation: "Su voto ya está registrado.",
+      title: "Voto registrado",
+      explanation: "Su voto ya fue registrado.",
       next: "Espere el resultado o la siguiente pregunta."
     },
     COEFFICIENT_CONFIGURATION_INVALID: {

@@ -1,20 +1,17 @@
-# Analisis — Acreditacion masiva (remediacion final)
+# Analisis — Acreditacion exclusiva administrativa
 
-Fecha: 2026-09-06  
-Estado previo: IMPLEMENTED — PARTIAL CERTIFIED  
-Estado objetivo post-remediacion: ver CERTIFICACION (sigue parcial hasta VPS + movil humano).
+Fecha: 2026-09-07  
+Estado: IMPLEMENTED — NO CERTIFICADO (ver `CERTIFICACION_ACREDITACION_ADMIN_ONLY.md`)
 
-## Correcciones de esta remediacion
+## Cambio de politica
 
-1. **Autoacreditacion**: eliminada de redeem/claim. Solo enrola. Acreditacion = accion explicita (`check-in` / mesa) con metodo `SelfCheckIn` o `VerifiedJoinLink` (flag de sesion tras redeem).
-2. **Ausentes**: `AllEligible` ya no incluye `Registered` por defecto. Acreditar ausentes exige `attendance:force-absent` + frase `ACREDITAR AUSENTES` + motivo. Accion principal UI: **Acreditar seleccionados verificados**.
-3. **Batch 300**: un SaveChanges, claims en bulk, quorum una vez, auditoria WriteMany. Objetivo <5s cumplido en tests.
-4. **Deacreditacion batch**: `deaccredit-bulk` + preview; UI una sola peticion.
-5. **Representaciones**: solo `IsActive=false` en snapshots de asamblea; ownerships/powers intactos; reacreditacion reconstruye.
-6. **Confirmados**: eliminado contador ficticio (opcion A).
-7. **Operadores 0%**: resumen separa propietarios vs personal de mesa / coeficiente.
-8. **Padron 381**: mensaje claro "suma es X%, debe ser 100%" + UI "CONFIGURACION INVALIDA" sin mostrar 190.50 como quorum legal.
+La acreditacion es **solo administrativa**. El propietario no se autoacredita, no solicita acreditacion ni completa formularios de mesa.
 
-## No desplegado a VPS en esta fase
+`POST .../attendance/check-in` ahora exige `attendance:manage`.  
+`POST .../attendance/presence` marca presencia si ya esta acreditado (sin acreditar).
 
-Pendiente autorizacion tras checklist CERTIFICACION.
+Acreditar **no** pone `CheckedIn` ni suma al quorum; la presencia efectiva (JoinAssembly / presence) si.
+
+## Evento tiempo real
+
+`accreditationChanged` — mensaje claro al propietario al aprobar o revocar.

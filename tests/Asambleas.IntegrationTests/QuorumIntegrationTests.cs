@@ -19,7 +19,7 @@ public sealed class QuorumIntegrationTests
     public QuorumIntegrationTests(AsambleasFixture fixture) => _fixture = fixture;
 
     [Fact]
-    public async Task Check_ins_update_quorum_snapshot()
+    public async Task Presence_after_accreditation_updates_quorum_snapshot()
     {
         await _fixture.ResetDatabaseAsync();
 
@@ -28,10 +28,8 @@ public sealed class QuorumIntegrationTests
             .EnsureSuccessStatusCode();
 
         var owner101 = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
-        (await owner101.PostJsonAsync(
-                $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-                new CheckInRequest(DemoSeedConstants.Unit101Id, PresenceType.Virtual.ToString())))
-            .StatusCode.Should().Be(HttpStatusCode.OK);
+        await AttendanceTestHelpers.AccreditAndPresentAsync(
+            president, owner101, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserOwner101Id);
 
         await AssertLatestSnapshotAsync(presentCoefficient: 14m, QuorumStatus.NotReached);
 
@@ -39,17 +37,15 @@ public sealed class QuorumIntegrationTests
         var owner103 = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner103@ocean.demo");
         var owner104 = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner104@ocean.demo");
 
-        foreach (var (client, unitId) in new[]
+        foreach (var (client, userId) in new[]
                  {
-                     (owner102, DemoSeedConstants.Unit102Id),
-                     (owner103, DemoSeedConstants.Unit103Id),
-                     (owner104, DemoSeedConstants.Unit104Id)
+                     (owner102, DemoSeedConstants.UserOwner102Id),
+                     (owner103, DemoSeedConstants.UserOwner103Id),
+                     (owner104, DemoSeedConstants.UserOwner104Id)
                  })
         {
-            (await client.PostJsonAsync(
-                    $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-                    new CheckInRequest(unitId, PresenceType.Virtual.ToString())))
-                .EnsureSuccessStatusCode();
+            await AttendanceTestHelpers.AccreditAndPresentAsync(
+                president, client, DemoSeedConstants.AssemblyOceanId, userId);
         }
 
         // 101(14) + 102(14)+power107(8) + 103(14) + 104(14) = 64

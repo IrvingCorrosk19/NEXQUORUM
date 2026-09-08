@@ -307,21 +307,21 @@ function mapCastError(error) {
     return `${block.title}. ${block.explanation} ${block.next}`;
   }
   if (code === "ALREADY_VOTED" || /already voted|doble voto/i.test(msg)) {
-    return t("voting.alreadyRegistered");
+    return t("voting.alreadyVoted") || t("voting.alreadyRegistered");
   }
   if (code === "NOT_ACCREDITED") return t("voting.notAccredited");
   if (code === "NOT_ELIGIBLE" || code === "NOT_PARTICIPANT") return t("voting.notEligible");
   if (code === "VOTING_NOT_OPEN" || code === "MOTION_NOT_PRESENTED") {
-    return t("voting.notOpenYet") || "La votación todavía no está abierta. Espere a que la mesa la abra.";
+    return t("voting.notOpenYet");
   }
   if (code === "VOTING_CLOSED" || /cerrad|closed/i.test(msg)) {
-    return t("voting.votingFinished");
+    return t("voting.votingClosed") || t("voting.votingFinished");
   }
   if (code === "COEFFICIENT_CONFIGURATION_INVALID") {
-    return msg || t("voting.coeffBlocked") || "No se puede votar: el padrón de coeficientes del PH es inválido.";
+    return msg || t("voting.coeffBlocked");
   }
   if (code === "ASSEMBLY_CLOSED" || code === "ASSEMBLY_NOT_ACTIVE") {
-    return t("voting.assemblyNotActive") || "La asamblea no admite votación en este momento.";
+    return t("voting.assemblyNotActive");
   }
   return msg || t("voting.castFailed");
 }
@@ -2759,6 +2759,34 @@ async function init() {
     participantUpdated: (p) => {
       state.participants.set(p.userId, p);
       renderParticipants();
+      const uid = String(state.user?.userId || state.user?.id || "").toLowerCase();
+      if (uid && String(p.userId || "").toLowerCase() === uid) {
+        syncContextualGuide();
+        ensureMobileVoting()?.refreshFromServer?.();
+        refreshPanels();
+      }
+    },
+    accreditationChanged: (chg) => {
+      const uid = String(state.user?.userId || state.user?.id || "").toLowerCase();
+      if (!uid || String(chg?.userId || "").toLowerCase() !== uid) return;
+      const existing = state.participants.get(chg.userId) || findSelfParticipant() || { userId: chg.userId };
+      state.participants.set(chg.userId, {
+        ...existing,
+        userId: chg.userId,
+        isAccredited: chg.isAccredited,
+        attendanceStatus: chg.attendanceStatus,
+        effectiveCoefficientPercent: chg.effectiveCoefficientPercent
+      });
+      if (chg?.message) {
+        showToast({
+          title: chg.isAccredited ? "Acreditado" : "Acreditación retirada",
+          message: chg.message,
+          variant: chg.isAccredited ? "success" : "warning"
+        });
+      }
+      syncContextualGuide();
+      ensureMobileVoting()?.refreshFromServer?.();
+      refreshPanels();
     },
     agendaUpdated: (a) => {
       state.agenda = a;

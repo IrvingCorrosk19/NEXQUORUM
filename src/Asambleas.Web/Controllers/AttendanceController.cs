@@ -85,21 +85,33 @@ public sealed class AttendanceController : ControllerBase
         _attendance.PreviewAsync(assemblyId, userId, cancellationToken);
 
     [HttpPost("check-in")]
-    [Authorize(Policy = Permissions.AttendanceView)]
-    public async Task<CheckInResponse> CheckIn(
+    [Authorize(Policy = Permissions.AttendanceManage)]
+    public async Task<ActionResult<CheckInResponse>> CheckIn(
         Guid assemblyId,
         [FromBody] CheckInRequest request,
         CancellationToken cancellationToken)
     {
+        // Defense in depth: owners with attendance:view only receive 403 from the policy.
+        // Service also rejects callers without attendance:manage.
         var result = await _attendance.CheckInAsync(assemblyId, request, cancellationToken);
-        return new CheckInResponse(
+        return Ok(new CheckInResponse(
             result.ParticipantId,
             result.AttendanceStatus,
             result.CheckedInAtUtc,
             result.IsAccredited,
             result.EffectiveCoefficientPercent,
-            result.IdempotentReplay);
+            result.IdempotentReplay));
     }
+
+    /// <summary>
+    /// Marks the current user as Present if already accredited. Never accredits.
+    /// </summary>
+    [HttpPost("presence")]
+    [Authorize(Policy = Permissions.AttendanceView)]
+    public Task<AssemblyParticipantDto> MarkSelfPresent(
+        Guid assemblyId,
+        CancellationToken cancellationToken) =>
+        _attendance.MarkSelfPresentAsync(assemblyId, cancellationToken);
 
     [HttpPost("participants/{userId:guid}/accredit")]
     [Authorize(Policy = Permissions.AttendanceManage)]

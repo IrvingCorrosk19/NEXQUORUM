@@ -6,6 +6,7 @@ using Asambleas.Contracts.Meetings;
 using Asambleas.Contracts.Motions;
 using Asambleas.Contracts.Quorum;
 using Asambleas.Contracts.Recordings;
+using Asambleas.Contracts.Realtime;
 using Asambleas.Contracts.Speakers;
 using Asambleas.Contracts.Voting;
 
@@ -16,6 +17,8 @@ public interface IAssemblyRealtimePublisher
     Task PublishAssemblyScheduleChangedAsync(Guid assemblyId, AssemblySummaryDto assembly, CancellationToken cancellationToken = default);
 
     Task PublishAttendanceAsync(Guid assemblyId, AssemblyParticipantDto participant, CancellationToken cancellationToken = default);
+
+    Task PublishAccreditationChangedAsync(Guid assemblyId, AccreditationChangedDto change, CancellationToken cancellationToken = default);
 
     Task PublishQuorumAsync(Guid assemblyId, QuorumStateDto quorum, CancellationToken cancellationToken = default);
 

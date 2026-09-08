@@ -1,5 +1,6 @@
 namespace Asambleas.Web.Middleware;
 
+using Asambleas.Domain.Attendance;
 using Asambleas.Domain.Common;
 using Microsoft.AspNetCore.Mvc;
 
@@ -89,7 +90,9 @@ public sealed class ExceptionHandlingMiddleware
         if (string.Equals(domainException.Code, "FORBIDDEN", StringComparison.OrdinalIgnoreCase)
             || string.Equals(domainException.Code, "PH_ACCESS_DENIED", StringComparison.OrdinalIgnoreCase)
             || string.Equals(domainException.Code, "SCREEN_SHARE_FORBIDDEN", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(domainException.Code, "ASSEMBLY_ACCESS_DENIED", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(domainException.Code, "ASSEMBLY_ACCESS_DENIED", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(domainException.Code, AttendanceCodes.SelfAccreditationForbidden, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(domainException.Code, AttendanceCodes.Unauthorized, StringComparison.OrdinalIgnoreCase))
         {
             return StatusCodes.Status403Forbidden;
         }

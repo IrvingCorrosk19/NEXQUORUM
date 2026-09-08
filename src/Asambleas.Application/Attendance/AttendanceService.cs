@@ -3,7 +3,9 @@ namespace Asambleas.Application.Attendance;
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Common;
 using Asambleas.Application.Quorum;
+using Asambleas.Application.Security;
 using Asambleas.Contracts.Assemblies;
+using Asambleas.Contracts.Realtime;
 using Asambleas.Contracts.Representation;
 using Asambleas.Domain.Attendance;
 using Asambleas.Domain.Common;
@@ -40,29 +42,24 @@ public sealed partial class AttendanceService
         _verifiedJoinProofs = verifiedJoinProofs;
     }
 
-    /// <summary>Self check-in / accreditation for the current user.</summary>
+    /// <summary>
+    /// Operator-only self accreditation alias. Owners cannot self-accredit (admin-only policy).
+    /// Prefer <see cref="AccreditAsync"/> for mesa actions on other participants.
+    /// </summary>
     public Task<AccreditResponse> CheckInAsync(
         Guid assemblyId,
         CheckInRequest request,
         CancellationToken cancellationToken = default)
     {
+        EnsureCanManageAttendance();
         var userId = TenantGuard.RequireUserId(_currentTenant);
-        var method = string.IsNullOrWhiteSpace(request.Method) ? "SelfCheckIn" : request.Method.Trim();
+        var method = string.IsNullOrWhiteSpace(request.Method) ? "OperatorSelfCheckIn" : request.Method.Trim();
 
-        // VerifiedJoinLink is only valid with a server-issued redeem proof scoped to this assembly/user.
-        if (string.Equals(method, "VerifiedJoinLink", StringComparison.OrdinalIgnoreCase))
+        // Legacy VerifiedJoinLink / SelfCheckIn strings never authorize owners — manage permission already gated.
+        if (string.Equals(method, "VerifiedJoinLink", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(method, "SelfCheckIn", StringComparison.OrdinalIgnoreCase))
         {
-            if (!_verifiedJoinProofs.TryConsume(
-                    _currentTenant.TenantId, assemblyId, userId, out var linkId))
-            {
-                // Never trust client-only flags — fall back to explicit self check-in method for audit honesty.
-                method = "SelfCheckIn";
-            }
-            else
-            {
-                // Proof consumed (single-use). Link id retained only in audit metadata below via method string.
-                _ = linkId;
-            }
+            method = "OperatorSelfCheckIn";
         }
 
         return AccreditInternalAsync(
@@ -74,13 +71,14 @@ public sealed partial class AttendanceService
             cancellationToken);
     }
 
-    /// <summary>Operator accreditation of another participant.</summary>
+    /// <summary>Operator accreditation of a participant (does not invent presence / quorum).</summary>
     public Task<AccreditResponse> AccreditAsync(
         Guid assemblyId,
         Guid targetUserId,
         AccreditRequest request,
         CancellationToken cancellationToken = default)
     {
+        EnsureCanManageAttendance();
         return AccreditInternalAsync(
             assemblyId,
             targetUserId,
@@ -88,6 +86,44 @@ public sealed partial class AttendanceService
             method: request.Method ?? "OperatorCheckIn",
             clientUnitId: null,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Marks the current user Present once accredited. Does not accredit.
+    /// Used by room/lobby join and integration tests that lack a SignalR hub connection.
+    /// </summary>
+    public async Task<AssemblyParticipantDto> MarkSelfPresentAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+        var participant = await _db.AssemblyParticipants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.AssemblyId == assemblyId && p.UserId == userId, cancellationToken)
+            ?? throw new DomainException("El participante no está inscrito en esta asamblea.");
+
+        if (!participant.IsAccredited)
+        {
+            throw new DomainException(
+                AttendanceCodes.NotAccredited,
+                "Su participación todavía está pendiente de validación administrativa.");
+        }
+
+        return await MarkConnectedAsync(assemblyId, userId, cancellationToken);
+    }
+
+    private void EnsureCanManageAttendance()
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        if (_currentTenant.Permissions.Any(p =>
+                string.Equals(p, Permissions.AttendanceManage, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        throw new DomainException(
+            AttendanceCodes.SelfAccreditationForbidden,
+            "La acreditación es exclusiva de la administración. Un operador autorizado debe acreditarlo.");
     }
 
     public async Task<DeaccreditResponse> DeaccreditAsync(
@@ -148,6 +184,7 @@ public sealed partial class AttendanceService
         }
 
         var previousCoeff = participant.EffectiveCoefficientPercent;
+        var previousStatus = participant.AttendanceStatus.ToString();
         await _representation.RevokeActiveForUserAsync(assemblyId, targetUserId, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
@@ -182,7 +219,11 @@ public sealed partial class AttendanceService
                 DeaccreditedBy = actorUserId,
                 Reason = request.Reason.Trim(),
                 Method = request.Method ?? "OperatorDeaccredit",
-                PreviousCoefficient = previousCoeff
+                PreviousCoefficient = previousCoeff,
+                PreviousAttendanceStatus = previousStatus,
+                NewAttendanceStatus = AttendanceStatus.Registered.ToString(),
+                PreviousIsAccredited = true,
+                NewIsAccredited = false
             },
             cancellationToken: cancellationToken);
 
@@ -190,6 +231,19 @@ public sealed partial class AttendanceService
         await _realtime.PublishAttendanceAsync(
             assemblyId,
             Mapping.ToParticipantDto(participant, unitCode, 0m, 0),
+            cancellationToken);
+
+        await _realtime.PublishAccreditationChangedAsync(
+            assemblyId,
+            new AccreditationChangedDto(
+                assemblyId,
+                targetUserId,
+                IsAccredited: false,
+                AttendanceStatus: AttendanceStatus.Registered.ToString(),
+                EffectiveCoefficientPercent: 0m,
+                Message: "Su acreditación fue retirada por la administración. No podrá votar hasta una nueva validación.",
+                PreviousAttendanceStatus: previousStatus,
+                Reason: request.Reason.Trim()),
             cancellationToken);
 
         var quorum = await _quorum.RecalculateAndSnapshotAsync(assemblyId, "Deaccredit", cancellationToken);
@@ -249,17 +303,18 @@ public sealed partial class AttendanceService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, participant.TenantId);
 
-        if (participant.IsAccredited
-            && Mapping.CountsTowardQuorum(participant.AttendanceStatus))
+        // Already accredited → idempotent (do not invent presence / alter quorum).
+        if (participant.IsAccredited)
         {
             var existingReps = await _representation.GetActiveForUserAsync(assemblyId, targetUserId, cancellationToken);
             var latest = await _quorum.GetLatestAsync(assemblyId, cancellationToken);
+            var accreditedAt = participant.AccreditedAtUtc ?? DateTimeOffset.UtcNow;
             return new AccreditResponse(
                 participant.Id,
                 participant.AttendanceStatus.ToString(),
                 true,
-                participant.AccreditedAtUtc ?? participant.CheckedInAtUtc ?? DateTimeOffset.UtcNow,
-                participant.CheckedInAtUtc ?? DateTimeOffset.UtcNow,
+                accreditedAt,
+                participant.CheckedInAtUtc ?? accreditedAt,
                 participant.EffectiveCoefficientPercent,
                 existingReps.Select(r => new RepresentationUnitDto(
                     r.UnitId, r.UnitCode, r.CoefficientPercent, r.Source, r.PowerId, null)).ToList(),
@@ -270,18 +325,11 @@ public sealed partial class AttendanceService
         }
 
         IReadOnlyList<AssemblyRepresentationSnapshot> snapshots;
-        if (!participant.IsAccredited)
-        {
-            snapshots = await _representation.MaterializeForAccreditationAsync(
-                assemblyId,
-                targetUserId,
-                actorUserId,
-                cancellationToken);
-        }
-        else
-        {
-            snapshots = await _representation.GetActiveForUserAsync(assemblyId, targetUserId, cancellationToken);
-        }
+        snapshots = await _representation.MaterializeForAccreditationAsync(
+            assemblyId,
+            targetUserId,
+            actorUserId,
+            cancellationToken);
 
         // Client-supplied UnitId is never trusted as coefficient authority — only validated against claims.
         if (clientUnitId is Guid requestedUnit
@@ -309,31 +357,21 @@ public sealed partial class AttendanceService
         }
 
         var now = DateTimeOffset.UtcNow;
+        var previousStatus = participant.AttendanceStatus.ToString();
         var effective = Math.Round(
             snapshots.Sum(s => s.CoefficientPercent),
             4,
             MidpointRounding.AwayFromZero);
 
+        // Accreditation ≠ presence. Keep Registered until the participant joins (MarkConnected).
         participant.IsAccredited = true;
-        participant.AccreditedAtUtc ??= now;
-        participant.AccreditedByUserId ??= actorUserId;
+        participant.AccreditedAtUtc = now;
+        participant.AccreditedByUserId = actorUserId;
         participant.EffectiveCoefficientPercent = effective;
-        participant.AttendanceStatus = AttendanceStatus.CheckedIn;
-        participant.CheckedInAtUtc ??= now;
         participant.PresenceType = presenceType;
         participant.UnitId = snapshots.FirstOrDefault()?.UnitId ?? participant.UnitId;
         participant.UpdatedAtUtc = now;
-
-        _db.AttendanceRecords.Add(new AttendanceRecord
-        {
-            TenantId = assembly.TenantId,
-            AssemblyId = assemblyId,
-            UserId = targetUserId,
-            UnitId = participant.UnitId,
-            PresenceType = presenceType,
-            Status = AttendanceStatus.CheckedIn,
-            TimestampUtc = now
-        });
+        // Do not set AttendanceStatus=CheckedIn or CheckedInAtUtc — that would inflate quorum.
 
         try
         {
@@ -356,14 +394,14 @@ public sealed partial class AttendanceService
                 AccreditedBy = actorUserId,
                 Method = method,
                 EffectiveCoefficient = effective,
-                Units = snapshots.Select(s => s.UnitCode).ToArray()
+                Units = snapshots.Select(s => s.UnitCode).ToArray(),
+                PreviousAttendanceStatus = previousStatus,
+                NewAttendanceStatus = participant.AttendanceStatus.ToString(),
+                PreviousIsAccredited = false,
+                NewIsAccredited = true,
+                PresenceType = presenceType.ToString(),
+                UnitId = participant.UnitId
             },
-            cancellationToken: cancellationToken);
-
-        await _audit.WriteAsync(
-            AuditEventType.CheckIn,
-            assemblyId,
-            metadata: new { participant.UnitId, PresenceType = presenceType.ToString(), Method = method },
             cancellationToken: cancellationToken);
 
         if (snapshots.Count > 0)
@@ -380,19 +418,34 @@ public sealed partial class AttendanceService
         }
 
         var unitCode = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);
-        await _realtime.PublishAttendanceAsync(
+        var dto = Mapping.ToParticipantDto(participant, unitCode, effective, snapshots.Count);
+        await _realtime.PublishAttendanceAsync(assemblyId, dto, cancellationToken);
+
+        const string ownerMessage =
+            "Su acreditación fue aprobada. Ya puede participar en la asamblea y votar cuando se habilite una votación.";
+        await _realtime.PublishAccreditationChangedAsync(
             assemblyId,
-            Mapping.ToParticipantDto(participant, unitCode, effective, snapshots.Count),
+            new AccreditationChangedDto(
+                assemblyId,
+                targetUserId,
+                IsAccredited: true,
+                AttendanceStatus: participant.AttendanceStatus.ToString(),
+                EffectiveCoefficientPercent: effective,
+                Message: ownerMessage,
+                PreviousAttendanceStatus: previousStatus,
+                AccreditedByUserId: actorUserId,
+                AccreditedAtUtc: now),
             cancellationToken);
 
-        var quorum = await _quorum.RecalculateAndSnapshotAsync(assemblyId, "CheckIn", cancellationToken);
+        // Quorum unchanged until effective presence (Present / CheckedIn / TemporarilyDisconnected).
+        var quorum = await _quorum.RecalculateAndSnapshotAsync(assemblyId, "Accredit", cancellationToken);
 
         return new AccreditResponse(
             participant.Id,
             participant.AttendanceStatus.ToString(),
             true,
             participant.AccreditedAtUtc!.Value,
-            participant.CheckedInAtUtc!.Value,
+            participant.CheckedInAtUtc ?? participant.AccreditedAtUtc!.Value,
             effective,
             snapshots.Select(r => new RepresentationUnitDto(
                 r.UnitId, r.UnitCode, r.CoefficientPercent, r.Source, r.PowerId, null)).ToList(),
@@ -528,6 +581,11 @@ public sealed partial class AttendanceService
         var previous = participant.AttendanceStatus;
         participant.AttendanceStatus = status;
         participant.UpdatedAtUtc = now;
+        if (status is AttendanceStatus.Present or AttendanceStatus.CheckedIn)
+        {
+            participant.CheckedInAtUtc ??= now;
+            participant.PresenceType ??= PresenceType.Virtual;
+        }
 
         _db.AttendanceRecords.Add(new AttendanceRecord
         {

@@ -35,11 +35,11 @@ public sealed class AttendanceRepresentationTests
         body!.EffectiveCoefficientPercent.Should().Be(22m);
         body.Represented.Should().ContainSingle(r => r.UnitCode == "107");
 
-        var checkIn = await owner102.PostJsonAsync(
-            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-            new CheckInRequest(null, PresenceType.Virtual.ToString()));
-        checkIn.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result = await checkIn.Content.ReadFromJsonAsync<CheckInResponse>();
+        var accredit = await president.PostJsonAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/participants/{DemoSeedConstants.UserOwner102Id}/accredit",
+            new AccreditRequest(PresenceType.Virtual.ToString(), "OperatorCheckIn"));
+        accredit.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await accredit.Content.ReadFromJsonAsync<AccreditResponse>();
         result!.IsAccredited.Should().BeTrue();
         result.EffectiveCoefficientPercent.Should().Be(22m);
 
@@ -62,17 +62,14 @@ public sealed class AttendanceRepresentationTests
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start-checkin"))
             .EnsureSuccessStatusCode();
 
-        var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
-        (await owner.PostJsonAsync(
-                $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-                new CheckInRequest(DemoSeedConstants.Unit101Id, "Virtual")))
-            .EnsureSuccessStatusCode();
+        await AttendanceTestHelpers.AccreditAsync(
+            president, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserOwner101Id);
 
-        var again = await owner.PostJsonAsync(
-            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-            new CheckInRequest(DemoSeedConstants.Unit101Id, "Virtual"));
+        var again = await president.PostJsonAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/participants/{DemoSeedConstants.UserOwner101Id}/accredit",
+            new AccreditRequest("Virtual", "OperatorCheckIn"));
         again.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await again.Content.ReadFromJsonAsync<CheckInResponse>();
+        var body = await again.Content.ReadFromJsonAsync<AccreditResponse>();
         body!.IdempotentReplay.Should().BeTrue();
 
         await using var scope = _fixture.Factory.Services.CreateAsyncScope();

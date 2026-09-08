@@ -5,6 +5,7 @@ import { showPageError } from "./app-feedback.js";
 import { hydrateRoomState } from "./room-state.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js";
+import { createAssemblyConnection } from "./signalr-client.js";
 import {
   enumerateMediaDevices,
   fetchJoinToken,
@@ -24,6 +25,10 @@ const device = { camera: true, mic: true };
 let joinReady = false;
 let meetingAvailable = false;
 let meterTimer = null;
+let currentSelf = null;
+let currentAssembly = null;
+let hub = null;
+let currentUser = null;
 
 function showError(message) {
   showPageError(message);
@@ -79,6 +84,25 @@ function resolveSelf(room, user) {
   );
 }
 
+function updateAccreditationBanner(self, assembly) {
+  const banner = qs("#accreditation-banner");
+  if (!banner) return;
+  const accredited = Boolean(self?.isAccredited);
+  const status = assembly?.status || "";
+  banner.hidden = false;
+  if (!accredited) {
+    banner.className = "alert";
+    banner.textContent = t("lobby.needAccreditation");
+    return;
+  }
+  banner.className = "alert alert-success";
+  if (["Draft", "Scheduled", "CheckIn"].includes(status)) {
+    banner.textContent = t("lobby.accreditedWaitingStart");
+  } else {
+    banner.textContent = t("lobby.accreditationApproved");
+  }
+}
+
 function updateEnterGate(self, assembly) {
   const btn = qs("#btn-enter");
   const hint = qs("#enter-hint");
@@ -86,20 +110,49 @@ function updateEnterGate(self, assembly) {
   const accredited = Boolean(self?.isAccredited);
   const status = assembly?.status || "";
   const joinable = !["Draft", "Cancelled", "Completed"].includes(status);
+  // Owners never self-accredit — hide desk link for non-operators.
+  if (checkinLink) {
+    checkinLink.hidden = true;
+  }
   joinReady = Boolean(assemblyId) && accredited && joinable;
   btn.disabled = !joinReady;
-  if (checkinLink) {
-    checkinLink.hidden = accredited;
-    checkinLink.href = `/checkin.html?assemblyId=${assemblyId}`;
-  }
+  updateAccreditationBanner(self, assembly);
+  qs("#fact-accreditation").textContent = accredited
+    ? t("lobby.accredited")
+    : t("lobby.notAccredited");
   if (!accredited) {
     hint.textContent = t("lobby.needAccreditation");
   } else if (!joinable) {
     hint.textContent = t("lobby.assemblyNotJoinable", { status });
+  } else if (["Draft", "Scheduled", "CheckIn"].includes(status)) {
+    hint.textContent = t("lobby.accreditedWaitingStart");
   } else if (!meetingAvailable) {
     hint.textContent = t("lobby.enterGovernanceOnly");
   } else {
     hint.textContent = "";
+  }
+}
+
+function applySelfUpdate(participant) {
+  if (!participant || !currentUser) return;
+  const uid = String(currentUser?.id || currentUser?.userId || "").toLowerCase();
+  const pid = String(participant.userId || "").toLowerCase();
+  if (!uid || uid !== pid) return;
+  const wasAccredited = Boolean(currentSelf?.isAccredited);
+  currentSelf = { ...(currentSelf || {}), ...participant };
+  updateEnterGate(currentSelf, currentAssembly);
+  if (!wasAccredited && currentSelf.isAccredited) {
+    showToast({
+      title: t("lobby.accredited"),
+      message: t("lobby.accreditationApproved"),
+      variant: "success"
+    });
+  } else if (wasAccredited && !currentSelf.isAccredited) {
+    showToast({
+      title: t("lobby.notAccredited"),
+      message: t("lobby.accreditationRevoked"),
+      variant: "warning"
+    });
   }
 }
 
@@ -239,8 +292,7 @@ async function init() {
   }
   const checkinLink = qs("#link-checkin");
   if (checkinLink) {
-    checkinLink.textContent = t("lobby.goToCheckin");
-    checkinLink.href = `/checkin.html?assemblyId=${assemblyId}`;
+    checkinLink.hidden = true;
   }
 
   if (!assemblyId) {
@@ -252,13 +304,13 @@ async function init() {
     return;
   }
 
-  let user;
   try {
-    user = await me();
+    currentUser = await me();
   } catch {
     location.href = "/";
     return;
   }
+  const user = currentUser;
 
   await bootIaPage({ current: "asm-room", pageLabel: "Sala" });
   document.body.classList.add("is-fullscreen-ops");
@@ -278,6 +330,7 @@ async function init() {
   }
 
   const assembly = room.assembly;
+  currentAssembly = assembly;
   if (isTerminalStatus(assembly?.status)) {
     location.replace(historicalOverviewUrl(assemblyId, assembly.status));
     return;
@@ -289,6 +342,7 @@ async function init() {
   `;
 
   const self = resolveSelf(room, user);
+  currentSelf = self;
   qs("#fact-participant").textContent = self?.displayName || user.displayName;
   qs("#fact-unit").textContent = self?.unitCode || "—";
   qs("#fact-accreditation").textContent = self?.isAccredited
@@ -309,7 +363,7 @@ async function init() {
   if (assembly?.status && assembly.status !== "InProgress") {
     statusEl.hidden = false;
     statusEl.textContent =
-      assembly.status === "CheckInOpen" || assembly.status === "Scheduled"
+      assembly.status === "CheckInOpen" || assembly.status === "Scheduled" || assembly.status === "CheckIn"
         ? t("lobby.notStarted")
         : t("lobby.assemblyStatus", { status: assembly.status });
   }
@@ -331,6 +385,37 @@ async function init() {
   await setupPreview();
   updateEnterGate(self, assembly);
 
+  try {
+    hub = createAssemblyConnection({
+      participantUpdated: (p) => applySelfUpdate(p),
+      accreditationChanged: (chg) => {
+        const uid = String(currentUser?.id || currentUser?.userId || "").toLowerCase();
+        if (String(chg?.userId || "").toLowerCase() !== uid) return;
+        applySelfUpdate({
+          userId: chg.userId,
+          isAccredited: chg.isAccredited,
+          attendanceStatus: chg.attendanceStatus,
+          effectiveCoefficientPercent: chg.effectiveCoefficientPercent
+        });
+        if (chg?.message) {
+          showToast({
+            title: chg.isAccredited ? t("lobby.accredited") : t("lobby.notAccredited"),
+            message: chg.message,
+            variant: chg.isAccredited ? "success" : "warning"
+          });
+        }
+      },
+      assemblyStatusChanged: (asm) => {
+        if (!asm) return;
+        currentAssembly = { ...(currentAssembly || {}), ...asm, status: asm.status || asm.Status };
+        updateEnterGate(currentSelf, currentAssembly);
+      }
+    });
+    await hub.start(assemblyId);
+  } catch (err) {
+    console.warn("Lobby SignalR unavailable", err);
+  }
+
   qs("#toggle-camera").addEventListener("click", () => {
     device.camera = !device.camera;
     updateToggleLabels();
@@ -342,12 +427,12 @@ async function init() {
   qs("#select-camera")?.addEventListener("change", async (e) => {
     saveDevicePrefs({ cameraId: e.target.value });
     await setupPreview();
-    updateEnterGate(self, assembly);
+    updateEnterGate(currentSelf, currentAssembly);
   });
   qs("#select-mic")?.addEventListener("change", async (e) => {
     saveDevicePrefs({ micId: e.target.value });
     await setupPreview();
-    updateEnterGate(self, assembly);
+    updateEnterGate(currentSelf, currentAssembly);
   });
   qs("#select-speaker")?.addEventListener("change", (e) => {
     saveDevicePrefs({ speakerId: e.target.value });
@@ -362,6 +447,11 @@ async function init() {
   window.addEventListener("beforeunload", () => {
     stopDevicePreview(qs("#preview-video"));
     stopMeterLoop();
+    try {
+      hub?.stop?.(assemblyId);
+    } catch {
+      /* ignore */
+    }
   });
 }
 

@@ -569,32 +569,15 @@ async function confirmAccredit() {
   try {
     await ensureDeskOpen();
 
-    const targetId = pendingPreview.userId;
-    const operator = isOperator(user);
-    const isSelf = String(user?.userId || "") === String(targetId);
-
-    let result;
-    if (operator && !isSelf) {
-      result = await api(`/api/assemblies/${assemblyId}/attendance/participants/${targetId}/accredit`, {
-        method: "POST",
-        body: { presenceType: "InPerson", method: "OperatorCheckIn" }
-      });
-    } else {
-      result = await api(`/api/assemblies/${assemblyId}/attendance/check-in`, {
-        method: "POST",
-        body: {
-          unitId: null,
-          presenceType: isSelf ? "Virtual" : "InPerson",
-          method: explicitCheckInMethod()
-        }
-      });
-      try {
-        sessionStorage.removeItem("asambleas.verifiedJoinLink");
-        sessionStorage.removeItem(`asambleas.vjl:${assemblyId}`);
-      } catch {
-        /* ignore */
-      }
+    if (!isOperator(user) || !hasPermission(user, "attendance:manage")) {
+      throw new Error("Solo la administración puede acreditar participantes.");
     }
+
+    const targetId = pendingPreview.userId;
+    const result = await api(`/api/assemblies/${assemblyId}/attendance/participants/${targetId}/accredit`, {
+      method: "POST",
+      body: { presenceType: "InPerson", method: "OperatorCheckIn" }
+    });
 
     recent.unshift({
       name: pendingPreview.displayName,
@@ -619,6 +602,19 @@ async function confirmAccredit() {
           Number(result.requiredQuorumCoefficient || 0) - Number(result.currentQuorumCoefficient || 0)
         )
       };
+    }
+
+    // Soft refresh — SignalR also pushes participantUpdated.
+    const idx = participants.findIndex((p) => String(p.userId) === String(targetId));
+    if (idx >= 0) {
+      participants[idx] = {
+        ...participants[idx],
+        isAccredited: true,
+        effectiveCoefficientPercent: result.effectiveCoefficientPercent,
+        attendanceStatus: result.attendanceStatus || participants[idx].attendanceStatus
+      };
+      renderCards(qs("#participant-filter")?.value || "");
+      updateLive();
     }
 
     closeOwnerModal();
@@ -869,23 +865,11 @@ function explicitCheckInMethod() {
 }
 
 async function selfCheckIn() {
-  try {
-    const meId = user?.userId;
-    if (meId) {
-      await openOwnerModal(meId, { accreditMode: true });
-      return;
-    }
-    await ensureDeskOpen();
-    await api(`/api/assemblies/${assemblyId}/attendance/check-in`, {
-      method: "POST",
-      body: { unitId: null, presenceType: "Virtual" }
-    });
-    showToast(t("checkin.success"), "success");
-    await reloadParticipants();
-    await reloadQuorum();
-  } catch (error) {
-    showError(errorMessage(error));
-  }
+  showToast({
+    title: "Acreditación administrativa",
+    message: "La acreditación la realiza la mesa. Seleccione un participante y pulse Acreditar.",
+    variant: "info"
+  });
 }
 
 async function reloadParticipants() {
@@ -966,7 +950,10 @@ async function init() {
   const pageTitle = qs("#page-title");
   if (pageTitle) pageTitle.textContent = t("checkin.title");
   const selfBtn = qs("#btn-self-checkin");
-  if (selfBtn) selfBtn.textContent = t("checkin.selfCheckIn");
+  if (selfBtn) {
+    selfBtn.hidden = true;
+    selfBtn.textContent = t("checkin.selfCheckIn");
+  }
   const linkLobby = qs("#link-lobby");
   if (linkLobby) {
     linkLobby.textContent = t("dashboard.linkLobby");

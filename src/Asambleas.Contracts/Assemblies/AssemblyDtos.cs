@@ -57,7 +57,8 @@ public sealed record AssemblyParticipantDto(
     decimal EffectiveCoefficientPercent = 0m,
     DateTimeOffset? AccreditedAtUtc = null,
     int RepresentationCount = 0,
-    string? PresenceType = null);
+    string? PresenceType = null,
+    Guid? AccreditedByUserId = null);
 
 public sealed record CheckInRequest(Guid? UnitId, string PresenceType, string? Method = null);
 

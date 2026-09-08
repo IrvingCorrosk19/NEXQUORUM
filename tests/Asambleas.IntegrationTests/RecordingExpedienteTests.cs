@@ -25,15 +25,12 @@ public sealed class RecordingExpedienteTests
         var president = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start-checkin"))
             .EnsureSuccessStatusCode();
-        (await president.PostJsonAsync(
-                $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-                new Contracts.Assemblies.CheckInRequest(null, "Virtual")))
-            .EnsureSuccessStatusCode();
+        await AttendanceTestHelpers.AccreditAsync(
+            president, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserPresidentId);
+        await AttendanceTestHelpers.MarkPresentAsync(president, DemoSeedConstants.AssemblyOceanId);
         var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
-        (await owner.PostJsonAsync(
-                $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-                new Contracts.Assemblies.CheckInRequest(DemoSeedConstants.Unit101Id, "Virtual")))
-            .EnsureSuccessStatusCode();
+        await AttendanceTestHelpers.AccreditAndPresentAsync(
+            president, owner, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserOwner101Id);
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start"))
             .EnsureSuccessStatusCode();
 

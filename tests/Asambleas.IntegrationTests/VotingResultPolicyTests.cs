@@ -91,17 +91,17 @@ public sealed class VotingResultPolicyTests
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start-checkin"))
             .EnsureSuccessStatusCode();
 
-        foreach (var email in new[] { "president@ocean.demo", "owner101@ocean.demo", "owner102@ocean.demo" })
-        {
-            var user = await AuthenticatedClient.LoginAsync(_fixture.Factory, email);
-            Guid? unitId = email.StartsWith("owner", StringComparison.Ordinal)
-                ? email.Contains("102") ? DemoSeedConstants.Unit102Id : DemoSeedConstants.Unit101Id
-                : null;
-            (await user.PostJsonAsync(
-                    $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-                    new CheckInRequest(unitId, PresenceType.Virtual.ToString())))
-                .EnsureSuccessStatusCode();
-        }
+        await AttendanceTestHelpers.AccreditAsync(
+            president, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserPresidentId);
+        await AttendanceTestHelpers.MarkPresentAsync(president, DemoSeedConstants.AssemblyOceanId);
+
+        var owner101 = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
+        await AttendanceTestHelpers.AccreditAndPresentAsync(
+            president, owner101, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserOwner101Id);
+
+        var owner102 = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner102@ocean.demo");
+        await AttendanceTestHelpers.AccreditAndPresentAsync(
+            president, owner102, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserOwner102Id);
 
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start"))
             .EnsureSuccessStatusCode();

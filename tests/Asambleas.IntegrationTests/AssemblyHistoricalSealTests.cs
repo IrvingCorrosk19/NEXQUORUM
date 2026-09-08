@@ -88,7 +88,7 @@ public sealed class AssemblyHistoricalSealTests
         var checkIn = await owner.PostJsonAsync(
             $"/api/assemblies/{assemblyId}/attendance/check-in",
             new CheckInRequest(DemoSeedConstants.Unit101Id, PresenceType.Virtual.ToString()));
-        checkIn.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        checkIn.StatusCode.Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.Forbidden);
 
         var cast = await owner.PostJsonAsync(
             $"/api/assemblies/{assemblyId}/voting/{session.Id}/cast",
@@ -198,17 +198,12 @@ public sealed class AssemblyHistoricalSealTests
 
         (await president.PostAsync($"/api/assemblies/{assemblyId}/start-checkin")).EnsureSuccessStatusCode();
 
-        foreach (var email in new[] { "president@ocean.demo", "owner101@ocean.demo" })
-        {
-            var user = await AuthenticatedClient.LoginAsync(_fixture.Factory, email);
-            Guid? unitId = email.StartsWith("owner", StringComparison.Ordinal)
-                ? DemoSeedConstants.Unit101Id
-                : null;
-            (await user.PostJsonAsync(
-                    $"/api/assemblies/{assemblyId}/attendance/check-in",
-                    new CheckInRequest(unitId, PresenceType.Virtual.ToString())))
-                .EnsureSuccessStatusCode();
-        }
+        await AttendanceTestHelpers.AccreditAsync(president, assemblyId, DemoSeedConstants.UserPresidentId);
+        await AttendanceTestHelpers.MarkPresentAsync(president, assemblyId);
+
+        var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
+        await AttendanceTestHelpers.AccreditAndPresentAsync(
+            president, owner, assemblyId, DemoSeedConstants.UserOwner101Id);
 
         (await president.PostAsync($"/api/assemblies/{assemblyId}/start")).EnsureSuccessStatusCode();
         (await president.PostJsonAsync(

@@ -66,10 +66,10 @@ function mapCastError(error) {
     return t("mvote.closedBeforeCast") || "La votación fue cerrada antes de registrar su voto.";
   }
   if (code.includes("NOT_ACCREDITED")) {
-    return t("voting.notAccredited") || "Su participación todavía no ha sido acreditada por la mesa.";
+    return t("voting.notAccredited") || "Su participación todavía está pendiente de validación administrativa.";
   }
   if (code.includes("NOT_ELIGIBLE") || code.includes("NOT_PARTICIPANT") || status === 403) {
-    return t("voting.notEligible") || "No está habilitado para votar en esta ronda.";
+    return t("voting.notEligible") || "No tiene derecho a voto para esta moción.";
   }
   if (code.includes("COEFFICIENT_CONFIGURATION_INVALID")) {
     return msg || t("voting.coeffBlocked") || "El padrón de coeficientes del PH es inválido.";

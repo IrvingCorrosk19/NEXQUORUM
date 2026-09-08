@@ -48,7 +48,8 @@ internal static class Mapping
             participant.EffectiveCoefficientPercent,
             participant.AccreditedAtUtc,
             representationCount,
-            participant.PresenceType?.ToString());
+            participant.PresenceType?.ToString(),
+            participant.AccreditedByUserId);
 
     public static QuorumStateDto ToQuorumState(
         Guid assemblyId,

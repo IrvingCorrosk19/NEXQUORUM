@@ -8,6 +8,8 @@ public static class RealtimeEventNames
     public const string AssemblyStatusChanged = "assemblyStatusChanged";
     public const string AssemblyScheduleChanged = "assemblyScheduleChanged";
     public const string ParticipantUpdated = "participantUpdated";
+    /// <summary>Owner-facing accreditation lifecycle (approved / revoked) with a clear message.</summary>
+    public const string AccreditationChanged = "accreditationChanged";
     public const string QuorumUpdated = "quorumUpdated";
     public const string AgendaUpdated = "agendaUpdated";
     public const string SpeakerQueueUpdated = "speakerQueueUpdated";

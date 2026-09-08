@@ -51,13 +51,23 @@ public sealed class AssemblyMeetingE2ETests
 
         (await president.PostAsync($"/api/assemblies/{seeds}/start-checkin")).EnsureSuccessStatusCode();
 
-        foreach (var (email, unitId) in DemoUsers)
+        var userIds = new Dictionary<string, Guid>
+        {
+            ["president@ocean.demo"] = Asambleas.Infrastructure.Seed.DemoSeedConstants.UserPresidentId,
+            ["secretary@ocean.demo"] = Asambleas.Infrastructure.Seed.DemoSeedConstants.UserSecretaryId,
+            ["owner101@ocean.demo"] = Asambleas.Infrastructure.Seed.DemoSeedConstants.UserOwner101Id,
+            ["owner102@ocean.demo"] = Asambleas.Infrastructure.Seed.DemoSeedConstants.UserOwner102Id,
+            ["owner103@ocean.demo"] = Asambleas.Infrastructure.Seed.DemoSeedConstants.UserOwner103Id,
+            ["owner104@ocean.demo"] = Asambleas.Infrastructure.Seed.DemoSeedConstants.UserOwner104Id,
+            ["owner105@ocean.demo"] = Asambleas.Infrastructure.Seed.DemoSeedConstants.UserOwner105Id,
+            ["owner106@ocean.demo"] = Asambleas.Infrastructure.Seed.DemoSeedConstants.UserOwner106Id
+        };
+
+        foreach (var (email, _) in DemoUsers)
         {
             var user = await AuthenticatedClient.LoginAsync(_fixture.Factory, email);
-            var checkIn = await user.PostJsonAsync(
-                $"/api/assemblies/{seeds}/attendance/check-in",
-                new Asambleas.Contracts.Assemblies.CheckInRequest(unitId, "Virtual"));
-            checkIn.EnsureSuccessStatusCode();
+            await AttendanceTestHelpers.AccreditAndPresentAsync(
+                president, user, seeds, userIds[email]);
         }
 
         (await president.PostAsync($"/api/assemblies/{seeds}/start")).EnsureSuccessStatusCode();

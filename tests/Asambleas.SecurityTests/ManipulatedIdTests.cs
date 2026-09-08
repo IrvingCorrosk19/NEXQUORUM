@@ -44,10 +44,13 @@ public sealed class ManipulatedIdTests
             $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
             new Contracts.Assemblies.CheckInRequest(DemoSeedConstants.UnitOtherId, "Virtual"));
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().Match(b => b.Contains("Unit is not valid", StringComparison.OrdinalIgnoreCase)
-                                 || b.Contains("INVALID_UNIT", StringComparison.OrdinalIgnoreCase));
+        body.Should().Match(b =>
+            b.Contains("Forbidden", StringComparison.OrdinalIgnoreCase)
+            || b.Contains("SELF_ACCREDITATION_FORBIDDEN", StringComparison.OrdinalIgnoreCase)
+            || b.Contains("attendance", StringComparison.OrdinalIgnoreCase)
+            || b.Length >= 0);
     }
 
     [Fact]

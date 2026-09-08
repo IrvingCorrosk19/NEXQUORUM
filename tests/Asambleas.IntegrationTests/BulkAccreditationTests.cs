@@ -104,11 +104,8 @@ public sealed class BulkAccreditationTests
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start-checkin"))
             .EnsureSuccessStatusCode();
 
-        var owner102 = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner102@ocean.demo");
-        (await owner102.PostJsonAsync(
-                $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-                new CheckInRequest(null, "Virtual", "SelfCheckIn")))
-            .EnsureSuccessStatusCode();
+        await AttendanceTestHelpers.AccreditAsync(
+            president, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserOwner102Id);
 
         var de = await president.PostJsonAsync(
             $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/deaccredit-bulk",
@@ -133,10 +130,8 @@ public sealed class BulkAccreditationTests
                 && !r.IsActive)).Should().BeGreaterThan(0);
         }
 
-        (await owner102.PostJsonAsync(
-                $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
-                new CheckInRequest(null, "Virtual", "SelfCheckIn")))
-            .EnsureSuccessStatusCode();
+        await AttendanceTestHelpers.AccreditAsync(
+            president, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserOwner102Id);
 
         await using (var scope = _fixture.Factory.Services.CreateAsyncScope())
         {
@@ -238,7 +233,23 @@ public sealed class BulkAccreditationTests
         var result = await bulk.Content.ReadFromJsonAsync<BulkAccreditResponse>();
         result!.Requested.Should().Be(n);
         result.Succeeded.Should().Be(n);
-        result.CoefficientAfter.Should().BeApproximately(100m, 0.05m);
+        // Accreditation alone must not inflate quorum — presence is required separately.
+        result.CoefficientAfter.Should().Be(0m);
+
+        await using (var scope = _fixture.Factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
+            var accredited = await db.AssemblyParticipants.IgnoreQueryFilters()
+                .CountAsync(p => p.AssemblyId == DemoSeedConstants.AssemblyOceanId
+                                 && scaleUserIds.Contains(p.UserId)
+                                 && p.IsAccredited);
+            accredited.Should().Be(n);
+            var presentish = await db.AssemblyParticipants.IgnoreQueryFilters()
+                .CountAsync(p => p.AssemblyId == DemoSeedConstants.AssemblyOceanId
+                                 && scaleUserIds.Contains(p.UserId)
+                                 && p.AttendanceStatus != AttendanceStatus.Registered);
+            presentish.Should().Be(0);
+        }
 
         previewMs.Should().BeLessThan(2000, "preview 300 target <2s");
         httpMs.Should().BeLessThan(5000, $"accredit 300 target <5s (was {httpMs}ms)");

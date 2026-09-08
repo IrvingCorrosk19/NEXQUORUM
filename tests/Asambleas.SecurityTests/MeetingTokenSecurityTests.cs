@@ -24,10 +24,8 @@ public sealed class MeetingTokenSecurityTests
         (await president.PostAsync($"/api/assemblies/{assemblyId}/start-checkin")).EnsureSuccessStatusCode();
 
         var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
-        (await owner.PostJsonAsync(
-            $"/api/assemblies/{assemblyId}/attendance/check-in",
-            new Asambleas.Contracts.Assemblies.CheckInRequest(DemoSeedConstants.Unit101Id, "Virtual")))
-            .EnsureSuccessStatusCode();
+        await AttendanceTestHelpers.AccreditAndPresentAsync(
+            president, owner, assemblyId, DemoSeedConstants.UserOwner101Id);
 
         // Even with legacy query flag, publish is server-derived — never client-controlled.
         var response = await owner.PostAsync(
@@ -69,10 +67,8 @@ public sealed class MeetingTokenSecurityTests
         (await president.PostAsync($"/api/assemblies/{assemblyId}/start-checkin")).EnsureSuccessStatusCode();
 
         var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
-        (await owner.PostJsonAsync(
-            $"/api/assemblies/{assemblyId}/attendance/check-in",
-            new Asambleas.Contracts.Assemblies.CheckInRequest(DemoSeedConstants.Unit101Id, "Virtual")))
-            .EnsureSuccessStatusCode();
+        await AttendanceTestHelpers.AccreditAndPresentAsync(
+            president, owner, assemblyId, DemoSeedConstants.UserOwner101Id);
 
         var prezTok = await president.PostAsync($"/api/assemblies/{assemblyId}/meeting/join-token");
         var ownerTok = await owner.PostAsync($"/api/assemblies/{assemblyId}/meeting/join-token");

@@ -1,6 +1,7 @@
 const EVENT_NAMES = [
   "assemblyStatusChanged",
   "participantUpdated",
+  "accreditationChanged",
   "quorumUpdated",
   "agendaUpdated",
   "speakerQueueUpdated",
