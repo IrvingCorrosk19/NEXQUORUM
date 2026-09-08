@@ -302,3 +302,49 @@ body.mvo-open { overflow: hidden; }
     width: min(22rem, calc(100% - 2rem));
   }
 }
+
+/* Ocean template alignment for dark meeting room */
+body:has(.room--ocean) .mvo {
+  background: color-mix(in srgb, #07111f 78%, transparent);
+}
+body:has(.room--ocean) .mvo__sheet {
+  background: #0d1a2b;
+  color: #f4f7fb;
+  border-radius: 1.1rem 1.1rem 0 0;
+  max-height: min(92dvh, 100%);
+  height: auto;
+  align-self: flex-end;
+}
+body:has(.room--ocean) .mvo.is-compact .mvo__sheet {
+  border-radius: 1rem;
+  align-self: center;
+  max-width: 28rem;
+  height: auto;
+  max-height: min(90dvh, 40rem);
+}
+body:has(.room--ocean) .mvo__title {
+  color: #f4f7fb;
+}
+body:has(.room--ocean) .mvo__kicker,
+body:has(.room--ocean) .muted {
+  color: #a9b5c5;
+}
+body:has(.room--ocean) .mvo__option,
+body:has(.room--ocean) .choice-card {
+  border: 1px solid #25354b;
+  background: #132238;
+  color: #f4f7fb;
+  min-height: 3.25rem;
+  border-radius: 12px;
+}
+body:has(.room--ocean) .mvo__option.is-selected,
+body:has(.room--ocean) .choice-card.is-selected {
+  border-color: #2dd4bf;
+  background: #102d32;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #2dd4bf 22%, transparent);
+}
+body:has(.room--ocean) .btn-primary {
+  background: #2dd4bf;
+  border-color: #2dd4bf;
+  color: #062521;
+}

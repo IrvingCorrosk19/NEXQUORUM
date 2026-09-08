@@ -1,0 +1,199 @@
+{
+  "at": "2026-09-08T10:48:41.546Z",
+  "base": "https://localhost:7188",
+  "passed": 38,
+  "failed": 0,
+  "verdict": "CERTIFICADO",
+  "results": [
+    {
+      "id": "ASM",
+      "pass": true,
+      "d": "ade458cc-a24a-4b61-9abe-67b978d6c65b"
+    },
+    {
+      "id": "MODULE_LOAD",
+      "pass": true,
+      "d": "{\"ok\":true}"
+    },
+    {
+      "id": "OVERFLOW_320x568",
+      "pass": true,
+      "d": "{\"scrollWidth\":320,\"clientWidth\":320,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_320x568",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":true,\"overviewVisible\":true,\"quorumCardHtml\":\"Quórum alcanzado\\n100.00%\\nMínimo requerido\\n50.00%\",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":true}"
+    },
+    {
+      "id": "MOBILE_TABS_320x568",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":true,\"overviewVisible\":true,\"quorumCardHtml\":\"Quórum alcanzado\\n100.00%\\nMínimo requerido\\n50.00%\",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":true}"
+    },
+    {
+      "id": "OVERFLOW_360x800",
+      "pass": true,
+      "d": "{\"scrollWidth\":360,\"clientWidth\":360,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_360x800",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":true,\"overviewVisible\":true,\"quorumCardHtml\":\"Quórum alcanzado\\n100.00%\\nMínimo requerido\\n50.00%\",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":true}"
+    },
+    {
+      "id": "MOBILE_TABS_360x800",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":true,\"overviewVisible\":true,\"quorumCardHtml\":\"Quórum alcanzado\\n100.00%\\nMínimo requerido\\n50.00%\",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":true}"
+    },
+    {
+      "id": "OVERFLOW_390x844",
+      "pass": true,
+      "d": "{\"scrollWidth\":390,\"clientWidth\":390,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_390x844",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":true,\"overviewVisible\":true,\"quorumCardHtml\":\"Quórum alcanzado\\n100.00%\\nMínimo requerido\\n50.00%\",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":true}"
+    },
+    {
+      "id": "MOBILE_TABS_390x844",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":true,\"overviewVisible\":true,\"quorumCardHtml\":\"Quórum alcanzado\\n100.00%\\nMínimo requerido\\n50.00%\",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":true}"
+    },
+    {
+      "id": "OVERFLOW_412x915",
+      "pass": true,
+      "d": "{\"scrollWidth\":412,\"clientWidth\":412,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_412x915",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":true,\"overviewVisible\":true,\"quorumCardHtml\":\"Quórum alcanzado\\n100.00%\\nMínimo requerido\\n50.00%\",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":true}"
+    },
+    {
+      "id": "MOBILE_TABS_412x915",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":true,\"overviewVisible\":true,\"quorumCardHtml\":\"Quórum alcanzado\\n100.00%\\nMínimo requerido\\n50.00%\",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":true}"
+    },
+    {
+      "id": "OVERFLOW_768x1024",
+      "pass": true,
+      "d": "{\"scrollWidth\":768,\"clientWidth\":768,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_768x1024",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":false,\"overviewVisible\":false,\"quorumCardHtml\":\"\\n    \\n      Quórum alcanzado\\n      100.00%\\n    \\n    \\n      \\n    \\n    \\n      Mínimo requerido\\n      50.00%\\n    \",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":false}"
+    },
+    {
+      "id": "DESKTOP_NO_MOBILE_TABS_768x1024",
+      "pass": true,
+      "d": "{\"tabsVisible\":false}"
+    },
+    {
+      "id": "OVERFLOW_1024x768",
+      "pass": true,
+      "d": "{\"scrollWidth\":1024,\"clientWidth\":1024,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_1024x768",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":false,\"overviewVisible\":false,\"quorumCardHtml\":\"\\n    \\n      Quórum alcanzado\\n      100.00%\\n    \\n    \\n      \\n    \\n    \\n      Mínimo requerido\\n      50.00%\\n    \",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":false}"
+    },
+    {
+      "id": "DESKTOP_NO_MOBILE_TABS_1024x768",
+      "pass": true,
+      "d": "{\"tabsVisible\":false}"
+    },
+    {
+      "id": "OVERFLOW_1280x720",
+      "pass": true,
+      "d": "{\"scrollWidth\":1280,\"clientWidth\":1280,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_1280x720",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":false,\"overviewVisible\":false,\"quorumCardHtml\":\"\\n    \\n      Quórum alcanzado\\n      100.00%\\n    \\n    \\n      \\n    \\n    \\n      Mínimo requerido\\n      50.00%\\n    \",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":false}"
+    },
+    {
+      "id": "DESKTOP_NO_MOBILE_TABS_1280x720",
+      "pass": true,
+      "d": "{\"tabsVisible\":false}"
+    },
+    {
+      "id": "OVERFLOW_1366x768",
+      "pass": true,
+      "d": "{\"scrollWidth\":1366,\"clientWidth\":1366,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_1366x768",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":false,\"overviewVisible\":false,\"quorumCardHtml\":\"\\n    \\n      Quórum alcanzado\\n      100.00%\\n    \\n    \\n      \\n    \\n    \\n      Mínimo requerido\\n      50.00%\\n    \",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":false}"
+    },
+    {
+      "id": "DESKTOP_NO_MOBILE_TABS_1366x768",
+      "pass": true,
+      "d": "{\"tabsVisible\":false}"
+    },
+    {
+      "id": "OVERFLOW_1440x900",
+      "pass": true,
+      "d": "{\"scrollWidth\":1440,\"clientWidth\":1440,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_1440x900",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":false,\"overviewVisible\":false,\"quorumCardHtml\":\"\\n    \\n      Quórum alcanzado\\n      100.00%\\n    \\n    \\n      \\n    \\n    \\n      Mínimo requerido\\n      50.00%\\n    \",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":false}"
+    },
+    {
+      "id": "DESKTOP_NO_MOBILE_TABS_1440x900",
+      "pass": true,
+      "d": "{\"tabsVisible\":false}"
+    },
+    {
+      "id": "OVERFLOW_1920x1080",
+      "pass": true,
+      "d": "{\"scrollWidth\":1920,\"clientWidth\":1920,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_1920x1080",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":false,\"overviewVisible\":false,\"quorumCardHtml\":\"\\n    \\n      Quórum alcanzado\\n      100.00%\\n    \\n    \\n      \\n    \\n    \\n      Mínimo requerido\\n      50.00%\\n    \",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":false}"
+    },
+    {
+      "id": "DESKTOP_NO_MOBILE_TABS_1920x1080",
+      "pass": true,
+      "d": "{\"tabsVisible\":false}"
+    },
+    {
+      "id": "OVERFLOW_2048x1152",
+      "pass": true,
+      "d": "{\"scrollWidth\":2048,\"clientWidth\":2048,\"overflow\":0}"
+    },
+    {
+      "id": "OCEAN_2048x1152",
+      "pass": true,
+      "d": "{\"hasOcean\":true,\"tabsVisible\":false,\"overviewVisible\":false,\"quorumCardHtml\":\"\\n    \\n      Quórum alcanzado\\n      100.00%\\n    \\n    \\n      \\n    \\n    \\n      Mínimo requerido\\n      50.00%\\n    \",\"presenceVisible\":true,\"diagnosticsOpenToOwner\":false,\"barOk\":true,\"badTerms\":false,\"phoneLayout\":false}"
+    },
+    {
+      "id": "DESKTOP_NO_MOBILE_TABS_2048x1152",
+      "pass": true,
+      "d": "{\"tabsVisible\":false}"
+    },
+    {
+      "id": "SMOKE_STRUCTURE",
+      "pass": true,
+      "d": ""
+    },
+    {
+      "id": "OWNER_SIMPLE",
+      "pass": true,
+      "d": "skipped-no-owner-account"
+    },
+    {
+      "id": "OWNER_OVERFLOW_390",
+      "pass": true,
+      "d": "skipped"
+    }
+  ]
+}

@@ -98,6 +98,39 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
   animateIfNeeded(root.querySelector("[data-quorum-current]"), prev?.current, current);
 }
 
+/**
+ * Full quorum card (mobile overview / premium side chip expansion).
+ * Uses real quorum coefficients; progress bar is current/required ratio.
+ */
+export function renderQuorumCard(root, quorum) {
+  if (!root) return;
+  if (!quorum) {
+    root.innerHTML = `<div class="skeleton" style="height:3.5rem"></div>`;
+    return;
+  }
+  const current = Number(quorum.currentCoefficient ?? 0);
+  const required = Number(quorum.requiredCoefficient ?? 0);
+  const reached = Boolean(quorum.quorumReached);
+  const trackPct = required > 0 ? Math.min(100, (current / required) * 100) : 0;
+  const status = reached
+    ? t("quorum.reached") || "Quórum alcanzado"
+    : t("quorum.notReached") || "Quórum no alcanzado";
+  root.innerHTML = `
+    <div class="quorum-card__row">
+      <span>${escapeHtml(status)}</span>
+      <strong data-quorum-current>${formatCoeff(current)}</strong>
+    </div>
+    <div class="quorum-card__meter" role="progressbar"
+      aria-valuemin="0" aria-valuemax="100" aria-valuenow="${trackPct.toFixed(0)}"
+      aria-label="${escapeHtml(status)}">
+      <span style="width:${trackPct}%"></span>
+    </div>
+    <div class="quorum-card__row">
+      <span>${escapeHtml(t("quorum.requiredMinimum") || "Mínimo requerido")}</span>
+      <small>${formatCoeff(required)}</small>
+    </div>`;
+}
+
 /** Coefficient percent-points of the PH (expected Σ ≈ 100). */
 export function formatCoeff(n) {
   return `${Number(n).toFixed(2)}%`;

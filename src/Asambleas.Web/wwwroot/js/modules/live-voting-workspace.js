@@ -277,7 +277,7 @@ export function createLiveVotingWorkspace({
           if (action === "open") await openMotionVoting(id);
           if (action === "close") await closeActiveVoting();
         } catch (err) {
-          showToast(mapOpenVotingError(err) || err.message || "Error", "error");
+          showToast(mapMotionActionError(err), "error");
         }
       });
     });
@@ -316,6 +316,99 @@ export function createLiveVotingWorkspace({
     showToast("Orden actualizado", "success");
     await refreshRoom?.();
     onMotionChanged?.();
+  }
+
+  function mapMotionActionError(err) {
+    const mapped = mapOpenVotingError(err);
+    if (mapped && mapped !== (err?.message || "")) return mapped;
+    const msg = String(err?.message || err || "");
+    if (/cannot be presented while assembly/i.test(msg) || /Motions cannot be presented/i.test(msg)) {
+      return "La asamblea debe estar en curso (iniciada) para presentar una pregunta. Inicie la asamblea e intente de nuevo.";
+    }
+    if (/while a voting session is open/i.test(msg)) {
+      return "Hay una votación abierta. Ciérrela antes de presentar otra pregunta.";
+    }
+    if (/403|Forbidden|permission/i.test(msg)) {
+      return "No tiene permiso para crear o presentar preguntas (requiere motion:create).";
+    }
+    return msg || "No se pudo completar la acción sobre la pregunta.";
+  }
+
+  async function presentMotionById(motionId) {
+    if (!motionId) throw new Error("Falta el identificador de la pregunta.");
+    if (!hasPermission(getUser(), "motion:create")) {
+      throw new Error("No tiene permiso para presentar preguntas.");
+    }
+    const openSession = await api(`/api/assemblies/${getAssemblyId()}/voting/open`).catch(() => null);
+    const openId = openSession?.id || openSession?.Id;
+    if (openId) {
+      const ok = await confirmDialog({
+        title: "Hay una votación abierta",
+        body: "Debe cerrar la votación actual antes de presentar otra pregunta. ¿Cerrar ahora y continuar?",
+        confirmLabel: "Cerrar y presentar",
+        danger: true
+      });
+      if (!ok) return;
+      await closeVoting(getAssemblyId(), openId);
+    }
+    showGlobalLoader("Presentando pregunta…", { immediate: true });
+    try {
+      invalidateCachedGet(`/api/assemblies/${getAssemblyId()}/`);
+      const motions = getMotions() || [];
+      const motion = motions.find((m) => m.id === motionId);
+      if (motion?.designStatus && motion.designStatus !== "Ready" && motion.designStatus !== "Published") {
+        await api(`/api/assemblies/${getAssemblyId()}/motions/${motionId}/publish`, { method: "POST" }).catch(
+          () => null
+        );
+      }
+      await api(`/api/assemblies/${getAssemblyId()}/motions/present`, {
+        method: "POST",
+        body: { motionId }
+      });
+      showToast("Pregunta presentada. Falta abrir la votación.", "success");
+      await refreshRoom?.();
+      onMotionChanged?.();
+    } finally {
+      hideGlobalLoader();
+    }
+  }
+
+  async function openMotionVoting(motionId) {
+    if (!motionId) throw new Error("Falta el identificador de la pregunta.");
+    if (!hasPermission(getUser(), "vote:open") && !hasPermission(getUser(), "motion:create")) {
+      throw new Error("No tiene permiso para abrir votaciones.");
+    }
+    showGlobalLoader("Abriendo votación…", { immediate: true });
+    try {
+      await openVoting(getAssemblyId(), motionId, true, null);
+      showToast("Votación abierta.", "success");
+      await refreshRoom?.();
+      onMotionChanged?.();
+    } finally {
+      hideGlobalLoader();
+    }
+  }
+
+  async function closeActiveVoting() {
+    const session = getSession();
+    const sessionId = session?.id || session?.Id;
+    if (!sessionId) throw new Error("No hay votación abierta.");
+    const ok = await confirmDialog({
+      title: "Cerrar votación",
+      body: "Se cerrará la votación activa. Los votos ya registrados se conservarán.",
+      confirmLabel: "Cerrar votación",
+      danger: true
+    });
+    if (!ok) return;
+    showGlobalLoader("Cerrando votación…", { immediate: true });
+    try {
+      await closeVoting(getAssemblyId(), sessionId);
+      showToast("Votación cerrada.", "success");
+      await refreshRoom?.();
+      onMotionChanged?.();
+    } finally {
+      hideGlobalLoader();
+    }
   }
 
   async function syncLockBanner(root) {
@@ -450,6 +543,21 @@ export function createLiveVotingWorkspace({
           return;
         }
 
+        const openSession = await api(`/api/assemblies/${getAssemblyId()}/voting/open`).catch(() => null);
+        const openId = openSession?.id || openSession?.Id;
+        if (openId) {
+          forceHideGlobalLoader();
+          const okClose = await confirmDialog({
+            title: "Hay una votación abierta",
+            body: "Debe cerrar la votación actual antes de presentar otra pregunta. ¿Cerrar ahora y continuar?",
+            confirmLabel: "Cerrar y continuar",
+            danger: true
+          });
+          if (!okClose) return;
+          showGlobalLoader("Cerrando votación…", { immediate: true });
+          await closeVoting(getAssemblyId(), openId);
+        }
+
         setGlobalLoaderMessage("Presentando pregunta…");
         await api(`/api/assemblies/${getAssemblyId()}/motions/present`, {
           method: "POST",
@@ -476,7 +584,7 @@ export function createLiveVotingWorkspace({
         await refreshRoom?.();
         onMotionChanged?.();
       } catch (err) {
-        showToast(mapOpenVotingError(err) || err.message, "error");
+        showToast(mapMotionActionError(err), "error");
       } finally {
         forceHideGlobalLoader();
       }

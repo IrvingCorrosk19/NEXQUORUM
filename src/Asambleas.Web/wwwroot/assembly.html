@@ -12,10 +12,11 @@
   <link rel="stylesheet" href="/css/components.css?v=owner-m1" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <link rel="stylesheet" href="/css/loading.css?v=owner-m1" />
-  <link rel="stylesheet" href="/css/assembly-room.css?v=console10" />
+  <link rel="stylesheet" href="/css/assembly-room.css?v=ocean1" />
+  <link rel="stylesheet" href="/css/assembly-ocean.css?v=ocean1" />
   <link rel="stylesheet" href="/css/live-voting.css?v=lv2" />
   <link rel="stylesheet" href="/css/voting-studio.css?v=vs1" />
-  <link rel="stylesheet" href="/css/mobile-voting.css?v=owner-m1" />
+  <link rel="stylesheet" href="/css/mobile-voting.css?v=ocean1" />
   <link rel="stylesheet" href="/css/contextual-guide.css?v=cx2" />
   <link rel="stylesheet" href="/css/ia.css?v=owner-m1" />
 </head>
@@ -23,14 +24,14 @@
   <a class="skip-link" href="#main-stage">Saltar al escenario</a>
 
   <div id="recording-banner" class="recording-banner" hidden role="status" aria-live="polite">
-    â— <span id="recording-banner-label">GRABANDO</span>
+    <span id="recording-banner-label">GRABANDO</span>
     <span id="recording-timer" class="metric-number"></span>
   </div>
-  <div class="room room--meeting-ux" data-role="owner">
+  <div class="room room--meeting-ux room--ocean" data-role="owner">
     <header class="room-header" role="banner">
       <div class="header-brand">
         <div>
-          <p class="command-eyebrow" style="margin:0 0 0.15rem">Asamblea en vivo</p>
+          <p class="command-eyebrow" style="margin:0 0 0.15rem">Sala segura de participación</p>
           <h1 class="brand">ASAMBLEAS</h1>
         </div>
         <span id="view-mode" class="badge badge-live"></span>
@@ -59,14 +60,19 @@
 
     <div class="room-body">
       <main id="main-stage" class="stage-column">
+        <section id="mobile-overview" class="mobile-overview" aria-labelledby="mobile-meeting-title">
+          <h1 id="mobile-meeting-title">Asamblea</h1>
+          <p id="mobile-meeting-meta" aria-live="polite"></p>
+          <div id="quorum-card" class="quorum-card" aria-live="polite" aria-label="Estado de quórum"></div>
+        </section>
         <div id="room-alert" class="alert" hidden role="alert"></div>
         <div id="incident-strip" class="incident-strip" hidden></div>
         <div id="floor-banner" class="floor-granted-banner" hidden></div>
         <div id="governance-speaker-chip" class="governance-speaker-chip" hidden aria-live="polite"></div>
         <div id="contextual-guide-stage" class="cx-guide cx-guide-stage" hidden role="region" aria-live="polite"></div>
         <div id="waiting-room-banner" class="waiting-room-banner" hidden role="status" aria-live="polite">
-          <strong id="waiting-room-title">La asamblea todavía no ha comenzado.</strong>
-          <p id="waiting-room-body">Puedes permanecer aquí. La sala se actualizará automáticamente cuando comience.</p>
+          <strong id="waiting-room-title">La asamblea aún no ha iniciado.</strong>
+          <p id="waiting-room-body">Puede permanecer aquí. La sala se actualizará automáticamente cuando comience.</p>
         </div>
 
         <section class="video-stage" aria-label="Videoconferencia">
@@ -84,16 +90,19 @@
           </div>
         </section>
 
-        <section aria-label="Participantes (operación)" class="operator-only operator-cockpit">
-          <h2 class="sr-only">Cockpit de operación</h2>
-          <div id="presence-summary" class="presence-summary" hidden></div>
-          <details id="ops-diagnostics" class="ops-diagnostics" hidden>
-            <summary>Diagnóstico de conexión</summary>
-            <div id="hybrid-cockpit" class="hybrid-cockpit" hidden></div>
-            <div id="media-cockpit" class="media-cockpit" hidden></div>
-          </details>
+        <div id="presence-summary" class="presence-summary" hidden aria-label="Resumen de participación"></div>
+        <details id="ops-diagnostics" class="ops-diagnostics operator-only" hidden>
+          <summary>Diagnóstico de conexión</summary>
+          <div id="hybrid-cockpit" class="hybrid-cockpit" hidden></div>
+          <div id="media-cockpit" class="media-cockpit" hidden></div>
           <div id="participant-strip" class="participant-strip" hidden></div>
-        </section>
+        </details>
+
+        <nav id="room-content-tabs" class="room-content-tabs" role="tablist" aria-label="Información de la asamblea" hidden>
+          <button type="button" class="room-content-tab" role="tab" id="room-tab-vote" data-room-tab="vote" aria-selected="true" aria-controls="panel-vote">Votación</button>
+          <button type="button" class="room-content-tab" role="tab" id="room-tab-agenda" data-room-tab="agenda" aria-selected="false" aria-controls="panel-agenda">Agenda</button>
+          <button type="button" class="room-content-tab" role="tab" id="room-tab-people" data-room-tab="people" aria-selected="false" aria-controls="panel-people">Personas</button>
+        </nav>
 
         <div class="stage-actions operator-action-bar">
           <div class="control-cluster operator-only" role="group" aria-label="Controles de operación">
@@ -140,12 +149,17 @@
           <h2 id="heading-vote" class="section-title">Votación</h2>
           <div id="vote-updating" class="vote-updating" hidden role="status" aria-live="polite">Actualizando votación…</div>
           <div id="vote-panel" class="vote-panel" data-testid="vote-panel">
-            <div class="empty-state">No hay votación abierta. Podrás emitir tu voto cuando el presidente la inicie.</div>
+            <div class="empty-state">No existe una votación abierta en este momento.</div>
           </div>
           <details id="questionnaire-wrap" class="vote-questionnaire-wrap" data-testid="questionnaire-wrap">
             <summary class="vote-questionnaire-summary">Ver otras preguntas</summary>
             <div id="questionnaire-panel" class="questionnaire-panel" data-testid="questionnaire-panel"></div>
           </details>
+        </section>
+
+        <section id="panel-people" role="tabpanel" aria-labelledby="room-tab-people" data-sidebar-panel="people" hidden>
+          <h2 id="heading-people" class="section-title">Personas</h2>
+          <div id="people-panel"><div class="empty-state">Cargando participantes…</div></div>
         </section>
 
         <section id="panel-speakers" class="operator-only" role="tabpanel" aria-labelledby="tab-speakers" data-sidebar-panel="speakers">
@@ -283,6 +297,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.9.1/dist/livekit-client.umd.min.js"></script>
-  <script type="module" src="/js/modules/room-app.js?v=console9"></script>
+  <script type="module" src="/js/modules/room-app.js?v=ocean3"></script>
 </body>
 </html>

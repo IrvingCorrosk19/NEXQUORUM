@@ -2,7 +2,7 @@ import { api, cachedGet, invalidateCachedGet } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
-import { renderQuorum } from "./quorum.js";
+import { renderQuorum, renderQuorumCard } from "./quorum.js";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt } from "./voting.js";
 import { createLiveVotingWorkspace } from "./live-voting-workspace.js";
 import { createMobileVotingController } from "./mobile-voting-sheet.js";
@@ -389,14 +389,32 @@ function wireRoomViewportChrome() {
   const backdrop = qs("#ops-panel-backdrop");
   const sidebar = qs("#governance-sidebar");
   const mqDrawer = window.matchMedia("(max-width: 1279px)");
+  const mqPhone = window.matchMedia("(max-width: 767px)");
+  const contentTabs = qs("#room-content-tabs");
 
   const syncBackdrop = () => {
     if (!backdrop) return;
-    const show = mqDrawer.matches && !room.classList.contains("sidebar-collapsed");
+    // Phones use in-flow ocean tabs — no modal drawer backdrop.
+    const show = mqDrawer.matches && !mqPhone.matches && !room.classList.contains("sidebar-collapsed");
     backdrop.hidden = !show;
   };
 
+  const syncPhoneChrome = () => {
+    if (contentTabs) contentTabs.hidden = !mqPhone.matches;
+    if (toggle) toggle.hidden = mqPhone.matches;
+    if (mqPhone.matches) {
+      room.classList.remove("sidebar-collapsed");
+      if (sidebar) sidebar.setAttribute("aria-hidden", "false");
+    }
+    syncBackdrop();
+  };
+
   const applyCollapsed = (collapsed) => {
+    if (mqPhone.matches) {
+      room.classList.remove("sidebar-collapsed");
+      syncPhoneChrome();
+      return;
+    }
     room.classList.toggle("sidebar-collapsed", collapsed);
     if (toggle) {
       toggle.setAttribute("aria-pressed", String(!collapsed));
@@ -421,8 +439,9 @@ function wireRoomViewportChrome() {
     } catch {
       collapsed = false;
     }
-    // Below desktop console width, start with the ops drawer closed.
-    if (mqDrawer.matches) {
+    if (mqPhone.matches) {
+      collapsed = false;
+    } else if (mqDrawer.matches) {
       collapsed = true;
     } else if (!collapsed && window.matchMedia("(min-width: 1280px) and (max-height: 720px)").matches) {
       collapsed = true;
@@ -430,7 +449,7 @@ function wireRoomViewportChrome() {
     applyCollapsed(collapsed);
     toggle.addEventListener("click", () => {
       applyCollapsed(!room.classList.contains("sidebar-collapsed"));
-      if (!room.classList.contains("sidebar-collapsed") && mqDrawer.matches) {
+      if (!room.classList.contains("sidebar-collapsed") && mqDrawer.matches && !mqPhone.matches) {
         sidebar?.querySelector(".sidebar-tab, .section-title, button, a")?.focus?.();
       } else {
         toggle.focus();
@@ -441,32 +460,56 @@ function wireRoomViewportChrome() {
   backdrop?.addEventListener("click", () => applyCollapsed(true));
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape") return;
-    if (!mqDrawer.matches) return;
+    if (!mqDrawer.matches || mqPhone.matches) return;
     if (room.classList.contains("sidebar-collapsed")) return;
     applyCollapsed(true);
     toggle?.focus();
   });
   mqDrawer.addEventListener?.("change", () => {
-    if (mqDrawer.matches) applyCollapsed(true);
+    if (mqPhone.matches) applyCollapsed(false);
+    else if (mqDrawer.matches) applyCollapsed(true);
     else syncBackdrop();
+    syncPhoneChrome();
+  });
+  mqPhone.addEventListener?.("change", () => {
+    applyCollapsed(mqPhone.matches ? false : true);
+    syncPhoneChrome();
   });
 
   const tabs = [...document.querySelectorAll("[data-sidebar-tab]")];
+  const roomTabs = [...document.querySelectorAll("[data-room-tab]")];
   const panels = [...document.querySelectorAll("[data-sidebar-panel]")];
   const activate = (key) => {
+    const resolved = key || "agenda";
     tabs.forEach((tab) => {
-      const on = tab.getAttribute("data-sidebar-tab") === key;
+      const on = tab.getAttribute("data-sidebar-tab") === resolved;
+      tab.setAttribute("aria-selected", String(on));
+    });
+    roomTabs.forEach((tab) => {
+      const on = tab.getAttribute("data-room-tab") === resolved;
       tab.setAttribute("aria-selected", String(on));
     });
     panels.forEach((panel) => {
-      const on = panel.getAttribute("data-sidebar-panel") === key;
+      const on = panel.getAttribute("data-sidebar-panel") === resolved;
       panel.classList.toggle("is-mobile-active", on);
+      if (panel.id === "panel-people") {
+        panel.hidden = !on;
+      }
     });
+    if (resolved === "people") {
+      renderPeoplePanel();
+    }
   };
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => activate(tab.getAttribute("data-sidebar-tab") || "agenda"));
   });
-  if (tabs.length) activate("agenda");
+  roomTabs.forEach((tab) => {
+    tab.addEventListener("click", () => activate(tab.getAttribute("data-room-tab") || "vote"));
+  });
+  const initial = state.session?.status === "Open" ? "vote" : "agenda";
+  activate(initial);
+  syncPhoneChrome();
+  room.__activateRoomTab = activate;
 }
 
 function syncMeetingControlBar() {
@@ -896,12 +939,16 @@ function syncHandTiles() {
 function renderParticipantsDrawer() {
   const body = qs("#participants-drawer-body");
   if (!body) return;
+  body.innerHTML = buildParticipantsListHtml();
+  renderPeoplePanel();
+}
+
+function buildParticipantsListHtml() {
   const items = [...state.participants.values()];
   const currentId = state.queue?.currentSpeakerRequestId;
   const hands = new Set(requestedHands().map((s) => s.userId));
   if (!items.length) {
-    body.innerHTML = `<div class="empty-state">${escapeHtml(t("assembly.noParticipants"))}</div>`;
-    return;
+    return `<div class="empty-state">${escapeHtml(t("assembly.noParticipants"))}</div>`;
   }
   const roleRank = (p) => {
     const r = String(p.role || p.assemblyRole || "").toLowerCase();
@@ -911,7 +958,7 @@ function renderParticipantsDrawer() {
     return 2;
   };
   items.sort((a, b) => roleRank(a) - roleRank(b) || String(a.displayName || "").localeCompare(b.displayName || ""));
-  body.innerHTML = `
+  return `
     <ul class="meeting-people-list">
       ${items
         .map((p) => {
@@ -919,21 +966,66 @@ function renderParticipantsDrawer() {
             (s) => s.id === currentId && s.userId === p.userId
           );
           const hand = hands.has(p.userId);
-          const role = p.role || p.assemblyRole || p.presenceType || "";
-          return `<li class="${hasFloor ? "has-floor" : ""} ${hand ? "hand-up" : ""}">
-            <div>
+          const r = String(p.role || p.assemblyRole || "").toLowerCase();
+          const roleLabel = r.includes("president")
+            ? "Presidente"
+            : r.includes("secretary")
+              ? "Secretario"
+              : p.unitCode || (r.includes("owner") ? "Propietario" : "");
+          const status = hasFloor
+            ? t("assembly.speaking") || "Hablando"
+            : hand
+              ? t("assembly.handRaised") || "Palabra"
+              : p.isAccredited
+                ? t("assembly.connectedShort") || "Conectado"
+                : t("assembly.pendingShort") || "Pendiente";
+          return `<li class="meeting-people-item">
+            <div class="meeting-people-copy">
               <strong>${escapeHtml(friendlyParticipantName(p))}</strong>
-              <span class="muted">${escapeHtml(p.unitCode || "—")} · ${escapeHtml(role || "—")}</span>
+              <span>${escapeHtml(roleLabel)}</span>
             </div>
-            <div class="meeting-people-flags" aria-label="Estados">
-              ${hand ? `<span title="${escapeHtml(t("assembly.raiseHand"))}">✋</span>` : ""}
-              ${hasFloor ? `<span class="flag-floor">${escapeHtml(t("assembly.hasFloor") || "Palabra")}</span>` : ""}
-              <span class="muted">${escapeHtml(p.connectionStatus || p.attendanceStatus || "")}</span>
-            </div>
+            <span class="meeting-people-status">${escapeHtml(status)}</span>
           </li>`;
         })
         .join("")}
     </ul>`;
+}
+
+function renderPeoplePanel() {
+  const panel = qs("#people-panel");
+  if (!panel) return;
+  panel.innerHTML = buildParticipantsListHtml();
+  const tab = qs("#room-tab-people");
+  if (tab) {
+    const n = state.participants.size;
+    tab.textContent = n > 0 ? `Personas · ${n}` : "Personas";
+  }
+}
+
+function syncMobileOverview() {
+  const titleEl = qs("#mobile-meeting-title");
+  const metaEl = qs("#mobile-meeting-meta");
+  const card = qs("#quorum-card");
+  if (titleEl) {
+    titleEl.textContent = state.assembly?.title || els.assemblyTitle?.textContent || "Asamblea";
+  }
+  if (metaEl) {
+    const status = String(state.assembly?.status || "");
+    const live =
+      /InProgress|Paused/i.test(status)
+        ? t("assembly.live") || "En vivo"
+        : /CheckIn/i.test(status)
+          ? t("assembly.checkIn") || "Acreditación"
+          : t("assembly.notStartedTitle") || "La asamblea aún no ha iniciado.";
+    const agenda = Array.isArray(state.agenda) ? state.agenda : state.agenda?.items;
+    let point = "";
+    if (Array.isArray(agenda) && agenda.length) {
+      const idx = agenda.findIndex((a) => a.isActive || a.status === "Active");
+      if (idx >= 0) point = ` · Punto ${idx + 1} de ${agenda.length}`;
+    }
+    metaEl.textContent = `${live}${point}`;
+  }
+  if (card) renderQuorumCard(card, state.quorum);
 }
 
 function renderQueueDrawer() {
@@ -1393,11 +1485,6 @@ function renderPresenceSummary(items) {
   const el = qs("#presence-summary");
   const diagnostics = qs("#ops-diagnostics");
   if (!el) return;
-  if (state.viewerRole !== "Operator") {
-    el.hidden = true;
-    if (diagnostics) diagnostics.hidden = true;
-    return;
-  }
   let accredited = 0;
   let present = 0;
   let represented = 0;
@@ -1420,14 +1507,17 @@ function renderPresenceSummary(items) {
       <span class="presence-summary__value">${present}</span>
     </div>
     <div class="presence-summary__item">
-      <span class="presence-summary__label">${escapeHtml(t("assembly.connectedCount") || "Conectados a la sala")}</span>
+      <span class="presence-summary__label">${escapeHtml(t("assembly.connectedCount") || "Conectados")}</span>
       <span class="presence-summary__value">${connected}</span>
     </div>
     <div class="presence-summary__item">
       <span class="presence-summary__label">${escapeHtml(t("assembly.representedCount") || "Representados")}</span>
       <span class="presence-summary__value">${represented}</span>
     </div>`;
-  if (diagnostics) diagnostics.hidden = false;
+  if (diagnostics) {
+    diagnostics.hidden = state.viewerRole !== "Operator";
+  }
+  renderPeoplePanel();
 }
 
 function renderHybridCockpit(items) {
@@ -1676,6 +1766,9 @@ function syncContextPriority() {
 
   els.room.setAttribute("data-voting", votingOpen ? "open" : "idle");
   els.room.setAttribute("data-priority", priority);
+  if (votingOpen) {
+    els.room.__activateRoomTab?.("vote");
+  }
 
   const agendaSection = els.agenda?.closest("section");
   const motionSection = els.motion?.closest("section");
@@ -2043,6 +2136,7 @@ function refreshPanelsNow() {
   const preservedScrollTop = sidebar?.scrollTop ?? 0;
   const operator = state.viewerRole === "Operator";
   renderQuorum(els.quorum, state.quorum, { compact: true });
+  syncMobileOverview();
   renderAgenda(els.agenda, state.agenda, {
     canManage: operator && hasPermission(state.user, "agenda:manage"),
     compact: !operator,
@@ -2878,6 +2972,7 @@ async function init() {
     quorumUpdated: (q) => {
       state.quorum = q;
       renderQuorum(els.quorum, q, { compact: true });
+      syncMobileOverview();
     },
     participantUpdated: (p) => {
       state.participants.set(p.userId, p);

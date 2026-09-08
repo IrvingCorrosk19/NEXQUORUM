@@ -1,0 +1,446 @@
+/**
+ * Ocean assembly templates → live room chrome.
+ * Single responsive layer: desktop ≈ Premium, phone ≈ Móvil.
+ * Maps onto existing .room--meeting-ux structure; does not invent business data.
+ */
+.room--ocean {
+  --ocean-bg: #07111f;
+  --ocean-surface: #0d1a2b;
+  --ocean-surface-raised: #132238;
+  --ocean-surface-soft: #102d32;
+  --ocean-text: #f4f7fb;
+  --ocean-muted: #a9b5c5;
+  --ocean-line: #25354b;
+  --ocean-brand: #2dd4bf;
+  --ocean-brand-strong: #5eead4;
+  --ocean-on-brand: #062521;
+  --ocean-danger: #fb7185;
+  --ocean-warning: #fbbf24;
+  --ocean-shadow: rgba(0, 0, 0, 0.3);
+  color: var(--ocean-text);
+  background: var(--ocean-bg);
+}
+
+.room--ocean .room-header {
+  background: var(--ocean-surface);
+  border-bottom: 1px solid var(--ocean-line);
+}
+
+.room--ocean .brand,
+.room--ocean .ph-name strong {
+  color: var(--ocean-text);
+}
+
+.room--ocean .ph-name span,
+.room--ocean .command-eyebrow {
+  color: var(--ocean-muted);
+}
+
+.room--ocean .live-chip {
+  border-color: color-mix(in srgb, var(--ocean-brand) 45%, transparent);
+  background: color-mix(in srgb, var(--ocean-brand) 14%, transparent);
+  color: var(--ocean-brand-strong);
+}
+
+.room--ocean .quorum-chip {
+  background: var(--ocean-surface-raised);
+  border-color: var(--ocean-line);
+  box-shadow: none;
+}
+
+.room--ocean .video-stage {
+  border-radius: 18px;
+  border: 1px solid var(--ocean-line);
+  background:
+    radial-gradient(circle at 52% 18%, color-mix(in srgb, var(--ocean-brand) 15%, transparent), transparent 34%),
+    linear-gradient(145deg, #10243b, #07111f 72%);
+}
+
+.room--ocean .presence-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 14px;
+  border: 1px solid var(--ocean-line);
+  background: var(--ocean-surface);
+}
+
+.room--ocean .presence-summary__label {
+  color: var(--ocean-muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.room--ocean .presence-summary__value {
+  color: var(--ocean-text);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.room--ocean .sidebar {
+  background: transparent;
+  gap: 0.75rem;
+}
+
+.room--ocean .sidebar-panels > section,
+.room--ocean .vote-panel,
+.room--ocean #agenda-panel {
+  background: var(--ocean-surface);
+  border: 1px solid var(--ocean-line);
+  border-radius: 16px;
+  box-shadow: 0 12px 34px var(--ocean-shadow);
+}
+
+.room--ocean .sidebar-panels > section {
+  padding: 0.85rem 0.9rem;
+}
+
+.room--ocean .section-title {
+  color: var(--ocean-text);
+  font-size: 1rem;
+  margin: 0 0 0.55rem;
+}
+
+.room--ocean .vote-question,
+.room--ocean #vote-question-heading {
+  color: var(--ocean-text);
+  font-size: clamp(1.05rem, 1.4vw, 1.35rem);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.room--ocean .choice-cards {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.room--ocean .choice-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 3.25rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--ocean-line);
+  border-radius: 12px;
+  background: var(--ocean-surface-raised);
+  color: var(--ocean-text);
+  text-align: start;
+  cursor: pointer;
+}
+
+.room--ocean .choice-card:hover,
+.room--ocean .choice-card:focus-visible {
+  border-color: var(--ocean-brand);
+  outline: 2px solid color-mix(in srgb, var(--ocean-brand) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.room--ocean .choice-card.is-selected,
+.room--ocean .choice-card[aria-checked="true"] {
+  border-color: var(--ocean-brand);
+  background: var(--ocean-surface-soft);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ocean-brand) 20%, transparent);
+}
+
+.room--ocean .btn-vote-confirm,
+.room--ocean .btn-primary {
+  min-height: 2.85rem;
+  border-radius: 12px;
+  border-color: var(--ocean-brand);
+  background: var(--ocean-brand);
+  color: var(--ocean-on-brand);
+  font-weight: 700;
+}
+
+.room--ocean .btn-vote-confirm:disabled,
+.room--ocean .btn-primary:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.room--ocean .vote-select-hint,
+.room--ocean .vote-eligibility-msg,
+.room--ocean .empty-state,
+.room--ocean .muted {
+  color: var(--ocean-muted);
+}
+
+.room--ocean .vote-success-banner {
+  color: var(--ocean-brand-strong);
+  background: var(--ocean-surface-soft);
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.room--ocean .meeting-control-bar {
+  background: var(--ocean-surface);
+  border-top: 1px solid var(--ocean-line);
+}
+
+.room--ocean .meeting-control-bar__inner {
+  background: var(--ocean-surface-raised);
+  border-color: var(--ocean-line);
+}
+
+.room--ocean .mcb-btn.is-active,
+.room--ocean .mcb-btn[aria-pressed="true"] {
+  background: var(--ocean-surface-soft);
+  color: var(--ocean-brand-strong);
+}
+
+.room--ocean .mcb-btn--leave,
+.room--ocean .mcb-btn.mcb-btn--leave {
+  color: var(--ocean-danger);
+}
+
+/* Mobile overview + tabs (template Móvil) */
+.room--ocean .mobile-overview,
+.room--ocean .room-content-tabs {
+  display: none;
+}
+
+.room--ocean .quorum-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 14px;
+  border: 1px solid var(--ocean-line);
+  background: var(--ocean-surface);
+}
+
+.room--ocean .quorum-card__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.room--ocean .quorum-card__row span,
+.room--ocean .quorum-card__row small {
+  color: var(--ocean-muted);
+  min-width: 0;
+}
+
+.room--ocean .quorum-card__row strong {
+  color: var(--ocean-brand-strong);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.room--ocean .quorum-card__meter {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--ocean-line);
+  overflow: hidden;
+}
+
+.room--ocean .quorum-card__meter > span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--ocean-brand);
+  border-radius: inherit;
+}
+
+.room--ocean .room-content-tabs {
+  gap: 0.35rem;
+  padding: 0.15rem;
+  border-radius: 999px;
+  background: var(--ocean-surface);
+  border: 1px solid var(--ocean-line);
+}
+
+.room--ocean .room-content-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ocean-muted);
+  min-height: 2.75rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 1 1 0;
+}
+
+.room--ocean .room-content-tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--ocean-brand) 22%, transparent);
+  color: var(--ocean-brand-strong);
+}
+
+.room--ocean .room-content-tab:focus-visible {
+  outline: 2px solid var(--ocean-brand);
+  outline-offset: 2px;
+}
+
+/* Desktop ≥1100: Premium-like dual column */
+@media (min-width: 1100px) {
+  .room--ocean.room--meeting-ux .room-body {
+    grid-template-columns: minmax(0, 1fr) clamp(20rem, 24vw, 25rem);
+    column-gap: 1rem;
+  }
+
+  .room--ocean .sidebar-tabs {
+    display: none;
+  }
+
+  .room--ocean .sidebar-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    overflow: auto;
+    min-height: 0;
+  }
+
+  .room--ocean .sidebar-panels > section {
+    display: grid !important;
+  }
+
+  .room--ocean .sidebar-panels > section.operator-only[hidden] {
+    display: none !important;
+  }
+}
+
+/* Phone: Móvil template order — overview → video → tabs → panels in-flow */
+@media (max-width: 767px) {
+  .room--ocean .mobile-overview {
+    display: grid;
+    gap: 0.45rem;
+    padding: 0.55rem 0.7rem 0.15rem;
+  }
+
+  .room--ocean .mobile-overview h1 {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.25;
+    color: var(--ocean-text);
+  }
+
+  .room--ocean .mobile-overview p {
+    margin: 0;
+    color: var(--ocean-muted);
+    font-size: 0.82rem;
+  }
+
+  .room--ocean .room-header .ph-name,
+  .room--ocean .room-header .quorum-chip {
+    display: none !important;
+  }
+
+  .room--ocean.room--meeting-ux .room-body {
+    display: flex !important;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .room--ocean .stage-column {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-bottom: 0.35rem;
+  }
+
+  .room--ocean .video-stage {
+    flex: 0 0 auto !important;
+    min-height: max(11rem, 32dvh) !important;
+    max-height: 42dvh;
+  }
+
+  /* PiP-ish local tile on mobile */
+  .room--ocean .media-stage-grid:not(.is-solo) .media-tile.is-local {
+    position: absolute;
+    right: 0.55rem;
+    bottom: 0.55rem;
+    width: min(28vw, 7.5rem);
+    height: auto;
+    aspect-ratio: 3 / 4;
+    z-index: 4;
+    border-radius: 0.65rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  .room--ocean .room-content-tabs {
+    display: flex;
+    margin: 0.35rem 0.55rem;
+  }
+
+  .room--ocean .sidebar {
+    position: static !important;
+    transform: none !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0.35rem 0.55rem 0.75rem !important;
+    overflow: visible !important;
+  }
+
+  .room--ocean.sidebar-collapsed .sidebar {
+    display: flex !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: none !important;
+  }
+
+  .room--ocean .ops-panel-backdrop {
+    display: none !important;
+  }
+
+  .room--ocean .sidebar-tabs {
+    display: none !important;
+  }
+
+  .room--ocean .sidebar-panels > section {
+    display: none;
+    margin: 0;
+  }
+
+  .room--ocean .sidebar-panels > section.is-mobile-active {
+    display: grid !important;
+  }
+
+  .room--ocean .presence-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0.35rem 0;
+  }
+
+  .room--ocean .stage-actions.operator-action-bar {
+    padding-inline: 0.55rem;
+  }
+
+  .room--ocean .choice-card {
+    min-height: 3.5rem;
+  }
+
+  .room--ocean .mcb-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1099px) {
+  .room--ocean .presence-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room--ocean .choice-card,
+  .room--ocean .mcb-btn,
+  .room--ocean .btn {
+    transition: none !important;
+  }
+}
