@@ -1233,11 +1233,11 @@ async function init() {
         participantUpdated: async () => {
           await reloadParticipants();
         },
-        assemblyUpdated: (a) => {
-          if (a?.status) {
-            assemblyStatus = a.status;
+        assemblyStatusChanged: (a) => {
+          if (a?.status || a?.Status) {
+            assemblyStatus = a.status || a.Status;
             updateDeskBanner();
-    syncCheckinGuide();
+            syncCheckinGuide();
           }
         }
       });

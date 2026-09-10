@@ -102,6 +102,21 @@ function selfUserId(user) {
   return String(user?.userId || user?.id || "").toLowerCase();
 }
 
+function applyQuorumFact(q) {
+  const el = qs("#fact-quorum");
+  if (!el) return;
+  if (q && q.currentCoefficient != null && q.requiredCoefficient != null) {
+    el.textContent = `${Number(q.currentCoefficient).toFixed(2)}% / ${Number(q.requiredCoefficient).toFixed(2)}%`;
+  } else if (q && (q.CurrentCoefficient != null || q.RequiredCoefficient != null)) {
+    el.textContent = `${Number(q.CurrentCoefficient ?? 0).toFixed(2)}% / ${Number(q.RequiredCoefficient ?? 0).toFixed(2)}%`;
+  }
+}
+
+function shouldAutoEnterRoom(assembly) {
+  const status = assembly?.status || assembly?.Status || "";
+  return status === "InProgress" || status === "Paused";
+}
+
 function updateEnterGate(self, assembly) {
   const btn = qs("#btn-enter");
   const hint = qs("#enter-hint");
@@ -139,7 +154,59 @@ function updateEnterGate(self, assembly) {
     } else if (["Draft", "Scheduled", "CheckIn"].includes(status)) {
       statusEl.hidden = false;
       statusEl.textContent = t("lobby.accreditationApproved");
+    } else if (shouldAutoEnterRoom(assembly)) {
+      statusEl.hidden = false;
+      statusEl.textContent = t("lobby.assemblyLiveEnter") || "La asamblea ya comenzó. Entrando a la sala…";
     }
+  }
+}
+
+let autoEnterScheduled = false;
+function scheduleAutoEnterIfLive(assembly, self) {
+  if (autoEnterScheduled) return;
+  if (!shouldAutoEnterRoom(assembly)) return;
+  if (!Boolean(self?.isAccredited)) return;
+  if (["Cancelled", "Completed"].includes(assembly?.status || "")) return;
+  autoEnterScheduled = true;
+  document.documentElement.dataset.lobbyAutoEnter = "scheduled";
+  showToast({
+    title: t("lobby.assemblyStartedTitle") || "Asamblea iniciada",
+    message: t("lobby.assemblyStartedBody") || "Entrando a la sala en tiempo real…",
+    variant: "success"
+  });
+  window.setTimeout(() => {
+    enterAssembly({ allowGovernanceOnly: true })
+      .then(() => {
+        document.documentElement.dataset.lobbyAutoEnter = "ok";
+      })
+      .catch((err) => {
+        document.documentElement.dataset.lobbyAutoEnter = "fail";
+        console.warn("Auto-enter failed", err);
+        // Last resort: navigate to room without A/V prep — never leave owner stuck on lobby.
+        try {
+          stopDevicePreview(qs("#preview-video"));
+          stopMeterLoop();
+        } catch {
+          /* ignore */
+        }
+        location.href = `/assembly.html?assemblyId=${assemblyId}`;
+      });
+  }, 350);
+}
+
+async function refreshLobbySnapshot() {
+  if (!assemblyId || !currentUser) return;
+  try {
+    const snap = await hydrateRoomState(assemblyId, {
+      userId: selfUserId(currentUser)
+    });
+    currentAssembly = snap.assembly || currentAssembly;
+    currentSelf = resolveSelf(snap, currentUser) || currentSelf;
+    if (snap.quorum) applyQuorumFact(snap.quorum);
+    updateEnterGate(currentSelf, currentAssembly);
+    scheduleAutoEnterIfLive(currentAssembly, currentSelf);
+  } catch {
+    /* transient */
   }
 }
 
@@ -238,38 +305,47 @@ async function setupPreview() {
   updateToggleLabels();
 }
 
-async function enterAssembly() {
+async function enterAssembly(options = {}) {
+  const allowGovernanceOnly = Boolean(options.allowGovernanceOnly);
   const btn = qs("#btn-enter");
   const stages = qs("#staged-loading");
-  btn.disabled = true;
-  stages.hidden = false;
+  if (btn) btn.disabled = true;
+  if (stages) stages.hidden = false;
 
   const steps = [
     { key: "verify", label: t("lobby.verifying") },
     { key: "token", label: t("lobby.connecting") },
     { key: "sync", label: t("lobby.synchronizing") }
   ];
-  stages.innerHTML = steps.map((s, i) => `<li data-step="${i}">${escapeHtml(s.label)}</li>`).join("");
+  if (stages) {
+    stages.innerHTML = steps.map((s, i) => `<li data-step="${i}">${escapeHtml(s.label)}</li>`).join("");
+  }
 
   try {
-    stages.querySelector('[data-step="0"]')?.setAttribute("aria-current", "true");
-    const currentUser = await me();
+    stages?.querySelector('[data-step="0"]')?.setAttribute("aria-current", "true");
+    const user = currentUser || (await me());
+    currentUser = user;
     const room = await hydrateRoomState(assemblyId, {
-      userId: currentUser?.id || currentUser?.userId
+      userId: user?.id || user?.userId
     });
-    const self = resolveSelf(room, currentUser);
+    const self = resolveSelf(room, user);
     if (!self?.isAccredited) {
       throw new Error(t("lobby.needAccreditation"));
     }
 
-    stages.querySelectorAll("li").forEach((li) => li.removeAttribute("aria-current"));
-    stages.querySelector('[data-step="1"]')?.setAttribute("aria-current", "true");
+    stages?.querySelectorAll("li").forEach((li) => li.removeAttribute("aria-current"));
+    stages?.querySelector('[data-step="1"]')?.setAttribute("aria-current", "true");
     if (meetingAvailable) {
-      await fetchJoinToken(assemblyId);
+      try {
+        await fetchJoinToken(assemblyId);
+      } catch (err) {
+        if (!allowGovernanceOnly) throw err;
+        console.warn("Join token unavailable; entering governance-only", err);
+      }
     }
 
-    stages.querySelectorAll("li").forEach((li) => li.removeAttribute("aria-current"));
-    stages.querySelector('[data-step="2"]')?.setAttribute("aria-current", "true");
+    stages?.querySelectorAll("li").forEach((li) => li.removeAttribute("aria-current"));
+    stages?.querySelector('[data-step="2"]')?.setAttribute("aria-current", "true");
     saveDevicePrefs({
       cameraEnabled: device.camera,
       micEnabled: device.mic,
@@ -283,8 +359,9 @@ async function enterAssembly() {
     location.href = `/assembly.html?assemblyId=${assemblyId}`;
   } catch (error) {
     showError(error.message || t("networkError"));
-    btn.disabled = false;
-    stages.hidden = true;
+    if (btn) btn.disabled = false;
+    if (stages) stages.hidden = true;
+    throw error;
   }
 }
 
@@ -414,9 +491,38 @@ async function init() {
 
   await setupPreview();
   updateEnterGate(self, assembly);
+  scheduleAutoEnterIfLive(assembly, self);
 
   try {
     hub = createAssemblyConnection({
+      onConnectionState: (status) => {
+        const el = qs("#fact-connection");
+        if (!el) return;
+        if (status === "reconnecting") {
+          el.textContent = t("connection.reconnectingAssembly") || "Reconectando con la asamblea…";
+          showToast(t("connection.reconnectingAssembly") || "Reconectando con la asamblea…", "info");
+        } else if (status === "connected") {
+          el.textContent = t("connection.online");
+        } else if (status === "disconnected") {
+          el.textContent = t("connection.disconnected");
+          showToast(
+            t("connection.reconnectFailed") ||
+              "No fue posible recuperar la conexión. Intentando nuevamente…",
+            "warn"
+          );
+        }
+      },
+      onReconnected: async () => {
+        showToast(t("connection.restoredShort") || "Conexión restablecida.", "success");
+        await refreshLobbySnapshot();
+      },
+      onReconnectError: () => {
+        showToast(
+          t("connection.reconnectFailed") ||
+            "No fue posible recuperar la conexión. Intentando nuevamente…",
+          "warn"
+        );
+      },
       participantUpdated: (p) => applySelfUpdate(p),
       accreditationChanged: (chg) => {
         const uid = selfUserId(currentUser);
@@ -437,14 +543,26 @@ async function init() {
           });
         }
       },
-      assemblyStatusChanged: (asm) => {
+      quorumUpdated: (q) => {
+        applyQuorumFact(q);
+      },
+      assemblyStatusChanged: async (asm) => {
         if (!asm) return;
-        currentAssembly = { ...(currentAssembly || {}), ...asm, status: asm.status || asm.Status };
+        currentAssembly = {
+          ...(currentAssembly || {}),
+          ...asm,
+          id: asm.id || asm.Id || currentAssembly?.id,
+          status: asm.status || asm.Status
+        };
         updateEnterGate(currentSelf, currentAssembly);
+        await refreshLobbySnapshot();
+        scheduleAutoEnterIfLive(currentAssembly, currentSelf);
       }
     });
     await hub.start(assemblyId);
     document.documentElement.dataset.lobbyHub = "connected";
+    // Snapshot after join so we never miss a start that raced the connection.
+    await refreshLobbySnapshot();
   } catch (err) {
     console.warn("Lobby SignalR unavailable", err);
     document.documentElement.dataset.lobbyHub = "offline";

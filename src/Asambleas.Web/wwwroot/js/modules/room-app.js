@@ -1278,7 +1278,7 @@ function setConnectionState(status) {
   const label =
     {
       connected: t("connection.online"),
-      reconnecting: t("connection.reconnecting"),
+      reconnecting: t("connection.reconnectingAssembly") || "Reconectando con la asamblea…",
       disconnected: t("connection.disconnected")
     }[status] || status;
 
@@ -2486,6 +2486,47 @@ async function rehydrate() {
   }
 }
 
+/** Coalesce bursty SignalR status/presence into one authoritative snapshot. */
+let rehydrateCoalesce = null;
+let rehydrateQueued = false;
+async function rehydrateFromRealtime(reason = "signalr") {
+  if (rehydrateCoalesce) {
+    rehydrateQueued = true;
+    return rehydrateCoalesce;
+  }
+  rehydrateCoalesce = (async () => {
+    do {
+      rehydrateQueued = false;
+      await rehydrate();
+    } while (rehydrateQueued);
+  })()
+    .catch((err) => {
+      console.warn("Realtime rehydrate failed", reason, err);
+    })
+    .finally(() => {
+      rehydrateCoalesce = null;
+    });
+  return rehydrateCoalesce;
+}
+
+function applyAssemblySummary(summary) {
+  if (!summary) return;
+  const nextStatus = summary.status || summary.Status || state.assembly?.status;
+  state.assembly = {
+    ...(state.assembly || {}),
+    ...summary,
+    id: summary.id || summary.Id || state.assembly?.id,
+    status: nextStatus
+  };
+}
+
+function isQuorumNewer(incoming, current) {
+  const nextTs = Date.parse(incoming?.calculatedAtUtc || incoming?.CalculatedAtUtc || 0) || 0;
+  const curTs = Date.parse(current?.calculatedAtUtc || current?.CalculatedAtUtc || 0) || 0;
+  if (!nextTs || !curTs) return true;
+  return nextTs >= curTs;
+}
+
 function syncOfficialSpeakerHighlight() {
   const currentId = state.queue?.currentSpeakerRequestId;
   const current = state.queue?.queue?.find((s) => s.id === currentId);
@@ -2951,10 +2992,21 @@ async function init() {
   await rehydrate();
 
   state.hub = createAssemblyConnection({
-    onConnectionState: setConnectionState,
+    onConnectionState: (status) => {
+      setConnectionState(status);
+      if (status === "reconnecting") {
+        showToast(t("connection.reconnectingAssembly") || "Reconectando con la asamblea…", "info");
+      } else if (status === "disconnected" && !state.intentionalDisconnect) {
+        showToast(
+          t("connection.reconnectFailed") ||
+            "No fue posible recuperar la conexión. Intentando nuevamente…",
+          "warn"
+        );
+      }
+    },
     onReconnected: async () => {
-      showToast(t("connection.restored"), "success");
-      await rehydrate();
+      showToast(t("connection.restoredShort") || "Conexión restablecida.", "success");
+      await rehydrateFromRealtime("reconnect");
       // Never tear down LiveKit for governance reconnect.
       if (!isLiveKitConnected()) {
         try {
@@ -2968,17 +3020,26 @@ async function init() {
       }
       ensureMobileVoting()?.refreshFromServer?.();
     },
-    onReconnectError: (error) => showToast(error.message, "error"),
+    onReconnectError: () =>
+      showToast(
+        t("connection.reconnectFailed") ||
+          "No fue posible recuperar la conexión. Intentando nuevamente…",
+        "warn"
+      ),
     quorumUpdated: (q) => {
+      if (!isQuorumNewer(q, state.quorum)) return;
       state.quorum = q;
       renderQuorum(els.quorum, q, { compact: true });
       syncMobileOverview();
+      renderQuorumDetails();
     },
     participantUpdated: (p) => {
-      state.participants.set(p.userId, p);
+      if (!p) return;
+      const key = p.userId || p.UserId;
+      if (key) state.participants.set(key, { ...state.participants.get(key), ...p, userId: key });
       renderParticipants();
       const uid = String(state.user?.userId || state.user?.id || "").toLowerCase();
-      if (uid && String(p.userId || "").toLowerCase() === uid) {
+      if (uid && String(key || "").toLowerCase() === uid) {
         syncContextualGuide();
         ensureMobileVoting()?.refreshFromServer?.();
         refreshPanels();
@@ -3134,9 +3195,23 @@ async function init() {
       liveWorkspace.handleRealtime("votingVersionCreated");
       refreshPanels();
     },
-    assemblyStatusChanged: (summary) => {
-      state.assembly = { ...state.assembly, ...summary };
+    assemblyStatusChanged: async (summary) => {
+      applyAssemblySummary(summary);
       refreshPanels();
+      await rehydrateFromRealtime("assemblyStatusChanged");
+      const live =
+        state.assembly?.status === "InProgress" || state.assembly?.status === "Paused";
+      // Connect media if we were waiting in prep — never tear down an existing LiveKit session.
+      if (live && !isLiveKitConnected()) {
+        try {
+          await bootstrapMeeting();
+        } catch {
+          /* media optional */
+        }
+      } else {
+        updateMediaConnectionBanner();
+        syncMeetingControlBar();
+      }
     },
     recordingUpdated: (rec) => {
       state.recording = normalizeRecording(rec);

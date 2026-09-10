@@ -161,6 +161,9 @@ export default {
     accreditationApproved: "Su participación fue aprobada. Ya puede ingresar y votar cuando se habilite una votación.",
     accreditationRevoked: "Su acreditación fue retirada por la administración.",
     accreditedWaitingStart: "Su participación fue aprobada. Ya puede ingresar y votar cuando se habilite una votación.",
+    assemblyStartedTitle: "Asamblea iniciada",
+    assemblyStartedBody: "Entrando a la sala en tiempo real…",
+    assemblyLiveEnter: "La asamblea ya comenzó. Entrando a la sala…",
     goToCheckin: "Ir a la mesa de acreditación (solo administración)",
     assemblyNotJoinable: "La asamblea no admite ingreso en estado {status}.",
     enterGovernanceOnly: "Puede entrar: la gobernanza funcionará aunque el video no esté disponible.",
@@ -462,6 +465,7 @@ export default {
   connection: {
     online: "Conectado",
     reconnecting: "Reconectando…",
+    reconnectingAssembly: "Reconectando con la asamblea…",
     disconnected: "Sin conexión",
     excellent: "Conexión excelente",
     good: "Conexión buena",
@@ -470,6 +474,8 @@ export default {
     lostTitle: "CONEXIÓN PERDIDA",
     trying: "Intentando reconectar…",
     restored: "Conexión restablecida. Sincronizando asamblea…",
+    restoredShort: "Conexión restablecida.",
+    reconnectFailed: "No fue posible recuperar la conexión. Intentando nuevamente…",
     actionsSaved: "Sus acciones anteriores permanecen guardadas."
   },
 

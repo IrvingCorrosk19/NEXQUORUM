@@ -424,6 +424,7 @@ export default {
   connection: {
     online: "Connected",
     reconnecting: "Reconnecting…",
+    reconnectingAssembly: "Reconnecting to the assembly…",
     disconnected: "Offline",
     excellent: "Excellent connection",
     good: "Good connection",
@@ -432,6 +433,8 @@ export default {
     lostTitle: "CONNECTION LOST",
     trying: "Trying to reconnect…",
     restored: "Connection restored. Syncing assembly…",
+    restoredShort: "Connection restored.",
+    reconnectFailed: "Could not restore the connection. Trying again…",
     actionsSaved: "Your previously registered actions remain saved."
   },
 
