@@ -259,6 +259,7 @@ async function renderDeliveryPanel(convocationId) {
               </span>
               <span class="badge">${escapeHtml(deliveryStatusEs(r.deliveryStatus))}</span>
               <button type="button" class="btn btn-ghost" data-resend-one="${escapeHtml(r.recipientId)}" ${r.canResend ? "" : "disabled"}>Reenviar</button>
+              <button type="button" class="btn btn-ghost" data-regen-one="${escapeHtml(r.recipientId)}" ${r.canResend ? "" : "disabled"} title="Invalida el enlace anterior">Regenerar enlace</button>
             </li>`
             )
             .join("")}
@@ -270,6 +271,9 @@ async function renderDeliveryPanel(convocationId) {
     qs("#btn-resend-pending")?.addEventListener("click", () => resendSelected(true));
     document.querySelectorAll("[data-resend-one]").forEach((btn) => {
       btn.addEventListener("click", () => resendOne(btn.getAttribute("data-resend-one")));
+    });
+    document.querySelectorAll("[data-regen-one]").forEach((btn) => {
+      btn.addEventListener("click", () => regenerateOne(btn.getAttribute("data-regen-one")));
     });
 
     // Offer adding owners who are not yet on this convocation.
@@ -353,11 +357,41 @@ async function resendOne(recipientId) {
   if (!selectedId || !recipientId) return;
   const ok = await confirmDialog({
     title: "Reenviar convocatoria",
-    body: "Se enviará nuevamente el correo profesional a este destinatario.",
+    body: "Se reenviará el mismo enlace activo (no se genera un token nuevo).",
     confirmLabel: "Reenviar"
   });
   if (!ok) return;
   await doResend({ recipientIds: [recipientId], onlyFailedOrPending: false });
+}
+
+async function regenerateOne(recipientId) {
+  if (!selectedId || !recipientId) return;
+  const ok = await confirmDialog({
+    title: "Regenerar enlace",
+    body: "Al generar un nuevo enlace, el enlace anterior dejará de funcionar inmediatamente.",
+    confirmLabel: "Regenerar y enviar",
+    danger: true
+  });
+  if (!ok) return;
+  const reason = window.prompt("Motivo de la regeneración (obligatorio):", "Solicitud del propietario")?.trim();
+  if (!reason || reason.length < 3) {
+    AppFeedback.warning("Debe indicar un motivo de al menos 3 caracteres.", { title: "Motivo requerido" });
+    return;
+  }
+  try {
+    const batch = await api(`/api/convocations/${selectedId}/recipients/${recipientId}/regenerate-link`, {
+      method: "POST",
+      body: {
+        confirmed: true,
+        reason,
+        idempotencyKey: `regen-${selectedId}-${recipientId}-${Date.now()}`
+      }
+    });
+    AppFeedback.success(`Enlace regenerado. Envíos: ${batch.sentCount ?? 0}.`, { title: "Enlace nuevo" });
+    await openDetail(selectedId);
+  } catch (e) {
+    AppFeedback.error(e.message || "No se pudo regenerar el enlace.", { title: "Error" });
+  }
 }
 
 async function resendSelected(onlyPending) {

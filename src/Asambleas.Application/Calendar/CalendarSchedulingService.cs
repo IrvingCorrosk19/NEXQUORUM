@@ -525,10 +525,11 @@ public sealed class CalendarSchedulingService
             }
         }
 
-        // Always revoke outstanding join links for this assembly before committing the new schedule.
-        await _accessLinks.RevokeActiveForAssemblyAsync(
+        // Keep active join links; only refresh expiry to the new schedule (+48h).
+        await _accessLinks.RefreshExpiryForAssemblyAsync(
             assembly.Id,
-            AccessLinkRevocationReasons.AssemblyRescheduled,
+            assembly.ScheduledAtUtc,
+            assembly.EstimatedEndAtUtc,
             cancellationToken);
 
         await NotifyPortalAsync(
@@ -546,8 +547,8 @@ public sealed class CalendarSchedulingService
             throw new DomainException("This assembly was modified by another user. Refresh and try again.");
         }
 
-        // Rotate links: email resend (preferred) or silent reissue so owners are never left without a valid token.
-        if (impact.HasSentConvocation)
+        // Reminders / notify: reuse the same active tokens (EnsureActive on send). Never rotate on reschedule.
+        if (impact.HasSentConvocation && request.NotifyParticipants)
         {
             var latestSent = await _db.Convocations.AsNoTracking()
                 .Where(c => c.AssemblyId == assembly.Id
@@ -559,23 +560,12 @@ public sealed class CalendarSchedulingService
                 .FirstOrDefaultAsync(cancellationToken);
             if (latestSent is not null)
             {
-                if (request.NotifyParticipants)
-                {
-                    await _convocations.ResendAsync(
-                        latestSent.Id,
-                        new ResendConvocationRequest(
-                            Confirmed: true,
-                            IdempotencyKey: $"reschedule-links-{assembly.Id:N}-v{assembly.ScheduleVersion}"),
-                        cancellationToken);
-                }
-                else
-                {
-                    await _accessLinks.ReissueActiveRecipientsForConvocationAsync(
-                        latestSent.Id,
-                        assembly.ScheduledAtUtc,
-                        assembly.EstimatedEndAtUtc,
-                        cancellationToken);
-                }
+                await _convocations.ResendAsync(
+                    latestSent.Id,
+                    new ResendConvocationRequest(
+                        Confirmed: true,
+                        IdempotencyKey: $"reschedule-links-{assembly.Id:N}-v{assembly.ScheduleVersion}"),
+                    cancellationToken);
             }
         }
 
@@ -589,7 +579,8 @@ public sealed class CalendarSchedulingService
                 request.Reason,
                 version = assembly.ScheduleVersion,
                 notify = request.NotifyParticipants,
-                accessLinksRotated = impact.HasSentConvocation
+                accessLinksRotated = false,
+                accessLinksExpiryRefreshed = impact.HasSentConvocation
             },
             cancellationToken: cancellationToken);
 

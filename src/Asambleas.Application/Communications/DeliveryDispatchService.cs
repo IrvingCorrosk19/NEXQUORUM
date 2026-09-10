@@ -390,13 +390,12 @@ public sealed class DeliveryDispatchService
             coef = ownership.Coef;
         }
 
-        var issued = await _accessLinks.IssueAsync(
+        var issued = await _accessLinks.EnsureActiveLinkAsync(
             convocation,
             recipient,
             delivery.Id,
             assembly.ScheduledAtUtc,
             assembly.EstimatedEndAtUtc,
-            AccessLinkRevocationReasons.Resent,
             cancellationToken);
 
         delivery.ProviderMessageId = $"access-link:{issued.Link.Id:N}";

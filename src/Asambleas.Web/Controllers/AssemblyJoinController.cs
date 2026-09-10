@@ -82,39 +82,69 @@ public sealed class AssemblyJoinController : ControllerBase
             return Ok(new JoinPreviewDto(false, "TOKEN_REQUIRED", null, null, null, null, null, null, false));
         }
 
-        // Peek — do not bump LastUsed (email scanners / preview must not consume).
-        var link = await _links.PeekValidAsync(token, cancellationToken);
+        var (link, invalidReason, assembly) = await _links.InspectAsync(token, cancellationToken);
         if (link is null)
         {
             return Ok(new JoinPreviewDto(false, "INVALID_OR_EXPIRED", null, null, null, null, null, null, false));
         }
 
-        var assembly = await _db.Assemblies.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(a => a.Id == link.AssemblyId, cancellationToken);
-        var ph = await _db.PropertyHorizontals.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(p => p.Id == link.PropertyHorizontalId, cancellationToken);
-        if (assembly is null || ph is null)
-        {
-            return Ok(new JoinPreviewDto(false, "ASSEMBLY_NOT_FOUND", null, null, null, null, null, null, false));
-        }
+        var ph = await _db.PropertyHorizontals.IgnoreQueryFilters().AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == link.PropertyHorizontalId, cancellationToken);
 
-        if (assembly.Status is AssemblyStatus.Cancelled)
+        if (invalidReason == AssemblyAccessLinkService.ReasonReplaced)
         {
             return Ok(new JoinPreviewDto(
                 false,
-                "CANCELLED",
-                assembly.Id,
-                assembly.Title,
-                ph.Name,
-                assembly.Status.ToString(),
-                assembly.ScheduledAtUtc,
+                "REPLACED",
+                link.AssemblyId,
+                assembly?.Title,
+                ph?.Name,
+                assembly?.Status.ToString(),
+                assembly?.ScheduledAtUtc,
                 null,
                 RequiresLogin: false));
         }
 
-        if (assembly.Status is AssemblyStatus.Completed)
+        if (invalidReason == AssemblyAccessLinkService.ReasonExpired)
         {
             return Ok(new JoinPreviewDto(
                 false,
-                "COMPLETED",
+                "EXPIRED",
+                link.AssemblyId,
+                assembly?.Title,
+                ph?.Name,
+                assembly?.Status.ToString(),
+                assembly?.ScheduledAtUtc,
+                null,
+                RequiresLogin: false));
+        }
+
+        if (invalidReason == AssemblyAccessLinkService.ReasonCancelled
+            || assembly?.Status is AssemblyStatus.Cancelled)
+        {
+            return Ok(new JoinPreviewDto(
+                false,
+                "CANCELLED",
+                link.AssemblyId,
+                assembly?.Title,
+                ph?.Name,
+                assembly?.Status.ToString(),
+                assembly?.ScheduledAtUtc,
+                null,
+                RequiresLogin: false));
+        }
+
+        if (invalidReason is not null || assembly is null || ph is null)
+        {
+            return Ok(new JoinPreviewDto(false, invalidReason ?? "INVALID_OR_EXPIRED", null, null, null, null, null, null, false));
+        }
+
+        if (assembly.Status is AssemblyStatus.Completed)
+        {
+            // Informational access allowed until effective expiry (already validated by Inspect).
+            return Ok(new JoinPreviewDto(
+                true,
+                "COMPLETED_READONLY",
                 assembly.Id,
                 assembly.Title,
                 ph.Name,
@@ -125,7 +155,6 @@ public sealed class AssemblyJoinController : ControllerBase
         }
 
         var redirect = ResolveRedirect(assembly.Status, assembly.Id);
-        // Passwordless redeem — no login form on the happy path.
         return Ok(new JoinPreviewDto(
             true,
             null,
@@ -153,14 +182,17 @@ public sealed class AssemblyJoinController : ControllerBase
             return BadRequest(new { message = "Este enlace ya no está disponible. Solicita uno nuevo para ingresar." });
         }
 
-        var link = await _links.PeekValidAsync(request.Token, cancellationToken);
-        if (link is null)
+        var (inspected, invalidReason, assemblyInspect) = await _links.InspectAsync(request.Token, cancellationToken);
+        if (inspected is null || invalidReason is not null)
         {
-            _logger.LogInformation("Join redeem rejected (invalid/expired) hashPrefix={Prefix}",
+            _logger.LogInformation("Join redeem rejected reason={Reason} hashPrefix={Prefix}",
+                invalidReason ?? "NOT_FOUND",
                 HashPrefix(request.Token));
-            return BadRequest(new { message = "Este enlace ya no está disponible. Solicita uno nuevo para ingresar.", code = "INVALID_OR_EXPIRED" });
+            var (code, message) = MapJoinInvalid(invalidReason);
+            return BadRequest(new { message, code });
         }
 
+        var link = inspected;
         var recipient = await _db.ConvocationRecipients.IgnoreQueryFilters()
             .FirstOrDefaultAsync(r => r.Id == link.RecipientId, cancellationToken);
         if (recipient is null || string.IsNullOrWhiteSpace(recipient.Email))
@@ -168,8 +200,9 @@ public sealed class AssemblyJoinController : ControllerBase
             return BadRequest(new { message = "Este enlace ya no está disponible. Solicita uno nuevo para ingresar." });
         }
 
-        var assembly = await _db.Assemblies.IgnoreQueryFilters().AsNoTracking()
-            .FirstOrDefaultAsync(a => a.Id == link.AssemblyId, cancellationToken);
+        var assembly = assemblyInspect
+            ?? await _db.Assemblies.IgnoreQueryFilters().AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == link.AssemblyId, cancellationToken);
         if (assembly is null)
         {
             return BadRequest(new { message = "Este enlace ya no está disponible. Solicita uno nuevo para ingresar." });
@@ -184,14 +217,7 @@ public sealed class AssemblyJoinController : ControllerBase
             });
         }
 
-        if (assembly.Status is AssemblyStatus.Completed)
-        {
-            return BadRequest(new
-            {
-                message = "Esta asamblea ya finalizó.",
-                code = "COMPLETED"
-            });
-        }
+        var informationalOnly = assembly.Status is AssemblyStatus.Completed;
 
         var ph = await _db.PropertyHorizontals.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == link.PropertyHorizontalId, cancellationToken);
@@ -225,6 +251,13 @@ public sealed class AssemblyJoinController : ControllerBase
                 or Permissions.AssemblyManage or Permissions.PhManage
                 or Permissions.OwnerManage or Permissions.UnitManage))
             .ToList();
+        if (informationalOnly)
+        {
+            // Post-assembly grace: read-only — no presence check-in or new votes.
+            permissions = permissions
+                .Where(p => p is not (Permissions.VoteCast or Permissions.AttendanceManage))
+                .ToList();
+        }
 
         var existingClaims = await _userManager.GetClaimsAsync(user);
         var extra = BuildOwnerSessionClaims(user, link.PropertyHorizontalId, roles, permissions, existingClaims);
@@ -236,16 +269,19 @@ public sealed class AssemblyJoinController : ControllerBase
         await _links.MarkRedeemedAsync(link.Id, cancellationToken);
 
         // Server-scoped redeem proof (not sessionStorage). Single-use at check-in; never auto-accredits.
-        _verifiedJoinProofs.Issue(
-            link.TenantId,
-            link.PropertyHorizontalId,
-            assemblyId,
-            userId,
-            link.Id);
+        if (!informationalOnly)
+        {
+            _verifiedJoinProofs.Issue(
+                link.TenantId,
+                link.PropertyHorizontalId,
+                assemblyId,
+                userId,
+                link.Id);
+        }
 
         _logger.LogInformation(
-            "Join redeem ok linkId={LinkId} assemblyId={AssemblyId} userId={UserId} (no auto-accredit; verified-join proof issued)",
-            link.Id, assemblyId, userId);
+            "Join redeem ok linkId={LinkId} assemblyId={AssemblyId} userId={UserId} informational={Informational}",
+            link.Id, assemblyId, userId, informationalOnly);
 
         return Ok(new JoinClaimDto(assemblyId, redirect));
     }
@@ -288,9 +324,10 @@ public sealed class AssemblyJoinController : ControllerBase
 
             return Ok(new JoinClaimDto(assemblyId, redirect));
         }
-        catch (DomainException ex) when (ex.Code is "INVALID_OR_EXPIRED" or "AUTH_REQUIRED" or "JOIN_EMAIL_MISMATCH")
+        catch (DomainException ex) when (ex.Code is "INVALID_OR_EXPIRED" or "LINK_REPLACED" or "ACCESS_PERIOD_ENDED"
+                                             or "CANCELLED" or "AUTH_REQUIRED" or "JOIN_EMAIL_MISMATCH")
         {
-            return BadRequest(new { message = "Este enlace ya no está disponible. Solicita uno nuevo para ingresar.", code = ex.Code });
+            return BadRequest(new { message = ex.Message, code = ex.Code });
         }
     }
 
@@ -349,25 +386,12 @@ public sealed class AssemblyJoinController : ControllerBase
                 return Ok(new { message = okMsg });
             }
 
-            // Soft-touch: mark that a resend was requested (admin evidence). Actual email send reuses existing resend pipeline when available.
+            // Soft-touch: mark that a resend was requested. Do NOT rotate the active token —
+            // administrators reenviar reuse EnsureActiveLink (same URL). Self-serve does not mint a new link.
             _logger.LogInformation(
                 "Join resend requested for convocation {ConvocationId} recipient {RecipientId}",
                 deliveryTarget.Convocation.Id,
                 deliveryTarget.Recipient.Id);
-
-            // Issue a fresh access link URL is created on next admin resend; for self-serve we issue now and rely on SMTP if configured.
-            // Without injecting dispatch here, we still create a new link the admin can see / next send uses.
-            var assembly = await _db.Assemblies.IgnoreQueryFilters().AsNoTracking()
-                .FirstOrDefaultAsync(a => a.Id == deliveryTarget.Convocation.AssemblyId, cancellationToken);
-
-            await _links.IssueAsync(
-                deliveryTarget.Convocation,
-                deliveryTarget.Recipient,
-                deliveryId: null,
-                assembly?.ScheduledAtUtc,
-                assembly?.EstimatedEndAtUtc,
-                AccessLinkRevocationReasons.Resent,
-                cancellationToken);
 
             return Ok(new { message = okMsg });
         }
@@ -457,6 +481,23 @@ public sealed class AssemblyJoinController : ControllerBase
 
     private static string ResolveRedirect(AssemblyStatus status, Guid assemblyId) =>
         AssemblyAccessLinkService.ResolveParticipantRoomRedirect(status, assemblyId);
+
+    private static (string Code, string Message) MapJoinInvalid(string? reason) =>
+        reason switch
+        {
+            AssemblyAccessLinkService.ReasonReplaced => (
+                "LINK_REPLACED",
+                "Este enlace fue reemplazado por uno más reciente. Utilice el último enlace recibido."),
+            AssemblyAccessLinkService.ReasonExpired => (
+                "ACCESS_PERIOD_ENDED",
+                "El período de acceso a esta asamblea ha finalizado."),
+            AssemblyAccessLinkService.ReasonCancelled => (
+                "CANCELLED",
+                "Esta asamblea fue cancelada. No es necesario que ingreses."),
+            _ => (
+                "INVALID_OR_EXPIRED",
+                "Este enlace ya no está disponible. Solicita uno nuevo para ingresar.")
+        };
 
     private static string HashPrefix(string raw)
     {

@@ -96,6 +96,30 @@ async function redeemAndGo(token, title, body, actions, alert) {
         );
         return;
       }
+      if (preview.reason === "REPLACED" || preview.reason === "LINK_REPLACED") {
+        showHumanError(
+          title,
+          body,
+          actions,
+          alert,
+          token,
+          "Enlace reemplazado",
+          "Este enlace fue reemplazado por uno más reciente. Utilice el último enlace recibido."
+        );
+        return;
+      }
+      if (preview.reason === "EXPIRED" || preview.reason === "ACCESS_PERIOD_ENDED") {
+        showHumanError(
+          title,
+          body,
+          actions,
+          alert,
+          token,
+          "Acceso finalizado",
+          "El período de acceso a esta asamblea ha finalizado."
+        );
+        return;
+      }
       if (preview.reason === "COMPLETED" || preview.status === "Completed") {
         showHumanError(
           title,

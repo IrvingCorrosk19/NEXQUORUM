@@ -47,6 +47,7 @@ public static class RolePermissionMap
                 Permissions.ConvocationsCreate,
                 Permissions.ConvocationsSend,
                 Permissions.ConvocationsResend,
+                Permissions.ConvocationsRegenerateLink,
                 Permissions.ConvocationsViewEvidence,
                 Permissions.PhView,
                 Permissions.PhManage,
@@ -98,6 +99,7 @@ public static class RolePermissionMap
                 Permissions.ConvocationsCreate,
                 Permissions.ConvocationsSend,
                 Permissions.ConvocationsResend,
+                Permissions.ConvocationsRegenerateLink,
                 Permissions.ConvocationsViewEvidence,
                 Permissions.PhView,
                 // Allow bootstrap create of a new PH after empty/clean environments.
@@ -139,6 +141,7 @@ public static class RolePermissionMap
                 Permissions.ConvocationsCreate,
                 Permissions.ConvocationsSend,
                 Permissions.ConvocationsResend,
+                Permissions.ConvocationsRegenerateLink,
                 Permissions.ConvocationsViewEvidence,
                 Permissions.PhView,
                 Permissions.UnitView,

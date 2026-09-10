@@ -78,7 +78,7 @@ public sealed class AccessLinkExpiryLifecycleTests
     }
 
     [Fact]
-    public async Task Resend_revokes_prior_with_reason_and_keeps_other_owners()
+    public async Task Resend_keeps_same_token_and_does_not_revoke()
     {
         await _fixture.ResetDatabaseAsync();
         MockEmailProvider.Clear();
@@ -98,27 +98,24 @@ public sealed class AccessLinkExpiryLifecycleTests
             otherRecipientId = otherRecipient.Id;
             var convocation = await db.Convocations.IgnoreQueryFilters().FirstAsync(c => c.Id == linkA.ConvocationId);
             var asm = await db.Assemblies.IgnoreQueryFilters().FirstAsync(a => a.Id == assemblyId);
-            var issuedOther = await linksSvc.IssueAsync(
+            var issuedOther = await linksSvc.EnsureActiveLinkAsync(
                 convocation,
                 otherRecipient,
                 null,
                 asm.ScheduledAtUtc,
-                asm.EstimatedEndAtUtc,
-                AccessLinkRevocationReasons.Resent);
+                asm.EstimatedEndAtUtc);
             rawOther = issuedOther.RawToken;
         }
 
-        var (rawB, _, _) = await ReissueAsync(email);
-        rawB.Should().NotBe(rawA);
+        var (rawB, _, _) = await ReuseViaEnsureAsync(email);
+        rawB.Should().Be(rawA);
 
         await using (var scope = _fixture.Factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
-            var old = await db.AssemblyAccessLinks.IgnoreQueryFilters()
+            var active = await db.AssemblyAccessLinks.IgnoreQueryFilters()
                 .FirstAsync(l => l.TokenHash == AssemblyAccessLinkService.HashToken(rawA));
-            old.RevokedAtUtc.Should().NotBeNull();
-            old.RevocationReason.Should().Be(AccessLinkRevocationReasons.Resent);
-            old.ReplacedByLinkId.Should().NotBeNull();
+            active.RevokedAtUtc.Should().BeNull();
 
             var other = await db.AssemblyAccessLinks.IgnoreQueryFilters()
                 .FirstAsync(l => l.TokenHash == AssemblyAccessLinkService.HashToken(rawOther));
@@ -126,13 +123,53 @@ public sealed class AccessLinkExpiryLifecycleTests
             other.RecipientId.Should().Be(otherRecipientId);
         }
 
-        (await RedeemAsync(Anon(), rawA)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await RedeemAsync(Anon(), rawB)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await RedeemAsync(Anon(), rawA)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await RedeemAsync(Anon(), rawOther)).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
-    public async Task Reschedule_revokes_old_links_and_issues_replacements()
+    public async Task Regenerate_revokes_prior_immediately_and_new_works()
+    {
+        await _fixture.ResetDatabaseAsync();
+        MockEmailProvider.Clear();
+        var (rawA, _, email) = await IssueViaSendAsync("owner103@ocean.demo");
+
+        string rawB;
+        await using (var scope = _fixture.Factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
+            var links = scope.ServiceProvider.GetRequiredService<AssemblyAccessLinkService>();
+            var active = await (
+                from l in db.AssemblyAccessLinks.IgnoreQueryFilters()
+                join r in db.ConvocationRecipients.IgnoreQueryFilters() on l.RecipientId equals r.Id
+                where r.Email == email && l.RevokedAtUtc == null
+                orderby l.CreatedAtUtc descending
+                select new { Link = l, Recipient = r }
+            ).FirstAsync();
+            var convocation = await db.Convocations.IgnoreQueryFilters()
+                .FirstAsync(c => c.Id == active.Link.ConvocationId);
+            var asm = await db.Assemblies.IgnoreQueryFilters().FirstAsync(a => a.Id == convocation.AssemblyId);
+            var issued = await links.RegenerateAsync(
+                convocation,
+                active.Recipient,
+                null,
+                asm.ScheduledAtUtc,
+                asm.EstimatedEndAtUtc,
+                regeneratedByUserId: DemoSeedConstants.UserPresidentId,
+                reason: "Cert QA regenerate");
+            rawB = issued.RawToken;
+        }
+
+        rawB.Should().NotBe(rawA);
+        var blocked = await RedeemAsync(Anon(), rawA);
+        blocked.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await blocked.Content.ReadAsStringAsync();
+        body.Should().Contain("reemplazado");
+        (await RedeemAsync(Anon(), rawB)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Reschedule_keeps_same_token_and_refreshes_expiry()
     {
         await _fixture.ResetDatabaseAsync();
         MockEmailProvider.Clear();
@@ -157,7 +194,7 @@ public sealed class AccessLinkExpiryLifecycleTests
             {
                 newScheduledAtUtc = newStart,
                 newEstimatedEndAtUtc = newStart.AddHours(2),
-                reason = "Cert QA reschedule rotation",
+                reason = "Cert QA reschedule keep link",
                 notifyParticipants = false
             });
         reschedule.StatusCode.Should().Be(HttpStatusCode.OK, await reschedule.Content.ReadAsStringAsync());
@@ -165,19 +202,13 @@ public sealed class AccessLinkExpiryLifecycleTests
         await using (var scope = _fixture.Factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
-            var old = await db.AssemblyAccessLinks.IgnoreQueryFilters()
+            var link = await db.AssemblyAccessLinks.IgnoreQueryFilters()
                 .FirstAsync(l => l.TokenHash == AssemblyAccessLinkService.HashToken(rawA));
-            old.RevokedAtUtc.Should().NotBeNull();
-            old.RevocationReason.Should().Be(AccessLinkRevocationReasons.AssemblyRescheduled);
-
-            var active = await db.AssemblyAccessLinks.IgnoreQueryFilters()
-                .Where(l => l.AssemblyId == assemblyId && l.RevokedAtUtc == null)
-                .ToListAsync();
-            active.Should().NotBeEmpty();
-            active.Should().OnlyContain(l => l.ExpiresAtUtc >= newStart.AddHours(48));
+            link.RevokedAtUtc.Should().BeNull();
+            link.ExpiresAtUtc.Should().BeCloseTo(newStart.AddHours(2).AddHours(48), TimeSpan.FromMinutes(2));
         }
 
-        (await RedeemAsync(Anon(), rawA)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await RedeemAsync(Anon(), rawA)).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -340,7 +371,7 @@ public sealed class AccessLinkExpiryLifecycleTests
         return (raw!, DemoSeedConstants.AssemblyOceanId, email);
     }
 
-    private async Task<(string Raw, Guid AssemblyId, string Email)> ReissueAsync(string email)
+    private async Task<(string Raw, Guid AssemblyId, string Email)> ReuseViaEnsureAsync(string email)
     {
         await using var scope = _fixture.Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
@@ -355,13 +386,12 @@ public sealed class AccessLinkExpiryLifecycleTests
         var convocation = await db.Convocations.IgnoreQueryFilters()
             .FirstAsync(c => c.Id == active.Link.ConvocationId);
         var asm = await db.Assemblies.IgnoreQueryFilters().FirstAsync(a => a.Id == convocation.AssemblyId);
-        var issued = await links.IssueAsync(
+        var issued = await links.EnsureActiveLinkAsync(
             convocation,
             active.Recipient,
             null,
             asm.ScheduledAtUtc,
-            asm.EstimatedEndAtUtc,
-            AccessLinkRevocationReasons.Resent);
+            asm.EstimatedEndAtUtc);
         return (issued.RawToken, convocation.AssemblyId, email);
     }
 

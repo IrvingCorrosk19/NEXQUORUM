@@ -51,6 +51,7 @@ public static class Permissions
     public const string ConvocationsCreate = "convocations:create";
     public const string ConvocationsSend = "convocations:send";
     public const string ConvocationsResend = "convocations:resend";
+    public const string ConvocationsRegenerateLink = "convocations:regenerate-link";
     public const string ConvocationsViewEvidence = "convocations:view-evidence";
 
     public const string PhView = "ph:view";
@@ -108,6 +109,7 @@ public static class Permissions
         ConvocationsCreate,
         ConvocationsSend,
         ConvocationsResend,
+        ConvocationsRegenerateLink,
         ConvocationsViewEvidence,
         PhView,
         PhManage,

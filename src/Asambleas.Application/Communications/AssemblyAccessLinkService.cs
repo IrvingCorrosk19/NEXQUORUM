@@ -13,27 +13,148 @@ using Microsoft.EntityFrameworkCore;
 
 public sealed class AssemblyAccessLinkService
 {
-    public static readonly TimeSpan DefaultLifetime = TimeSpan.FromDays(14);
-    public static readonly TimeSpan MinimumLifetimeFromIssue = TimeSpan.FromHours(24);
+    /// <summary>Access remains open until 48 hours after the scheduled assembly end (UTC).</summary>
     public static readonly TimeSpan PostAssemblyGrace = TimeSpan.FromHours(48);
+
+    public const string ReasonReplaced = "REPLACED";
+    public const string ReasonExpired = "EXPIRED";
+    public const string ReasonRevoked = "REVOKED";
+    public const string ReasonNotFound = "NOT_FOUND";
+    public const string ReasonCancelled = "CANCELLED";
 
     private readonly IAsambleasDbContext _db;
     private readonly IPublicBaseUrlProvider _publicBaseUrl;
     private readonly TimeProvider _clock;
     private readonly IVerifiedJoinProofService _verifiedJoinProofs;
+    private readonly IAccessLinkTokenCodec _tokenCodec;
+    private readonly IAuditService _audit;
 
     public AssemblyAccessLinkService(
         IAsambleasDbContext db,
         IPublicBaseUrlProvider publicBaseUrl,
         TimeProvider clock,
-        IVerifiedJoinProofService verifiedJoinProofs)
+        IVerifiedJoinProofService verifiedJoinProofs,
+        IAccessLinkTokenCodec tokenCodec,
+        IAuditService audit)
     {
         _db = db;
         _publicBaseUrl = publicBaseUrl;
         _clock = clock;
         _verifiedJoinProofs = verifiedJoinProofs;
+        _tokenCodec = tokenCodec;
+        _audit = audit;
     }
 
+    /// <summary>
+    /// Reuses the single active link for this recipient (same raw token) and refreshes expiry.
+    /// Creates a link only when none is active. Never used for admin "regenerate".
+    /// </summary>
+    public async Task<(string RawToken, string AbsoluteUrl, AssemblyAccessLink Link)> EnsureActiveLinkAsync(
+        Convocation convocation,
+        ConvocationRecipient recipient,
+        Guid? deliveryId,
+        DateTimeOffset? assemblyScheduledAtUtc,
+        DateTimeOffset? assemblyEstimatedEndAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var now = _clock.GetUtcNow();
+        var expires = ResolveExpiry(now, assemblyScheduledAtUtc, assemblyEstimatedEndAtUtc);
+        var active = await FindActiveAsync(convocation.Id, recipient.Id, cancellationToken);
+        if (active is not null)
+        {
+            var raw = _tokenCodec.CreateToken(active.Id);
+            if (string.Equals(HashToken(raw), active.TokenHash, StringComparison.Ordinal))
+            {
+                active.ExpiresAtUtc = expires;
+                if (deliveryId is Guid did)
+                {
+                    active.DeliveryId = did;
+                }
+
+                await _db.SaveChangesAsync(cancellationToken);
+                return (raw, BuildAbsoluteUrl(raw), active);
+            }
+
+            // Legacy random token (pre-HMAC): cannot rebuild the emailed URL — rotate once in place.
+            return await IssueNewReplacingAsync(
+                convocation,
+                recipient,
+                deliveryId,
+                expires,
+                AccessLinkRevocationReasons.Replaced,
+                regeneratedByUserId: null,
+                regenerationReason: null,
+                cancellationToken);
+        }
+
+        return await IssueNewReplacingAsync(
+            convocation,
+            recipient,
+            deliveryId,
+            expires,
+            revokeReason: AccessLinkRevocationReasons.Replaced,
+            regeneratedByUserId: null,
+            regenerationReason: null,
+            cancellationToken);
+    }
+
+    /// <summary>Force a new token; immediately revoke every prior active link for this recipient.</summary>
+    public async Task<(string RawToken, string AbsoluteUrl, AssemblyAccessLink Link)> RegenerateAsync(
+        Convocation convocation,
+        ConvocationRecipient recipient,
+        Guid? deliveryId,
+        DateTimeOffset? assemblyScheduledAtUtc,
+        DateTimeOffset? assemblyEstimatedEndAtUtc,
+        Guid regeneratedByUserId,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        if (regeneratedByUserId == Guid.Empty)
+        {
+            throw new DomainException("AUTH_REQUIRED", "Se requiere un administrador autenticado para regenerar el enlace.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("REASON_REQUIRED", "Indique el motivo de la regeneración del enlace.");
+        }
+
+        var now = _clock.GetUtcNow();
+        var expires = ResolveExpiry(now, assemblyScheduledAtUtc, assemblyEstimatedEndAtUtc);
+        var issued = await IssueNewReplacingAsync(
+            convocation,
+            recipient,
+            deliveryId,
+            expires,
+            AccessLinkRevocationReasons.Regenerated,
+            regeneratedByUserId,
+            reason.Trim(),
+            cancellationToken);
+
+        await _audit.WriteSystemAsync(
+            convocation.TenantId,
+            "access_link.regenerated",
+            propertyHorizontalId: convocation.PropertyHorizontalId,
+            correlationId: issued.Link.Id,
+            userId: regeneratedByUserId,
+            metadata: new
+            {
+                assemblyId = convocation.AssemblyId,
+                convocationId = convocation.Id,
+                recipientId = recipient.Id,
+                ownerId = recipient.OwnerId,
+                reason = reason.Trim(),
+                atUtc = now
+            },
+            cancellationToken: cancellationToken);
+
+        return issued;
+    }
+
+    /// <summary>
+    /// Backward-compatible force-issue (rotates prior active links). Prefer
+    /// <see cref="EnsureActiveLinkAsync"/> for send/resend and <see cref="RegenerateAsync"/> for admin rotate.
+    /// </summary>
     public async Task<(string RawToken, string AbsoluteUrl, AssemblyAccessLink Link)> IssueAsync(
         Convocation convocation,
         ConvocationRecipient recipient,
@@ -46,7 +167,7 @@ public sealed class AssemblyAccessLinkService
             deliveryId,
             assemblyScheduledAtUtc,
             assemblyEstimatedEndAtUtc: null,
-            revokeReason: AccessLinkRevocationReasons.Resent,
+            revokeReason: AccessLinkRevocationReasons.Regenerated,
             cancellationToken);
 
     public async Task<(string RawToken, string AbsoluteUrl, AssemblyAccessLink Link)> IssueAsync(
@@ -59,63 +180,22 @@ public sealed class AssemblyAccessLinkService
         CancellationToken cancellationToken = default)
     {
         var now = _clock.GetUtcNow();
-        var prior = await _db.AssemblyAccessLinks
-            .IgnoreQueryFilters()
-            .Where(l =>
-                l.ConvocationId == convocation.Id
-                && l.RecipientId == recipient.Id
-                && l.RevokedAtUtc == null)
-            .ToListAsync(cancellationToken);
-        foreach (var old in prior)
-        {
-            old.RevokedAtUtc = now;
-            old.RevocationReason ??= revokeReason;
-            InvalidateProofForLink(old);
-        }
-
-        var raw = CreateOpaqueToken();
         var expires = ResolveExpiry(now, assemblyScheduledAtUtc, assemblyEstimatedEndAtUtc);
-        var link = new AssemblyAccessLink
-        {
-            TenantId = convocation.TenantId,
-            PropertyHorizontalId = convocation.PropertyHorizontalId,
-            AssemblyId = convocation.AssemblyId,
-            ConvocationId = convocation.Id,
-            RecipientId = recipient.Id,
-            OwnerId = recipient.OwnerId,
-            UserId = recipient.UserId,
-            DeliveryId = deliveryId,
-            TokenHash = HashToken(raw),
-            ExpiresAtUtc = expires,
-            CreatedAtUtc = now,
-            Purpose = "ConvocationJoin"
-        };
-        _db.AssemblyAccessLinks.Add(link);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        if (prior.Count > 0)
-        {
-            foreach (var old in prior)
-            {
-                old.ReplacedByLinkId = link.Id;
-                if (string.IsNullOrWhiteSpace(old.RevocationReason))
-                {
-                    old.RevocationReason = revokeReason;
-                }
-            }
-
-            await _db.SaveChangesAsync(cancellationToken);
-        }
-
-        var url = _publicBaseUrl.BuildAbsoluteUrl($"/ingresar/{Uri.EscapeDataString(raw)}");
-        return (raw, url, link);
+        return await IssueNewReplacingAsync(
+            convocation,
+            recipient,
+            deliveryId,
+            expires,
+            revokeReason,
+            regeneratedByUserId: null,
+            regenerationReason: null,
+            cancellationToken);
     }
 
     /// <summary>
-    /// Expiration rules:
-    /// - No schedule: IssuedAt + 14 days
-    /// - With schedule: max(IssuedAt + 24h, (EstimatedEnd ?? ScheduledStart) + 48h)
-    /// Exact ExpiresAt is already expired (&lt;=).
+    /// Vigencia = (EstimatedEnd ?? ScheduledStart) + 48h.
+    /// No hay vencimiento fijo desde la emisión (eliminados los 14 días).
+    /// Sin fechas de asamblea: fallback mínimo issuedAt + 48h (no 14 días).
     /// </summary>
     public static DateTimeOffset ResolveExpiry(
         DateTimeOffset issuedAtUtc,
@@ -124,13 +204,23 @@ public sealed class AssemblyAccessLinkService
     {
         if (scheduledStartUtc is null && scheduledEndUtc is null)
         {
-            return issuedAtUtc.Add(DefaultLifetime);
+            return issuedAtUtc.Add(PostAssemblyGrace);
         }
 
         var anchor = scheduledEndUtc ?? scheduledStartUtc!.Value;
-        var afterAssembly = anchor.Add(PostAssemblyGrace);
-        var minimum = issuedAtUtc.Add(MinimumLifetimeFromIssue);
-        return afterAssembly > minimum ? afterAssembly : minimum;
+        return anchor.Add(PostAssemblyGrace);
+    }
+
+    /// <summary>Authoritative expiry from the live assembly schedule (reschedule-safe).</summary>
+    public static DateTimeOffset ResolveEffectiveExpiry(Assembly assembly, DateTimeOffset linkCreatedAtUtc)
+    {
+        var end = assembly.EstimatedEndAtUtc ?? assembly.ScheduledAtUtc;
+        if (end == default)
+        {
+            return ResolveExpiry(linkCreatedAtUtc, null, null);
+        }
+
+        return end.Add(PostAssemblyGrace);
     }
 
     public async Task<int> RevokeActiveForAssemblyAsync(
@@ -175,85 +265,253 @@ public sealed class AssemblyAccessLinkService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>Silent replacement after reschedule when email notify is off.</summary>
-    public async Task ReissueActiveRecipientsForConvocationAsync(
+    /// <summary>Refresh stored expiry after reschedule — does not rotate tokens.</summary>
+    public async Task<int> RefreshExpiryForAssemblyAsync(
+        Guid assemblyId,
+        DateTimeOffset? scheduledAtUtc,
+        DateTimeOffset? estimatedEndAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var now = _clock.GetUtcNow();
+        var expires = ResolveExpiry(now, scheduledAtUtc, estimatedEndAtUtc);
+        var openLinks = await _db.AssemblyAccessLinks
+            .Where(l => l.AssemblyId == assemblyId && l.RevokedAtUtc == null)
+            .ToListAsync(cancellationToken);
+        foreach (var link in openLinks)
+        {
+            link.ExpiresAtUtc = expires;
+        }
+
+        if (openLinks.Count > 0)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return openLinks.Count;
+    }
+
+    /// <summary>Compatibility alias: refresh expiry only (no token rotation).</summary>
+    public Task ReissueActiveRecipientsForConvocationAsync(
+        Guid convocationId,
+        DateTimeOffset? scheduledAtUtc,
+        DateTimeOffset? estimatedEndAtUtc,
+        CancellationToken cancellationToken = default) =>
+        RefreshExpiryForConvocationAsync(convocationId, scheduledAtUtc, estimatedEndAtUtc, cancellationToken);
+
+    public async Task RefreshExpiryForConvocationAsync(
         Guid convocationId,
         DateTimeOffset? scheduledAtUtc,
         DateTimeOffset? estimatedEndAtUtc,
         CancellationToken cancellationToken = default)
     {
-        var convocation = await _db.Convocations.FirstOrDefaultAsync(c => c.Id == convocationId, cancellationToken)
+        var assemblyId = await _db.Convocations.AsNoTracking()
+            .Where(c => c.Id == convocationId)
+            .Select(c => (Guid?)c.AssemblyId)
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw new DomainException("CONVOCATION_NOT_FOUND", "Convocation not found.");
-        var recipients = await _db.ConvocationRecipients
-            .Where(r => r.ConvocationId == convocationId && r.IsValid)
+
+        var now = _clock.GetUtcNow();
+        var expires = ResolveExpiry(now, scheduledAtUtc, estimatedEndAtUtc);
+        var openLinks = await _db.AssemblyAccessLinks
+            .Where(l => l.ConvocationId == convocationId && l.RevokedAtUtc == null)
             .ToListAsync(cancellationToken);
-        foreach (var recipient in recipients)
+        foreach (var link in openLinks)
         {
-            await IssueAsync(
-                convocation,
-                recipient,
-                deliveryId: null,
-                scheduledAtUtc,
-                estimatedEndAtUtc,
-                AccessLinkRevocationReasons.AssemblyRescheduled,
-                cancellationToken);
+            link.ExpiresAtUtc = expires;
         }
+
+        if (openLinks.Count > 0)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>Inspect token without mutating LastUsed. Distinguishes replaced vs expired.</summary>
+    public async Task<(AssemblyAccessLink? Link, string? InvalidReason, Assembly? Assembly)> InspectAsync(
+        string rawToken,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(rawToken))
+        {
+            return (null, ReasonNotFound, null);
+        }
+
+        var trimmed = rawToken.Trim();
+        var hash = HashToken(trimmed);
+        var link = await _db.AssemblyAccessLinks
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.TokenHash == hash, cancellationToken);
+
+        if (link is null && _tokenCodec.TryGetLinkId(trimmed, out var parsedId))
+        {
+            link = await _db.AssemblyAccessLinks
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.Id == parsedId, cancellationToken);
+            if (link is not null && !string.Equals(link.TokenHash, hash, StringComparison.Ordinal))
+            {
+                // MAC points at a link id whose current hash differs → treated as replaced/unknown.
+                link = null;
+            }
+        }
+
+        if (link is null)
+        {
+            return (null, ReasonNotFound, null);
+        }
+
+        var assembly = await _db.Assemblies.IgnoreQueryFilters().AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == link.AssemblyId, cancellationToken);
+
+        if (link.RevokedAtUtc is not null)
+        {
+            var reason = link.ReplacedByLinkId is not null
+                         || string.Equals(link.RevocationReason, AccessLinkRevocationReasons.Regenerated, StringComparison.Ordinal)
+                         || string.Equals(link.RevocationReason, AccessLinkRevocationReasons.Replaced, StringComparison.Ordinal)
+                         || string.Equals(link.RevocationReason, AccessLinkRevocationReasons.Resent, StringComparison.Ordinal)
+                ? ReasonReplaced
+                : string.Equals(link.RevocationReason, AccessLinkRevocationReasons.AssemblyCancelled, StringComparison.Ordinal)
+                    ? ReasonCancelled
+                    : ReasonRevoked;
+            return (link, reason, assembly);
+        }
+
+        if (assembly is null)
+        {
+            return (link, ReasonNotFound, null);
+        }
+
+        if (assembly.Status == AssemblyStatus.Cancelled)
+        {
+            return (link, ReasonCancelled, assembly);
+        }
+
+        var now = _clock.GetUtcNow();
+        var effectiveExpiry = ResolveEffectiveExpiry(assembly, link.CreatedAtUtc);
+        if (effectiveExpiry <= now || link.ExpiresAtUtc <= now)
+        {
+            return (link, ReasonExpired, assembly);
+        }
+
+        return (link, null, assembly);
     }
 
     /// <summary>Lookup without mutating LastUsed (safe for preview / email scanners).</summary>
     public async Task<AssemblyAccessLink?> PeekValidAsync(string rawToken, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(rawToken))
+        var (link, reason, assembly) = await InspectAsync(rawToken, cancellationToken);
+        if (link is null || reason is not null)
         {
             return null;
         }
 
-        var hash = HashToken(rawToken.Trim());
-        var link = await _db.AssemblyAccessLinks
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .FirstOrDefaultAsync(l => l.TokenHash == hash, cancellationToken);
-        if (link is null)
-        {
-            return null;
-        }
-
-        var now = _clock.GetUtcNow();
-        if (link.RevokedAtUtc is not null || link.ExpiresAtUtc <= now)
-        {
-            return null;
-        }
-
+        // Completed assemblies remain reachable for informational access until grace expires.
+        _ = assembly;
         return link;
     }
 
     /// <summary>Lookup that records LastUsedAtUtc (authenticated claim / redeem).</summary>
     public async Task<AssemblyAccessLink?> ResolveValidAsync(string rawToken, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(rawToken))
+        var (peek, reason, _) = await InspectAsync(rawToken, cancellationToken);
+        if (peek is null || reason is not null)
         {
             return null;
         }
 
-        var hash = HashToken(rawToken.Trim());
         var link = await _db.AssemblyAccessLinks
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(l => l.TokenHash == hash, cancellationToken);
+            .FirstOrDefaultAsync(l => l.Id == peek.Id, cancellationToken);
         if (link is null)
         {
             return null;
         }
 
-        var now = _clock.GetUtcNow();
-        if (link.RevokedAtUtc is not null || link.ExpiresAtUtc <= now)
-        {
-            return null;
-        }
-
-        link.LastUsedAtUtc = now;
+        link.LastUsedAtUtc = _clock.GetUtcNow();
         await _db.SaveChangesAsync(cancellationToken);
         return link;
     }
+
+    private async Task<AssemblyAccessLink?> FindActiveAsync(
+        Guid convocationId,
+        Guid recipientId,
+        CancellationToken cancellationToken) =>
+        await _db.AssemblyAccessLinks
+            .IgnoreQueryFilters()
+            .Where(l =>
+                l.ConvocationId == convocationId
+                && l.RecipientId == recipientId
+                && l.RevokedAtUtc == null)
+            .OrderByDescending(l => l.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    private async Task<(string RawToken, string AbsoluteUrl, AssemblyAccessLink Link)> IssueNewReplacingAsync(
+        Convocation convocation,
+        ConvocationRecipient recipient,
+        Guid? deliveryId,
+        DateTimeOffset expires,
+        string revokeReason,
+        Guid? regeneratedByUserId,
+        string? regenerationReason,
+        CancellationToken cancellationToken)
+    {
+        var now = _clock.GetUtcNow();
+        var prior = await _db.AssemblyAccessLinks
+            .IgnoreQueryFilters()
+            .Where(l =>
+                l.ConvocationId == convocation.Id
+                && l.RecipientId == recipient.Id
+                && l.RevokedAtUtc == null)
+            .ToListAsync(cancellationToken);
+        foreach (var old in prior)
+        {
+            old.RevokedAtUtc = now;
+            old.RevocationReason ??= revokeReason;
+            InvalidateProofForLink(old);
+        }
+
+        var link = new AssemblyAccessLink
+        {
+            Id = Guid.NewGuid(),
+            TenantId = convocation.TenantId,
+            PropertyHorizontalId = convocation.PropertyHorizontalId,
+            AssemblyId = convocation.AssemblyId,
+            ConvocationId = convocation.Id,
+            RecipientId = recipient.Id,
+            OwnerId = recipient.OwnerId,
+            UserId = recipient.UserId,
+            DeliveryId = deliveryId,
+            ExpiresAtUtc = expires,
+            CreatedAtUtc = now,
+            Purpose = "ConvocationJoin"
+        };
+        var raw = _tokenCodec.CreateToken(link.Id);
+        link.TokenHash = HashToken(raw);
+        _db.AssemblyAccessLinks.Add(link);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (prior.Count > 0)
+        {
+            foreach (var old in prior)
+            {
+                old.ReplacedByLinkId = link.Id;
+                if (string.IsNullOrWhiteSpace(old.RevocationReason))
+                {
+                    old.RevocationReason = revokeReason;
+                }
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        _ = regeneratedByUserId;
+        _ = regenerationReason;
+        return (raw, BuildAbsoluteUrl(raw), link);
+    }
+
+    private string BuildAbsoluteUrl(string rawToken) =>
+        _publicBaseUrl.BuildAbsoluteUrl($"/ingresar/{Uri.EscapeDataString(rawToken)}");
 
     public async Task MarkRedeemedAsync(Guid linkId, CancellationToken cancellationToken = default)
     {
@@ -307,10 +565,32 @@ public sealed class AssemblyAccessLinkService
             throw new DomainException("AUTH_REQUIRED", "Debes iniciar sesión para canjear el acceso.");
         }
 
+        var (inspected, invalidReason, assemblyPeek) = await InspectAsync(rawToken, cancellationToken);
+        if (inspected is null || invalidReason is not null)
+        {
+            throw new DomainException(
+                invalidReason switch
+                {
+                    ReasonReplaced => "LINK_REPLACED",
+                    ReasonExpired => "ACCESS_PERIOD_ENDED",
+                    ReasonCancelled => "CANCELLED",
+                    _ => "INVALID_OR_EXPIRED"
+                },
+                invalidReason switch
+                {
+                    ReasonReplaced =>
+                        "Este enlace fue reemplazado por uno más reciente. Utilice el último enlace recibido.",
+                    ReasonExpired => "El período de acceso a esta asamblea ha finalizado.",
+                    ReasonCancelled => "Esta asamblea fue cancelada. No es necesario que ingreses.",
+                    _ => "Este enlace expiró o fue revocado. Solicita un reenvío de la convocatoria."
+                });
+        }
+
         var link = await ResolveValidAsync(rawToken, cancellationToken)
             ?? throw new DomainException(
                 "INVALID_OR_EXPIRED",
                 "Este enlace expiró o fue revocado. Solicita un reenvío de la convocatoria.");
+        _ = assemblyPeek;
 
         var recipient = await _db.ConvocationRecipients.IgnoreQueryFilters()
             .FirstOrDefaultAsync(r => r.Id == link.RecipientId, cancellationToken)

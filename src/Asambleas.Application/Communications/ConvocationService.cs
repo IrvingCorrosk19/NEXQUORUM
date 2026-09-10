@@ -22,6 +22,7 @@ public sealed class ConvocationService
     private readonly ICommunicationEnvironment _environment;
     private readonly CommunicationConfigurationService _config;
     private readonly DeliveryDispatchService _dispatch;
+    private readonly AssemblyAccessLinkService _accessLinks;
 
     public ConvocationService(
         IAsambleasDbContext db,
@@ -29,7 +30,8 @@ public sealed class ConvocationService
         IAuditService audit,
         ICommunicationEnvironment environment,
         CommunicationConfigurationService config,
-        DeliveryDispatchService dispatch)
+        DeliveryDispatchService dispatch,
+        AssemblyAccessLinkService accessLinks)
     {
         _db = db;
         _currentTenant = currentTenant;
@@ -37,6 +39,7 @@ public sealed class ConvocationService
         _environment = environment;
         _config = config;
         _dispatch = dispatch;
+        _accessLinks = accessLinks;
     }
 
     public async Task<IReadOnlyList<ConvocationSummaryDto>> ListForAssemblyAsync(
@@ -495,6 +498,147 @@ public sealed class ConvocationService
             metadata: new { c.Id, batch.TotalCount, recipientCount = recipients.Count },
             cancellationToken: cancellationToken);
 
+        var refreshed = await _db.CommunicationBatches.AsNoTracking().FirstAsync(b => b.Id == batch.Id, cancellationToken);
+        return ToBatchDto(refreshed);
+    }
+
+    /// <summary>
+    /// Admin regenerate: rotate token for one recipient, revoke prior links, then email the new URL.
+    /// </summary>
+    public async Task<CommunicationBatchDto> RegenerateAccessLinkAsync(
+        Guid convocationId,
+        Guid recipientId,
+        RegenerateAccessLinkRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+        if (!request.Confirmed)
+        {
+            throw new DomainException(
+                "CONFIRMATION_REQUIRED",
+                "Confirme la regeneración. Al generar un nuevo enlace, el enlace anterior dejará de funcionar inmediatamente.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length < 3)
+        {
+            throw new DomainException("REASON_REQUIRED", "Indique el motivo de la regeneración del enlace.");
+        }
+
+        var c = await _db.Convocations.FirstOrDefaultAsync(x => x.Id == convocationId, cancellationToken)
+            ?? throw new DomainException("CONVOCATION_NOT_FOUND", "Convocation not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, c.TenantId);
+
+        var assembly = await _db.Assemblies.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == c.AssemblyId, cancellationToken)
+            ?? throw new DomainException("ASSEMBLY_NOT_FOUND", "Assembly not found.");
+        if (assembly.Status is AssemblyStatus.Cancelled)
+        {
+            throw new DomainException("ASSEMBLY_CANCELLED", "No se puede regenerar el enlace de una asamblea cancelada.");
+        }
+
+        var recipient = await _db.ConvocationRecipients
+            .FirstOrDefaultAsync(r => r.Id == recipientId && r.ConvocationId == convocationId && r.IsValid, cancellationToken)
+            ?? throw new DomainException("RECIPIENT_NOT_FOUND", "Destinatario no encontrado en esta convocatoria.");
+
+        await _accessLinks.RegenerateAsync(
+            c,
+            recipient,
+            deliveryId: null,
+            assembly.ScheduledAtUtc,
+            assembly.EstimatedEndAtUtc,
+            userId,
+            request.Reason.Trim(),
+            cancellationToken);
+
+        // Email the new URL via the normal dispatch pipeline. Prefer Resend when allowed;
+        // if the assembly is sealed (Completed), still deliver the replacement link once.
+        try
+        {
+            return await ResendAsync(
+                convocationId,
+                new ResendConvocationRequest(
+                    Confirmed: true,
+                    IdempotencyKey: string.IsNullOrWhiteSpace(request.IdempotencyKey)
+                        ? $"regen-{convocationId:N}-{recipientId:N}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
+                        : request.IdempotencyKey.Trim(),
+                    RecipientIds: [recipientId],
+                    OnlyFailedOrPending: false),
+                cancellationToken);
+        }
+        catch (DomainException ex) when (ex.Code is "ASSEMBLY_SEALED" or "RESEND_COOLDOWN")
+        {
+            return await ForceEmailRecipientsAsync(
+                c,
+                [recipient],
+                idempotencyKey: string.IsNullOrWhiteSpace(request.IdempotencyKey)
+                    ? $"regen-force-{convocationId:N}-{recipientId:N}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
+                    : $"{request.IdempotencyKey.Trim()}-force",
+                auditEvent: "access_link.regenerated.emailed",
+                cancellationToken);
+        }
+    }
+
+    private async Task<CommunicationBatchDto> ForceEmailRecipientsAsync(
+        Convocation c,
+        IReadOnlyList<ConvocationRecipient> recipients,
+        string idempotencyKey,
+        string auditEvent,
+        CancellationToken cancellationToken)
+    {
+        var channels = ParseChannels(c.ChannelsJson);
+        if (channels.Count == 0)
+        {
+            channels = [CommunicationChannel.Email];
+        }
+
+        await EnsureChannelsEnabledAsync(c.PropertyHorizontalId, channels, cancellationToken);
+
+        var existing = await _db.CommunicationBatches
+            .FirstOrDefaultAsync(b => b.TenantId == _currentTenant.TenantId && b.IdempotencyKey == idempotencyKey, cancellationToken);
+        if (existing is not null)
+        {
+            return ToBatchDto(existing);
+        }
+
+        var batch = new CommunicationBatch
+        {
+            TenantId = _currentTenant.TenantId,
+            ConvocationId = c.Id,
+            IdempotencyKey = idempotencyKey,
+            Status = ConvocationStatus.Sending,
+            StartedAtUtc = DateTimeOffset.UtcNow
+        };
+        _db.CommunicationBatches.Add(batch);
+
+        var deliveries = new List<CommunicationDelivery>();
+        foreach (var recipient in recipients)
+        {
+            foreach (var channel in channels)
+            {
+                deliveries.Add(new CommunicationDelivery
+                {
+                    TenantId = _currentTenant.TenantId,
+                    BatchId = batch.Id,
+                    ConvocationId = c.Id,
+                    RecipientId = recipient.Id,
+                    Channel = channel,
+                    Status = DeliveryStatus.Pending,
+                    QueuedAtUtc = DateTimeOffset.UtcNow
+                });
+            }
+        }
+
+        batch.TotalCount = deliveries.Count;
+        _db.CommunicationDeliveries.AddRange(deliveries);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _dispatch.ProcessBatchAsync(batch.Id, cancellationToken);
+        await _audit.WriteAsync(
+            auditEvent,
+            assemblyId: c.AssemblyId,
+            correlationId: batch.Id,
+            metadata: new { c.Id, batch.TotalCount, recipientCount = recipients.Count },
+            cancellationToken: cancellationToken);
         var refreshed = await _db.CommunicationBatches.AsNoTracking().FirstAsync(b => b.Id == batch.Id, cancellationToken);
         return ToBatchDto(refreshed);
     }

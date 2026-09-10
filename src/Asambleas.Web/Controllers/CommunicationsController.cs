@@ -196,6 +196,15 @@ public sealed class ConvocationsController : ControllerBase
         CancellationToken cancellationToken) =>
         _convocations.ResendAsync(convocationId, request, cancellationToken);
 
+    [HttpPost("{convocationId:guid}/recipients/{recipientId:guid}/regenerate-link")]
+    [Authorize(Policy = Permissions.ConvocationsRegenerateLink)]
+    public Task<CommunicationBatchDto> RegenerateAccessLink(
+        Guid convocationId,
+        Guid recipientId,
+        [FromBody] RegenerateAccessLinkRequest request,
+        CancellationToken cancellationToken) =>
+        _convocations.RegenerateAccessLinkAsync(convocationId, recipientId, request, cancellationToken);
+
     [HttpGet("{convocationId:guid}/recipient-deliveries")]
     [Authorize(Policy = Permissions.ConvocationsViewEvidence)]
     public Task<IReadOnlyList<ConvocationRecipientDeliveryDto>> RecipientDeliveries(

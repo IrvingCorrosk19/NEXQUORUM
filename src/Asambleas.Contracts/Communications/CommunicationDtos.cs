@@ -135,6 +135,11 @@ public sealed record ResendConvocationRequest(
     IReadOnlyList<Guid>? RecipientIds = null,
     bool OnlyFailedOrPending = false);
 
+public sealed record RegenerateAccessLinkRequest(
+    bool Confirmed = false,
+    string Reason = "",
+    string? IdempotencyKey = null);
+
 public sealed record ConvocationRecipientDeliveryDto(
     Guid RecipientId,
     string DisplayName,

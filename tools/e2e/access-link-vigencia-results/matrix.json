@@ -1,0 +1,165 @@
+{
+  "verdict": "CERTIFICADO",
+  "results": [
+    {
+      "id": "T0_local_up",
+      "pass": true,
+      "detail": "https://localhost:7188"
+    },
+    {
+      "id": "T0_login",
+      "pass": true,
+      "detail": "president@ocean.demo"
+    },
+    {
+      "id": "T0_ph",
+      "pass": true,
+      "detail": "c6c486e9-4ea8-456c-a733-fa3701b0d0f9"
+    },
+    {
+      "id": "T16_setup_owners",
+      "pass": true,
+      "detail": "omc2.196148@sandbox.test / cert.owner.b.1788995872698@sandbox.test distinct=true unitsA=101 unitsB=CERT-872633"
+    },
+    {
+      "id": "T16_eligible_ids",
+      "pass": true,
+      "detail": "3ba7fc5f-ab19-405b-b59e-27d6a5429411 (B deferred=true)"
+    },
+    {
+      "id": "T0_create_scheduled",
+      "pass": true,
+      "detail": "b95ae080-c79a-49ef-9f56-97763165fb4d"
+    },
+    {
+      "id": "T16_recipients",
+      "pass": true,
+      "detail": "A=5f45f99a-1362-4a9d-8d75-97b224a0745c B=n/a n=1"
+    },
+    {
+      "id": "T1_token_captured",
+      "pass": true,
+      "detail": "WKX0bhUi8U…"
+    },
+    {
+      "id": "T1_active_beyond_14d",
+      "pass": true,
+      "detail": "Scheduled"
+    },
+    {
+      "id": "T3_resend_http",
+      "pass": true,
+      "detail": "200 {\"id\":\"77ddb404-ab91-4758-af1d-b37398321f11\",\"convocationId\":\"fab5a9f6-656b-4798"
+    },
+    {
+      "id": "T3_resend_same_link",
+      "pass": true,
+      "detail": "same=true"
+    },
+    {
+      "id": "T4_regenerate",
+      "pass": true,
+      "detail": "200 {\"id\":\"ad9de434-c076-4fda-824a-52468bb73eb6\",\"convocationId\":\"fab5a9f6-656b-4798-bae2-69394a7a768d\",\"status\":\"Sent\",\"tot"
+    },
+    {
+      "id": "T6_new_link",
+      "pass": true,
+      "detail": "GCTJl5Pze0…"
+    },
+    {
+      "id": "T5_old_invalid",
+      "pass": true,
+      "detail": "REPLACED"
+    },
+    {
+      "id": "T7_reuse_old_message",
+      "pass": true,
+      "detail": "Este enlace fue reemplazado por uno más reciente. Utilice el último enlace recibido."
+    },
+    {
+      "id": "T6b_new_works",
+      "pass": true,
+      "detail": "Scheduled"
+    },
+    {
+      "id": "T8_reschedule",
+      "pass": true,
+      "detail": "200 {\"assemblyId\":\"b95ae080-c79a-49ef-9f56-97763165fb4d\",\"propertyHorizontalId\":\"8e795bf1-2775-4618-8b76"
+    },
+    {
+      "id": "T8_link_keeps_validity",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "T9_access_before",
+      "pass": true,
+      "detail": "Scheduled"
+    },
+    {
+      "id": "T10_access_during",
+      "pass": true,
+      "detail": "Scheduled"
+    },
+    {
+      "id": "T11_access_within_48h",
+      "pass": true,
+      "detail": "Scheduled"
+    },
+    {
+      "id": "T12_vote_blocked",
+      "pass": true,
+      "detail": "404 complete=400"
+    },
+    {
+      "id": "T13_force_expire_db",
+      "pass": true,
+      "detail": "links=1"
+    },
+    {
+      "id": "T13_after_48h_expired",
+      "pass": true,
+      "detail": "EXPIRED"
+    },
+    {
+      "id": "T13_expired_message",
+      "pass": true,
+      "detail": "El período de acceso a esta asamblea ha finalizado."
+    },
+    {
+      "id": "T14_create_asm",
+      "pass": true,
+      "detail": "81f7a6a2-4ac4-45ef-a1fa-120749e22e94"
+    },
+    {
+      "id": "T14_cancel_invalidates",
+      "pass": true,
+      "detail": "cancel=200 reason=CANCELLED"
+    },
+    {
+      "id": "T15_token_bound_to_assembly",
+      "pass": true,
+      "detail": "cancelReason=CANCELLED"
+    },
+    {
+      "id": "T16_two_owners_independent",
+      "pass": true,
+      "detail": "asmA=ab56d2a5-05b4-4614-9c43-426619c2f1a7 asmB=2e72154c-0162-4366-9bd0-a2e95f623153"
+    },
+    {
+      "id": "T17_single_active",
+      "pass": true,
+      "detail": "oldInv=true newOk=true regen=200"
+    },
+    {
+      "id": "T18_reminder_reuses",
+      "pass": true,
+      "detail": "same=true"
+    },
+    {
+      "id": "T_no_14d_unit_suite",
+      "pass": true,
+      "detail": "AccessLinkExpiryCalculatorTests passed locally"
+    }
+  ]
+}
