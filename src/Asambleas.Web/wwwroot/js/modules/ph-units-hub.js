@@ -128,7 +128,18 @@ export function createUnitsHub(ctx) {
     tbody.innerHTML = units
       .map((u) => {
         const owners = ownerByUnit.get(u.id) || [];
-        const ownerLabel = owners.length ? esc(owners.join(", ")) : '<span class="muted">Sin propietario</span>';
+        const shown = owners.slice(0, 2);
+        const extra = owners.length - shown.length;
+        const ownerLabel = owners.length
+          ? `<div class="assoc-chip-row">${shown
+              .map((n) => `<span class="assoc-chip" title="${esc(n)}">${esc(n)}</span>`)
+              .join("")}${
+              extra > 0
+                ? `<span class="assoc-chip assoc-chip--more" title="${esc(owners.slice(2).join(", "))}">+${extra} más</span>`
+                : ""
+            }</div>
+            <div class="muted" style="font-size:0.78rem;margin-top:0.2rem">${owners.length} propietario${owners.length === 1 ? "" : "s"}</div>`
+          : '<span class="muted">Sin propietario</span>';
         const inactive = u.isActive ? "" : " is-inactive";
         return `<tr class="unit-row${inactive}" data-unit-id="${u.id}" tabindex="0">
           <td><strong>${esc(u.code)}</strong></td>
@@ -144,9 +155,9 @@ export function createUnitsHub(ctx) {
               <div class="unit-row-menu" data-menu-for="${u.id}" hidden role="menu">
                 <button type="button" role="menuitem" data-act="details" data-unit="${u.id}">Ver detalles</button>
                 <button type="button" role="menuitem" data-act="edit" data-unit="${u.id}">Editar unidad</button>
-                <button type="button" role="menuitem" data-act="assign" data-unit="${u.id}">Asignar propietario</button>
+                <button type="button" role="menuitem" data-act="assign" data-unit="${u.id}">Administrar propietarios</button>
                 <button type="button" role="menuitem" data-act="edit-owner" data-unit="${u.id}">Editar propietario</button>
-                <button type="button" role="menuitem" data-act="change-owner" data-unit="${u.id}">Cambiar propietario</button>
+                <button type="button" role="menuitem" data-act="change-owner" data-unit="${u.id}">Agregar copropietario</button>
                 <button type="button" role="menuitem" data-act="unlink" data-unit="${u.id}">Desvincular propietario</button>
                 <button type="button" role="menuitem" data-act="toggle" data-unit="${u.id}">${u.isActive ? "Desactivar unidad" : "Activar unidad"}</button>
                 <button type="button" role="menuitem" data-act="delete" data-unit="${u.id}" class="is-danger">Eliminar unidad</button>
@@ -161,12 +172,22 @@ export function createUnitsHub(ctx) {
       cards.innerHTML = units
         .map((u) => {
           const owners = ownerByUnit.get(u.id) || [];
+          const shown = owners.slice(0, 2);
+          const extra = owners.length - shown.length;
           return `<article class="unit-card${!u.isActive ? " is-inactive" : ""}" data-unit-id="${u.id}">
             <div class="unit-card__top">
               <strong>${esc(u.code)}</strong>
               <span class="unit-status ${u.isActive ? "is-on" : "is-off"}">${u.isActive ? "Activa" : "Inactiva"}</span>
             </div>
-            <p class="muted">${owners.length ? esc(owners.join(", ")) : "Sin propietario"} · ${fmtCoef(u.coefficientPercent)} %</p>
+            <div class="assoc-chip-row" style="margin:0.4rem 0">
+              ${
+                owners.length
+                  ? shown.map((n) => `<span class="assoc-chip">${esc(n)}</span>`).join("") +
+                    (extra > 0 ? `<span class="assoc-chip assoc-chip--more">+${extra}</span>` : "")
+                  : `<span class="muted">Sin propietario</span>`
+              }
+            </div>
+            <p class="muted">${fmtCoef(u.coefficientPercent)} % · ${owners.length} propietario${owners.length === 1 ? "" : "s"}</p>
             <button type="button" class="btn btn-primary" data-manage-unit="${u.id}">Gestionar</button>
           </article>`;
         })

@@ -28,6 +28,7 @@ public static class AuditEventType
     public const string AssemblyResumed = "ASSEMBLY_RESUMED";
     public const string ParticipantConnected = "PARTICIPANT_CONNECTED";
     public const string ParticipantDisconnected = "PARTICIPANT_DISCONNECTED";
+    public const string ParticipantJoinSummoned = "PARTICIPANT_JOIN_SUMMONED";
     public const string QuorumChanged = "QUORUM_CHANGED";
     public const string AgendaChanged = "AGENDA_CHANGED";
     public const string SpeakerRequested = "SPEAKER_REQUESTED";

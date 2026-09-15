@@ -338,6 +338,7 @@ public sealed class QuorumService
             .Select(p => p.UserId)
             .ToListAsync(cancellationToken);
 
+        // Unique by UnitId — never sum the same unit twice (co-owners, reconnect, duplicate rows).
         var presentCoefficients = contributingUserIds.Count == 0
             ? new List<decimal>()
             : await _db.AssemblyRepresentations
@@ -345,7 +346,8 @@ public sealed class QuorumService
                 .Where(r => r.AssemblyId == assembly.Id
                             && r.IsActive
                             && contributingUserIds.Contains(r.RepresentativeUserId))
-                .Select(r => r.CoefficientSnapshot)
+                .GroupBy(r => r.UnitId)
+                .Select(g => g.Max(r => r.CoefficientSnapshot))
                 .ToListAsync(cancellationToken);
 
         // Fallback for legacy rows without representations: single UnitId on participant.

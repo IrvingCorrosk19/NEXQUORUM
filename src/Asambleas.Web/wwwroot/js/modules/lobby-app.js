@@ -6,6 +6,7 @@ import { hydrateRoomState } from "./room-state.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js";
 import { createAssemblyConnection } from "./signalr-client.js";
+import { attachJoinSummonListener } from "./join-summon.js";
 import {
   enumerateMediaDevices,
   fetchJoinToken,
@@ -557,7 +558,15 @@ async function init() {
         updateEnterGate(currentSelf, currentAssembly);
         await refreshLobbySnapshot();
         scheduleAutoEnterIfLive(currentAssembly, currentSelf);
-      }
+      },
+      joinSummonRequested: attachJoinSummonListener({
+        getUserId: () => selfUserId(currentUser),
+        onJoin: () => {
+          enterAssembly({ allowGovernanceOnly: true }).catch(() => {
+            location.href = `/assembly.html?assemblyId=${assemblyId}`;
+          });
+        }
+      })
     });
     await hub.start(assemblyId);
     document.documentElement.dataset.lobbyHub = "connected";

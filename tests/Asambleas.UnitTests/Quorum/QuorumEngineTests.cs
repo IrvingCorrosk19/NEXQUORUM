@@ -80,4 +80,17 @@ public sealed class QuorumEngineTests
         act.Should().Throw<DomainException>()
             .WithMessage("*non-negative*");
     }
+
+    [Fact]
+    public void Present_never_exceeds_eligible_total_when_duplicates_inflate_sum()
+    {
+        // Duplicate unit coeffs (co-owner / bad materialization) must not yield >100.
+        var inflatedPresent = OceanEligible.Concat(OceanEligible).ToArray();
+
+        var result = QuorumEngine.Calculate(OceanEligible, inflatedPresent, requiredPercent: 50m);
+
+        result.CurrentCoefficient.Should().Be(100m);
+        result.EligibleCoefficientTotal.Should().Be(100m);
+        result.QuorumReached.Should().BeTrue();
+    }
 }

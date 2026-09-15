@@ -13,7 +13,9 @@ const EVENT_NAMES = [
   "votingVersionCreated",
   "recordingUpdated",
   "assemblyScheduleChanged",
-  "screenShareUpdated"
+  "screenShareUpdated",
+  "joinSummonRequested",
+  "joinSummonStatusChanged"
 ];
 
 /** Events whose payload `id` is the assembly id (not a child entity id). */

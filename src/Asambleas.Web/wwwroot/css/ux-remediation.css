@@ -221,3 +221,48 @@
     flex: 1;
   }
 }
+
+/* Contrast: light surfaces must use on-inverse text (never inherit dark-theme white text) */
+.panel--light,
+.surface-light,
+.card-light,
+.choice-card,
+.vote-option,
+.alert-success,
+.alert-warning,
+.alert-info,
+.owner-unit-card,
+.join-summon-dialog,
+.dialog.surface-light {
+  color: var(--text-on-inverse, #0b1220);
+}
+.panel--light .muted,
+.surface-light .muted,
+.card-light .muted,
+.choice-card .muted,
+.owner-unit-card .muted {
+  color: color-mix(in srgb, var(--text-on-inverse, #0b1220) 72%, transparent);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+/* White/light cards inside dark pages (voting studio / expediente leftovers) */
+.vs-light-panel,
+.exp-sheet,
+.mobile-vote-sheet,
+[data-theme-surface=""light""] {
+  background: var(--surface-inverse, #e8eef8);
+  color: var(--text-on-inverse, #0b1220);
+  border-color: color-mix(in srgb, var(--text-on-inverse) 18%, transparent);
+}
+.join-summon-dialog {
+  background: var(--surface-elevated, #162033);
+  color: var(--text-primary, #e8eef8);
+  border: 1px solid var(--border-default);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  max-width: min(28rem, 92vw);
+}
+.join-summon-dialog .muted { color: var(--text-secondary); }

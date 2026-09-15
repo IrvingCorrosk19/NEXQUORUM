@@ -41,4 +41,8 @@ public interface IAssemblyRealtimePublisher
     Task PublishRecordingUpdatedAsync(Guid assemblyId, AssemblyRecordingDto recording, CancellationToken cancellationToken = default);
 
     Task PublishScreenShareUpdatedAsync(Guid assemblyId, ScreenShareStateDto state, CancellationToken cancellationToken = default);
+
+    Task PublishJoinSummonAsync(Guid assemblyId, JoinSummonDto summon, CancellationToken cancellationToken = default);
+
+    Task PublishJoinSummonStatusAsync(Guid assemblyId, JoinSummonResultDto status, CancellationToken cancellationToken = default);
 }

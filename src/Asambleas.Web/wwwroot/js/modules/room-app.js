@@ -66,6 +66,15 @@ import {
 } from "./ui.js";
 import { AppFeedback } from "./app-feedback.js";
 import { hydrateRoomState, resumeAssembly } from "./room-state.js";
+import {
+  attachJoinSummonListener,
+  canSummonParticipants,
+  confirmAndSummonAll,
+  renderSummonActionsHtml,
+  showSummonToast,
+  summonParticipant
+} from "./join-summon.js";
+import { runWithButton } from "./loading.js";
 import { isOperator, resolveViewerRole } from "./roles.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import { redirectToHttpsForMedia } from "./secure-context.js";
@@ -1670,16 +1679,36 @@ function renderParticipants() {
         .slice(0, 2)
         .map((w) => w[0]?.toUpperCase() || "")
         .join("");
+      const st = String(p.attendanceStatus || "");
+      const connected = /Present|CheckedIn/i.test(st);
+      const summonBtn =
+        state.viewerRole === "Operator" && canSummonParticipants(state.user)
+          ? renderSummonActionsHtml({ userId: p.userId, connected })
+          : "";
       return `
       <article class="participant" aria-label="${escapeHtml(name)}">
         <span class="avatar" aria-hidden="true">${escapeHtml(initials)}</span>
         <div class="participant-meta">
           <strong>${escapeHtml(name)}</strong>
           <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(p.attendanceStatus || "")} · ${escapeHtml(p.presenceType || "—")}</span>
+          ${summonBtn}
         </div>
       </article>`;
     })
     .join("");
+
+  els.participants.querySelectorAll("[data-summon-user]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await runWithButton(btn, "Avisando…", async () => {
+        try {
+          const r = await summonParticipant(assemblyId, btn.dataset.summonUser);
+          showSummonToast(r);
+        } catch (err) {
+          showToast(err.message || "No fue posible avisar.", "error");
+        }
+      });
+    });
+  });
 }
 
 function setVisible(el, visible) {
@@ -2743,6 +2772,25 @@ async function bootstrapMeeting() {
 }
 
 function wireOperatorControls() {
+  qs("#btn-summon-absent")?.addEventListener("click", async () => {
+    const btn = qs("#btn-summon-absent");
+    const absent = [...state.participants.values()].filter(
+      (p) => !/Present|CheckedIn/i.test(String(p.attendanceStatus || ""))
+    ).length;
+    await runWithButton(btn, "Avisando…", async () => {
+      try {
+        const batch = await confirmAndSummonAll(assemblyId, absent);
+        if (!batch) return;
+        showToast(
+          `Avisados: ${batch.notified || 0}. Ya conectados: ${batch.skippedConnected || 0}. En espera: ${batch.skippedCooldown || 0}.`,
+          "success"
+        );
+      } catch (err) {
+        showToast(err.message || "No fue posible avisar a los ausentes.", "error");
+      }
+    });
+  });
+
   qs("#btn-start")?.addEventListener("click", async () => {
     const ok = await confirmDialog({
       title: t("assembly.startAssembly"),
@@ -3219,7 +3267,15 @@ async function init() {
     },
     screenShareUpdated: (payload) => {
       applyScreenShareState(payload, { toast: true });
-    }
+    },
+    joinSummonRequested: attachJoinSummonListener({
+      getUserId: () => state.user?.userId || state.user?.id,
+      onJoin: () => {
+        // Already in room — just acknowledge.
+        showToast("Ya está en la sala de la asamblea.", "success");
+      },
+      onDismiss: () => {}
+    })
   });
 
   await state.hub.start(assemblyId);

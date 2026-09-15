@@ -67,6 +67,12 @@ public sealed class SignalRAssemblyRealtimePublisher : IAssemblyRealtimePublishe
     public Task PublishScreenShareUpdatedAsync(Guid assemblyId, ScreenShareStateDto state, CancellationToken cancellationToken = default) =>
         SendAsync(assemblyId, RealtimeEventNames.ScreenShareUpdated, state, cancellationToken);
 
+    public Task PublishJoinSummonAsync(Guid assemblyId, JoinSummonDto summon, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.JoinSummonRequested, summon, cancellationToken);
+
+    public Task PublishJoinSummonStatusAsync(Guid assemblyId, JoinSummonResultDto status, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.JoinSummonStatusChanged, status, cancellationToken);
+
     private Task SendAsync<T>(Guid assemblyId, string eventName, T payload, CancellationToken cancellationToken) =>
         _hub.Clients.Group(AssemblyHub.GroupName(assemblyId))
             .SendAsync(eventName, payload, cancellationToken);

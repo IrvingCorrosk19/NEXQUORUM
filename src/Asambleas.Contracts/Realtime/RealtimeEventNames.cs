@@ -22,4 +22,7 @@ public static class RealtimeEventNames
     public const string AuditAppended = "auditAppended";
     public const string RecordingUpdated = "recordingUpdated";
     public const string ScreenShareUpdated = "screenShareUpdated";
+    /// <summary>President/admin asks an absent participant to join the room now.</summary>
+    public const string JoinSummonRequested = "joinSummonRequested";
+    public const string JoinSummonStatusChanged = "joinSummonStatusChanged";
 }

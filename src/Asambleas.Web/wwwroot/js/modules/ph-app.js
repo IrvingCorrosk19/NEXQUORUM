@@ -1517,13 +1517,25 @@ async function loadOwners({ soft = false } = {}) {
       const action = inviteActionForAccess(access);
       const inactive = o.status === "Inactive";
       const email = maskEmail(o.email || "");
-      return `<tr>
+      const codes = Array.isArray(o.unitCodes) ? o.unitCodes.filter(Boolean) : [];
+      const shown = codes.slice(0, 2);
+      const extra = codes.length - shown.length;
+      const chips = shown.length
+        ? shown
+            .map((c) => `<span class="assoc-chip" title="${escapeHtml(c)}">${escapeHtml(c)}</span>`)
+            .join("") +
+          (extra > 0
+            ? `<button type="button" class="assoc-chip assoc-chip--more" data-owner-units="${o.id}" aria-label="${extra} unidades más">+${extra} más</button>`
+            : "")
+        : `<span class="muted">Sin unidad</span>`;
+      return `<tr class="${inactive ? "is-inactive-row" : ""}">
       <td><input type="checkbox" value="${o.id}" aria-label="Seleccionar ${escapeHtml(o.displayName)}" /></td>
       <td>
         <strong>${escapeHtml(o.displayName)}</strong>
         <div class="muted" style="font-size:0.85rem">${escapeHtml(email || "sin correo")}</div>
+        <div class="muted" style="font-size:0.8rem;margin-top:0.15rem">${codes.length} unidad${codes.length === 1 ? "" : "es"} asociada${codes.length === 1 ? "" : "s"}</div>
       </td>
-      <td>${escapeHtml((o.unitCodes || []).join(", ") || "—")}</td>
+      <td><div class="assoc-chip-row">${chips}</div></td>
       <td>${Number(o.coefficientPercent).toFixed(2)}%</td>
       <td><span class="badge badge-access">${escapeHtml(platformAccessLabel(access))}</span></td>
       <td class="owners-actions">
@@ -1534,6 +1546,7 @@ async function loadOwners({ soft = false } = {}) {
             <div class="ux-menu__panel" id="owner-more-${o.id}" hidden>
               <button type="button" data-edit-owner="${o.id}">Editar</button>
               <button type="button" data-owner="${o.id}">Ver detalle</button>
+              <button type="button" data-owner-units="${o.id}">Administrar unidades</button>
               ${
                 action
                   ? `<button type="button" data-invite="${o.id}">${escapeHtml(action)}</button>`
@@ -1560,6 +1573,9 @@ async function loadOwners({ soft = false } = {}) {
   // rebind row actions — continue existing handlers below
   tbody.querySelectorAll("[data-owner]").forEach((btn) =>
     btn.addEventListener("click", () => showOwner(btn.dataset.owner))
+  );
+  tbody.querySelectorAll("[data-owner-units]").forEach((btn) =>
+    btn.addEventListener("click", () => showOwner(btn.dataset.ownerUnits))
   );
   tbody.querySelectorAll("[data-edit-owner]").forEach((btn) =>
     btn.addEventListener("click", () => startOwnerEdit(btn.dataset.editOwner))

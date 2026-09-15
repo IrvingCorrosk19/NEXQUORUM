@@ -3,6 +3,7 @@ namespace Asambleas.Web.Controllers;
 using Asambleas.Application.Attendance;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.Assemblies;
+using Asambleas.Contracts.Realtime;
 using Asambleas.Contracts.Representation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,10 +14,12 @@ using Microsoft.AspNetCore.Mvc;
 public sealed class AttendanceController : ControllerBase
 {
     private readonly AttendanceService _attendance;
+    private readonly AssemblySummonService _summon;
 
-    public AttendanceController(AttendanceService attendance)
+    public AttendanceController(AttendanceService attendance, AssemblySummonService summon)
     {
         _attendance = attendance;
+        _summon = summon;
     }
 
     [HttpGet("participants")]
@@ -162,4 +165,20 @@ public sealed class AttendanceController : ControllerBase
         [FromBody] DeaccreditRequest request,
         CancellationToken cancellationToken) =>
         _attendance.DeaccreditAsync(assemblyId, userId, request, cancellationToken);
+
+    /// <summary>Avisar para unirse — SignalR prompt to an absent participant.</summary>
+    [HttpPost("participants/{userId:guid}/summon")]
+    [Authorize(Policy = Permissions.AssemblyManage)]
+    public Task<JoinSummonResultDto> Summon(
+        Guid assemblyId,
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        _summon.SummonOneAsync(assemblyId, userId, cancellationToken);
+
+    [HttpPost("summon-absent")]
+    [Authorize(Policy = Permissions.AssemblyManage)]
+    public Task<JoinSummonBatchResultDto> SummonAbsent(
+        Guid assemblyId,
+        CancellationToken cancellationToken) =>
+        _summon.SummonAbsentAsync(assemblyId, cancellationToken);
 }
