@@ -15,8 +15,9 @@
   margin-top: 0.65rem;
   padding: 0.65rem 0.75rem;
   border-radius: 0.5rem;
-  background: color-mix(in srgb, #b45309 12%, #fff);
-  border: 1px solid color-mix(in srgb, #b45309 35%, transparent);
+  background: color-mix(in srgb, var(--status-warning) 14%, var(--surface-elevated));
+  color: var(--text-primary);
+  border: 1px solid color-mix(in srgb, var(--status-warning) 40%, transparent);
   font-size: 0.9rem;
 }
 

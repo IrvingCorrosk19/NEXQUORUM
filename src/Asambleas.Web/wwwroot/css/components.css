@@ -704,7 +704,7 @@
   place-items: center;
   padding: var(--space-5);
   background: color-mix(in srgb, var(--connection-banner-bg) 88%, transparent);
-  color: var(--text-on-inverse);
+  color: var(--text-primary);
   text-align: center;
 }
 
@@ -724,12 +724,12 @@
 .connection-lost-card h2 {
   margin: 0 0 var(--space-3);
   font-size: clamp(1.4rem, 3vw, 1.8rem);
-  color: var(--text-on-inverse);
+  color: var(--text-primary);
 }
 
 .connection-lost-card p {
   margin: 0 0 var(--space-2);
-  color: color-mix(in srgb, var(--text-on-inverse) 85%, transparent);
+  color: var(--text-secondary);
 }
 
 .connection-banner-inline {

@@ -205,8 +205,9 @@
 .video-stage .empty-state {
   max-width: 28rem;
   margin: 0 auto;
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--text-primary, #14212b);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   padding: var(--space-4);
 }
@@ -325,7 +326,7 @@
 
 .speaker-queue li.is-speaking {
   border-color: var(--assembly-live, var(--color-teal-500));
-  background: color-mix(in srgb, var(--color-teal-100) 80%, white);
+  background: color-mix(in srgb, var(--brand-teal-100) 70%, var(--surface-elevated));
   box-shadow: inset 3px 0 0 var(--assembly-live, var(--color-teal-700));
 }
 
@@ -529,7 +530,7 @@
   border: 1px solid var(--assembly-live, var(--color-teal-500));
   border-radius: var(--radius-md);
   padding: var(--space-3);
-  background: color-mix(in srgb, var(--color-teal-100) 70%, white);
+  background: color-mix(in srgb, var(--brand-teal-100) 70%, var(--surface-elevated));
   box-shadow: inset 3px 0 0 var(--assembly-live, var(--color-teal-700));
 }
 
@@ -846,7 +847,8 @@
 
 .room[data-mode="live"] .live-chip {
   border-color: var(--color-teal-500);
-  background: color-mix(in srgb, var(--color-teal-100) 70%, white);
+  background: var(--status-success-bg);
+  color: var(--status-success);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-teal-500) 35%, transparent);
   font-weight: 700;
   letter-spacing: 0.02em;

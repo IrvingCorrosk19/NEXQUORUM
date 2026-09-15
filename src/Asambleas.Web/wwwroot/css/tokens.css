@@ -59,6 +59,14 @@
   --choice-abstain: var(--text-muted);
 
   /* Legacy aliases */
+  --text: var(--text-primary);
+  --surface: var(--surface-elevated);
+  --bg: var(--surface-base);
+  --accent: var(--brand-teal-500);
+  --border: var(--border-default);
+  --color-text: var(--text-primary);
+  --color-muted: var(--text-muted);
+  --color-accent: var(--brand-teal-500);
   --color-ink: var(--text-primary);
   --color-ink-soft: #c5d0e0;
   --color-slate: var(--text-secondary);

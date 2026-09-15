@@ -365,8 +365,6 @@ export function createUnitsHub(ctx) {
     const foot = $("#unit-hub-foot");
     const active = (d.owners || []).filter((o) => o.isActive);
     const history = (d.owners || []).filter((o) => !o.isActive);
-    const primary = active[0] || null;
-
     if (modalTab === "info") {
       body.innerHTML = `
         <form id="form-unit-hub" class="unit-hub-form">
@@ -388,10 +386,11 @@ export function createUnitsHub(ctx) {
         : `<button type="button" class="btn btn-secondary" data-close-hub>Cerrar</button>`;
       $("#form-unit-hub")?.addEventListener("submit", onSaveUnit);
     } else if (modalTab === "owner") {
-      if (!primary) {
+      const shareTotal = active.reduce((s, o) => s + Number(o.sharePercent || 0), 0);
+      if (!active.length) {
         body.innerHTML = `
           <div class="unit-owner-empty">
-            <h3>Esta unidad todavía no tiene un propietario asignado</h3>
+            <h3>Esta unidad todavía no tiene propietarios asignados</h3>
             <p class="muted">Puedes crear un propietario nuevo o vincular uno existente del mismo PH.</p>
             <div class="cta-row">
               <button type="button" class="btn btn-primary" data-owner-flow="create">Crear nuevo propietario</button>
@@ -400,24 +399,41 @@ export function createUnitsHub(ctx) {
             <div id="unit-owner-flow" hidden></div>
           </div>`;
       } else {
-        const others = (primary.otherUnitCodesInPh || []).join(", ") || "—";
         body.innerHTML = `
-          <div class="unit-owner-card">
-            <h3>${esc(primary.ownerDisplayName)}</h3>
-            <dl class="unit-dl">
-              <div><dt>Identificación</dt><dd>${esc(primary.ownerIdentification || "—")}</dd></div>
-              <div><dt>Correo</dt><dd>${esc(primary.ownerEmail || "—")}</dd></div>
-              <div><dt>Teléfono</dt><dd>${esc(primary.ownerPhone || "—")}</dd></div>
-              <div><dt>Estado</dt><dd>${esc(primary.ownerStatus || "—")}</dd></div>
-              <div><dt>Vinculación</dt><dd>${esc(fmtDate(primary.effectiveFromUtc))}</dd></div>
-              <div><dt>Otras unidades en este PH</dt><dd>${esc(others)}</dd></div>
-              <div><dt>Participación en la unidad</dt><dd>${fmtCoef(primary.sharePercent)} %</dd></div>
-            </dl>
-            <div class="cta-row">
-              <button type="button" class="btn btn-secondary" data-owner-flow="edit" data-owner-id="${primary.ownerId}">Editar propietario</button>
-              <button type="button" class="btn btn-secondary" data-owner-flow="change" data-ownership-id="${primary.ownershipId}">Cambiar propietario</button>
-              <button type="button" class="btn btn-ghost" data-owner-flow="unlink" data-ownership-id="${primary.ownershipId}">Desvincular</button>
-            </div>
+          <div class="unit-owners-panel">
+            <p class="muted">Titulares activos: <strong>${active.length}</strong> · Participación total: <strong>${fmtCoef(shareTotal)} %</strong></p>
+            <ul class="unit-owner-list">
+              ${active
+                .map((o) => {
+                  const others = (o.otherUnitCodesInPh || []).join(", ") || "—";
+                  return `<li class="unit-owner-card">
+                <h3>${esc(o.ownerDisplayName)}</h3>
+                <dl class="unit-dl">
+                  <div><dt>Identificación</dt><dd>${esc(o.ownerIdentification || "—")}</dd></div>
+                  <div><dt>Correo</dt><dd>${esc(o.ownerEmail || "—")}</dd></div>
+                  <div><dt>Teléfono</dt><dd>${esc(o.ownerPhone || "—")}</dd></div>
+                  <div><dt>Estado</dt><dd>${esc(o.ownerStatus || "—")}</dd></div>
+                  <div><dt>Vinculación</dt><dd>${esc(fmtDate(o.effectiveFromUtc))}</dd></div>
+                  <div><dt>Otras unidades en este PH</dt><dd>${esc(others)}</dd></div>
+                  <div><dt>Participación en la unidad</dt><dd>${fmtCoef(o.sharePercent)} %</dd></div>
+                </dl>
+                <div class="cta-row">
+                  <button type="button" class="btn btn-secondary" data-owner-flow="edit" data-owner-id="${o.ownerId}">Editar</button>
+                  <button type="button" class="btn btn-secondary" data-owner-flow="change" data-ownership-id="${o.ownershipId}">Transferir</button>
+                  <button type="button" class="btn btn-ghost" data-owner-flow="unlink" data-ownership-id="${o.ownershipId}">Desvincular</button>
+                </div>
+              </li>`;
+                })
+                .join("")}
+            </ul>
+            ${
+              canManage()
+                ? `<div class="cta-row" style="margin-top:0.75rem">
+              <button type="button" class="btn btn-primary" data-owner-flow="create">+ Agregar copropietario</button>
+              <button type="button" class="btn btn-secondary" data-owner-flow="link">Vincular existente</button>
+            </div>`
+                : ""
+            }
             <div id="unit-owner-flow" hidden></div>
           </div>`;
       }
