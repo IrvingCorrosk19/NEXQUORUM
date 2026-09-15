@@ -15,11 +15,16 @@ public sealed class AttendanceController : ControllerBase
 {
     private readonly AttendanceService _attendance;
     private readonly AssemblySummonService _summon;
+    private readonly LobbyAdmissionService _lobby;
 
-    public AttendanceController(AttendanceService attendance, AssemblySummonService summon)
+    public AttendanceController(
+        AttendanceService attendance,
+        AssemblySummonService summon,
+        LobbyAdmissionService lobby)
     {
         _attendance = attendance;
         _summon = summon;
+        _lobby = lobby;
     }
 
     [HttpGet("participants")]
@@ -175,10 +180,64 @@ public sealed class AttendanceController : ControllerBase
         CancellationToken cancellationToken) =>
         _summon.SummonOneAsync(assemblyId, userId, cancellationToken);
 
+    [HttpPost("summon-response")]
+    public Task<JoinSummonResultDto> SummonResponse(
+        Guid assemblyId,
+        [FromBody] SummonResponseRequest request,
+        CancellationToken cancellationToken) =>
+        _summon.ReportResponseAsync(assemblyId, request.Status, cancellationToken);
+
     [HttpPost("summon-absent")]
     [Authorize(Policy = Permissions.AssemblyManage)]
     public Task<JoinSummonBatchResultDto> SummonAbsent(
         Guid assemblyId,
         CancellationToken cancellationToken) =>
         _summon.SummonAbsentAsync(assemblyId, cancellationToken);
+
+    [HttpGet("lobby/waiting")]
+    [Authorize(Policy = Permissions.AttendanceManage)]
+    public Task<IReadOnlyList<AssemblyParticipantDto>> Waiting(
+        Guid assemblyId,
+        CancellationToken cancellationToken) =>
+        _lobby.ListWaitingAsync(assemblyId, cancellationToken);
+
+    [HttpPost("lobby/request-entry")]
+    public Task<AssemblyParticipantDto> RequestEntry(
+        Guid assemblyId,
+        CancellationToken cancellationToken) =>
+        _lobby.RequestEntryAsync(assemblyId, cancellationToken);
+
+    [HttpPost("lobby/cancel-entry")]
+    public Task<AssemblyParticipantDto> CancelEntry(
+        Guid assemblyId,
+        CancellationToken cancellationToken) =>
+        _lobby.CancelEntryRequestAsync(assemblyId, cancellationToken);
+
+    [HttpPost("lobby/admit/{userId:guid}")]
+    [Authorize(Policy = Permissions.AttendanceManage)]
+    public Task<AssemblyParticipantDto> Admit(
+        Guid assemblyId,
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        _lobby.AdmitAsync(assemblyId, userId, cancellationToken);
+
+    [HttpPost("lobby/admit-authorized")]
+    [Authorize(Policy = Permissions.AttendanceManage)]
+    public Task<IReadOnlyList<AssemblyParticipantDto>> AdmitAuthorized(
+        Guid assemblyId,
+        CancellationToken cancellationToken) =>
+        _lobby.AdmitAllAuthorizedAsync(assemblyId, cancellationToken);
+
+    [HttpPost("lobby/reject/{userId:guid}")]
+    [Authorize(Policy = Permissions.AttendanceManage)]
+    public Task<AssemblyParticipantDto> Reject(
+        Guid assemblyId,
+        Guid userId,
+        [FromBody] RejectRoomEntryRequest? request,
+        CancellationToken cancellationToken) =>
+        _lobby.RejectAsync(assemblyId, userId, request?.Reason, cancellationToken);
 }
+
+public sealed record RejectRoomEntryRequest(string? Reason);
+
+public sealed record SummonResponseRequest(string Status);

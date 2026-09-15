@@ -402,4 +402,28 @@
   .owner-dl dt {
     margin-top: 0.35rem;
   }
+
+  .owner-unit-card,
+  .owner-grid {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .owner-unit-card h3,
+  .owner-unit-card p,
+  .owner-unit-card__meta,
+  .owner-dl dd {
+    overflow-wrap: anywhere;
+  }
+
+  .owner-unit-card__actions .btn {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-height: var(--touch-min, 2.75rem);
+  }
+}
+
+@media (max-width: 360px) {
+  .owner-unit-card__actions .btn {
+    flex: 1 1 100%;
+  }
 }

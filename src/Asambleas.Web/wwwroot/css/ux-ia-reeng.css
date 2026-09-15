@@ -36,11 +36,31 @@
 }
 
 .filter-popover {
-  border: 1px solid var(--border, #e5e7eb);
+  border: 1px solid var(--border-default, rgba(148, 175, 210, 0.18));
   border-radius: 12px;
   padding: 1rem;
   margin-bottom: 0.75rem;
-  background: var(--surface, #fff);
+  background: var(--surface-elevated, #162033);
+  color: var(--text-primary, #e8eef8);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.filter-popover label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-secondary, #b6c2d6);
+  font-size: 0.85rem;
+}
+
+.filter-popover select,
+.filter-popover .input {
+  min-height: var(--touch-min, 2.75rem);
+  background: var(--surface-secondary, #121a2b);
+  color: var(--text-primary, #e8eef8);
+  border: 1px solid var(--border-default);
+  border-radius: 0.55rem;
+  color-scheme: dark;
 }
 
 .filter-chips {
@@ -48,18 +68,22 @@
   flex-wrap: wrap;
   gap: 0.4rem;
   margin: 0 0 0.75rem;
+  max-width: 100%;
 }
 
 .filter-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.25rem 0.55rem;
+  max-width: 100%;
+  padding: 0.35rem 0.65rem;
+  min-height: 2rem;
   border-radius: 999px;
-  background: #ecfdf5;
-  color: #0f766e;
+  background: color-mix(in srgb, var(--brand-teal-500, #2dd4bf) 16%, var(--surface-elevated));
+  color: var(--brand-teal-300, #5eead4);
   font-size: 0.8rem;
-  border: 1px solid #99f6e4;
+  border: 1px solid color-mix(in srgb, var(--brand-teal-500, #2dd4bf) 45%, transparent);
+  overflow: hidden;
 }
 
 .filter-chip button {
@@ -69,7 +93,9 @@
   color: inherit;
   font-size: 1rem;
   line-height: 1;
-  padding: 0;
+  padding: 0.15rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
 }
 
 .access-filter-row {
@@ -77,12 +103,14 @@
   flex-wrap: wrap;
   gap: 0.4rem;
   margin: 0 0 0.75rem;
+  max-width: 100%;
 }
 
 .access-filter-row .btn {
   font-size: 0.82rem;
-  padding: 0.35rem 0.75rem;
+  padding: 0.45rem 0.85rem;
   border-radius: 999px;
+  min-height: var(--touch-min, 2.75rem);
 }
 
 .access-filter-row .btn.is-active {
@@ -201,5 +229,33 @@
 @media (max-width: 720px) {
   .ux-drawer__panel {
     width: 100%;
+  }
+
+  .owners-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .owners-toolbar #owner-search,
+  .owners-toolbar .btn {
+    width: 100%;
+    min-height: var(--touch-min, 2.75rem);
+  }
+
+  .filter-popover {
+    padding: 0.85rem;
+  }
+
+  .filter-popover label {
+    margin-bottom: 0.65rem;
+  }
+
+  .access-filter-row .btn {
+    flex: 1 1 calc(50% - 0.4rem);
+  }
+
+  .assoc-chip-row,
+  .filter-chips {
+    max-width: 100%;
   }
 }

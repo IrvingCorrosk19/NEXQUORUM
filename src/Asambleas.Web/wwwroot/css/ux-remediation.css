@@ -36,7 +36,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   margin-top: 1rem;
-  padding: 0.85rem 1rem;
+  padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
   border: 1px solid rgba(45, 212, 191, 0.25);
   border-radius: 0.75rem 0.75rem 0 0;
   background: rgba(12, 18, 24, 0.92);
@@ -219,6 +219,15 @@
 
   .ux-sticky-actions .btn {
     flex: 1;
+    min-height: var(--touch-min, 2.75rem);
+  }
+
+  .ux-drawer__foot {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .ux-drawer__foot .btn {
+    min-height: var(--touch-min, 2.75rem);
   }
 }
 
@@ -226,33 +235,26 @@
 .panel--light,
 .surface-light,
 .card-light,
-.choice-card,
 .vote-option,
-.alert-success,
-.alert-warning,
-.alert-info,
-.owner-unit-card,
-.join-summon-dialog,
 .dialog.surface-light {
   color: var(--text-on-inverse, #0b1220);
 }
 .panel--light .muted,
 .surface-light .muted,
-.card-light .muted,
-.choice-card .muted,
-.owner-unit-card .muted {
+.card-light .muted {
   color: color-mix(in srgb, var(--text-on-inverse, #0b1220) 72%, transparent);
 }
 input::placeholder,
-textarea::placeholder {
-  color: var(--text-muted);
-  opacity: 0.9;
+textarea::placeholder,
+select::placeholder {
+  color: var(--text-muted, #9aa8bd);
+  opacity: 1;
 }
 /* White/light cards inside dark pages (voting studio / expediente leftovers) */
 .vs-light-panel,
 .exp-sheet,
 .mobile-vote-sheet,
-[data-theme-surface=""light""] {
+[data-theme-surface="light"] {
   background: var(--surface-inverse, #e8eef8);
   color: var(--text-on-inverse, #0b1220);
   border-color: color-mix(in srgb, var(--text-on-inverse) 18%, transparent);
@@ -264,5 +266,125 @@ textarea::placeholder {
   border-radius: 0.75rem;
   padding: 1.25rem;
   max-width: min(28rem, 92vw);
+  max-height: min(90dvh, 36rem);
+  overflow: auto;
 }
-.join-summon-dialog .muted { color: var(--text-secondary); }
+.join-summon-dialog .muted { color: var(--text-secondary, #b6c2d6); }
+.join-summon-dialog .dialog-actions {
+  position: sticky;
+  bottom: 0;
+  padding-top: 0.75rem;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: inherit;
+}
+.join-summon-dialog .btn {
+  min-height: var(--touch-min, 2.75rem);
+}
+
+/* Global mobile overflow / touch / modal scroll (320–412) */
+@media (max-width: 430px) {
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  .app-shell,
+  .app-workspace,
+  main,
+  .panel,
+  .card {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .dialog,
+  .cal-dialog-panel,
+  .device-settings-dialog,
+  .unit-hub-dialog {
+    max-width: 100%;
+    max-height: min(100dvh, 100%);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dialog-actions,
+  .schedule-sheet__foot,
+  .unit-hub__foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    background: inherit;
+  }
+
+  .btn,
+  .btn-sm,
+  .sidebar-tab,
+  .room-content-tab,
+  .units-filter,
+  .access-filter-row .btn,
+  .meeting-more-item {
+    min-height: var(--touch-min, 2.75rem);
+  }
+
+  .btn-sm {
+    min-width: var(--touch-min, 2.75rem);
+    padding: 0.45rem 0.85rem;
+  }
+}
+
+/* Accreditation desk / participant filters (checkin) */
+@media (max-width: 430px) {
+  .checkin-shell {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .checkin-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .checkin-filters .field,
+  .checkin-filters select,
+  .checkin-search input,
+  .checkin-filters .btn {
+    width: 100%;
+    min-height: var(--touch-min, 2.75rem);
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .accreditation-card,
+  .accreditation-table-wrap,
+  .checkin-summary {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  .accreditation-card .owner-name {
+    overflow-wrap: anywhere;
+  }
+
+  .accreditation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checkin-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .checkin-summary .chip {
+    min-width: 0;
+  }
+
+  .accreditation-table td {
+    overflow-wrap: anywhere;
+  }
+}

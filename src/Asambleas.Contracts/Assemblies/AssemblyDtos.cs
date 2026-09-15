@@ -58,7 +58,11 @@ public sealed record AssemblyParticipantDto(
     DateTimeOffset? AccreditedAtUtc = null,
     int RepresentationCount = 0,
     string? PresenceType = null,
-    Guid? AccreditedByUserId = null);
+    Guid? AccreditedByUserId = null,
+    string RoomEntryStatus = "None",
+    DateTimeOffset? RoomEntryRequestedAtUtc = null,
+    string? RoomEntryRejectReason = null,
+    bool IsHubConnected = false);
 
 public sealed record CheckInRequest(Guid? UnitId, string PresenceType, string? Method = null);
 

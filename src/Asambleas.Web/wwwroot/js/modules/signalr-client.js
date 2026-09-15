@@ -15,7 +15,11 @@ const EVENT_NAMES = [
   "assemblyScheduleChanged",
   "screenShareUpdated",
   "joinSummonRequested",
-  "joinSummonStatusChanged"
+  "joinSummonStatusChanged",
+  "roomEntryChanged",
+  "deviceActivationRequested",
+  "chatMessageAppended",
+  "chatMessageRemoved"
 ];
 
 /** Events whose payload `id` is the assembly id (not a child entity id). */
@@ -41,6 +45,7 @@ export function createAssemblyConnection(handlers = {}) {
 
   let joinedAssemblyId = null;
   let listenersBound = false;
+  let markPresenceOnJoin = true;
 
   const connection = new signalR.HubConnectionBuilder()
     .withUrl("/hubs/assembly")
@@ -68,7 +73,7 @@ export function createAssemblyConnection(handlers = {}) {
       handlers.onConnectionState?.("connected");
       if (joinedAssemblyId) {
         try {
-          await connection.invoke("JoinAssembly", joinedAssemblyId);
+          await connection.invoke("JoinAssembly", joinedAssemblyId, markPresenceOnJoin);
           await handlers.onReconnected?.(joinedAssemblyId);
         } catch (error) {
           handlers.onReconnectError?.(error);
@@ -83,14 +88,15 @@ export function createAssemblyConnection(handlers = {}) {
 
   return {
     connection,
-    async start(assemblyId) {
+    async start(assemblyId, options = {}) {
       joinedAssemblyId = assemblyId;
+      markPresenceOnJoin = options.markPresence !== false;
       bindListenersOnce();
       if (connection.state === signalR.HubConnectionState.Disconnected) {
         await connection.start();
       }
       handlers.onConnectionState?.("connected");
-      await connection.invoke("JoinAssembly", assemblyId);
+      await connection.invoke("JoinAssembly", assemblyId, markPresenceOnJoin);
     },
     async stop(assemblyId) {
       try {

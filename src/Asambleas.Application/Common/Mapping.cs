@@ -49,7 +49,10 @@ internal static class Mapping
             participant.AccreditedAtUtc,
             representationCount,
             participant.PresenceType?.ToString(),
-            participant.AccreditedByUserId);
+            participant.AccreditedByUserId,
+            participant.RoomEntryStatus.ToString(),
+            participant.RoomEntryRequestedAtUtc,
+            participant.RoomEntryRejectReason);
 
     public static QuorumStateDto ToQuorumState(
         Guid assemblyId,

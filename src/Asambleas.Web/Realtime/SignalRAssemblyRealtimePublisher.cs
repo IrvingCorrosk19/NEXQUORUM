@@ -73,6 +73,18 @@ public sealed class SignalRAssemblyRealtimePublisher : IAssemblyRealtimePublishe
     public Task PublishJoinSummonStatusAsync(Guid assemblyId, JoinSummonResultDto status, CancellationToken cancellationToken = default) =>
         SendAsync(assemblyId, RealtimeEventNames.JoinSummonStatusChanged, status, cancellationToken);
 
+    public Task PublishRoomEntryChangedAsync(Guid assemblyId, RoomEntryChangedDto change, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.RoomEntryChanged, change, cancellationToken);
+
+    public Task PublishDeviceActivationRequestedAsync(Guid assemblyId, DeviceActivationRequestDto request, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.DeviceActivationRequested, request, cancellationToken);
+
+    public Task PublishChatMessageAsync(Guid assemblyId, AssemblyChatMessageDto message, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.ChatMessageAppended, message, cancellationToken);
+
+    public Task PublishChatMessageRemovedAsync(Guid assemblyId, Guid messageId, CancellationToken cancellationToken = default) =>
+        SendAsync(assemblyId, RealtimeEventNames.ChatMessageRemoved, new { assemblyId, messageId }, cancellationToken);
+
     private Task SendAsync<T>(Guid assemblyId, string eventName, T payload, CancellationToken cancellationToken) =>
         _hub.Clients.Group(AssemblyHub.GroupName(assemblyId))
             .SendAsync(eventName, payload, cancellationToken);

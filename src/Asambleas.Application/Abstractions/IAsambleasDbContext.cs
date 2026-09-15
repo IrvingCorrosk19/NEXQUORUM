@@ -32,6 +32,8 @@ public interface IAsambleasDbContext
 
     DbSet<AssemblyParticipant> AssemblyParticipants { get; }
 
+    DbSet<AssemblyChatMessage> AssemblyChatMessages { get; }
+
     DbSet<AttendanceRecord> AttendanceRecords { get; }
 
     DbSet<AgendaItem> AgendaItems { get; }

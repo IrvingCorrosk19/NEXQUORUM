@@ -37,6 +37,7 @@ try
 
     builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, AsambleasUserClaimsPrincipalFactory>();
     builder.Services.AddScoped<IAssemblyRealtimePublisher, SignalRAssemblyRealtimePublisher>();
+    builder.Services.AddSingleton<IAssemblyHubPresence, AssemblyHubPresenceTracker>();
 
     builder.Services
         .AddAuthentication(IdentityConstants.ApplicationScheme)
@@ -331,8 +332,8 @@ try
         || app.Configuration.GetValue("ASAMBLEAS_APPLY_MIGRATIONS", false);
     var demoOptions = app.Configuration.GetSection(DemoOptions.SectionName).Get<DemoOptions>()
         ?? new DemoOptions();
-    var seedDemo = demoOptions.Enabled
-        && (app.Environment.IsDevelopment() || app.Configuration.GetValue("Demo:SeedUsers", false));
+    var seedDemo = app.Environment.IsDevelopment()
+        && (demoOptions.Enabled || app.Configuration.GetValue("Demo:SeedUsers", false));
     if (applyMigrations || seedDemo)
     {
         using var scope = app.Services.CreateScope();
@@ -347,7 +348,7 @@ try
         {
             var seeder = scope.ServiceProvider.GetRequiredService<DemoDataSeeder>();
             await seeder.SeedAsync();
-            Log.Information("Demo seed executed");
+            Log.Information("Demo seed executed (Enabled or SeedUsers)");
         }
     }
 

@@ -548,6 +548,20 @@ async function init() {
   wireChrome();
   applyRoute();
   await loadPortalData();
+
+  try {
+    const { ensureJoinSummonPresence } = await import("./join-summon-presence.js");
+    await ensureJoinSummonPresence({
+      user,
+      onJoin: (payload) => {
+        const id = payload?.assemblyId || payload?.AssemblyId;
+        if (id) location.href = `/lobby.html?assemblyId=${encodeURIComponent(id)}`;
+      },
+      onDismiss: () => {}
+    });
+  } catch (err) {
+    console.warn("join-summon presence unavailable", err);
+  }
 }
 
 export async function mount(ctx = {}) {

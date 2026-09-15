@@ -104,13 +104,16 @@
 .mvo__footer {
   display: grid;
   gap: 0.55rem;
-  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0));
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px) + env(keyboard-inset-height, 0px));
   border-top: 1px solid var(--color-border, #d7dde7);
   background: var(--color-surface, #fff);
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
 }
 
 .mvo__footer .btn {
-  min-height: 2.85rem;
+  min-height: var(--touch-min, 2.85rem);
 }
 
 .mvo__footer:not([hidden]) {
@@ -347,4 +350,61 @@ body:has(.room--ocean) .btn-primary {
   background: #2dd4bf;
   border-color: #2dd4bf;
   color: #062521;
+}
+
+@media (max-width: 430px) {
+  .mvo {
+    padding: 0;
+  }
+
+  .mvo.is-compact {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .mvo.is-compact .mvo__sheet,
+  body:has(.room--ocean) .mvo__sheet,
+  body:has(.room--ocean) .mvo.is-compact .mvo__sheet {
+    width: 100%;
+    max-width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    align-self: stretch;
+  }
+
+  .mvo__header,
+  .mvo__body {
+    padding-inline: 0.85rem;
+  }
+
+  .mvo__title {
+    overflow-wrap: anywhere;
+  }
+
+  .mvo__option {
+    grid-template-columns: auto 1fr;
+    min-height: 3.25rem;
+  }
+
+  .mvo__option-icon {
+    display: none;
+  }
+
+  .mvo__option-label,
+  .mvo__option-tag {
+    overflow-wrap: anywhere;
+  }
+
+  .pending-vote-banner {
+    left: 0.4rem;
+    right: 0.4rem;
+    bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+    flex-wrap: wrap;
+  }
+
+  .pending-vote-banner__cta {
+    flex: 1 1 100%;
+    min-height: var(--touch-min, 2.75rem);
+  }
 }

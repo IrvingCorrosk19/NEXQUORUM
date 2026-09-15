@@ -160,10 +160,12 @@
 
   --z-sticky: 200;
   --z-drawer: 1100;
-  --z-toast: 1200;
   --z-banner: 1300;
   --z-dialog: 1400;
   --z-reconnect: 1500;
+  /* Toasts must sit above dialogs / drawers / voting sheet chrome */
+  --z-toast: 13050;
+  --touch-min: 2.75rem; /* 44px */
 
   --bg-atmosphere:
     radial-gradient(1100px 700px at 8% -8%, rgba(45, 212, 191, 0.14), transparent 55%),

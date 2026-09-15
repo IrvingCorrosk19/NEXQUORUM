@@ -67,9 +67,24 @@
 }
 
 .btn:disabled {
-  opacity: 0.55;
+  opacity: 1;
   cursor: not-allowed;
   transform: none;
+  color: var(--text-secondary, #b6c2d6);
+  background: color-mix(in srgb, var(--surface-secondary, #121a2b) 88%, #000);
+  border-color: var(--border-default);
+  box-shadow: none;
+}
+
+.btn-primary:disabled {
+  color: #0b3d38;
+  background: color-mix(in srgb, var(--brand-teal-700, #14b8a6) 45%, #0b1220);
+  border-color: color-mix(in srgb, var(--brand-teal-500) 35%, transparent);
+}
+
+.btn-ghost:disabled {
+  color: var(--text-muted, #9aa8bd);
+  background: transparent;
 }
 
 .btn.is-loading,
@@ -207,17 +222,20 @@
 }
 
 .muted {
-  color: var(--color-slate);
+  color: var(--text-secondary, #b6c2d6);
   font-size: 0.92rem;
 }
 
 .field label {
   font-size: 0.9rem;
-  color: var(--color-slate);
+  color: var(--text-secondary, #b6c2d6);
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea,
+select.input,
+.input {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   padding: 0.75rem 0.9rem;
@@ -226,8 +244,24 @@
   color: var(--text-primary);
 }
 
+.field select,
+select.input,
+select {
+  color-scheme: dark;
+}
+
+.field input::placeholder,
+.field textarea::placeholder,
+.input::placeholder {
+  color: var(--text-muted, #9aa8bd);
+  opacity: 1;
+}
+
 .field input:focus-visible,
-.field select:focus-visible {
+.field select:focus-visible,
+.field textarea:focus-visible,
+.input:focus-visible,
+select:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
   border-color: var(--border-focus);
@@ -321,9 +355,11 @@
   width: calc(100% - 2rem);
   max-height: min(90dvh, 40rem);
   overflow: auto;
-  background: var(--color-surface-elevated);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  background: var(--surface-elevated, var(--color-surface-elevated));
   box-shadow: var(--shadow-soft);
-  color: var(--color-ink);
+  color: var(--text-primary, var(--color-ink));
 }
 
 .dialog::backdrop {

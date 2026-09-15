@@ -25,4 +25,8 @@ public static class RealtimeEventNames
     /// <summary>President/admin asks an absent participant to join the room now.</summary>
     public const string JoinSummonRequested = "joinSummonRequested";
     public const string JoinSummonStatusChanged = "joinSummonStatusChanged";
+    public const string RoomEntryChanged = "roomEntryChanged";
+    public const string DeviceActivationRequested = "deviceActivationRequested";
+    public const string ChatMessageAppended = "chatMessageAppended";
+    public const string ChatMessageRemoved = "chatMessageRemoved";
 }

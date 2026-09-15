@@ -83,6 +83,13 @@ async function maybeBrowserNotify(title, body) {
 /**
  * Mount listener that shows join prompt for the current user only.
  */
+export async function reportSummonResponse(assemblyId, status) {
+  return api(`/api/assemblies/${assemblyId}/attendance/summon-response`, {
+    method: "POST",
+    body: JSON.stringify({ status })
+  });
+}
+
 export function attachJoinSummonListener(handlers) {
   return async (payload) => {
     const uid = String(handlers.getUserId?.() || "").toLowerCase();
@@ -96,11 +103,21 @@ export function attachJoinSummonListener(handlers) {
     const msg =
       payload.message ||
       payload.Message ||
-      "El presidente ha iniciado la asamblea y solicita que te unas";
+      "El presidente ha iniciado la asamblea y solicita que te unas.";
     await maybeBrowserNotify("ASAMBLEAS", msg);
 
     const existing = document.getElementById("join-summon-dialog");
     if (existing) existing.remove();
+
+    const assemblyId = payload.assemblyId || payload.AssemblyId;
+    async function reportResponse(status) {
+      try {
+        if (handlers.reportResponse) await handlers.reportResponse(assemblyId, status);
+        else if (assemblyId) await reportSummonResponse(assemblyId, status);
+      } catch {
+        /* non-blocking */
+      }
+    }
 
     const dialog = document.createElement("dialog");
     dialog.id = "join-summon-dialog";
@@ -117,14 +134,16 @@ export function attachJoinSummonListener(handlers) {
     `;
     document.body.appendChild(dialog);
     dialog.showModal();
-    dialog.querySelector("[data-summon-dismiss]")?.addEventListener("click", () => {
+    dialog.querySelector("[data-summon-dismiss]")?.addEventListener("click", async () => {
       dialog.close();
       dialog.remove();
+      await reportResponse("Dismissed");
       handlers.onDismiss?.(payload);
     });
-    dialog.querySelector("[data-summon-join]")?.addEventListener("click", () => {
+    dialog.querySelector("[data-summon-join]")?.addEventListener("click", async () => {
       dialog.close();
       dialog.remove();
+      await reportResponse("Accepted");
       handlers.onJoin?.(payload);
     });
   };
@@ -141,8 +160,16 @@ export function showSummonToast(result) {
   if (!result) return;
   const status = result.status || result.Status;
   const detail = result.detail || result.Detail || "";
-  if (status === "Notified") showToast(detail || "Aviso enviado.", "success");
+  if (status === "Notified" || status === "EmailSent" || status === "Delivered")
+    showToast(detail || "Aviso enviado.", "success");
   else if (status === "SkippedConnected") showToast(detail || "Ya está conectado.", "info");
   else if (status === "SkippedCooldown") showToast(detail || "Espere antes de avisar de nuevo.", "warn");
+  else if (status === "OfflineNoChannel")
+    showToast(
+      detail ||
+        "El participante no tiene la plataforma abierta y no existe un canal externo configurado.",
+      "warn"
+    );
+  else if (status === "EmailFailed") showToast(detail || "No fue posible enviar el correo.", "error");
   else showToast(detail || "No fue posible avisar.", "error");
 }

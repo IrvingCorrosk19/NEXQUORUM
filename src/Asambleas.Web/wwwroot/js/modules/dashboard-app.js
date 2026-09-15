@@ -202,6 +202,13 @@ async function init() {
 
   paintDashboard(user, assembly, readiness, operator, dash.ok ? dash.data?.counts : null);
 
+  try {
+    const { ensureJoinSummonPresence } = await import("./join-summon-presence.js");
+    await ensureJoinSummonPresence({ user });
+  } catch (err) {
+    console.warn("join-summon presence unavailable", err);
+  }
+
   const params = new URLSearchParams(location.search);
   if (params.get("refresh") === "1") {
     history.replaceState({}, "", `/dashboard.html?assemblyId=${encodeURIComponent(assemblyId)}`);

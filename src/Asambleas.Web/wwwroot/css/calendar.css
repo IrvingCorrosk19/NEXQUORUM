@@ -173,12 +173,90 @@
   gap: 0.75rem;
 }
 .calendar-link-sheet__card h3 { margin: 0; }
+.cal-agenda-mobile {
+  display: none;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
 @media (max-width: 768px) {
   .cal-month, .cal-week { display: none; }
   .calendar-root[data-view="month"] .cal-agenda-mobile,
-  .calendar-root[data-view="week"] .cal-agenda-mobile { display: flex; }
+  .calendar-root[data-view="week"] .cal-agenda-mobile,
+  .calendar-root .cal-agenda-mobile { display: flex; }
   .view-toggle [data-view="month"],
   .view-toggle [data-view="week"] { display: none; }
+
+  .calendar-page,
+  .calendar-root,
+  .calendar-controls,
+  .next-assembly-banner {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .calendar-hero {
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .calendar-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .calendar-controls .btn,
+  .view-toggle .btn,
+  .event-drawer-actions .btn {
+    min-height: var(--touch-min, 2.75rem);
+  }
+
+  .view-toggle {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .view-toggle .btn {
+    flex: 1;
+  }
+
+  .cal-agenda-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem;
+  }
+
+  .cal-agenda-item .time {
+    font-size: 0.9rem;
+  }
+
+  .status-pill {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .event-drawer-panel {
+    width: 100%;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .event-drawer-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface-primary);
+    padding-top: 0.75rem;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .calendar-controls select,
+  .calendar-controls .input {
+    width: 100%;
+    min-height: var(--touch-min, 2.75rem);
+    color: var(--text-primary);
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-default);
+  }
 }
 
 /* Premium scheduling sheet */
@@ -329,14 +407,43 @@
   .cal-dialog { padding: 0; align-items: stretch; }
   .schedule-sheet {
     width: 100%;
-    max-height: 100vh;
+    max-height: 100dvh;
     height: 100%;
     border-radius: 0 !important;
   }
   .schedule-sheet .field-row,
   .seg-control,
   .modality-grid { grid-template-columns: 1fr; }
-  .schedule-sheet__foot { justify-content: stretch; }
-  .schedule-sheet__foot .btn { flex: 1; }
+  .schedule-sheet__body {
+    padding: 0.85rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+  .schedule-sheet__foot {
+    justify-content: stretch;
+    padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  }
+  .schedule-sheet__foot .btn {
+    flex: 1;
+    min-height: var(--touch-min, 2.75rem);
+  }
+  .seg-option span,
+  .modality-card__inner {
+    min-height: var(--touch-min, 2.75rem);
+  }
+  .schedule-sheet .input {
+    min-height: var(--touch-min, 2.75rem);
+  }
+}
+
+@media (max-width: 360px) {
+  .brand-inline {
+    font-size: 1.35rem;
+  }
+  .next-assembly-banner h2 {
+    font-size: 1.15rem;
+    overflow-wrap: anywhere;
+  }
+  .cal-chip {
+    font-size: 0.68rem;
+  }
 }
 

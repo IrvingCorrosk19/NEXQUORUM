@@ -7,18 +7,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=owner-m1" />
-  <link rel="stylesheet" href="/css/base.css?v=owner-m1" />
-  <link rel="stylesheet" href="/css/components.css?v=owner-m1" />
-  <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
-  <link rel="stylesheet" href="/css/loading.css?v=owner-m1" />
-  <link rel="stylesheet" href="/css/assembly-room.css?v=ocean1" />
+  <link rel="stylesheet" href="/css/tokens.css?v=owner-m2" />
+  <link rel="stylesheet" href="/css/base.css?v=owner-m2" />
+  <link rel="stylesheet" href="/css/components.css?v=owner-m2" />
+  <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
+  <link rel="stylesheet" href="/css/loading.css?v=owner-m2" />
+  <link rel="stylesheet" href="/css/assembly-room.css?v=mP1a" />
   <link rel="stylesheet" href="/css/assembly-ocean.css?v=ocean1" />
-  <link rel="stylesheet" href="/css/live-voting.css?v=lv2" />
+  <link rel="stylesheet" href="/css/live-voting.css?v=lv3" />
   <link rel="stylesheet" href="/css/voting-studio.css?v=vs1" />
-  <link rel="stylesheet" href="/css/mobile-voting.css?v=ocean1" />
+  <link rel="stylesheet" href="/css/mobile-voting.css?v=mP1a" />
   <link rel="stylesheet" href="/css/contextual-guide.css?v=cx2" />
-  <link rel="stylesheet" href="/css/ia.css?v=owner-m1" />
+  <link rel="stylesheet" href="/css/ia.css?v=owner-m2" />
+  <link rel="stylesheet" href="/css/ux-remediation.css?v=mP1a" />
+  <link rel="stylesheet" href="/css/summon-status.css?v=mP1a" />
 </head>
 <body>
   <a class="skip-link" href="#main-stage">Saltar al escenario</a>
@@ -110,6 +112,8 @@
             <button type="button" id="btn-resume" class="btn btn-primary">Reanudar</button>
             <button type="button" id="btn-pause" class="btn btn-secondary">Pausar</button>
             <button type="button" id="btn-summon-absent" class="btn btn-secondary" title="Avisar para unirse">Avisar ausentes</button>
+            <button type="button" id="btn-admit-waiting" class="btn btn-secondary" title="Admitir acreditados en espera">Admitir en espera</button>
+            <button type="button" id="btn-request-mute-all" class="btn btn-secondary" title="Solicitar micrófono a todos">Pedir mic a todos</button>
           </div>
           <div class="control-cluster control-cluster-danger operator-only" role="group" aria-label="Acciones críticas">
             <button type="button" id="btn-end" class="btn btn-danger">Finalizar asamblea</button>
@@ -134,6 +138,7 @@
           <button type="button" class="sidebar-tab" role="tab" id="tab-motion" aria-selected="false" aria-controls="panel-motion" data-sidebar-tab="motion">Moción</button>
           <button type="button" class="sidebar-tab" role="tab" id="tab-vote" aria-selected="false" aria-controls="panel-vote" data-sidebar-tab="vote">Votación</button>
           <button type="button" class="sidebar-tab operator-only" role="tab" id="tab-speakers" aria-selected="false" aria-controls="panel-speakers" data-sidebar-tab="speakers">Intervenciones</button>
+          <button type="button" class="sidebar-tab" role="tab" id="tab-chat" aria-selected="false" aria-controls="panel-chat" data-sidebar-tab="chat">Chat</button>
         </div>
         <div class="sidebar-panels">
         <section id="panel-agenda" role="tabpanel" aria-labelledby="tab-agenda" class="is-mobile-active" data-sidebar-panel="agenda">
@@ -166,6 +171,17 @@
         <section id="panel-speakers" class="operator-only" role="tabpanel" aria-labelledby="tab-speakers" data-sidebar-panel="speakers">
           <h2 id="heading-speakers" class="section-title">Intervenciones</h2>
           <div id="speaker-panel"><div class="skeleton" style="height:4rem"></div></div>
+        </section>
+
+        <section id="panel-chat" role="tabpanel" aria-labelledby="tab-chat" data-sidebar-panel="chat">
+          <h2 id="heading-chat" class="section-title">Chat de la asamblea</h2>
+          <p class="muted" style="font-size:0.85rem">Informal. No es voto, poder ni decisión legal.</p>
+          <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
+          <form id="chat-form" class="chat-form" autocomplete="off">
+            <label class="sr-only" for="chat-input">Mensaje</label>
+            <input id="chat-input" class="input" maxlength="1000" placeholder="Escriba un mensaje…" />
+            <button type="submit" class="btn btn-primary btn-sm">Enviar</button>
+          </form>
         </section>
         </div>
       </aside>

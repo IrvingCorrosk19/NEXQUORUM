@@ -45,6 +45,8 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
 
     public DbSet<AssemblyParticipant> AssemblyParticipants => Set<AssemblyParticipant>();
 
+    public DbSet<AssemblyChatMessage> AssemblyChatMessages => Set<AssemblyChatMessage>();
+
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
 
     public DbSet<AgendaItem> AgendaItems => Set<AgendaItem>();

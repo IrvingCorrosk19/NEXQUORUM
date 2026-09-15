@@ -1,6 +1,7 @@
 namespace Asambleas.Web.Hubs;
 
 using System.Security.Claims;
+using Asambleas.Application.Abstractions;
 using Asambleas.Application.Assembly;
 using Asambleas.Application.Attendance;
 using Asambleas.Application.Meeting;
@@ -20,6 +21,7 @@ public sealed class AssemblyHub : Hub
     private readonly AssemblyAccessService _access;
     private readonly MeetingService _meetings;
     private readonly CurrentTenant _currentTenant;
+    private readonly IAssemblyHubPresence _hubPresence;
     private readonly ILogger<AssemblyHub> _logger;
 
     public AssemblyHub(
@@ -27,18 +29,20 @@ public sealed class AssemblyHub : Hub
         AssemblyAccessService access,
         MeetingService meetings,
         CurrentTenant currentTenant,
+        IAssemblyHubPresence hubPresence,
         ILogger<AssemblyHub> logger)
     {
         _attendance = attendance;
         _access = access;
         _meetings = meetings;
         _currentTenant = currentTenant;
+        _hubPresence = hubPresence;
         _logger = logger;
     }
 
     public static string GroupName(Guid assemblyId) => $"{AssemblyGroupPrefix}{assemblyId:D}";
 
-    public async Task JoinAssembly(Guid assemblyId)
+    public async Task JoinAssembly(Guid assemblyId, bool markPresence = true)
     {
         var userId = RequireUserId();
         EnsureTenantContextFromClaims();
@@ -67,6 +71,7 @@ public sealed class AssemblyHub : Hub
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(assemblyId));
         Context.Items[AssemblyItemKey] = assemblyId;
+        _hubPresence.SetConnected(assemblyId, userId, Context.ConnectionId);
 
         // Terminal assemblies: observe-only — never MarkConnected / quorum mutation.
         if (!AssemblyAccessService.AllowsPresenceMutation(status))
@@ -75,6 +80,12 @@ public sealed class AssemblyHub : Hub
                 "SignalR observe-only join for sealed assembly {AssemblyId} status {Status}",
                 assemblyId,
                 status);
+            return;
+        }
+
+        // Lobby/dashboard may join the hub for summons without counting legal presence.
+        if (!markPresence)
+        {
             return;
         }
 
@@ -92,6 +103,7 @@ public sealed class AssemblyHub : Hub
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(assemblyId));
         Context.Items.Remove(AssemblyItemKey);
+        _hubPresence.RemoveConnection(Context.ConnectionId);
 
         if (!TryGetUserId(out var userId))
         {
@@ -128,6 +140,8 @@ public sealed class AssemblyHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        _hubPresence.RemoveConnection(Context.ConnectionId);
+
         if (Context.Items.TryGetValue(AssemblyItemKey, out var value)
             && value is Guid assemblyId
             && TryGetUserId(out var userId))

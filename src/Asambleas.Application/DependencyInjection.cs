@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddMemoryCache();
         services.AddSingleton<IVerifiedJoinProofService, VerifiedJoinProofService>();
+        services.TryAddSingleton<IAssemblyHubPresence, NullAssemblyHubPresence>();
 
         services.AddScoped<AuditService>();
         services.AddScoped<IAuditService>(sp => sp.GetRequiredService<AuditService>());
@@ -46,6 +47,9 @@ public static class DependencyInjection
         services.AddScoped<IAssemblyRepresentationService>(sp => sp.GetRequiredService<AssemblyRepresentationService>());
         services.AddScoped<AttendanceService>();
         services.AddScoped<AssemblySummonService>();
+        services.AddScoped<LobbyAdmissionService>();
+        services.AddScoped<DeviceActivationRequestService>();
+        services.AddScoped<AssemblyChatService>();
         services.AddScoped<QuorumService>();
         services.AddScoped<AgendaService>();
         services.AddScoped<SpeakerService>();

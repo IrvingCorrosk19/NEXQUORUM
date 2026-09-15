@@ -125,5 +125,21 @@ body.is-ph-switching main.app-workspace {
     left: max(var(--space-3), env(safe-area-inset-left, 0px));
     right: max(var(--space-3), env(safe-area-inset-right, 0px));
     max-width: none;
+    z-index: var(--z-toast, 13050);
   }
+}
+
+.toast-region {
+  z-index: var(--z-toast, 13050);
+}
+
+.toast {
+  color: var(--text-primary, #e8eef8);
+  background: var(--surface-elevated, #162033);
+  border-color: var(--border-default);
+}
+
+.toast__message,
+.toast__meta {
+  color: var(--text-secondary, #b6c2d6);
 }

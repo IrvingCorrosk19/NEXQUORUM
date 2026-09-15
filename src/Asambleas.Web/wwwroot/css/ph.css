@@ -671,5 +671,35 @@ button.assoc-chip { font: inherit; }
 }
 @media (max-width: 720px) {
   .assoc-chip-row { max-width: 100%; }
-  .assoc-chip { max-width: 100%; }
+  .assoc-chip {
+    max-width: 100%;
+    min-height: 2rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .unit-owners-panel .unit-owner-card {
+    overflow-wrap: anywhere;
+  }
+  .unit-owner-card .btn,
+  #btn-add-coowner {
+    min-height: var(--touch-min, 2.75rem);
+    width: 100%;
+  }
+  .units-filter {
+    min-height: var(--touch-min, 2.75rem);
+  }
+  .btn-sm {
+    min-height: var(--touch-min, 2.75rem);
+  }
+}
+
+@media (max-width: 360px) {
+  .assoc-chip-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .assoc-chip {
+    max-width: none;
+    justify-content: flex-start;
+  }
 }

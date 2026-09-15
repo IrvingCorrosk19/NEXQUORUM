@@ -1,0 +1,122 @@
+/* Join-summon / presence status badges — text + icon friendly, WCAG AA on dark surfaces */
+
+.summon-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  min-height: 1.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.summon-status__icon {
+  flex: 0 0 auto;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.summon-status--absent {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.16);
+  border-color: rgba(148, 163, 184, 0.42);
+}
+
+.summon-status--notifying {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(251, 191, 36, 0.55);
+}
+
+.summon-status--notifying .summon-status__icon {
+  animation: summon-pulse 1.1s ease-in-out infinite;
+}
+
+.summon-status--notified {
+  color: #99f6e4;
+  background: rgba(45, 212, 191, 0.16);
+  border-color: rgba(45, 212, 191, 0.5);
+}
+
+.summon-status--connected {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(52, 211, 153, 0.5);
+}
+
+.summon-status--lobby {
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.16);
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.summon-status--admitted,
+.summon-status--present {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.summon-status--no-response {
+  color: #fdba74;
+  background: rgba(234, 88, 12, 0.16);
+  border-color: rgba(251, 146, 60, 0.5);
+}
+
+.summon-status--dismissed {
+  color: #e2e8f0;
+  background: rgba(100, 116, 139, 0.2);
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.summon-status--no-channel {
+  color: #fcd34d;
+  background: rgba(202, 138, 4, 0.18);
+  border-color: rgba(250, 204, 21, 0.5);
+}
+
+.summon-status--error {
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+@keyframes summon-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summon-status--notifying .summon-status__icon {
+    animation: none;
+  }
+}
+
+@media (max-width: 412px) {
+  .summon-status {
+    max-width: min(100%, 11rem);
+    font-size: 0.68rem;
+    padding: 0.25rem 0.5rem;
+  }
+}

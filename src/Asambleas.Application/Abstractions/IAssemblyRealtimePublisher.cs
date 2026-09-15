@@ -45,4 +45,12 @@ public interface IAssemblyRealtimePublisher
     Task PublishJoinSummonAsync(Guid assemblyId, JoinSummonDto summon, CancellationToken cancellationToken = default);
 
     Task PublishJoinSummonStatusAsync(Guid assemblyId, JoinSummonResultDto status, CancellationToken cancellationToken = default);
+
+    Task PublishRoomEntryChangedAsync(Guid assemblyId, RoomEntryChangedDto change, CancellationToken cancellationToken = default);
+
+    Task PublishDeviceActivationRequestedAsync(Guid assemblyId, DeviceActivationRequestDto request, CancellationToken cancellationToken = default);
+
+    Task PublishChatMessageAsync(Guid assemblyId, AssemblyChatMessageDto message, CancellationToken cancellationToken = default);
+
+    Task PublishChatMessageRemovedAsync(Guid assemblyId, Guid messageId, CancellationToken cancellationToken = default);
 }

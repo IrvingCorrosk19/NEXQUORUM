@@ -129,7 +129,9 @@ const state = {
   recording: null,
   recordingStartedAt: null,
   screenShare: null,
-  screenShareBusy: false
+  screenShareBusy: false,
+  /** @type {Map<string, { status: string, detail?: string, at: number }>} */
+  summonByUser: new Map()
 };
 
 let durationTimer = null;
@@ -1647,6 +1649,56 @@ function annotateMediaRoleBadges(items) {
   }
 }
 
+function resolvePresenceProjection(p) {
+  const uid = String(p?.userId || "");
+  const overlay = state.summonByUser.get(uid);
+  const st = String(p?.attendanceStatus || "");
+  const entry = String(p?.roomEntryStatus || "");
+  const connected = /Present|CheckedIn/i.test(st);
+
+  if (overlay?.status === "notifying") {
+    return { key: "notifying", label: "Avisando", title: overlay.detail || "Enviando aviso…" };
+  }
+  if (overlay?.status === "Dismissed") {
+    return { key: "dismissed", label: "Rechazó", title: overlay.detail || "Respondió: Ahora no" };
+  }
+  if (overlay?.status === "NoResponse") {
+    return { key: "no-response", label: "No respondió", title: overlay.detail || "Sin respuesta al aviso" };
+  }
+  if (overlay?.status === "OfflineNoChannel") {
+    return { key: "no-channel", label: "Sin canal", title: overlay.detail || "Sin plataforma abierta ni canal externo" };
+  }
+  if (overlay?.status === "EmailFailed" || overlay?.status === "Error") {
+    return { key: "error", label: "Error", title: overlay.detail || "No fue posible avisar" };
+  }
+  if (overlay?.status === "EmailSent" || overlay?.status === "Delivered" || overlay?.status === "Notified") {
+    if (!connected && !/Admitted/i.test(entry) && !/Waiting/i.test(entry)) {
+      return { key: "notified", label: "Avisado", title: overlay.detail || "Aviso enviado" };
+    }
+  }
+  if (connected) {
+    return { key: "present", label: "Presente", title: "Presente en la sala" };
+  }
+  if (/Admitted/i.test(entry)) {
+    return { key: "admitted", label: "Admitido", title: "Admitido a la sala" };
+  }
+  if (/Waiting/i.test(entry)) {
+    return { key: "lobby", label: "En lobby", title: "Esperando admisión" };
+  }
+  if (/TemporarilyDisconnected/i.test(st)) {
+    return { key: "connected", label: "Conectado", title: "Conectado (reconectando)" };
+  }
+  return { key: "absent", label: "Ausente", title: "Ausente / no en sala" };
+}
+
+function renderSummonStatusBadge(p) {
+  const proj = resolvePresenceProjection(p);
+  return `<span class="summon-status summon-status--${proj.key}" title="${escapeHtml(proj.title)}" aria-label="${escapeHtml(proj.title)}">
+    <span class="summon-status__icon" aria-hidden="true"></span>
+    <span class="summon-status__text">${escapeHtml(proj.label)}</span>
+  </span>`;
+}
+
 function renderParticipants() {
   if (!els.participants) return;
   const items = [...state.participants.values()];
@@ -1681,17 +1733,28 @@ function renderParticipants() {
         .join("");
       const st = String(p.attendanceStatus || "");
       const connected = /Present|CheckedIn/i.test(st);
+      const entry = String(p.roomEntryStatus || "");
+      const waiting = /Waiting/i.test(entry);
       const summonBtn =
         state.viewerRole === "Operator" && canSummonParticipants(state.user)
           ? renderSummonActionsHtml({ userId: p.userId, connected })
           : "";
+      const admitBtns =
+        state.viewerRole === "Operator" && waiting
+          ? `<div class="participant-admit-actions">
+              <button type="button" class="btn btn-primary btn-sm" data-admit-user="${p.userId}">Admitir</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-reject-user="${p.userId}">Rechazar</button>
+            </div>`
+          : "";
       return `
-      <article class="participant" aria-label="${escapeHtml(name)}">
+      <article class="participant ${waiting ? "is-waiting-admission" : ""}" aria-label="${escapeHtml(name)}">
         <span class="avatar" aria-hidden="true">${escapeHtml(initials)}</span>
         <div class="participant-meta">
           <strong>${escapeHtml(name)}</strong>
-          <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(p.attendanceStatus || "")} · ${escapeHtml(p.presenceType || "—")}</span>
+          <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(p.attendanceStatus || "")} · ${escapeHtml(p.presenceType || "—")}${waiting ? " · En espera" : ""}</span>
+          ${renderSummonStatusBadge(p)}
           ${summonBtn}
+          ${admitBtns}
         </div>
       </article>`;
     })
@@ -1699,12 +1762,58 @@ function renderParticipants() {
 
   els.participants.querySelectorAll("[data-summon-user]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      await runWithButton(btn, "Avisando…", async () => {
+      if (btn.dataset.busy === "1") return;
+      btn.dataset.busy = "1";
+      const uid = String(btn.dataset.summonUser || "");
+      state.summonByUser.set(uid, { status: "notifying", detail: "Avisando…", at: Date.now() });
+      renderParticipants();
+      try {
+        const r = await summonParticipant(assemblyId, uid);
+        showSummonToast(r);
+        const st = r?.status || r?.Status || "Error";
+        state.summonByUser.set(uid, {
+          status: st,
+          detail: r?.detail || r?.Detail || "",
+          at: Date.now()
+        });
+        renderParticipants();
+      } catch (err) {
+        showToast(err.message || "No fue posible avisar.", "error");
+        state.summonByUser.set(uid, { status: "Error", detail: err.message || "", at: Date.now() });
+        renderParticipants();
+      } finally {
+        btn.dataset.busy = "0";
+      }
+    });
+  });
+  els.participants.querySelectorAll("[data-admit-user]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await runWithButton(btn, "Admitiendo…", async () => {
         try {
-          const r = await summonParticipant(assemblyId, btn.dataset.summonUser);
-          showSummonToast(r);
+          await api(`/api/assemblies/${assemblyId}/attendance/lobby/admit/${btn.dataset.admitUser}`, {
+            method: "POST"
+          });
+          showToast("Participante admitido.", "success");
+          await rehydrate();
         } catch (err) {
-          showToast(err.message || "No fue posible avisar.", "error");
+          showToast(err.message || "No se pudo admitir.", "error");
+        }
+      });
+    });
+  });
+  els.participants.querySelectorAll("[data-reject-user]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const reason = window.prompt("Motivo del rechazo (opcional):") || "";
+      await runWithButton(btn, "Rechazando…", async () => {
+        try {
+          await api(`/api/assemblies/${assemblyId}/attendance/lobby/reject/${btn.dataset.rejectUser}`, {
+            method: "POST",
+            body: JSON.stringify({ reason })
+          });
+          showToast("Entrada rechazada.", "info");
+          await rehydrate();
+        } catch (err) {
+          showToast(err.message || "No se pudo rechazar.", "error");
         }
       });
     });
@@ -2771,6 +2880,57 @@ async function bootstrapMeeting() {
   syncMeetingControlBar();
 }
 
+function appendChatMessage(msg) {
+  const box = qs("#chat-messages");
+  if (!box || !msg) return;
+  const id = msg.id || msg.Id;
+  if (id && box.querySelector(`[data-chat-id="${id}"]`)) return;
+  const kind = msg.kind || msg.Kind || "Participant";
+  const author = msg.authorDisplayName || msg.AuthorDisplayName || "";
+  const body = msg.body || msg.Body || "";
+  const at = msg.createdAtUtc || msg.CreatedAtUtc;
+  const time = at ? new Date(at).toLocaleTimeString() : "";
+  const el = document.createElement("article");
+  el.className = `chat-msg chat-msg--${String(kind).toLowerCase()}`;
+  if (id) el.dataset.chatId = id;
+  el.innerHTML = `<header><strong>${escapeHtml(author)}</strong> <span class="muted">${escapeHtml(time)}</span>${kind === "Announcement" ? ' <span class="badge">Anuncio</span>' : ""}</header><p>${escapeHtml(body)}</p>`;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+}
+
+async function loadChatHistory() {
+  const box = qs("#chat-messages");
+  if (!box) return;
+  try {
+    const rows = await api(`/api/assemblies/${assemblyId}/chat?take=80`);
+    box.innerHTML = "";
+    (Array.isArray(rows) ? rows : []).forEach(appendChatMessage);
+  } catch {
+    /* chat optional */
+  }
+}
+
+function wireChat() {
+  const form = qs("#chat-form");
+  if (!form) return;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = qs("#chat-input");
+    const body = input?.value?.trim() || "";
+    if (!body) return;
+    try {
+      const msg = await api(`/api/assemblies/${assemblyId}/chat`, {
+        method: "POST",
+        body: JSON.stringify({ body })
+      });
+      appendChatMessage(msg);
+      if (input) input.value = "";
+    } catch (err) {
+      showToast(err.message || "No se pudo enviar el mensaje.", "error");
+    }
+  });
+}
+
 function wireOperatorControls() {
   qs("#btn-summon-absent")?.addEventListener("click", async () => {
     const btn = qs("#btn-summon-absent");
@@ -2787,6 +2947,36 @@ function wireOperatorControls() {
         );
       } catch (err) {
         showToast(err.message || "No fue posible avisar a los ausentes.", "error");
+      }
+    });
+  });
+
+  qs("#btn-admit-waiting")?.addEventListener("click", async () => {
+    const btn = qs("#btn-admit-waiting");
+    await runWithButton(btn, "Admitiendo…", async () => {
+      try {
+        const list = await api(`/api/assemblies/${assemblyId}/attendance/lobby/admit-authorized`, {
+          method: "POST"
+        });
+        showToast(`Admitidos: ${Array.isArray(list) ? list.length : 0}`, "success");
+        await rehydrate();
+      } catch (err) {
+        showToast(err.message || "No se pudo admitir.", "error");
+      }
+    });
+  });
+
+  qs("#btn-request-mute-all")?.addEventListener("click", async () => {
+    const btn = qs("#btn-request-mute-all");
+    await runWithButton(btn, "Solicitando…", async () => {
+      try {
+        await api(`/api/assemblies/${assemblyId}/meeting/request-device`, {
+          method: "POST",
+          body: JSON.stringify({ device: "microphone" })
+        });
+        showToast("Se solicitó a los presentes que activen su micrófono.", "info");
+      } catch (err) {
+        showToast(err.message || "No se pudo enviar la solicitud.", "error");
       }
     });
   });
@@ -3275,7 +3465,55 @@ async function init() {
         showToast("Ya está en la sala de la asamblea.", "success");
       },
       onDismiss: () => {}
-    })
+    }),
+    joinSummonStatusChanged: (status) => {
+      const st = status?.status || status?.Status;
+      const detail = status?.detail || status?.Detail || "";
+      const uid = String(status?.targetUserId || status?.TargetUserId || "");
+      if (uid && st) {
+        state.summonByUser.set(uid, { status: st, detail, at: Date.now() });
+        renderParticipants();
+      }
+      if (st === "Dismissed") showToast(detail || "Participante: Ahora no.", "warn");
+      else if (st === "Accepted") showToast(detail || "Participante aceptó unirse.", "success");
+      else if (st === "Notified" || st === "EmailSent" || st === "Delivered")
+        showToast(detail || "Aviso entregado.", "success");
+      else if (st === "OfflineNoChannel") showToast(detail || "Sin canal externo.", "warn");
+      else if (st === "EmailFailed") showToast(detail || "Correo de aviso falló.", "error");
+    },
+    deviceActivationRequested: async (payload) => {
+      const uid = String(state.user?.userId || state.user?.id || "").toLowerCase();
+      const target = String(payload?.targetUserId || payload?.TargetUserId || "").toLowerCase();
+      if (!uid || uid !== target) return;
+      const device = String(payload?.device || payload?.Device || "microphone").toLowerCase();
+      const message =
+        payload?.message ||
+        payload?.Message ||
+        (device === "camera"
+          ? "El presidente solicita que actives tu cámara."
+          : "El presidente solicita que actives tu micrófono.");
+      const ok = await confirmDialog({
+        title: "Solicitud de la mesa",
+        body: message,
+        confirmLabel: device === "camera" ? "Activar cámara" : "Activar micrófono",
+        cancelLabel: "Ahora no"
+      });
+      if (!ok) return;
+      try {
+        if (device === "camera") await setLocalCameraEnabled(true);
+        else await setLocalMicrophoneEnabled(true);
+        showToast("Dispositivo activado.", "success");
+      } catch (err) {
+        showToast(err.message || "No se pudo activar el dispositivo.", "error");
+      }
+    },
+    chatMessageAppended: (msg) => {
+      appendChatMessage(msg);
+    },
+    chatMessageRemoved: (payload) => {
+      const id = payload?.messageId || payload?.MessageId;
+      qs(`#chat-messages [data-chat-id="${id}"]`)?.remove();
+    }
   });
 
   await state.hub.start(assemblyId);
@@ -3295,6 +3533,8 @@ async function init() {
   // Hub joined — refresh once; recordings use short TTL cache (no duplicate network).
   await rehydrate();
   await bootstrapMeeting();
+  wireChat();
+  await loadChatHistory();
 
   durationTimer = window.setInterval(tickDuration, 1000);
   tickDuration();

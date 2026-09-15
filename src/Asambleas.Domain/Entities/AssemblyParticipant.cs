@@ -32,4 +32,11 @@ public class AssemblyParticipant : Entity, ITenantScoped
     public decimal EffectiveCoefficientPercent { get; set; }
 
     public PresenceType? PresenceType { get; set; }
+
+    /// <summary>Lobby admission gate (Teams-like). Independent of accreditation/quorum.</summary>
+    public RoomEntryStatus RoomEntryStatus { get; set; } = RoomEntryStatus.None;
+
+    public DateTimeOffset? RoomEntryRequestedAtUtc { get; set; }
+
+    public string? RoomEntryRejectReason { get; set; }
 }

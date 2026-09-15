@@ -308,8 +308,10 @@ async function setupPreview() {
 
 async function enterAssembly(options = {}) {
   const allowGovernanceOnly = Boolean(options.allowGovernanceOnly);
+  const skipAdmission = Boolean(options.skipAdmission);
   const btn = qs("#btn-enter");
   const stages = qs("#staged-loading");
+  const waitPanel = qs("#admission-wait");
   if (btn) btn.disabled = true;
   if (stages) stages.hidden = false;
 
@@ -332,6 +334,37 @@ async function enterAssembly(options = {}) {
     const self = resolveSelf(room, user);
     if (!self?.isAccredited) {
       throw new Error(t("lobby.needAccreditation"));
+    }
+
+    // Teams-like admission gate (operators auto-admit server-side).
+    if (!skipAdmission) {
+      const { api } = await import("./api.js");
+      const entry = await api(`/api/assemblies/${assemblyId}/attendance/lobby/request-entry`, {
+        method: "POST"
+      });
+      const status = entry?.roomEntryStatus || entry?.RoomEntryStatus || "";
+      if (/Waiting/i.test(status)) {
+        if (stages) stages.hidden = true;
+        if (waitPanel) {
+          waitPanel.hidden = false;
+          waitPanel.querySelector("[data-admission-msg]")?.replaceChildren(
+            document.createTextNode("Esperando que el presidente te admita…")
+          );
+        }
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Esperando admisión…";
+        }
+        showToast({
+          title: "Sala de espera",
+          message: "Tu solicitud fue enviada. Entrarás automáticamente al ser admitido.",
+          variant: "info"
+        });
+        return;
+      }
+      if (/Rejected/i.test(status)) {
+        throw new Error(entry?.roomEntryRejectReason || "Tu ingreso fue rechazado por la mesa.");
+      }
     }
 
     stages?.querySelectorAll("li").forEach((li) => li.removeAttribute("aria-current"));
@@ -566,9 +599,34 @@ async function init() {
             location.href = `/assembly.html?assemblyId=${assemblyId}`;
           });
         }
-      })
+      }),
+      roomEntryChanged: (chg) => {
+        const uid = selfUserId(currentUser);
+        const target = String(chg?.userId || chg?.UserId || "").toLowerCase();
+        if (!uid || target !== uid) return;
+        const status = chg?.roomEntryStatus || chg?.RoomEntryStatus || "";
+        const msg = chg?.message || chg?.Message || "";
+        if (/Admitted/i.test(status)) {
+          showToast({ title: "Admitido", message: msg || "Entrando…", variant: "success" });
+          enterAssembly({ allowGovernanceOnly: true, skipAdmission: true }).catch(() => {
+            location.href = `/assembly.html?assemblyId=${assemblyId}`;
+          });
+        } else if (/Rejected/i.test(status)) {
+          const waitPanel = qs("#admission-wait");
+          if (waitPanel) waitPanel.hidden = true;
+          const btn = qs("#btn-enter");
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = t("lobby.enter");
+          }
+          showError(chg?.rejectReason || chg?.RejectReason || msg || "Ingreso rechazado.");
+        } else if (/Waiting/i.test(status)) {
+          const waitPanel = qs("#admission-wait");
+          if (waitPanel) waitPanel.hidden = false;
+        }
+      }
     });
-    await hub.start(assemblyId);
+    await hub.start(assemblyId, { markPresence: false });
     document.documentElement.dataset.lobbyHub = "connected";
     // Snapshot after join so we never miss a start that raced the connection.
     await refreshLobbySnapshot();
@@ -626,6 +684,22 @@ async function init() {
       showError(error.message);
       qs("#btn-enter").disabled = false;
     });
+  });
+  qs("#btn-cancel-entry")?.addEventListener("click", async () => {
+    try {
+      const { api } = await import("./api.js");
+      await api(`/api/assemblies/${assemblyId}/attendance/lobby/cancel-entry`, { method: "POST" });
+      const waitPanel = qs("#admission-wait");
+      if (waitPanel) waitPanel.hidden = true;
+      const btn = qs("#btn-enter");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = t("lobby.enter");
+      }
+      showToast({ title: "Solicitud cancelada", message: "Puede volver a solicitar ingreso cuando esté listo.", variant: "info" });
+    } catch (err) {
+      showError(err.message || t("networkError"));
+    }
   });
 
   window.addEventListener("beforeunload", () => {

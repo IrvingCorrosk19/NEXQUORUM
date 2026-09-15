@@ -46,6 +46,8 @@ internal sealed class AssemblyParticipantConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.AttendanceStatus).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.EffectiveCoefficientPercent).HasPrecision(7, 4);
         builder.Property(x => x.PresenceType).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.RoomEntryStatus).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.RoomEntryRejectReason).HasMaxLength(500);
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.AssemblyId);
         builder.HasIndex(x => x.UserId);
@@ -118,5 +120,21 @@ internal sealed class MotionConfiguration : IEntityTypeConfiguration<Motion>
         builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<AgendaItem>().WithMany().HasForeignKey(x => x.AgendaItemId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Motion>().WithMany().HasForeignKey(x => x.PreviousMotionId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class AssemblyChatMessageConfiguration : IEntityTypeConfiguration<AssemblyChatMessage>
+{
+    public void Configure(EntityTypeBuilder<AssemblyChatMessage> builder)
+    {
+        builder.ToTable("assembly_chat_messages");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.AuthorDisplayName).HasMaxLength(256).IsRequired();
+        builder.Property(x => x.Kind).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.Body).HasMaxLength(1000).IsRequired();
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.AssemblyId);
+        builder.HasIndex(x => new { x.AssemblyId, x.CreatedAtUtc });
+        builder.HasOne<AssemblyEntity>().WithMany().HasForeignKey(x => x.AssemblyId).OnDelete(DeleteBehavior.Cascade);
     }
 }
