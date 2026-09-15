@@ -92,13 +92,29 @@ public sealed class QuorumService
 
         if (latest is not null)
         {
-            var eligibleUnits = latest.EligibleUnits > 0
-                ? latest.EligibleUnits
-                : await _db.Units
-                    .AsNoTracking()
-                    .CountAsync(
-                        u => u.TenantId == assembly.TenantId && u.PropertyHorizontalId == assembly.PropertyHorizontalId,
-                        cancellationToken);
+            // Always recompute padón totals for live reads — snapshot rows do not store EligibleCoefficientTotal
+            // or configuration validity; omitting them made clients see 0 / silent invalid padrones.
+            var eligibleCoeffs = await _db.Units
+                .AsNoTracking()
+                .Where(u => u.TenantId == assembly.TenantId
+                            && u.PropertyHorizontalId == assembly.PropertyHorizontalId
+                            && u.IsActive)
+                .Select(u => u.CoefficientPercent)
+                .ToListAsync(cancellationToken);
+            var eligibleTotal = Math.Round(eligibleCoeffs.Sum(), 4, MidpointRounding.AwayFromZero);
+            var eligibleUnits = eligibleCoeffs.Count > 0
+                ? eligibleCoeffs.Count
+                : (latest.EligibleUnits > 0
+                    ? latest.EligibleUnits
+                    : await _db.Units
+                        .AsNoTracking()
+                        .CountAsync(
+                            u => u.TenantId == assembly.TenantId
+                                 && u.PropertyHorizontalId == assembly.PropertyHorizontalId,
+                            cancellationToken));
+            var (invalid, message) = DiagnoseCoefficientConfiguration(
+                eligibleTotal,
+                assembly.RequiredQuorumPercent);
 
             var missing = latest.Status == QuorumStatus.Reached
                 ? 0m
@@ -113,7 +129,10 @@ public sealed class QuorumService
                 latest.PresentUnits,
                 eligibleUnits,
                 latest.TimestampUtc,
-                missing);
+                missing,
+                EligibleCoefficientTotal: eligibleTotal,
+                CoefficientConfigurationInvalid: invalid,
+                CoefficientConfigurationMessage: message);
         }
 
         return await CalculateReadOnlyAsync(assembly, cancellationToken);

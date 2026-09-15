@@ -655,6 +655,20 @@ button.assoc-chip {
 }
 button.assoc-chip { font: inherit; }
 .is-inactive-row { opacity: 0.72; }
+.unit-owner-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+.unit-owners-panel .unit-owner-card {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-default);
+  border-radius: 0.75rem;
+  background: var(--surface-elevated);
+}
 @media (max-width: 720px) {
   .assoc-chip-row { max-width: 100%; }
   .assoc-chip { max-width: 100%; }

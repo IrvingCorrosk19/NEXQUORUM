@@ -523,6 +523,11 @@ public sealed class PhOnboardingService
         // Omit/null must NOT silently deactivate — default keep current; explicit false allowed.
         if (request.IsActive.HasValue)
         {
+            if (unit.IsActive && request.IsActive.Value == false)
+            {
+                await EndActiveOwnershipsForUnitCoreAsync(propertyHorizontalId, unit.Id, cancellationToken);
+            }
+
             unit.IsActive = request.IsActive.Value;
         }
 
@@ -545,6 +550,11 @@ public sealed class PhOnboardingService
         await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
 
         var unit = await LoadUnitInPhAsync(propertyHorizontalId, unitId, cancellationToken);
+        if (unit.IsActive && !isActive)
+        {
+            await EndActiveOwnershipsForUnitCoreAsync(propertyHorizontalId, unit.Id, cancellationToken);
+        }
+
         unit.IsActive = isActive;
         await _db.SaveChangesAsync(cancellationToken);
         await _audit.WriteAsync(
@@ -1382,6 +1392,39 @@ public sealed class PhOnboardingService
             AuditEventType.OwnershipEnded,
             correlationId: ownership.Id,
             metadata: new { propertyHorizontalId, ownership.UnitId, ownership.OwnerId },
+            cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Ends active ownerships for a unit being deactivated so padón/readiness never
+    /// keeps "active ownership → inactive unit" blockers.
+    /// </summary>
+    private async Task EndActiveOwnershipsForUnitCoreAsync(
+        Guid propertyHorizontalId,
+        Guid unitId,
+        CancellationToken cancellationToken)
+    {
+        await EnsureNoLiveAssemblyForUnitMutationAsync(propertyHorizontalId, unitId, cancellationToken);
+
+        var active = await _db.Ownerships
+            .Where(o => o.UnitId == unitId && o.IsActive)
+            .ToListAsync(cancellationToken);
+        if (active.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var ownership in active)
+        {
+            ownership.IsActive = false;
+            ownership.EffectiveToUtc = now;
+        }
+
+        await _audit.WriteAsync(
+            AuditEventType.OwnershipEnded,
+            correlationId: unitId,
+            metadata: new { propertyHorizontalId, unitId, endedCount = active.Count, reason = "unit_deactivated" },
             cancellationToken: cancellationToken);
     }
 
