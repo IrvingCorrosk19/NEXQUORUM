@@ -77,8 +77,15 @@ public static class DependencyInjection
         var keysPath = Environment.GetEnvironmentVariable("ASAMBLEAS_DP_KEYS_PATH")
                        ?? "/root/.aspnet/DataProtection-Keys";
         Directory.CreateDirectory(keysPath);
-        services.AddDataProtection()
+        var dp = services.AddDataProtection()
             .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+        // Optional: match a ring imported from another host (e.g. VPS ContentRootPath=/app).
+        var dpAppName = Environment.GetEnvironmentVariable("ASAMBLEAS_DP_APPLICATION_NAME");
+        if (!string.IsNullOrWhiteSpace(dpAppName))
+        {
+            dp.SetApplicationName(dpAppName);
+        }
+
         services.AddScoped<ISecretProtector, DataProtectionSecretProtector>();
         services.AddSingleton<ICommunicationEnvironment, HostCommunicationEnvironment>();
         services.AddScoped<MockEmailProvider>();

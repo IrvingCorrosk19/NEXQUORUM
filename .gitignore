@@ -56,3 +56,7 @@ asambleas-recordings/
 # Publish
 publish/
 artifacts/
+
+# Local VPS import artifacts (DB backups, DataProtection keys)
+.local/
+

@@ -8,7 +8,9 @@
       "applicationUrl": "https://localhost:7188;http://localhost:5188",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASAMBLEAS_PUBLIC_BASE_URL": "https://localhost:7188"
+        "ASAMBLEAS_PUBLIC_BASE_URL": "https://localhost:7188",
+        "ASAMBLEAS_DP_KEYS_PATH": "C:\\Proyectos\\NEXQUORUM\\.local\\dp-keys",
+        "ASAMBLEAS_DP_APPLICATION_NAME": "/app/"
       }
     }
   }
