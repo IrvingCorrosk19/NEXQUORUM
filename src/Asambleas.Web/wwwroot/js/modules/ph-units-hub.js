@@ -30,8 +30,8 @@ export function createUnitsHub(ctx) {
 
   function fmtCoef(n) {
     const v = Number(n);
-    if (!Number.isFinite(v)) return "0.000000";
-    return v.toFixed(6);
+    if (!Number.isFinite(v)) return "0";
+    return String(Math.round(v));
   }
 
   function canManage() {
@@ -358,7 +358,7 @@ export function createUnitsHub(ctx) {
           <label>Torre <input name="tower" maxlength="64" /></label>
           <label>Piso <input name="floor" type="number" /></label>
           <label>Tipo <input name="unitType" maxlength="64" /></label>
-          <label>Coeficiente % <input name="coefficientPercent" type="number" step="0.0001" min="0" max="100" required /></label>
+          <label>Coeficiente % <input name="coefficientPercent" type="number" step="1" min="0" max="100" required /></label>
           <label class="check"><input type="checkbox" name="isActive" checked /> Unidad activa</label>
         </div>
         <p id="unit-hub-inline-error" class="field-error" hidden role="alert"></p>
@@ -386,7 +386,7 @@ export function createUnitsHub(ctx) {
             <label>Torre <input name="tower" value="${esc(d.tower || "")}" ${canManage() ? "" : "readonly"} /></label>
             <label>Piso <input name="floor" type="number" value="${d.floor ?? ""}" ${canManage() ? "" : "readonly"} /></label>
             <label>Tipo <input name="unitType" value="${esc(d.unitType || "")}" ${canManage() ? "" : "readonly"} /></label>
-            <label>Coeficiente % <input name="coefficientPercent" type="number" step="0.0001" min="0" max="100" required value="${Number(d.coefficientPercent)}" ${canManage() ? "" : "readonly"} /></label>
+            <label>Coeficiente % <input name="coefficientPercent" type="number" step="1" min="0" max="100" required value="${Math.round(Number(d.coefficientPercent))}" ${canManage() ? "" : "readonly"} /></label>
             <label class="check"><input type="checkbox" name="isActive" ${d.isActive ? "checked" : ""} ${canManage() ? "" : "disabled"} /> Unidad activa</label>
           </div>
           <p class="muted unit-hub-meta">Creada: ${esc(fmtDate(d.createdAtUtc))} · Actualizada: ${esc(fmtDate(d.updatedAtUtc))}</p>
@@ -602,7 +602,7 @@ export function createUnitsHub(ctx) {
             <label>Identificación <input name="identification" /></label>
             <label>Correo <input name="email" type="email" required /></label>
             <label>Teléfono <input name="phone" /></label>
-            <label>% titularidad <input name="sharePercent" type="number" step="0.0001" min="0.0001" max="100" value="100" /></label>
+            <label>% titularidad <input name="sharePercent" type="number" step="1" min="1" max="100" value="100" /></label>
           </div>
           <p id="create-owner-err" class="field-error" hidden></p>
           <div class="cta-row"><button type="submit" class="btn btn-primary">Crear y vincular</button></div>
@@ -649,7 +649,7 @@ export function createUnitsHub(ctx) {
               ${(owners || []).map((o) => `<option value="${o.id}" data-hay="${esc((o.displayName||'')+' '+(o.identification||'')+' '+(o.email||'')+' '+(o.phone||'')).toLowerCase()}">${esc(o.displayName || o.email)} · ${esc(o.identification || "sin ID")}</option>`).join("")}
             </select>
           </label>
-          <label>% titularidad <input name="sharePercent" type="number" step="0.0001" value="100" min="0.0001" max="100" /></label>
+          <label>% titularidad <input name="sharePercent" type="number" step="1" value="100" min="1" max="100" /></label>
           <label>Fecha efectiva <input name="effectiveFrom" type="date" required /></label>
           <div class="cta-row"><button type="submit" class="btn btn-primary">Vincular</button></div>
         </form>`;

@@ -7,7 +7,7 @@ import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton } from "./loading.js";
 import { startHybridShell } from "./hybrid-router.js";
-import { createUnitsHub } from "./ph-units-hub.js?v=unit-code-auto1";
+import { createUnitsHub } from "./ph-units-hub.js?v=coef-int1";
 
 const STEP_LABELS = [
   "Información",
@@ -1323,15 +1323,15 @@ async function showUnit(unitId) {
   el.hidden = false;
   const total = Number(detail.activeShareTotalPercent || 0);
   const statusLabel = detail.ownershipComplete
-    ? `✓ Titularidad completa (${total.toFixed(2)}%)`
+    ? `✓ Titularidad completa (${Math.round(total)}%)`
     : total > 100.0001
-      ? `⚠ Titularidad ${total.toFixed(2)}% — excede 100%`
-      : `⚠ Titularidad ${total.toFixed(2)}% — falta ${Number(detail.missingSharePercent || 0).toFixed(2)}%`;
+      ? `⚠ Titularidad ${Math.round(total)}% — excede 100%`
+      : `⚠ Titularidad ${Math.round(total)}% — falta ${Math.round(Number(detail.missingSharePercent || 0))}%`;
   const active = (detail.owners || []).filter((o) => o.isActive);
   const history = (detail.owners || []).filter((o) => !o.isActive);
   el.innerHTML = `
     <h3>Unidad ${escapeHtml(detail.unitCode)}</h3>
-    <p class="muted">Torre ${escapeHtml(detail.tower || "—")} · Piso ${detail.floor ?? "—"} · Coeficiente ${Number(detail.coefficientPercent).toFixed(4)}% · ${detail.isActive ? "Activa" : "Inactiva"}</p>
+    <p class="muted">Torre ${escapeHtml(detail.tower || "—")} · Piso ${detail.floor ?? "—"} · Coeficiente ${Math.round(Number(detail.coefficientPercent))}% · ${detail.isActive ? "Activa" : "Inactiva"}</p>
     <p><strong>${statusLabel}</strong></p>
     <h4>Propietarios activos</h4>
     <ul>${active.length
@@ -1340,7 +1340,7 @@ async function showUnit(unitId) {
             (o) => `<li class="unit-owner-row">
               <strong>${escapeHtml(o.ownerDisplayName)}</strong>
               <label class="unit-share-edit">Participación %
-                <input type="number" min="0.0001" max="100" step="0.0001" value="${Number(o.sharePercent).toFixed(4)}" data-share-input="${o.ownershipId}" />
+                <input type="number" min="1" max="100" step="1" value="${Math.round(Number(o.sharePercent))}" data-share-input="${o.ownershipId}" />
               </label>
               <button type="button" class="btn btn-ghost" data-save-share="${o.ownershipId}">Guardar %</button>
               <span class="muted">${formatDate(o.effectiveFromUtc)} → actual</span>
@@ -1357,7 +1357,7 @@ async function showUnit(unitId) {
     <ul>${history.length
       ? history
           .map(
-            (o) => `<li class="muted">${escapeHtml(o.ownerDisplayName)} · ${Number(o.sharePercent).toFixed(2)}% · ${formatDate(o.effectiveFromUtc)} → ${formatDate(o.effectiveToUtc)}</li>`
+            (o) => `<li class="muted">${escapeHtml(o.ownerDisplayName)} · ${Math.round(Number(o.sharePercent))}% · ${formatDate(o.effectiveFromUtc)} → ${formatDate(o.effectiveToUtc)}</li>`
           )
           .join("")
       : "<li class='muted'>Sin cambios previos</li>"}</ul>`;
@@ -1584,7 +1584,7 @@ async function loadOwners({ soft = false } = {}) {
         <div class="muted" style="font-size:0.8rem;margin-top:0.15rem">${codes.length} unidad${codes.length === 1 ? "" : "es"} asociada${codes.length === 1 ? "" : "s"}</div>
       </td>
       <td><div class="assoc-chip-row">${chips}</div></td>
-      <td>${Number(o.coefficientPercent).toFixed(2)}%</td>
+      <td>${Math.round(Number(o.coefficientPercent))}%</td>
       <td><span class="badge badge-access">${escapeHtml(platformAccessLabel(access))}</span></td>
       <td class="owners-actions">
         <div class="ux-row-actions">
@@ -1778,11 +1778,11 @@ async function syncOwnerShareForSelectedUnit() {
   try {
     const detail = await api(`/api/ph/${currentPhId}/units/${unitId}/ownerships`);
     const used = Number(detail.activeShareTotalPercent || 0);
-    const remaining = Math.max(0, Number((100 - used).toFixed(4)));
+    const remaining = Math.max(0, Math.round(100 - used));
     const activeCount = (detail.owners || []).filter((o) => o.isActive).length;
 
     if (remaining <= 0) {
-      const equal = Number((100 / (activeCount + 1)).toFixed(4));
+      const equal = Math.round(100 / (activeCount + 1));
       shareInput.max = "100";
       shareInput.value = String(equal);
       if (hint) {
@@ -1799,7 +1799,7 @@ async function syncOwnerShareForSelectedUnit() {
       hint.hidden = false;
       hint.textContent =
         used > 0
-          ? `Copropiedad: ya hay ${used.toFixed(2)}% asignado. Quedan ${remaining.toFixed(2)}% para este propietario.`
+          ? `Copropiedad: ya hay ${Math.round(used)}% asignado. Quedan ${remaining}% para este propietario.`
           : "Primer titular: se sugiere 100%. Si habrá copropietarios, deja espacio (ej. 50%) o agrégalos después (se redistribuye solo).";
     }
   } catch (err) {
@@ -2011,7 +2011,7 @@ async function showOwner(ownerId) {
     <ul style="margin:0;padding-left:1.1rem">${(o.units || [])
       .map(
         (u) =>
-          `<li>${escapeHtml(u.unitCode)} · ${Number(u.unitCoefficientPercent).toFixed(2)}% · participación ${Number(u.sharePercent).toFixed(0)}%
+          `<li>${escapeHtml(u.unitCode)} · ${Math.round(Number(u.unitCoefficientPercent))}% · participación ${Math.round(Number(u.sharePercent))}%
           ${u.isActive ? `<button type="button" class="btn btn-ghost" data-end-own="${u.ownershipId}">Finalizar</button>` : " · histórico"}</li>`
       )
       .join("") || "<li>Sin unidades</li>"}</ul>
@@ -2310,8 +2310,8 @@ async function loadCoefficients({ soft = false } = {}) {
     : await api(path);
   markPhTabFresh("coefficients");
   $("#coeff-panel").innerHTML = `
-    <p><strong>${Number(c.totalPercent).toFixed(4)}%</strong> / ${Number(c.expectedPercent).toFixed(4)}%</p>
-    <p>${c.isComplete ? "✓ Coeficientes completos" : `⚠ Delta: ${Number(c.deltaPercent).toFixed(4)}%`}</p>
+    <p><strong>${Math.round(Number(c.totalPercent))}%</strong> / ${Math.round(Number(c.expectedPercent))}%</p>
+    <p>${c.isComplete ? "✓ Coeficientes completos" : `⚠ Delta: ${Math.round(Number(c.deltaPercent))}%`}</p>
     <p>${escapeHtml(c.message)}</p>
     <p>${c.activeUnitCount} unidades activas</p>`;
 }
@@ -2332,7 +2332,7 @@ async function loadReadiness({ soft = false } = {}) {
     <div class="row"><span>Información general</span><span>${r.generalInfoComplete ? "✓" : "○"}</span></div>
     <div class="row"><span>Unidades</span><span>${r.unitsComplete ? "✓" : "○"} ${r.unitCount}</span></div>
     <div class="row"><span>Propietarios</span><span>${r.ownersComplete ? "✓" : "○"} ${r.ownerCount}</span></div>
-    <div class="row"><span>Coeficientes</span><span>${r.coefficients?.isComplete ? "✓" : "○"} ${Number(r.coefficients?.totalPercent || 0).toFixed(4)}%</span></div>
+    <div class="row"><span>Coeficientes</span><span>${r.coefficients?.isComplete ? "✓" : "○"} ${Math.round(Number(r.coefficients?.totalPercent || 0))}%</span></div>
     <div class="row"><span>Usuarios invitados</span><span>${r.invitedUserCount}</span></div>
     <div class="row"><span>Configuración asamblea</span><span>${r.assemblyConfigComplete ? "✓" : "○"}</span></div>
     ${(r.blockingIssues || []).map((i) => `<p class="lede">${escapeHtml(i)}</p>`).join("")}`;

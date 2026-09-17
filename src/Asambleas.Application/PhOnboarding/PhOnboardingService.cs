@@ -2049,8 +2049,8 @@ public sealed class PhOnboardingService
             : isComplete
                 ? "Los coeficientes suman 100%."
                 : delta > 0
-                    ? $"Faltante: {delta.ToString("0.####", CultureInfo.InvariantCulture)}% para llegar a 100%."
-                    : $"Excede 100% en {Math.Abs(delta).ToString("0.####", CultureInfo.InvariantCulture)}%.";
+                    ? $"Faltante: {Math.Round(delta, MidpointRounding.AwayFromZero)}% para llegar a 100%."
+                    : $"Excede 100% en {Math.Round(Math.Abs(delta), MidpointRounding.AwayFromZero)}%.";
 
         return new CoefficientValidationDto(
             propertyHorizontalId, total, CoefficientValidator.ExpectedTotal, delta, isComplete, activeCoefficients.Count, message);
