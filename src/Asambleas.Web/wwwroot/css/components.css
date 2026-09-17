@@ -942,6 +942,11 @@ select:focus-visible {
   margin: 0 0 1.25rem;
 }
 
+.oauth-providers[hidden],
+.btn-oauth[hidden] {
+  display: none !important;
+}
+
 .btn-oauth {
   display: inline-flex;
   align-items: center;
@@ -958,6 +963,12 @@ select:focus-visible {
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.btn-lg {
+  min-height: 3.25rem;
+  font-size: 1.1rem;
+  padding: 0.95rem 1.25rem;
 }
 
 .btn-oauth:hover:not(:disabled) {

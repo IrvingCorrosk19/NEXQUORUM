@@ -2,6 +2,7 @@ namespace Asambleas.Web.Controllers;
 
 using System.Security.Claims;
 using Asambleas.Application.Abstractions;
+using Asambleas.Application.Communications;
 using Asambleas.Application.Security;
 using Asambleas.Infrastructure.Identity;
 using Asambleas.Web.Middleware;
@@ -17,17 +18,20 @@ public sealed class ExternalAuthController : ControllerBase
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly ExternalAuthService _externalAuth;
+    private readonly AssemblyAccessLinkService _accessLinks;
     private readonly IConfiguration _configuration;
     private readonly IVerifiedJoinProofService _joinProofs;
 
     public ExternalAuthController(
         SignInManager<ApplicationUser> signInManager,
         ExternalAuthService externalAuth,
+        AssemblyAccessLinkService accessLinks,
         IConfiguration configuration,
         IVerifiedJoinProofService joinProofs)
     {
         _signInManager = signInManager;
         _externalAuth = externalAuth;
+        _accessLinks = accessLinks;
         _configuration = configuration;
         _joinProofs = joinProofs;
     }
@@ -134,8 +138,15 @@ public sealed class ExternalAuthController : ControllerBase
         }
 
         var returnUrl = SafeReturnUrl.Normalize(rawReturn) ?? "/";
+        returnUrl = AssemblyAccessLinkService.PreferParticipantRoomOverLobby(returnUrl);
         if (returnUrl is "/" or "/index.html")
         {
+            var live = await _accessLinks.TryResolveOwnerLiveRedirectAsync(outcome.User.Id, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(live))
+            {
+                return LocalRedirect(live);
+            }
+
             return LocalRedirect("/?oauth=ok");
         }
 
@@ -166,12 +177,18 @@ public sealed class ExternalAuthController : ControllerBase
         return Ok(new { unlinked = true, provider = ExternalAuthService.NormalizeProvider(provider) });
     }
 
-    private bool IsProviderConfigured(string provider) =>
-        provider == ExternalAuthService.Google
-            ? !string.IsNullOrWhiteSpace(_configuration["Authentication:Google:ClientId"])
-              && !string.IsNullOrWhiteSpace(_configuration["Authentication:Google:ClientSecret"])
-            : !string.IsNullOrWhiteSpace(_configuration["Authentication:Microsoft:ClientId"])
-              && !string.IsNullOrWhiteSpace(_configuration["Authentication:Microsoft:ClientSecret"]);
+    private bool IsProviderConfigured(string provider)
+    {
+        static bool IsRealSecret(string? value) =>
+            !string.IsNullOrWhiteSpace(value)
+            && !string.Equals(value, "unconfigured", StringComparison.OrdinalIgnoreCase);
+
+        return provider == ExternalAuthService.Google
+            ? IsRealSecret(_configuration["Authentication:Google:ClientId"])
+              && IsRealSecret(_configuration["Authentication:Google:ClientSecret"])
+            : IsRealSecret(_configuration["Authentication:Microsoft:ClientId"])
+              && IsRealSecret(_configuration["Authentication:Microsoft:ClientSecret"]);
+    }
 
     private string LoginError(string code, string? detail = null)
     {

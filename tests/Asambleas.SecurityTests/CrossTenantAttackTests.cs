@@ -28,7 +28,19 @@ public sealed class CrossTenantAttackTests
     }
 
     [Fact]
-    public async Task Ocean_user_cannot_check_in_to_other_tenant_assembly()
+    public async Task Ocean_user_cannot_mark_presence_on_other_tenant_assembly()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var attacker = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
+        var response = await attacker.PostAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOtherId}/attendance/presence");
+
+        AssertDeniedWithoutLeak(response, await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Retired_check_in_endpoint_returns_gone_without_tenant_leak()
     {
         await _fixture.ResetDatabaseAsync();
 
@@ -37,7 +49,11 @@ public sealed class CrossTenantAttackTests
             $"/api/assemblies/{DemoSeedConstants.AssemblyOtherId}/attendance/check-in",
             new Contracts.Assemblies.CheckInRequest(DemoSeedConstants.UnitOtherId, "Virtual"));
 
-        AssertDeniedWithoutLeak(response, await response.Content.ReadAsStringAsync());
+        response.StatusCode.Should().Be(HttpStatusCode.Gone);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().NotContain("PH OTHER ISOLATION");
+        body.Should().NotContain(DemoSeedConstants.TenantOtherId.ToString("D"));
+        body.Should().NotContain(DemoSeedConstants.PhOtherId.ToString("D"));
     }
 
     [Fact]
@@ -57,7 +73,8 @@ public sealed class CrossTenantAttackTests
         response.StatusCode.Should().BeOneOf(
             HttpStatusCode.Forbidden,
             HttpStatusCode.NotFound,
-            HttpStatusCode.BadRequest);
+            HttpStatusCode.BadRequest,
+            HttpStatusCode.Unauthorized);
 
         body.Should().NotContain("PH OTHER ISOLATION");
         body.Should().NotContain(DemoSeedConstants.TenantOtherId.ToString("D"));

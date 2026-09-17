@@ -4,6 +4,11 @@
   box-sizing: border-box;
 }
 
+/* Ensure [hidden] wins over utility display: rules (oauth buttons, panels). */
+[hidden] {
+  display: none !important;
+}
+
 html {
   color-scheme: dark;
   -webkit-text-size-adjust: 100%;

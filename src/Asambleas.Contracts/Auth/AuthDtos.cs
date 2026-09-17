@@ -38,3 +38,20 @@ public sealed record PasswordResetPreviewDto(
     string? ErrorMessage);
 
 public sealed record CompletePasswordResetRequest(string Token, string Password);
+
+public sealed record EmailOtpRequestDto(string Email, string? ReturnUrl = null);
+
+public sealed record EmailOtpRequestResponse(
+    bool Accepted,
+    string Detail,
+    DateTimeOffset? ResendAvailableAtUtc = null,
+    string? SuggestedProvider = null);
+
+public sealed record EmailOtpVerifyDto(string Email, string Code, string? ReturnUrl = null);
+
+public sealed record EmailOtpVerifyResponse(
+    bool Succeeded,
+    string? ErrorCode,
+    string Message,
+    string? ReturnUrl,
+    LoginResponse? User);

@@ -22,6 +22,8 @@ public interface IAsambleasDbContext
 
     DbSet<OwnerPasswordReset> OwnerPasswordResets { get; }
 
+    DbSet<EmailLoginChallenge> EmailLoginChallenges { get; }
+
     DbSet<UserPropertyMembership> UserPropertyMemberships { get; }
 
     DbSet<Power> Powers { get; }

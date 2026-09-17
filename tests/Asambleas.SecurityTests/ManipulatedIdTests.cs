@@ -31,7 +31,7 @@ public sealed class ManipulatedIdTests
     }
 
     [Fact]
-    public async Task Check_in_with_foreign_unit_id_fails()
+    public async Task Retired_check_in_with_foreign_unit_id_is_gone_or_forbidden()
     {
         await _fixture.ResetDatabaseAsync();
 
@@ -44,13 +44,27 @@ public sealed class ManipulatedIdTests
             $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/check-in",
             new Contracts.Assemblies.CheckInRequest(DemoSeedConstants.UnitOtherId, "Virtual"));
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        // Endpoint retired (410) or authorization rejects before body (403).
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Gone, HttpStatusCode.Forbidden);
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().Match(b =>
-            b.Contains("Forbidden", StringComparison.OrdinalIgnoreCase)
-            || b.Contains("SELF_ACCREDITATION_FORBIDDEN", StringComparison.OrdinalIgnoreCase)
-            || b.Contains("attendance", StringComparison.OrdinalIgnoreCase)
-            || b.Length >= 0);
+        body.Should().NotContain(DemoSeedConstants.TenantOtherId.ToString("D"));
+    }
+
+    [Fact]
+    public async Task Presence_with_foreign_assembly_context_fails()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
+        var response = await owner.PostAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOtherId}/attendance/presence");
+
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.BadRequest,
+            HttpStatusCode.NotFound,
+            HttpStatusCode.Forbidden);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().NotContain("PH OTHER ISOLATION");
     }
 
     [Fact]

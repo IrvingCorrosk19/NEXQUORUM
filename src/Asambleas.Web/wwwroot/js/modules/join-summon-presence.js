@@ -63,7 +63,7 @@ export async function ensureJoinSummonPresence(options = {}) {
   const onJoinDefault = (payload) => {
     const id = payload?.assemblyId || payload?.AssemblyId;
     if (!id) return;
-    location.href = `/lobby.html?assemblyId=${encodeURIComponent(id)}`;
+    location.href = `/assembly.html?assemblyId=${encodeURIComponent(id)}`;
   };
 
   const ids = await listLiveAssemblyIds();

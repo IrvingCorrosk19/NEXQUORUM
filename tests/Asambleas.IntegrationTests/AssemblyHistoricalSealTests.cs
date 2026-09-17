@@ -84,11 +84,17 @@ public sealed class AssemblyHistoricalSealTests
             sealedHash = assembly.SealedMinutesHash;
         }
 
-        // Presence / quorum mutation must fail after Complete.
+        // Presence / quorum mutation must fail after Complete (check-in endpoint retired → 410).
         var checkIn = await owner.PostJsonAsync(
             $"/api/assemblies/{assemblyId}/attendance/check-in",
             new CheckInRequest(DemoSeedConstants.Unit101Id, PresenceType.Virtual.ToString()));
-        checkIn.StatusCode.Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.Forbidden);
+        checkIn.StatusCode.Should().BeOneOf(
+            HttpStatusCode.BadRequest,
+            HttpStatusCode.Forbidden,
+            HttpStatusCode.Gone);
+
+        var presence = await owner.PostAsync($"/api/assemblies/{assemblyId}/attendance/presence");
+        presence.StatusCode.Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.Forbidden);
 
         var cast = await owner.PostJsonAsync(
             $"/api/assemblies/{assemblyId}/voting/{session.Id}/cast",

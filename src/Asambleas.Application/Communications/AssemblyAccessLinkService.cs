@@ -693,6 +693,69 @@ public sealed class AssemblyAccessLinkService
         };
 
     /// <summary>
+    /// Owners skip the A/V lobby gate: rewrite /lobby.html?assemblyId=… → /assembly.html?assemblyId=….
+    /// </summary>
+    public static string PreferParticipantRoomOverLobby(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        if (!path.StartsWith("/lobby.html", StringComparison.OrdinalIgnoreCase))
+        {
+            return path;
+        }
+
+        var q = path.IndexOf('?', StringComparison.Ordinal);
+        var query = q >= 0 ? path[q..] : string.Empty;
+        return "/assembly.html" + query;
+    }
+
+    /// <summary>
+    /// After OAuth/OTP when returnUrl is empty: send convocated owners straight to their live assembly.
+    /// </summary>
+    public async Task<string?> TryResolveOwnerLiveRedirectAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var liveStatuses = new[]
+        {
+            AssemblyStatus.Scheduled,
+            AssemblyStatus.CheckIn,
+            AssemblyStatus.InProgress,
+            AssemblyStatus.Paused
+        };
+
+        var row = await (
+            from p in _db.AssemblyParticipants.IgnoreQueryFilters().AsNoTracking()
+            join a in _db.Assemblies.IgnoreQueryFilters().AsNoTracking() on p.AssemblyId equals a.Id
+            where p.UserId == userId && liveStatuses.Contains(a.Status)
+            orderby a.ScheduledAtUtc descending
+            select new { a.Id, a.Status }).FirstOrDefaultAsync(cancellationToken);
+
+        if (row is not null)
+        {
+            return ResolveParticipantRoomRedirect(row.Status, row.Id);
+        }
+
+        var viaOwner = await (
+            from o in _db.Owners.IgnoreQueryFilters().AsNoTracking()
+            join r in _db.ConvocationRecipients.IgnoreQueryFilters().AsNoTracking() on o.Id equals r.OwnerId
+            join c in _db.Convocations.IgnoreQueryFilters().AsNoTracking() on r.ConvocationId equals c.Id
+            join a in _db.Assemblies.IgnoreQueryFilters().AsNoTracking() on c.AssemblyId equals a.Id
+            where o.UserId == userId
+                  && r.IsValid
+                  && liveStatuses.Contains(a.Status)
+            orderby a.ScheduledAtUtc descending
+            select new { a.Id, a.Status }).FirstOrDefaultAsync(cancellationToken);
+
+        return viaOwner is null
+            ? null
+            : ResolveParticipantRoomRedirect(viaOwner.Status, viaOwner.Id);
+    }
+
+    /// <summary>
     /// After an owner account is linked, enroll them into open assemblies where they are a convocation recipient.
     /// </summary>
     public async Task EnrollOwnerIntoOpenConvocationsAsync(

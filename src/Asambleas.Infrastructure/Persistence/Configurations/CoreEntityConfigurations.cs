@@ -149,6 +149,22 @@ internal sealed class OwnerPasswordResetConfiguration : IEntityTypeConfiguration
     }
 }
 
+internal sealed class EmailLoginChallengeConfiguration : IEntityTypeConfiguration<EmailLoginChallenge>
+{
+    public void Configure(EntityTypeBuilder<EmailLoginChallenge> builder)
+    {
+        builder.ToTable("email_login_challenges");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.EmailNormalized).HasMaxLength(256).IsRequired();
+        builder.Property(x => x.CodeHash).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.ReturnUrl).HasMaxLength(512);
+        builder.Property(x => x.RequestIpHash).HasMaxLength(128);
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => new { x.EmailNormalized, x.ExpiresAtUtc });
+        builder.HasIndex(x => x.CodeHash);
+    }
+}
+
 internal sealed class UserPropertyMembershipConfiguration : IEntityTypeConfiguration<UserPropertyMembership>
 {
     public void Configure(EntityTypeBuilder<UserPropertyMembership> builder)

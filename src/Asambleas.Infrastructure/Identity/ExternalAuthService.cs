@@ -2,6 +2,7 @@ namespace Asambleas.Infrastructure.Identity;
 
 using System.Security.Claims;
 using Asambleas.Application.Abstractions;
+using Asambleas.Application.Communications;
 using Asambleas.Application.Security;
 using Asambleas.Domain.Enums;
 using Asambleas.Infrastructure.Tenancy;
@@ -36,6 +37,7 @@ public sealed class ExternalAuthService
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IAsambleasDbContext _db;
     private readonly IOwnerPortalIdentityService _identity;
+    private readonly AssemblyAccessLinkService _accessLinks;
     private readonly IAuditService _audit;
     private readonly CurrentTenant _currentTenant;
     private readonly ILogger<ExternalAuthService> _logger;
@@ -45,6 +47,7 @@ public sealed class ExternalAuthService
         SignInManager<ApplicationUser> signInManager,
         IAsambleasDbContext db,
         IOwnerPortalIdentityService identity,
+        AssemblyAccessLinkService accessLinks,
         IAuditService audit,
         CurrentTenant currentTenant,
         ILogger<ExternalAuthService> logger)
@@ -53,6 +56,7 @@ public sealed class ExternalAuthService
         _signInManager = signInManager;
         _db = db;
         _identity = identity;
+        _accessLinks = accessLinks;
         _audit = audit;
         _currentTenant = currentTenant;
         _logger = logger;
@@ -233,7 +237,7 @@ public sealed class ExternalAuthService
 
             return await FailAsync(
                 "ACCOUNT_EXISTS",
-                "Ya existe una cuenta con este correo. Inicia sesión con tu contraseña y vincula Google/Microsoft desde tu sesión.",
+                "Ya existe una cuenta con este correo. Usa «Recibir código» o inicia sesión con tu contraseña de mesa.",
                 external,
                 cancellationToken);
         }
@@ -429,6 +433,19 @@ public sealed class ExternalAuthService
         ExternalAuthPrincipal external,
         CancellationToken cancellationToken)
     {
+        var ownerId = await _db.Owners.IgnoreQueryFilters().AsNoTracking()
+            .Where(o => o.UserId == user.Id)
+            .Select(o => (Guid?)o.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (ownerId is Guid oid)
+        {
+            await _accessLinks.EnrollOwnerIntoOpenConvocationsAsync(
+                oid,
+                user.Id,
+                user.DisplayName,
+                cancellationToken);
+        }
+
         await WriteAuditAsync(
             AuditEventType.ExternalLoginSucceeded,
             user.TenantId,

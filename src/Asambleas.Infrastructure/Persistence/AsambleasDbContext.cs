@@ -35,6 +35,8 @@ public sealed class AsambleasDbContext : IdentityDbContext<ApplicationUser, Appl
 
     public DbSet<OwnerPasswordReset> OwnerPasswordResets => Set<OwnerPasswordReset>();
 
+    public DbSet<EmailLoginChallenge> EmailLoginChallenges => Set<EmailLoginChallenge>();
+
     public DbSet<UserPropertyMembership> UserPropertyMemberships => Set<UserPropertyMembership>();
 
     public DbSet<Power> Powers => Set<Power>();

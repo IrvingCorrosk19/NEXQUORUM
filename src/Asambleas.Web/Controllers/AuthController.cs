@@ -24,6 +24,7 @@ public sealed class AuthController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly OwnerPasswordResetService _passwordResets;
+    private readonly EmailLoginOtpService _emailOtp;
     private readonly IAsambleasDbContext _db;
     private readonly IVerifiedJoinProofService _verifiedJoinProofs;
 
@@ -31,12 +32,14 @@ public sealed class AuthController : ControllerBase
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         OwnerPasswordResetService passwordResets,
+        EmailLoginOtpService emailOtp,
         IAsambleasDbContext db,
         IVerifiedJoinProofService verifiedJoinProofs)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _passwordResets = passwordResets;
+        _emailOtp = emailOtp;
         _db = db;
         _verifiedJoinProofs = verifiedJoinProofs;
     }
@@ -200,6 +203,37 @@ public sealed class AuthController : ControllerBase
         [FromBody] ForgotPasswordRequest request,
         CancellationToken cancellationToken) =>
         _passwordResets.RequestByEmailAsync(request.Email, cancellationToken);
+
+    /// <summary>Passwordless: request a 6-digit email code (generic response; no enumeration).</summary>
+    [AllowAnonymous]
+    [HttpPost("email-otp/request")]
+    [EnableRateLimiting("auth-login")]
+    public Task<EmailOtpRequestResponse> RequestEmailOtp(
+        [FromBody] EmailOtpRequestDto request,
+        CancellationToken cancellationToken) =>
+        _emailOtp.RequestAsync(request.Email, request.ReturnUrl, cancellationToken);
+
+    /// <summary>Passwordless: verify email OTP and issue session cookie.</summary>
+    [AllowAnonymous]
+    [HttpPost("email-otp/verify")]
+    [EnableRateLimiting("auth-login")]
+    public async Task<ActionResult<EmailOtpVerifyResponse>> VerifyEmailOtp(
+        [FromBody] EmailOtpVerifyDto request,
+        CancellationToken cancellationToken)
+    {
+        if (Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var prior) && prior != Guid.Empty)
+        {
+            _verifiedJoinProofs.InvalidateUser(prior);
+        }
+
+        var result = await _emailOtp.VerifyAsync(request.Email, request.Code, request.ReturnUrl, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return BadRequest(result);
+        }
+
+        return Ok(result);
+    }
 
     [AllowAnonymous]
     [HttpGet("password-reset/preview")]

@@ -1,6 +1,6 @@
 # Deprecación: proceso de acreditación
 
-Fecha: 2026-09-17  
+Fecha: 2026-09-17 (actualizado con flujo propietario simplificado)  
 Estado: **retirado del flujo operativo** (convocatoria + presencia)
 
 ## Nueva regla
@@ -9,6 +9,13 @@ Estado: **retirado del flujo operativo** (convocatoria + presencia)
 - **Presente** = ingresó a la sala (`AttendanceStatus` Present / CheckedIn / TemporarilyDisconnected).
 - El quórum y el voto dependen de **presencia real**, no de `IsAccredited`.
 - Enviar convocatoria **no** marca presente.
+
+## Flujo propietario simplificado
+
+1. Abre `/ingresar/{token}` o se autentica (Google / Microsoft / OTP correo).
+2. Tras identidad válida → **`/assembly.html?assemblyId=…`** (no lobby como destino por defecto).
+3. Se enrolla en convocatorias abiertas; la presencia se registra al unirse al hub.
+4. Sin acreditación, sin selección de PH/unidad, sin contraseña de correo.
 
 ## Endpoints retirados (HTTP 410 Gone)
 
@@ -37,15 +44,17 @@ No se eliminan datos ni columnas. Quedan deprecados para asambleas anteriores:
 1. Convocatoria / invite link valida token, PH, propietario, vigencia.
 2. Al unirse (SignalR `JoinAssembly` o `POST .../presence`) se materializan representaciones y se marca Present.
 3. Quórum recalcula por representaciones de usuarios presentes (sin doble conteo por unidad).
-4. Lobby: auto-admisión para convocados (sin aprobación del presidente).
+4. Lobby: auto-admisión para convocados (sin aprobación del presidente); destino preferido = sala.
 
 ## Migración de esquema
 
-No se requiere migración destructiva. Los campos históricos se mantienen.
-Si en el futuro se desea archivado, crear migración aditiva (p. ej. renombrar comentarios / vistas) sin borrar columnas.
+- No migraciones destructivas de acreditación.
+- OTP: migración aditiva `EO023_EmailLoginOtp` (`email_login_challenges`).
 
 ## Pruebas de referencia
 
 - `AdminOnlyAccreditationTests` → presencia directa + 410 en endpoints viejos
 - `AttendanceRepresentationTests` → materialización en join
 - `BulkAccreditationTests` → 410
+- `EmailLoginOtpTests` → OTP sin enumeración + redirect a sala
+- `JoinPasswordlessRedeemTests` → redeem → `/assembly.html`

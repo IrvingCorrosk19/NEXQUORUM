@@ -121,18 +121,18 @@ function formatEventWhen(ev) {
 
 function assemblyHref(ev) {
   const id = encodeURIComponent(ev.assemblyId || ev.id);
-  if (ev.canJoin || ["InProgress", "Paused", "CheckIn"].includes(String(ev.status))) {
-    return `/lobby.html?assemblyId=${id}`;
+  if (ev.canJoin || ["InProgress", "Paused", "CheckIn", "Scheduled"].includes(String(ev.status))) {
+    return `/assembly.html?assemblyId=${id}`;
   }
-  return `/calendar.html?assemblyId=${id}`;
+  return `/owner.html#assemblies`;
 }
 
 function primaryCta(ev) {
   if (ev.canJoin || ["InProgress", "Paused"].includes(String(ev.status))) {
-    return { href: `/lobby.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`, label: "Entrar ahora", primary: true };
+    return { href: `/assembly.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`, label: "Entrar ahora", primary: true };
   }
-  if (String(ev.status) === "CheckIn") {
-    return { href: `/lobby.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`, label: "Entrar a la asamblea", primary: true };
+  if (String(ev.status) === "CheckIn" || String(ev.status) === "Scheduled") {
+    return { href: `/assembly.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`, label: "Entrar a la asamblea", primary: true };
   }
   if (String(ev.convocationStatus || "").toLowerCase() === "sent") {
     return { href: `/calendar.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`, label: "Ver convocatoria", primary: false };
@@ -555,7 +555,7 @@ async function init() {
       user,
       onJoin: (payload) => {
         const id = payload?.assemblyId || payload?.AssemblyId;
-        if (id) location.href = `/lobby.html?assemblyId=${encodeURIComponent(id)}`;
+        if (id) location.href = `/assembly.html?assemblyId=${encodeURIComponent(id)}`;
       },
       onDismiss: () => {}
     });

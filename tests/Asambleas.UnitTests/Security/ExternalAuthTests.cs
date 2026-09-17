@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using Asambleas.Application.Communications;
 using Asambleas.Application.Security;
+using Asambleas.Domain.Enums;
 using Asambleas.Infrastructure.Identity;
 using FluentAssertions;
 
@@ -31,6 +33,31 @@ public sealed class SafeReturnUrlTests
     public void Normalize_blocks_external_or_dangerous_urls(string? url)
     {
         SafeReturnUrl.Normalize(url).Should().BeNull();
+    }
+}
+
+public sealed class ParticipantRoomRedirectTests
+{
+    [Fact]
+    public void PreferParticipantRoomOverLobby_rewrites_lobby_paths()
+    {
+        var id = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        AssemblyAccessLinkService.PreferParticipantRoomOverLobby($"/lobby.html?assemblyId={id:D}")
+            .Should().Be($"/assembly.html?assemblyId={id:D}");
+        AssemblyAccessLinkService.PreferParticipantRoomOverLobby("/owner.html")
+            .Should().Be("/owner.html");
+    }
+
+    [Fact]
+    public void ResolveParticipantRoomRedirect_uses_assembly_for_live_statuses()
+    {
+        var id = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        AssemblyAccessLinkService.ResolveParticipantRoomRedirect(AssemblyStatus.InProgress, id)
+            .Should().StartWith("/assembly.html?");
+        AssemblyAccessLinkService.ResolveParticipantRoomRedirect(AssemblyStatus.Scheduled, id)
+            .Should().StartWith("/assembly.html?");
+        AssemblyAccessLinkService.ResolveParticipantRoomRedirect(AssemblyStatus.Completed, id)
+            .Should().Contain("dashboard.html");
     }
 }
 

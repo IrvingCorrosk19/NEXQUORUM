@@ -328,34 +328,18 @@ async function enterAssembly(options = {}) {
       throw new Error(t("lobby.noValidInvitation"));
     }
 
-    // Teams-like admission gate (operators auto-admit server-side).
+    // Convocated owners are auto-admitted server-side; never park on "wait for president".
     if (!skipAdmission) {
       const { api } = await import("./api.js");
       const entry = await api(`/api/assemblies/${assemblyId}/attendance/lobby/request-entry`, {
         method: "POST"
       });
       const status = entry?.roomEntryStatus || entry?.RoomEntryStatus || "";
-      if (/Waiting/i.test(status)) {
-        if (stages) stages.hidden = true;
-        if (waitPanel) {
-          waitPanel.hidden = false;
-          waitPanel.querySelector("[data-admission-msg]")?.replaceChildren(
-            document.createTextNode("Esperando que el presidente te admita…")
-          );
-        }
-        if (btn) {
-          btn.disabled = true;
-          btn.textContent = "Esperando admisión…";
-        }
-        showToast({
-          title: "Sala de espera",
-          message: "Tu solicitud fue enviada. Entrarás automáticamente al ser admitido.",
-          variant: "info"
-        });
-        return;
-      }
       if (/Rejected/i.test(status)) {
-        throw new Error(entry?.roomEntryRejectReason || "Tu ingreso fue rechazado por la mesa.");
+        throw new Error(
+          entry?.roomEntryRejectReason ||
+            "No puedes entrar en este momento. Revisa tu invitación o contacta a la mesa."
+        );
       }
     }
 

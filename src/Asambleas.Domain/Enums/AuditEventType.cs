@@ -111,6 +111,12 @@ public static class AuditEventType
     public const string ExternalLoginLinked = "EXTERNAL_LOGIN_LINKED";
     public const string ExternalLoginUnlinked = "EXTERNAL_LOGIN_UNLINKED";
 
+    public const string EmailOtpRequested = "EMAIL_OTP_REQUESTED";
+    public const string EmailOtpSent = "EMAIL_OTP_SENT";
+    public const string EmailOtpVerified = "EMAIL_OTP_VERIFIED";
+    public const string EmailOtpFailed = "EMAIL_OTP_FAILED";
+    public const string EmailOtpResent = "EMAIL_OTP_RESENT";
+
     public const string OwnerPasswordResetRequested = "OWNER_PASSWORD_RESET_REQUESTED";
     public const string OwnerPasswordResetCompleted = "OWNER_PASSWORD_RESET_COMPLETED";
 

@@ -161,7 +161,7 @@ async function loadNextBanner() {
       <p class="next-meta">${escapeHtml(n.propertyHorizontalName)} · ${escapeHtml(n.modality)} · ${escapeHtml(formatInTz(n.scheduledAtUtc, n.timeZoneId))}</p>
       <p><strong>${escapeHtml(n.countdownLabel || "")}</strong></p>
       <div class="cluster" style="margin-top:0.75rem">
-        ${n.canJoin ? `<a class="btn btn-primary" href="/lobby.html?assemblyId=${n.assemblyId}">${live ? "Entrar ahora" : "Entrar a la asamblea"}</a>` : `<span class="muted">Disponible a las ${escapeHtml(timeShort(n.joinOpensAtUtc, n.timeZoneId))}</span>`}
+        ${n.canJoin ? `<a class="btn btn-primary" href="/assembly.html?assemblyId=${n.assemblyId}">${live ? "Entrar ahora" : "Entrar a la asamblea"}</a>` : `<span class="muted">Disponible a las ${escapeHtml(timeShort(n.joinOpensAtUtc, n.timeZoneId))}</span>`}
         <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${n.assemblyId}">Ver asamblea</a>
         <button type="button" class="btn btn-ghost" data-open-event="${n.assemblyId}">Detalle</button>
       </div>`;
@@ -405,7 +405,7 @@ async function openEvent(id) {
     actions.push(`<a class="btn btn-secondary" href="/dashboard.html?assemblyId=${ev.assemblyId}">Ver asamblea</a>`);
     if (ev.canJoin) {
       const live = ev.calendarStatus === "LIVE";
-      actions.push(`<a class="btn btn-primary" href="/lobby.html?assemblyId=${ev.assemblyId}">${live ? "Entrar ahora" : "Entrar"}</a>`);
+      actions.push(`<a class="btn btn-primary" href="/assembly.html?assemblyId=${ev.assemblyId}">${live ? "Entrar ahora" : "Entrar"}</a>`);
     }
     if (ev.canEdit && canScheduleAssemblies(state.user)) {
       actions.push(`<button type="button" class="btn btn-ghost" id="act-edit">Editar</button>`);
@@ -427,7 +427,7 @@ async function openEvent(id) {
     qs("#act-links")?.addEventListener("click", async () => {
       try {
         const links = await api(`/api/assemblies/${ev.assemblyId}/calendar-links`);
-        const lobbyUrl = `${location.origin}/lobby.html?assemblyId=${ev.assemblyId}`;
+        const lobbyUrl = `${location.origin}/assembly.html?assemblyId=${ev.assemblyId}`;
         const panel = document.createElement("div");
         panel.className = "calendar-link-sheet";
         panel.setAttribute("role", "dialog");
