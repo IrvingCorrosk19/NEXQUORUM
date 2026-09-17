@@ -36,7 +36,7 @@ public sealed record PhDetailDto(
 public sealed record CreatePhRequest(
     string Name,
     string? LegalName,
-    string Code,
+    string? Code,
     string? Country,
     string? StateProvince,
     string? City,

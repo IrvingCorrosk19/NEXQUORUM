@@ -564,7 +564,7 @@ async function onCreatePh(ev) {
         body: {
           name: data.name,
           legalName: data.legalName || null,
-          code: data.code,
+          code: null,
           country: data.country || null,
           stateProvince: data.stateProvince || null,
           city: data.city || null,

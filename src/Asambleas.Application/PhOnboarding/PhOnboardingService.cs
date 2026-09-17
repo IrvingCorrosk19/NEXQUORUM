@@ -148,11 +148,6 @@ public sealed class PhOnboardingService
             throw new DomainException("PH_NAME_REQUIRED", "El nombre del PH es obligatorio.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Code))
-        {
-            throw new DomainException("PH_CODE_REQUIRED", "El código interno del PH es obligatorio.");
-        }
-
         if (string.IsNullOrWhiteSpace(request.TimeZoneId))
         {
             throw new DomainException("PH_TIMEZONE_REQUIRED", "La zona horaria es obligatoria.");
@@ -160,13 +155,18 @@ public sealed class PhOnboardingService
 
         var organizationId = await ResolveOrganizationIdAsync(request.OrganizationId, cancellationToken);
 
-        var code = request.Code.Trim();
-        var codeExists = await _db.PropertyHorizontals
-            .AsNoTracking()
-            .AnyAsync(p => p.TenantId == _currentTenant.TenantId && p.Code == code, cancellationToken);
-        if (codeExists)
+        var code = string.IsNullOrWhiteSpace(request.Code)
+            ? await AllocatePhCodeAsync(request.Name, cancellationToken)
+            : request.Code.Trim();
+        if (!string.IsNullOrWhiteSpace(request.Code))
         {
-            throw new DomainException("PH_CODE_DUPLICATE", $"Ya existe un PH con el código '{code}'.");
+            var codeExists = await _db.PropertyHorizontals
+                .AsNoTracking()
+                .AnyAsync(p => p.TenantId == _currentTenant.TenantId && p.Code == code, cancellationToken);
+            if (codeExists)
+            {
+                throw new DomainException("PH_CODE_DUPLICATE", $"Ya existe un PH con el código '{code}'.");
+            }
         }
 
         var ph = new PropertyHorizontal
@@ -1872,6 +1872,32 @@ public sealed class PhOnboardingService
             .ToList();
     }
 
+    private async Task<string> AllocatePhCodeAsync(string name, CancellationToken cancellationToken)
+    {
+        var baseCode = PhOnboardingSupport.BuildCodeFromName(name);
+        for (var attempt = 0; attempt < 32; attempt++)
+        {
+            var candidate = attempt == 0
+                ? baseCode
+                : $"{(baseCode.Length > 40 ? baseCode[..40].TrimEnd('-') : baseCode)}-{attempt + 1}";
+            if (candidate.Length > 64)
+            {
+                candidate = candidate[..64].TrimEnd('-');
+            }
+
+            var exists = await _db.PropertyHorizontals
+                .AsNoTracking()
+                .AnyAsync(p => p.TenantId == _currentTenant.TenantId && p.Code == candidate, cancellationToken);
+            if (!exists)
+            {
+                return candidate;
+            }
+        }
+
+        var fallback = $"PH-{Guid.NewGuid():N}"[..16].ToUpperInvariant();
+        return fallback;
+    }
+
     private async Task<Guid> ResolveOrganizationIdAsync(Guid? requestedOrganizationId, CancellationToken cancellationToken)
     {
         if (requestedOrganizationId is Guid organizationId)
@@ -2629,6 +2655,43 @@ public sealed class PhOnboardingService
 /// <summary>Small text/validation helpers shared across the PH onboarding services.</summary>
 internal static class PhOnboardingSupport
 {
+    /// <summary>
+    /// Builds a stable internal PH code from the display name (e.g. "PH El Mare" → "PH-EL-MARE").
+    /// Falls back to "PH" when the name has no usable characters.
+    /// </summary>
+    public static string BuildCodeFromName(string name)
+    {
+        var decomposed = name.Trim().ToUpperInvariant().Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(decomposed.Length);
+        var lastDash = false;
+        foreach (var c in decomposed)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            if (c is >= 'A' and <= 'Z' or >= '0' and <= '9')
+            {
+                sb.Append(c);
+                lastDash = false;
+            }
+            else if (sb.Length > 0 && !lastDash)
+            {
+                sb.Append('-');
+                lastDash = true;
+            }
+        }
+
+        var code = sb.ToString().Trim('-');
+        if (code.Length == 0)
+        {
+            return "PH";
+        }
+
+        return code.Length <= 48 ? code : code[..48].TrimEnd('-');
+    }
+
     public static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     public static bool IsValidEmail(string? email)
