@@ -455,8 +455,10 @@ public sealed class PhOnboardingService
         var ph = await EnsurePhAccessAsync(propertyHorizontalId, track: false, cancellationToken);
         EnsurePhNotInactiveForMutation(ph);
 
-        ValidateUnitFields(request.Code, request.CoefficientPercent);
-        var code = request.Code.Trim();
+        var code = string.IsNullOrWhiteSpace(request.Code)
+            ? await AllocateUnitCodeAsync(propertyHorizontalId, cancellationToken)
+            : request.Code.Trim();
+        ValidateUnitFields(code, request.CoefficientPercent);
 
         var duplicate = await _db.Units
             .AsNoTracking()
@@ -1870,6 +1872,27 @@ public sealed class PhOnboardingService
         return rows
             .Select(r => new PhMembershipDto(r.Ph.Id, r.Ph.Code, r.Ph.Name, r.Membership.RoleHint, r.Ph.Id == currentPhId))
             .ToList();
+    }
+
+    private async Task<string> AllocateUnitCodeAsync(Guid propertyHorizontalId, CancellationToken cancellationToken)
+    {
+        var existing = await _db.Units
+            .AsNoTracking()
+            .Where(u => u.PropertyHorizontalId == propertyHorizontalId)
+            .Select(u => u.Code)
+            .ToListAsync(cancellationToken);
+        var taken = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+
+        for (var n = 1; n <= 99999; n++)
+        {
+            var candidate = $"U-{n.ToString("000", CultureInfo.InvariantCulture)}";
+            if (!taken.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return $"U-{Guid.NewGuid():N}"[..10].ToUpperInvariant();
     }
 
     private async Task<string> AllocatePhCodeAsync(string name, CancellationToken cancellationToken)

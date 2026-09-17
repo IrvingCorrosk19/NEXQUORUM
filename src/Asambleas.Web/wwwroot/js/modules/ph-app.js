@@ -7,7 +7,7 @@ import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton } from "./loading.js";
 import { startHybridShell } from "./hybrid-router.js";
-import { createUnitsHub } from "./ph-units-hub.js?v=units-hub3";
+import { createUnitsHub } from "./ph-units-hub.js?v=unit-code-auto1";
 
 const STEP_LABELS = [
   "Información",
@@ -257,6 +257,27 @@ function applyCreatePhGate() {
   }
 }
 
+function suggestPhCodeFromName(name) {
+  const raw = String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  let out = "";
+  let lastDash = false;
+  for (const ch of raw) {
+    if ((ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9")) {
+      out += ch;
+      lastDash = false;
+    } else if (out && !lastDash) {
+      out += "-";
+      lastDash = true;
+    }
+  }
+  out = out.replace(/^-+|-+$/g, "");
+  if (!out) return "PH";
+  return out.length <= 48 ? out : out.slice(0, 48).replace(/-+$/g, "");
+}
+
 function openCreatePhDialog() {
   if (!canCreatePh()) {
     AppFeedback.error("Inicia sesión con Administrador PH o Presidente de asamblea.", {
@@ -265,7 +286,33 @@ function openCreatePhDialog() {
     return;
   }
   clearAlert();
+  const form = $("#form-create-ph");
+  form?.reset();
+  const nameInput = form?.querySelector('input[name="name"]');
+  const codeInput = form?.querySelector('input[name="code"]');
+  if (codeInput) {
+    codeInput.dataset.userEdited = "0";
+    codeInput.value = "";
+  }
   $("#dlg-create-ph")?.showModal();
+  nameInput?.focus();
+}
+
+function wireCreatePhCodeSuggest() {
+  const form = $("#form-create-ph");
+  if (!form || form.dataset.codeSuggestWired === "1") return;
+  form.dataset.codeSuggestWired = "1";
+  const nameInput = form.querySelector('input[name="name"]');
+  const codeInput = form.querySelector('input[name="code"]');
+  if (!nameInput || !codeInput) return;
+
+  codeInput.addEventListener("input", () => {
+    codeInput.dataset.userEdited = "1";
+  });
+  nameInput.addEventListener("input", () => {
+    if (codeInput.dataset.userEdited === "1") return;
+    codeInput.value = suggestPhCodeFromName(nameInput.value);
+  });
 }
 
 function wireUi() {
@@ -281,6 +328,7 @@ function wireUi() {
   unitsHub.wire();
 
   applyCreatePhGate();
+  wireCreatePhCodeSuggest();
   $("#btn-create-ph").addEventListener("click", openCreatePhDialog);
   $("#btn-create-first")?.addEventListener("click", openCreatePhDialog);
   $("#btn-cancel-create").addEventListener("click", () => $("#dlg-create-ph").close());
@@ -564,7 +612,7 @@ async function onCreatePh(ev) {
         body: {
           name: data.name,
           legalName: data.legalName || null,
-          code: null,
+          code: data.code?.trim() || null,
           country: data.country || null,
           stateProvince: data.stateProvince || null,
           city: data.city || null,

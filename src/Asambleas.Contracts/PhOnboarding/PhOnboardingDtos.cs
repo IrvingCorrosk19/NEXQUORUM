@@ -79,7 +79,7 @@ public sealed record UnitDto(
     bool IsActive);
 
 public sealed record CreateUnitRequest(
-    string Code,
+    string? Code,
     string? Tower,
     int? Floor,
     string? UnitType,

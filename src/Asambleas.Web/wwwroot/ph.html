@@ -482,7 +482,8 @@
           <div class="form-grid">
             <label>Nombre <input name="name" required maxlength="200" autocomplete="organization" /></label>
             <label>Nombre legal <input name="legalName" maxlength="200" /></label>
-            <p class="muted" style="grid-column:1/-1;margin:0">El código interno se genera automáticamente a partir del nombre.</p>
+            <label>Código interno <input name="code" required maxlength="64" id="create-ph-code" aria-describedby="create-ph-code-hint" /></label>
+            <p id="create-ph-code-hint" class="muted" style="grid-column:1/-1;margin:0">Se sugiere desde el nombre; puedes editarlo antes de crear.</p>
             <label>País <input name="country" value="Panamá" /></label>
             <label>Provincia/Estado <input name="stateProvince" /></label>
             <label>Ciudad <input name="city" /></label>
@@ -510,6 +511,6 @@
       </dialog>
     </main>
   </div>
-  <script type="module" src="/js/modules/ph-app.js?v=ph-code-auto1"></script>
+  <script type="module" src="/js/modules/ph-app.js?v=ph-code-edit1"></script>
 </body>
 </html>

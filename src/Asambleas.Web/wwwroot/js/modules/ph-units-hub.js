@@ -337,13 +337,24 @@ export function createUnitsHub(ctx) {
     currentDetail = null;
   }
 
+  function suggestNextUnitCode() {
+    const taken = new Set((cache || []).map((u) => String(u.code || "").toUpperCase()));
+    for (let n = 1; n <= 99999; n++) {
+      const candidate = `U-${String(n).padStart(3, "0")}`;
+      if (!taken.has(candidate)) return candidate;
+    }
+    return `U-${Date.now().toString().slice(-6)}`;
+  }
+
   function renderCreateForm() {
     const body = $("#unit-hub-body");
     const foot = $("#unit-hub-foot");
+    const suggested = suggestNextUnitCode();
     body.innerHTML = `
       <form id="form-unit-hub" class="unit-hub-form">
         <div class="form-grid">
-          <label>Código <input name="code" required maxlength="64" /></label>
+          <label>Código <input name="code" required maxlength="64" value="${esc(suggested)}" aria-describedby="unit-code-hint" /></label>
+          <p id="unit-code-hint" class="muted" style="grid-column:1/-1;margin:0">Se sugiere automáticamente; puedes editarlo antes de crear.</p>
           <label>Torre <input name="tower" maxlength="64" /></label>
           <label>Piso <input name="floor" type="number" /></label>
           <label>Tipo <input name="unitType" maxlength="64" /></label>
@@ -357,6 +368,7 @@ export function createUnitsHub(ctx) {
       <button type="submit" form="form-unit-hub" class="btn btn-primary" id="btn-save-unit-hub">Crear unidad</button>`;
     $("#form-unit-hub").addEventListener("submit", onSaveUnit);
     $("[data-close-hub]", foot)?.addEventListener("click", closeUnitModal);
+    $("#form-unit-hub input[name='code']")?.focus();
   }
 
   function renderModalBody() {
@@ -369,7 +381,8 @@ export function createUnitsHub(ctx) {
       body.innerHTML = `
         <form id="form-unit-hub" class="unit-hub-form">
           <div class="form-grid">
-            <label>Código <input name="code" required value="${esc(d.unitCode)}" ${canManage() ? "" : "readonly"} /></label>
+            <label>Código <input name="code" required value="${esc(d.unitCode)}" ${canManage() ? "" : "readonly"} aria-describedby="unit-edit-code-hint" /></label>
+            ${canManage() ? `<p id="unit-edit-code-hint" class="muted" style="grid-column:1/-1;margin:0">Puedes editar el código si hace falta.</p>` : `<p id="unit-edit-code-hint" class="muted" style="grid-column:1/-1;margin:0">Solo lectura.</p>`}
             <label>Torre <input name="tower" value="${esc(d.tower || "")}" ${canManage() ? "" : "readonly"} /></label>
             <label>Piso <input name="floor" type="number" value="${d.floor ?? ""}" ${canManage() ? "" : "readonly"} /></label>
             <label>Tipo <input name="unitType" value="${esc(d.unitType || "")}" ${canManage() ? "" : "readonly"} /></label>
@@ -476,7 +489,7 @@ export function createUnitsHub(ctx) {
     }
     const btn = $("#btn-save-unit-hub");
     const body = {
-      code: data.code,
+      code: (data.code || "").trim() || null,
       tower: data.tower || null,
       floor: data.floor === "" || data.floor == null ? null : Number(data.floor),
       unitType: data.unitType || null,
