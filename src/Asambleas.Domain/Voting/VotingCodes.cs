@@ -5,7 +5,8 @@ public static class VotingCodes
 {
     public const string Eligible = "ELIGIBLE";
     public const string AlreadyVoted = "ALREADY_VOTED";
-    public const string NotAccredited = "NOT_ACCREDITED";
+    public const string NotAccredited = "NOT_ACCREDITED"; // Deprecated alias
+    public const string NotPresent = "NOT_PRESENT";
     public const string NotEligible = "NOT_ELIGIBLE";
     public const string NotParticipant = "NOT_PARTICIPANT";
     public const string VotingClosed = "VOTING_CLOSED";

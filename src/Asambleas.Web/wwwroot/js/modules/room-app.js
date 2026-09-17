@@ -312,7 +312,7 @@ function mapCastError(error) {
   const msg = String(error?.message || "");
   const block = explainBlockCode(code, msg);
   if ([
-    "NOT_ACCREDITED","NOT_ELIGIBLE","NOT_PARTICIPANT","VOTING_NOT_OPEN","MOTION_NOT_PRESENTED",
+    "NOT_PRESENT","NOT_ACCREDITED","NOT_ELIGIBLE","NOT_PARTICIPANT","VOTING_NOT_OPEN","MOTION_NOT_PRESENTED",
     "VOTING_CLOSED","COEFFICIENT_CONFIGURATION_INVALID","ASSEMBLY_CLOSED","ASSEMBLY_NOT_ACTIVE"
   ].includes(code)) {
     return `${block.title}. ${block.explanation} ${block.next}`;
@@ -320,7 +320,7 @@ function mapCastError(error) {
   if (code === "ALREADY_VOTED" || /already voted|doble voto/i.test(msg)) {
     return t("voting.alreadyVoted") || t("voting.alreadyRegistered");
   }
-  if (code === "NOT_ACCREDITED") return t("voting.notAccredited");
+  if (code === "NOT_PRESENT" || code === "NOT_ACCREDITED") return t("voting.needPresence") || "Debes estar presente en la asamblea para votar.";
   if (code === "NOT_ELIGIBLE" || code === "NOT_PARTICIPANT") return t("voting.notEligible");
   if (code === "VOTING_NOT_OPEN" || code === "MOTION_NOT_PRESENTED") {
     return t("voting.notOpenYet");
@@ -987,7 +987,7 @@ function buildParticipantsListHtml() {
             ? t("assembly.speaking") || "Hablando"
             : hand
               ? t("assembly.handRaised") || "Palabra"
-              : p.isAccredited
+              : ["Present", "CheckedIn", "TemporarilyDisconnected"].includes(p.attendanceStatus)
                 ? t("assembly.connectedShort") || "Conectado"
                 : t("assembly.pendingShort") || "Pendiente";
           return `<li class="meeting-people-item">
@@ -1026,7 +1026,7 @@ function syncMobileOverview() {
       /InProgress|Paused/i.test(status)
         ? t("assembly.live") || "En vivo"
         : /CheckIn/i.test(status)
-          ? t("assembly.checkIn") || "Acreditación"
+          ? t("assembly.checkIn") || "Presencia"
           : t("assembly.notStartedTitle") || "La asamblea aún no ha iniciado.";
     const agenda = Array.isArray(state.agenda) ? state.agenda : state.agenda?.items;
     let point = "";
@@ -1496,13 +1496,13 @@ function renderPresenceSummary(items) {
   const el = qs("#presence-summary");
   const diagnostics = qs("#ops-diagnostics");
   if (!el) return;
-  let accredited = 0;
+  let convocados = 0;
   let present = 0;
   let represented = 0;
   for (const p of items) {
-    if (p.isAccredited) accredited += 1;
+    convocados += 1;
     const st = String(p.attendanceStatus || "").toLowerCase();
-    if (st === "present" || st === "checkedin") present += 1;
+    if (st === "present" || st === "checkedin" || st === "temporarilydisconnected") present += 1;
     represented += Number(p.representationCount || 0);
   }
   const media = getLiveKitParticipantCounts();
@@ -1510,8 +1510,8 @@ function renderPresenceSummary(items) {
   el.hidden = false;
   el.innerHTML = `
     <div class="presence-summary__item">
-      <span class="presence-summary__label">${escapeHtml(t("assembly.accreditedCount") || "Acreditados")}</span>
-      <span class="presence-summary__value">${accredited}</span>
+      <span class="presence-summary__label">${escapeHtml(t("assembly.invitedCount") || "Convocados")}</span>
+      <span class="presence-summary__value">${convocados}</span>
     </div>
     <div class="presence-summary__item">
       <span class="presence-summary__label">${escapeHtml(t("assembly.presentCount") || "Presentes")}</span>
@@ -3282,28 +3282,6 @@ async function init() {
         ensureMobileVoting()?.refreshFromServer?.();
         refreshPanels();
       }
-    },
-    accreditationChanged: (chg) => {
-      const uid = String(state.user?.userId || state.user?.id || "").toLowerCase();
-      if (!uid || String(chg?.userId || "").toLowerCase() !== uid) return;
-      const existing = state.participants.get(chg.userId) || findSelfParticipant() || { userId: chg.userId };
-      state.participants.set(chg.userId, {
-        ...existing,
-        userId: chg.userId,
-        isAccredited: chg.isAccredited,
-        attendanceStatus: chg.attendanceStatus,
-        effectiveCoefficientPercent: chg.effectiveCoefficientPercent
-      });
-      if (chg?.message) {
-        showToast({
-          title: chg.isAccredited ? "Acreditado" : "Acreditación retirada",
-          message: chg.message,
-          variant: chg.isAccredited ? "success" : "warning"
-        });
-      }
-      syncContextualGuide();
-      ensureMobileVoting()?.refreshFromServer?.();
-      refreshPanels();
     },
     agendaUpdated: (a) => {
       state.agenda = a;

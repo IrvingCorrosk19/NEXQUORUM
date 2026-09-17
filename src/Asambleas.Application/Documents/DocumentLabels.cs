@@ -11,7 +11,7 @@ public static class DocumentLabels
     {
         "Draft" => "Borrador",
         "Scheduled" => "Programada",
-        "CheckIn" => "En acreditación",
+        "CheckIn" => "Mesa abierta / recepción",
         "InProgress" => "En curso",
         "Paused" => "Pausada",
         "Completed" => "Finalizada",
@@ -53,7 +53,20 @@ public static class DocumentLabels
         _ => string.IsNullOrWhiteSpace(status) ? "—" : status
     };
 
-    public static string Accreditation(bool accredited) => accredited ? "Acreditado" : "No acreditado";
+    /// <summary>Deprecated field label. Prefer presence status for live assemblies.</summary>
+    public static string Accreditation(bool accredited) =>
+        accredited ? "Histórico: acreditado" : "—";
+
+    public static string PresenceLabel(string? attendanceStatus, bool legacyAccredited) =>
+        attendanceStatus switch
+        {
+            "Present" or "CheckedIn" => "Presente",
+            "TemporarilyDisconnected" => "Desconectado (breve)",
+            "Left" => "Salió",
+            "Registered" when legacyAccredited => "Histórico: acreditado (sin presencia)",
+            "Registered" => "Convocado",
+            _ => string.IsNullOrWhiteSpace(attendanceStatus) ? "—" : attendanceStatus
+        };
 
     public static string RepresentationSource(string? source) => source switch
     {

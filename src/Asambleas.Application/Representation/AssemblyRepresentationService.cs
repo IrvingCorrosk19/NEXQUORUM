@@ -85,22 +85,25 @@ public sealed class AssemblyRepresentationService : IAssemblyRepresentationServi
         }
 
         var isOperatorRole = IsOperatorRole(participant.RoleCode);
-        var canAccredit = conflicts.Count == 0
-                          && (claims.Count > 0 || isOperatorRole)
-                          && !participant.IsAccredited;
+        var alreadyHasAuthority = participant.EffectiveCoefficientPercent > 0
+            || Mapping.CountsTowardQuorum(participant.AttendanceStatus);
+        var canParticipate = conflicts.Count == 0
+                          && (claims.Count > 0 || isOperatorRole);
 
         var effective = claims
             .Where(c => conflicts.All(x => x.UnitId != c.UnitId))
             .Sum(c => c.Coefficient);
 
-        if (participant.IsAccredited)
+        if (alreadyHasAuthority)
         {
-            effective = participant.EffectiveCoefficientPercent;
+            effective = participant.EffectiveCoefficientPercent > 0
+                ? participant.EffectiveCoefficientPercent
+                : effective;
         }
 
         string? blockCode = null;
         string? blockMessage = null;
-        if (!participant.IsAccredited && !canAccredit)
+        if (!canParticipate)
         {
             if (conflicts.Count > 0)
             {
@@ -121,7 +124,8 @@ public sealed class AssemblyRepresentationService : IAssemblyRepresentationServi
             owned,
             represented,
             Math.Round(effective, 4, MidpointRounding.AwayFromZero),
-            canAccredit,
+            // CanAccredit kept for API compat: means "eligible to join / materialize representations".
+            CanAccredit: canParticipate && !alreadyHasAuthority,
             conflicts,
             participant.IsAccredited,
             participant.AttendanceStatus.ToString(),

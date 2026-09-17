@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using Asambleas.Contracts.Assemblies;
 using Asambleas.Contracts.Audit;
-using Asambleas.Contracts.Representation;
 using Asambleas.Domain.Enums;
 using Asambleas.Infrastructure.Seed;
 using Asambleas.IntegrationTests.Infrastructure;
@@ -18,7 +16,7 @@ public sealed class AuditTests
     public AuditTests(AsambleasFixture fixture) => _fixture = fixture;
 
     [Fact]
-    public async Task Admin_accredit_creates_audit_event()
+    public async Task Owner_presence_creates_connected_audit_event()
     {
         await _fixture.ResetDatabaseAsync();
 
@@ -26,18 +24,18 @@ public sealed class AuditTests
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start-checkin"))
             .EnsureSuccessStatusCode();
 
-        var accredit = await president.PostJsonAsync(
-            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/participants/{DemoSeedConstants.UserOwner102Id}/accredit",
-            new AccreditRequest(PresenceType.Virtual.ToString(), "OperatorCheckIn"));
-        accredit.StatusCode.Should().Be(HttpStatusCode.OK);
+        var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner102@ocean.demo");
+        var presence = await owner.PostAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/presence");
+        presence.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var auditor = await AuthenticatedClient.LoginAsync(_fixture.Factory, "secretary@ocean.demo");
         var auditResponse = await auditor.GetAsync(
-            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/audit?eventType={AuditEventType.ParticipantAccredited}");
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/audit?eventType={AuditEventType.ParticipantConnected}");
         auditResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var page = await auditResponse.Content.ReadFromJsonAsync<AuditEventPageDto>();
         page.Should().NotBeNull();
-        page!.Items.Should().Contain(e => e.EventType == AuditEventType.ParticipantAccredited);
+        page!.Items.Should().Contain(e => e.EventType == AuditEventType.ParticipantConnected);
     }
 }

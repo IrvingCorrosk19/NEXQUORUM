@@ -162,9 +162,11 @@ public static class PremiumPdfDocuments
     public static byte[] Attendance(AssemblyEvidencePackageDto p, DocumentExportContext ctx)
     {
         DocumentDesign.EnsureLicense();
-        var accredited = p.Attendance.Where(x => x.IsAccredited).ToList();
+        var present = p.Attendance.Where(x =>
+            x.AttendanceStatus is "CheckedIn" or "Present" or "TemporarilyDisconnected"
+            || x.IsAccredited).ToList();
         var reps = p.Representations.Where(x => x.IsActive).ToList();
-        var coef = accredited.Sum(x => x.EffectiveCoefficientPercent);
+        var coef = present.Sum(x => x.EffectiveCoefficientPercent);
         var docId = ctx.DocCode("ASI");
 
         return Document.Create(container =>
@@ -177,10 +179,10 @@ public static class PremiumPdfDocuments
                     col.Item().Text("REGISTRO DE ASISTENCIA").SemiBold().FontSize(16).FontColor(DocumentDesign.Accent);
                     col.Item().PaddingTop(12);
                     DocumentDesign.StatStrip(col.Item(),
-                        ("Registrados", p.Attendance.Count.ToString()),
-                        ("Acreditados", accredited.Count.ToString()),
+                        ("Convocados", p.Attendance.Count.ToString()),
+                        ("Presentes", present.Count.ToString()),
                         ("Representados", reps.Count.ToString()),
-                        ("Coef. acreditado", DocumentLabels.Coefficient(coef)));
+                        ("Coef. presente", DocumentLabels.Coefficient(coef)));
 
                     DocumentDesign.SectionTitle(col.Item(), "Participantes");
                     col.Item().Element(e => AttendanceTable(e, p.Attendance.OrderBy(x => x.DisplayName).ToList()));
@@ -517,7 +519,7 @@ public static class PremiumPdfDocuments
                 table.Cell().Element(CellBody).Text(p.UnitCode ?? "—");
                 table.Cell().Element(CellBody).Text(DocumentLabels.Role(p.RoleCode));
                 table.Cell().Element(CellBody).Text(
-                    $"{DocumentLabels.AttendanceStatus(p.AttendanceStatus)} · {DocumentLabels.Accreditation(p.IsAccredited)}");
+                    DocumentLabels.PresenceLabel(p.AttendanceStatus, p.IsAccredited));
                 table.Cell().Element(CellBody).AlignRight()
                     .Text(DocumentLabels.Coefficient(p.EffectiveCoefficientPercent));
             }

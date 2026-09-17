@@ -99,28 +99,7 @@ public sealed class AttendanceController : ControllerBase
         CancellationToken cancellationToken) =>
         _attendance.PreviewAsync(assemblyId, userId, cancellationToken);
 
-    [HttpPost("check-in")]
-    [Authorize(Policy = Permissions.AttendanceManage)]
-    public async Task<ActionResult<CheckInResponse>> CheckIn(
-        Guid assemblyId,
-        [FromBody] CheckInRequest request,
-        CancellationToken cancellationToken)
-    {
-        // Defense in depth: owners with attendance:view only receive 403 from the policy.
-        // Service also rejects callers without attendance:manage.
-        var result = await _attendance.CheckInAsync(assemblyId, request, cancellationToken);
-        return Ok(new CheckInResponse(
-            result.ParticipantId,
-            result.AttendanceStatus,
-            result.CheckedInAtUtc,
-            result.IsAccredited,
-            result.EffectiveCoefficientPercent,
-            result.IdempotentReplay));
-    }
-
-    /// <summary>
-    /// Marks the current user as Present if already accredited. Never accredits.
-    /// </summary>
+    /// <summary>Marks the current user Present (convoked participant). Materializes representations on first join.</summary>
     [HttpPost("presence")]
     [Authorize(Policy = Permissions.AttendanceView)]
     public Task<AssemblyParticipantDto> MarkSelfPresent(
@@ -130,53 +109,48 @@ public sealed class AttendanceController : ControllerBase
 
     [HttpPost("participants/{userId:guid}/accredit")]
     [Authorize(Policy = Permissions.AttendanceManage)]
-    public Task<AccreditResponse> Accredit(
-        Guid assemblyId,
-        Guid userId,
-        [FromBody] AccreditRequest request,
-        CancellationToken cancellationToken) =>
-        _attendance.AccreditAsync(assemblyId, userId, request, cancellationToken);
+    public IActionResult Accredit(Guid assemblyId, Guid userId) =>
+        GoneAccreditation();
 
     [HttpPost("accredit-bulk")]
     [Authorize(Policy = Permissions.AttendanceManage)]
-    public Task<BulkAccreditResponse> AccreditBulk(
-        Guid assemblyId,
-        [FromBody] BulkAccreditRequest request,
-        CancellationToken cancellationToken) =>
-        _attendance.AccreditBulkAsync(assemblyId, request, cancellationToken);
+    public IActionResult AccreditBulk(Guid assemblyId) =>
+        GoneAccreditation();
 
     [HttpPost("accredit-bulk/preview")]
     [Authorize(Policy = Permissions.AttendanceManage)]
-    public Task<BulkAccreditPreviewDto> PreviewBulk(
-        Guid assemblyId,
-        [FromBody] BulkAccreditRequest request,
-        CancellationToken cancellationToken) =>
-        _attendance.PreviewBulkAsync(assemblyId, request, cancellationToken);
+    public IActionResult PreviewBulk(Guid assemblyId) =>
+        GoneAccreditation();
 
     [HttpPost("deaccredit-bulk/preview")]
     [Authorize(Policy = Permissions.AttendanceManage)]
-    public Task<BulkDeaccreditPreviewDto> PreviewDeaccreditBulk(
-        Guid assemblyId,
-        [FromBody] BulkDeaccreditRequest request,
-        CancellationToken cancellationToken) =>
-        _attendance.PreviewDeaccreditBulkAsync(assemblyId, request, cancellationToken);
+    public IActionResult PreviewDeaccreditBulk(Guid assemblyId) =>
+        GoneAccreditation();
 
     [HttpPost("deaccredit-bulk")]
     [Authorize(Policy = Permissions.AttendanceManage)]
-    public Task<BulkDeaccreditResponse> DeaccreditBulk(
-        Guid assemblyId,
-        [FromBody] BulkDeaccreditRequest request,
-        CancellationToken cancellationToken) =>
-        _attendance.DeaccreditBulkAsync(assemblyId, request, cancellationToken);
+    public IActionResult DeaccreditBulk(Guid assemblyId) =>
+        GoneAccreditation();
 
     [HttpPost("participants/{userId:guid}/deaccredit")]
     [Authorize(Policy = Permissions.AttendanceManage)]
-    public Task<DeaccreditResponse> Deaccredit(
-        Guid assemblyId,
-        Guid userId,
-        [FromBody] DeaccreditRequest request,
-        CancellationToken cancellationToken) =>
-        _attendance.DeaccreditAsync(assemblyId, userId, request, cancellationToken);
+    public IActionResult Deaccredit(Guid assemblyId, Guid userId) =>
+        GoneAccreditation();
+
+    [HttpPost("check-in")]
+    [Authorize(Policy = Permissions.AttendanceManage)]
+    public IActionResult CheckIn(Guid assemblyId) =>
+        GoneAccreditation();
+
+    private static ObjectResult GoneAccreditation() =>
+        new ObjectResult(new
+        {
+            code = "ACCREDITATION_REMOVED",
+            message = "La acreditación fue eliminada. La convocatoria válida autoriza el ingreso; la presencia registra quórum y voto."
+        })
+        {
+            StatusCode = StatusCodes.Status410Gone
+        };
 
     /// <summary>Avisar para unirse — SignalR prompt to an absent participant.</summary>
     [HttpPost("participants/{userId:guid}/summon")]

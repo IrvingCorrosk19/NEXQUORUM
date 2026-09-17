@@ -39,11 +39,15 @@ internal static class Mapping
             participant.UserId,
             participant.UnitId,
             unitCode,
-            coefficientPercent ?? (participant.IsAccredited ? participant.EffectiveCoefficientPercent : null),
+            coefficientPercent
+                ?? (CountsTowardQuorum(participant.AttendanceStatus)
+                    ? participant.EffectiveCoefficientPercent
+                    : null),
             participant.DisplayName,
             participant.RoleCode,
             participant.AttendanceStatus.ToString(),
             participant.CheckedInAtUtc,
+            // Deprecated: historical assemblies only. New flow uses convocation + presence.
             participant.IsAccredited,
             participant.EffectiveCoefficientPercent,
             participant.AccreditedAtUtc,
@@ -104,7 +108,7 @@ internal static class Mapping
             or AttendanceStatus.Present
             or AttendanceStatus.TemporarilyDisconnected;
 
-    /// <summary>Accredited + present-ish statuses contribute to quorum.</summary>
+    /// <summary>Present (or briefly disconnected) participants contribute to quorum. Convocation alone does not.</summary>
     public static bool ContributesToQuorum(AssemblyParticipant participant) =>
-        participant.IsAccredited && CountsTowardQuorum(participant.AttendanceStatus);
+        CountsTowardQuorum(participant.AttendanceStatus);
 }

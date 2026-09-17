@@ -60,7 +60,7 @@ function assemblyStatusLabel(status) {
   const map = {
     Draft: "Borrador",
     Scheduled: "Programada",
-    CheckIn: "En acreditación",
+    CheckIn: "En presencia",
     InProgress: "En curso",
     Paused: "Pausada",
     Completed: "Finalizada",

@@ -36,7 +36,7 @@ function renderEvidence(data) {
 
     <section class="minutes-section">
       <h3>Asistencia</h3>
-      <ul>${(data.attendance || []).map((p) => `<li>${escapeHtml(p.displayName)} · ${escapeHtml(p.unitCode || "—")} · ${pct(p.effectiveCoefficientPercent ?? p.coefficientPercent)} · acred. ${p.isAccredited ? "sí" : "no"}</li>`).join("") || "<li>—</li>"}</ul>
+      <ul>${(data.attendance || []).map((p) => `<li>${escapeHtml(p.displayName)} · ${escapeHtml(p.unitCode || "—")} · ${pct(p.effectiveCoefficientPercent ?? p.coefficientPercent)} · ${escapeHtml(p.attendanceStatus || "—")}</li>`).join("") || "<li>—</li>"}</ul>
     </section>
 
     <section class="minutes-section">

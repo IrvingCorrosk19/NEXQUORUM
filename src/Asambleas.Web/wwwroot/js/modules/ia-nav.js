@@ -133,7 +133,7 @@ export function buildAssemblyTabsHtml(ctx) {
           { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
           { id: "asm-readiness", href: `/dashboard.html?${q}#readiness`, label: "Preparación" },
           canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
-          { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Acreditación" },
+          { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Participantes" },
           { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda" },
           canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
           { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala" },
@@ -143,7 +143,7 @@ export function buildAssemblyTabsHtml(ctx) {
         ];
 
   const filtered = tabs.filter(Boolean).filter((t) => {
-    // Owners never see accreditation / check-in desk tabs.
+    // Owners never see the operator presence desk tab.
     if (t.id === "asm-checkin" && roleFamily(ctx.user) === "owner") return false;
     return true;
   });

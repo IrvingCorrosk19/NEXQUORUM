@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using Asambleas.Contracts.Assemblies;
 using Asambleas.Contracts.Representation;
@@ -14,7 +15,7 @@ public sealed class BulkAccreditationConcurrencyTests
     public BulkAccreditationConcurrencyTests(AsambleasFixture fixture) => _fixture = fixture;
 
     [Fact]
-    public async Task Concurrent_same_batchId_is_idempotent_single_effect()
+    public async Task Concurrent_bulk_accreditation_returns_gone()
     {
         await _fixture.ResetDatabaseAsync();
         var president = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
@@ -32,20 +33,8 @@ public sealed class BulkAccreditationConcurrencyTests
         var t2 = president.PostJsonAsync(
             $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/accredit-bulk", body);
         var responses = await Task.WhenAll(t1, t2);
-        responses[0].EnsureSuccessStatusCode();
-        responses[1].EnsureSuccessStatusCode();
-
-        var r1 = await responses[0].Content.ReadFromJsonAsync<BulkAccreditResponse>();
-        var r2 = await responses[1].Content.ReadFromJsonAsync<BulkAccreditResponse>();
-        r1!.BatchId.Should().Be(batchId);
-        r2!.BatchId.Should().Be(batchId);
-
-        var listRes = await president.Client.GetAsync(
-            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/participants");
-        listRes.EnsureSuccessStatusCode();
-        var participants = await listRes.Content.ReadFromJsonAsync<List<AssemblyParticipantDto>>();
-        participants!.Count(p => p.UserId == DemoSeedConstants.UserOwner101Id && p.IsAccredited)
-            .Should().Be(1);
+        responses[0].StatusCode.Should().Be(HttpStatusCode.Gone);
+        responses[1].StatusCode.Should().Be(HttpStatusCode.Gone);
     }
 
     [Fact]

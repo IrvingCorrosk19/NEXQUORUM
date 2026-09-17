@@ -1130,7 +1130,11 @@ public sealed class CalendarSchedulingService
             .Select(g => new { g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
         var confirmedCounts = await _db.AssemblyParticipants.AsNoTracking()
-            .Where(p => ids.Contains(p.AssemblyId) && p.IsAccredited)
+            .Where(p => ids.Contains(p.AssemblyId)
+                        && (p.AttendanceStatus == AttendanceStatus.Present
+                            || p.AttendanceStatus == AttendanceStatus.CheckedIn
+                            || p.AttendanceStatus == AttendanceStatus.TemporarilyDisconnected
+                            || p.IsAccredited))
             .GroupBy(p => p.AssemblyId)
             .Select(g => new { g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);

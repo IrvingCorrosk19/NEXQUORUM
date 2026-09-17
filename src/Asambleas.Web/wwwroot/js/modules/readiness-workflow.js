@@ -193,7 +193,7 @@ export function renderQuickLinks(host, user, assemblyId, assembly = null) {
       ]
     : [
         canComms ? { href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
-        { href: `/checkin.html?${q}`, label: "Acreditación" },
+        { href: `/checkin.html?${q}`, label: "Participantes" },
         canVote ? { href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
         { href: `/lobby.html?${q}`, label: "Sala" },
         { href: `/minutes.html?${q}`, label: "Acta" }
@@ -235,7 +235,7 @@ export function renderWorkspaceGroups(host, user, assemblyId) {
       canComms ? link(`/convocation.html?${q}`, "Documentos") : ""
     ].filter(Boolean)),
     group("Durante asamblea", [
-      link(`/checkin.html?${q}`, "Acreditación"),
+      link(`/checkin.html?${q}`, "Participantes"),
       link(`/lobby.html?${q}`, "Sala"),
       op ? link(`/projector.html?${q}`, "Proyector", "_blank") : ""
     ].filter(Boolean)),

@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// Teams-like lobby admission (Waiting / Admitted / Rejected).
-/// Complements accreditation; never grants quorum or vote by itself.
+/// Valid convocation authorizes entry — no accreditation or president approval required.
 /// </summary>
 public sealed class LobbyAdmissionService
 {
@@ -46,43 +46,8 @@ public sealed class LobbyAdmissionService
         var assembly = await RequireJoinableAsync(assemblyId, cancellationToken);
         var participant = await RequireParticipantAsync(assemblyId, userId, cancellationToken);
 
-        if (IsOperator())
-        {
-            return await AdmitCoreAsync(assembly, participant, auto: true, cancellationToken);
-        }
-
-        if (!participant.IsAccredited)
-        {
-            throw new DomainException(
-                "NOT_ACCREDITED",
-                "Todavía no está acreditado. Espere la validación de la mesa antes de solicitar ingreso.");
-        }
-
-        if (participant.RoomEntryStatus == RoomEntryStatus.Admitted)
-        {
-            return Map(participant);
-        }
-
-        participant.RoomEntryStatus = RoomEntryStatus.Waiting;
-        participant.RoomEntryRequestedAtUtc = DateTimeOffset.UtcNow;
-        participant.RoomEntryRejectReason = null;
-        participant.UpdatedAtUtc = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
-
-        var dto = Map(participant);
-        await _realtime.PublishAttendanceAsync(assemblyId, dto, cancellationToken);
-        await _realtime.PublishRoomEntryChangedAsync(
-            assemblyId,
-            new RoomEntryChangedDto(
-                assemblyId,
-                userId,
-                participant.DisplayName,
-                RoomEntryStatus.Waiting.ToString(),
-                "Esperando que el presidente te admita.",
-                AtUtc: DateTimeOffset.UtcNow),
-            cancellationToken);
-
-        return dto;
+        // Convocated participants enter directly — no mesa accreditation or manual admit.
+        return await AdmitCoreAsync(assembly, participant, auto: true, cancellationToken);
     }
 
     public async Task<AssemblyParticipantDto> CancelEntryRequestAsync(
@@ -141,7 +106,6 @@ public sealed class LobbyAdmissionService
         var assembly = await RequireJoinableAsync(assemblyId, cancellationToken);
         var waiting = await _db.AssemblyParticipants
             .Where(p => p.AssemblyId == assemblyId
-                        && p.IsAccredited
                         && p.RoomEntryStatus == RoomEntryStatus.Waiting)
             .ToListAsync(cancellationToken);
 
@@ -223,11 +187,9 @@ public sealed class LobbyAdmissionService
         bool auto,
         CancellationToken cancellationToken)
     {
-        if (!participant.IsAccredited && !auto)
+        if (participant.RoomEntryStatus == RoomEntryStatus.Admitted)
         {
-            throw new DomainException(
-                "NOT_ACCREDITED",
-                "Solo se puede admitir a participantes acreditados.");
+            return Map(participant);
         }
 
         participant.RoomEntryStatus = RoomEntryStatus.Admitted;
@@ -244,9 +206,7 @@ public sealed class LobbyAdmissionService
                 participant.UserId,
                 participant.DisplayName,
                 RoomEntryStatus.Admitted.ToString(),
-                auto
-                    ? "Ingreso autorizado (mesa)."
-                    : "El presidente te ha admitido. Entrando a la asamblea…",
+                "Puedes ingresar directamente porque fuiste convocado a esta asamblea.",
                 AtUtc: DateTimeOffset.UtcNow),
             cancellationToken);
         return dto;

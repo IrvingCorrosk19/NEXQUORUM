@@ -52,7 +52,7 @@ function renderMinutes(data) {
 
     <section id="sec-attendance" class="minutes-section">
       <h3>Asistencia y representación</h3>
-      <p class="muted">${attendance.length} participantes acreditados/presentes</p>
+      <p class="muted">${attendance.length} participantes presentes</p>
       <ul>${attendance.map((p) => `<li><strong>${escapeHtml(p.displayName)}</strong> · ${escapeHtml(p.unitCode || "—")} · ${pct(p.effectiveCoefficientPercent ?? p.coefficientPercent)} · ${escapeHtml(p.attendanceStatus || "")}</li>`).join("") || "<li>—</li>"}</ul>
       ${
         reps.length
@@ -126,7 +126,7 @@ function renderMinutes(data) {
 
     <section id="sec-closure" class="minutes-section">
       <h3>Cierre</h3>
-      <p>Acreditación: ${escapeHtml(formatDateTime(data.checkInStartedAtUtc) || "—")}</p>
+      <p>Presencia: ${escapeHtml(formatDateTime(data.checkInStartedAtUtc) || "—")}</p>
       <p>Inicio: ${escapeHtml(formatDateTime(data.assemblyStartedAtUtc) || "—")}</p>
       <p>Cierre: ${escapeHtml(formatDateTime(data.completedAtUtc) || "—")}</p>
       <p class="muted">${escapeHtml(data.disclaimer || "")}</p>

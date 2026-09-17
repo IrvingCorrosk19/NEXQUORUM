@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using Asambleas.Contracts.Assemblies;
 using Asambleas.Contracts.Representation;
 using Asambleas.Domain.Enums;
 using Asambleas.Infrastructure.Persistence;
@@ -20,7 +19,7 @@ public sealed class AttendanceRepresentationTests
     public AttendanceRepresentationTests(AsambleasFixture fixture) => _fixture = fixture;
 
     [Fact]
-    public async Task Owner102_accredits_with_own_unit_plus_power_107()
+    public async Task Owner102_presence_materializes_own_unit_plus_power_107()
     {
         await _fixture.ResetDatabaseAsync();
         var president = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
@@ -35,13 +34,8 @@ public sealed class AttendanceRepresentationTests
         body!.EffectiveCoefficientPercent.Should().Be(22m);
         body.Represented.Should().ContainSingle(r => r.UnitCode == "107");
 
-        var accredit = await president.PostJsonAsync(
-            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/participants/{DemoSeedConstants.UserOwner102Id}/accredit",
-            new AccreditRequest(PresenceType.Virtual.ToString(), "OperatorCheckIn"));
-        accredit.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result = await accredit.Content.ReadFromJsonAsync<AccreditResponse>();
-        result!.IsAccredited.Should().BeTrue();
-        result.EffectiveCoefficientPercent.Should().Be(22m);
+        (await owner102.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/presence"))
+            .EnsureSuccessStatusCode();
 
         await using var scope = _fixture.Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
@@ -52,25 +46,27 @@ public sealed class AttendanceRepresentationTests
             .ToListAsync();
         reps.Should().HaveCount(2);
         reps.Sum(r => r.CoefficientSnapshot).Should().Be(22m);
+
+        var p = await db.AssemblyParticipants.IgnoreQueryFilters()
+            .SingleAsync(x => x.AssemblyId == DemoSeedConstants.AssemblyOceanId
+                              && x.UserId == DemoSeedConstants.UserOwner102Id);
+        p.AttendanceStatus.Should().Be(AttendanceStatus.Present);
+        p.EffectiveCoefficientPercent.Should().Be(22m);
     }
 
     [Fact]
-    public async Task Duplicate_check_in_is_idempotent()
+    public async Task Duplicate_presence_is_idempotent()
     {
         await _fixture.ResetDatabaseAsync();
         var president = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start-checkin"))
             .EnsureSuccessStatusCode();
 
-        await AttendanceTestHelpers.AccreditAsync(
-            president, DemoSeedConstants.AssemblyOceanId, DemoSeedConstants.UserOwner101Id);
-
-        var again = await president.PostJsonAsync(
-            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/participants/{DemoSeedConstants.UserOwner101Id}/accredit",
-            new AccreditRequest("Virtual", "OperatorCheckIn"));
-        again.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await again.Content.ReadFromJsonAsync<AccreditResponse>();
-        body!.IdempotentReplay.Should().BeTrue();
+        var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
+        (await owner.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/presence"))
+            .EnsureSuccessStatusCode();
+        (await owner.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/presence"))
+            .EnsureSuccessStatusCode();
 
         await using var scope = _fixture.Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
@@ -82,40 +78,43 @@ public sealed class AttendanceRepresentationTests
     }
 
     [Fact]
-    public async Task Operator_can_accredit_another_participant()
+    public async Task Owner_presence_materializes_unit_101()
     {
         await _fixture.ResetDatabaseAsync();
         var president = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
         (await president.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start-checkin"))
             .EnsureSuccessStatusCode();
 
-        var accredit = await president.PostJsonAsync(
-            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/participants/{DemoSeedConstants.UserOwner101Id}/accredit",
-            new AccreditRequest("InPerson", "OperatorCheckIn"));
-        accredit.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await accredit.Content.ReadFromJsonAsync<AccreditResponse>();
-        body!.IsAccredited.Should().BeTrue();
-        body.EffectiveCoefficientPercent.Should().Be(14m);
-        body.Representations.Should().ContainSingle(r => r.UnitCode == "101");
+        var owner = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner101@ocean.demo");
+        var presence = await owner.PostAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/presence");
+        presence.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using var scope = _fixture.Factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
+        var reps = await db.AssemblyRepresentations.IgnoreQueryFilters()
+            .Where(r => r.AssemblyId == DemoSeedConstants.AssemblyOceanId
+                        && r.RepresentativeUserId == DemoSeedConstants.UserOwner101Id
+                        && r.IsActive)
+            .ToListAsync();
+        reps.Should().ContainSingle(r => r.UnitId == DemoSeedConstants.Unit101Id);
     }
 
     [Fact]
-    public async Task Concurrent_operator_accredits_same_person_single_representation()
+    public async Task Concurrent_presence_same_person_single_representation()
     {
         await _fixture.ResetDatabaseAsync();
         var p1 = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
         (await p1.PostAsync($"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/start-checkin"))
             .EnsureSuccessStatusCode();
 
-        var presidentA = await AuthenticatedClient.LoginAsync(_fixture.Factory, "president@ocean.demo");
-        var secretary = await AuthenticatedClient.LoginAsync(_fixture.Factory, "secretary@ocean.demo");
+        var ownerA = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner103@ocean.demo");
+        var ownerB = await AuthenticatedClient.LoginAsync(_fixture.Factory, "owner103@ocean.demo");
 
-        var t1 = presidentA.PostJsonAsync(
-            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/participants/{DemoSeedConstants.UserOwner103Id}/accredit",
-            new AccreditRequest("InPerson"));
-        var t2 = secretary.PostJsonAsync(
-            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/participants/{DemoSeedConstants.UserOwner103Id}/accredit",
-            new AccreditRequest("InPerson"));
+        var t1 = ownerA.PostAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/presence");
+        var t2 = ownerB.PostAsync(
+            $"/api/assemblies/{DemoSeedConstants.AssemblyOceanId}/attendance/presence");
 
         var results = await Task.WhenAll(t1, t2);
         results.Count(r => r.IsSuccessStatusCode).Should().BeGreaterThanOrEqualTo(1);

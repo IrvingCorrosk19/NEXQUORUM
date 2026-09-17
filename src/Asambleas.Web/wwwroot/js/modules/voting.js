@@ -26,7 +26,7 @@ export function mapOpenVotingError(error) {
     return msg || "Ya hay una votación abierta. Ciérrela antes de abrir otra.";
   }
   if (code === "NOT_ELIGIBLE") {
-    return msg || "No hay propietarios acreditados elegibles para abrir la votación.";
+    return msg || "No hay propietarios convocados elegibles para abrir la votación.";
   }
   return msg || "No se pudo abrir la votación.";
 }
@@ -382,8 +382,8 @@ export function renderVotePanel(
       <div class="vote-success-banner" role="status">
         ${renderReceipt(evidenceId, castAt, tally, session, { waiting: true })}
       </div>`;
-  } else if (!operatorView && status === "NOT_ACCREDITED") {
-    body += `<p class="vote-eligibility-msg" role="status">${escapeHtml(t("voting.notAccredited"))}</p>`;
+  } else if (!operatorView && (status === "NOT_PRESENT" || status === "NOT_ACCREDITED")) {
+    body += `<p class="vote-eligibility-msg" role="status">${escapeHtml(t("voting.needPresence") || "Debes estar presente en la asamblea para votar.")}</p>`;
   } else if (
     !operatorView &&
     (status === "NOT_ELIGIBLE" || status === "NOT_PARTICIPANT" || (!canCast && session.status === "Open"))

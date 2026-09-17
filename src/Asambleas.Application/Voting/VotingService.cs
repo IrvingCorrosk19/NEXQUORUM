@@ -142,7 +142,7 @@ public sealed class VotingService
             motion.OptionsJson,
             motion.IsSecret,
             motion.Instructions,
-            EligibilityBasis = "AccreditedParticipants",
+            EligibilityBasis = "PresentParticipants",
             CoefficientBasis = calcMethod
         });
 
@@ -338,12 +338,11 @@ public sealed class VotingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, participant.TenantId);
 
-        if (participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left
-            || !participant.IsAccredited)
+        if (participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left)
         {
             throw new DomainException(
-                VotingCodes.NotAccredited,
-                "Participant is not accredited and eligible to vote.");
+                VotingCodes.NotPresent,
+                "Debes estar presente en la asamblea para votar.");
         }
 
         // Prefer frozen eligibility snapshot when present.
@@ -1187,12 +1186,11 @@ public sealed class VotingService
                 unitCode);
         }
 
-        if (!participant.IsAccredited
-            || participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left)
+        if (participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left)
         {
             return new MyVoteStatusDto(
                 votingSessionId,
-                VotingCodes.NotAccredited,
+                VotingCodes.NotPresent,
                 null,
                 null,
                 coefficient,
@@ -1434,7 +1432,6 @@ public sealed class VotingService
         var participants = await _db.AssemblyParticipants
             .AsNoTracking()
             .Where(p => p.AssemblyId == assemblyId
-                        && p.IsAccredited
                         && p.AttendanceStatus != AttendanceStatus.Registered
                         && p.AttendanceStatus != AttendanceStatus.Left)
             .ToListAsync(cancellationToken);

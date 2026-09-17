@@ -11,6 +11,7 @@ public static class AttendanceCodes
     public const string OwnerInactive = "OWNER_INACTIVE";
     public const string OwnerMissingUnits = "OWNER_MISSING_UNITS";
     public const string NotAccredited = "NOT_ACCREDITED";
+    public const string AccreditationRemoved = "ACCREDITATION_REMOVED";
     public const string Unauthorized = "UNAUTHORIZED_ACCREDITATION";
     /// <summary>Owner (or any caller without attendance:manage) attempted self-accreditation.</summary>
     public const string SelfAccreditationForbidden = "SELF_ACCREDITATION_FORBIDDEN";

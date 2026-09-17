@@ -324,7 +324,8 @@ public sealed class QuorumService
     }
 
     /// <summary>
-    /// Quorum from active AssemblyRepresentation rows whose representative is accredited and present.
+    /// Quorum from active AssemblyRepresentation rows whose representative is present
+    /// (CheckedIn / Present / TemporarilyDisconnected). Convocation alone does not count.
     /// Unit coefficients are never double-counted (unique active representation per unit).
     /// </summary>
     private async Task<(
@@ -350,7 +351,6 @@ public sealed class QuorumService
         var contributingUserIds = await _db.AssemblyParticipants
             .AsNoTracking()
             .Where(p => p.AssemblyId == assembly.Id
-                        && p.IsAccredited
                         && (p.AttendanceStatus == AttendanceStatus.CheckedIn
                             || p.AttendanceStatus == AttendanceStatus.Present
                             || p.AttendanceStatus == AttendanceStatus.TemporarilyDisconnected))

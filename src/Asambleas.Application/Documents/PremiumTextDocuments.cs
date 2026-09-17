@@ -45,13 +45,13 @@ public static class PremiumTextDocuments
         }
         sb.AppendLine();
 
-        sb.AppendLine("## 3. ASISTENCIA (acreditados / presentes)");
+        sb.AppendLine("## 3. ASISTENCIA (convocados / presentes)");
         sb.AppendLine($"Total listados: {m.Attendance.Count}");
         foreach (var p in m.Attendance.OrderBy(x => x.DisplayName))
         {
             sb.AppendLine(
                 $"  - {p.DisplayName} | Unidad {p.UnitCode ?? "—"} | {DocumentLabels.Role(p.RoleCode)} | " +
-                $"{DocumentLabels.AttendanceStatus(p.AttendanceStatus)} | {DocumentLabels.Accreditation(p.IsAccredited)} | " +
+                $"{DocumentLabels.PresenceLabel(p.AttendanceStatus, p.IsAccredited)} | " +
                 $"{DocumentLabels.Coefficient(p.EffectiveCoefficientPercent)}");
         }
         sb.AppendLine();
@@ -96,21 +96,27 @@ public static class PremiumTextDocuments
     {
         var sb = new StringBuilder();
         Header(sb, "REGISTRO DE ASISTENCIA", ctx);
-        var accredited = p.Attendance.Count(x => x.IsAccredited);
+        var present = p.Attendance.Count(x =>
+            x.AttendanceStatus is "CheckedIn" or "Present" or "TemporarilyDisconnected"
+            || x.IsAccredited);
         var represented = p.Representations.Count(x => x.IsActive);
-        var coef = p.Attendance.Where(x => x.IsAccredited).Sum(x => x.EffectiveCoefficientPercent);
-        sb.AppendLine($"Registrados: {p.Attendance.Count}");
-        sb.AppendLine($"Acreditados: {accredited}");
+        var coef = p.Attendance
+            .Where(x =>
+                x.AttendanceStatus is "CheckedIn" or "Present" or "TemporarilyDisconnected"
+                || x.IsAccredited)
+            .Sum(x => x.EffectiveCoefficientPercent);
+        sb.AppendLine($"Convocados: {p.Attendance.Count}");
+        sb.AppendLine($"Presentes: {present}");
         sb.AppendLine($"Representaciones activas: {represented}");
-        sb.AppendLine($"Coeficiente acreditado (suma): {DocumentLabels.Coefficient(coef)}");
+        sb.AppendLine($"Coeficiente presente (suma): {DocumentLabels.Coefficient(coef)}");
         sb.AppendLine();
         sb.AppendLine("## PARTICIPANTES");
-        sb.AppendLine("Nombre\tUnidad\tCalidad\tEstado\tAcreditación\tCoeficiente");
+        sb.AppendLine("Nombre\tUnidad\tCalidad\tEstado\tCoeficiente");
         foreach (var row in p.Attendance.OrderBy(x => x.DisplayName))
         {
             sb.AppendLine(
                 $"{row.DisplayName}\t{row.UnitCode ?? "—"}\t{DocumentLabels.Role(row.RoleCode)}\t" +
-                $"{DocumentLabels.AttendanceStatus(row.AttendanceStatus)}\t{DocumentLabels.Accreditation(row.IsAccredited)}\t" +
+                $"{DocumentLabels.PresenceLabel(row.AttendanceStatus, row.IsAccredited)}\t" +
                 $"{DocumentLabels.Coefficient(row.EffectiveCoefficientPercent)}");
         }
         sb.AppendLine();

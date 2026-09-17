@@ -79,7 +79,7 @@ function statusBadge(ev) {
     return { label: "En vivo", cls: "owner-badge--live" };
   }
   if (status === "CheckIn") {
-    return { label: "Acreditación", cls: "owner-badge--soon" };
+    return { label: "Presencia", cls: "owner-badge--soon" };
   }
   if (status === "Completed") {
     return { label: "Finalizada", cls: "owner-badge--done" };

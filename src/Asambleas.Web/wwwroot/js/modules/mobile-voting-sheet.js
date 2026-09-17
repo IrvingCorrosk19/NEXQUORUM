@@ -65,8 +65,8 @@ function mapCastError(error) {
   if (code.includes("CLOSED") || code.includes("VOTING_CLOSED")) {
     return t("mvote.closedBeforeCast") || "La votación fue cerrada antes de registrar su voto.";
   }
-  if (code.includes("NOT_ACCREDITED")) {
-    return t("voting.notAccredited") || "Su participación todavía está pendiente de validación administrativa.";
+  if (code.includes("NOT_PRESENT") || code.includes("NOT_ACCREDITED")) {
+    return t("voting.needPresence") || "Debes estar presente en la asamblea para votar.";
   }
   if (code.includes("NOT_ELIGIBLE") || code.includes("NOT_PARTICIPANT") || status === 403) {
     return t("voting.notEligible") || "No tiene derecho a voto para esta moción.";
@@ -367,6 +367,7 @@ export function createMobileVotingController(options) {
     if (
       statusCode === "NOT_ELIGIBLE" ||
       statusCode === "NOT_PARTICIPANT" ||
+      statusCode === "NOT_PRESENT" ||
       statusCode === "NOT_ACCREDITED" ||
       (!canCastPermission() && statusCode && statusCode !== "ELIGIBLE")
     ) {
@@ -628,8 +629,8 @@ export function createMobileVotingController(options) {
     const title = overlay.querySelector("#mvo-title");
     if (title) title.textContent = t("voting.openBanner") || "VOTACIÓN ABIERTA";
     const msg =
-      code === "NOT_ACCREDITED"
-        ? t("voting.notAccredited")
+      code === "NOT_PRESENT" || code === "NOT_ACCREDITED"
+        ? t("voting.needPresence") || "Debes estar presente en la asamblea para votar."
         : t("voting.notEligible");
     body.innerHTML = `<p class="mvo__eligibility" role="status">${escapeHtml(msg)}</p>`;
     footer.hidden = false;

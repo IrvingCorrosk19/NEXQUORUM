@@ -25,7 +25,7 @@ function statusLabel(status) {
   const map = {
     Draft: "Borrador",
     Scheduled: "Programada",
-    CheckIn: "Mesa de acreditación",
+    CheckIn: "Presencia abierta",
     InProgress: "En curso",
     Paused: "En receso",
     Completed: "Finalizada",
@@ -58,14 +58,16 @@ function quorumLabel(quorum) {
   return `${cur}% / ${req}% requerido`;
 }
 
-function accreditationLabel(self, participants, operator) {
+function participationLabel(self, participants, operator) {
   if (operator) return "Personal de mesa (no vota como propietario)";
-  if (!self && !participants?.length) return "Sin datos de acreditación";
+  if (!self && !participants?.length) return "Sin datos de convocatoria";
   const me = self;
-  if (me?.isAccredited) return "Acreditado";
-  if (me?.attendanceStatus === "Registered") return "Inscrito — pendiente de acreditación";
-  if (me) return me.attendanceStatus || "Sin acreditar";
-  return "Verifique su acreditación con la mesa";
+  if (!me) return "No encontramos una invitación válida asociada con esta cuenta.";
+  const st = String(me.attendanceStatus || "");
+  if (["Present", "CheckedIn"].includes(st)) return "Presente";
+  if (st === "TemporarilyDisconnected") return "Conectado (intermitente)";
+  if (st === "Registered" || me.userId) return "Convocado";
+  return st || "Convocado";
 }
 
 function connectionLabel(connection) {
@@ -110,7 +112,7 @@ export function resolveContextualGuide(ctx) {
 
   const facts = [
     { label: "Asamblea", value: statusLabel(status) },
-    { label: "Acreditación", value: accreditationLabel(ctx.self, ctx.participants, operator) },
+    { label: "Participación", value: participationLabel(ctx.self, ctx.participants, operator) },
     { label: "Quórum", value: quorumLabel(ctx.quorum), tone: quorumInvalid ? "danger" : undefined },
     { label: "Pregunta", value: motionLabel(motion, ctx.session) },
     {
@@ -196,12 +198,12 @@ export function resolveContextualGuide(ctx) {
         severity: "info",
         title: status === "Draft" ? "Asamblea en borrador" : "Asamblea programada",
         explanation:
-          "Todavía no hay mesa abierta ni asamblea en curso. Los participantes no pueden votar hasta que inicie el flujo oficial.",
+          "Todavía no hay presencia abierta ni asamblea en curso. Los convocados pueden permanecer en espera hasta el inicio oficial.",
         steps: canManageAttendance
-          ? ["Abra la mesa de acreditación", "Acredite propietarios", "Inicie la asamblea", "Presente y abra cada votación"]
-          : ["Pida a quien gestione acreditación abrir la mesa", "Cuando haya quórum/asistencia, inicie la asamblea"],
+          ? ["Abra la ventana de presencia", "Supervise convocados y quórum", "Inicie la asamblea", "Presente y abra cada votación"]
+          : ["Espere a que la mesa abra la presencia", "Cuando haya quórum, se iniciará la asamblea"],
         responsible: "Mesa",
-        nextActionLabel: canManageAttendance ? "Ir a acreditación" : canStart ? "Iniciar asamblea" : null,
+        nextActionLabel: canManageAttendance ? "Ver participantes" : canStart ? "Iniciar asamblea" : null,
         actionId: canManageAttendance ? "go-checkin" : canStart ? "start-assembly" : null,
         actionHref: canManageAttendance ? `/checkin.html?assemblyId=${ctx.assemblyId}` : null
       });
@@ -210,8 +212,7 @@ export function resolveContextualGuide(ctx) {
       id: "owner-waiting-scheduled",
       severity: "info",
       title: "Esperando a que la mesa prepare la asamblea",
-      explanation:
-        "Usted ya está en la sala, pero la asamblea aún no ha comenzado. No hay votación disponible todavía.",
+      explanation: "La asamblea todavía no ha iniciado. Puedes permanecer en la sala de espera.",
       steps: ["Permanezca en la sala", "Espere el inicio anunciado por la mesa"],
       responsible: "Mesa (presidente)",
       nextActionLabel: null
@@ -223,32 +224,28 @@ export function resolveContextualGuide(ctx) {
       return base({
         id: "checkin-open",
         severity: "info",
-        title: "Mesa de acreditación abierta",
+        title: "Presencia abierta",
         explanation:
-          "Acredite a los propietarios en la mesa antes de votar. Cuando esté listo, inicie la asamblea y luego presente/abra cada pregunta.",
+          "Supervise convocados y quórum. Cuando esté listo, inicie la asamblea y luego presente/abra cada pregunta.",
         steps: [
-          "Acredite a los propietarios en la mesa",
+          "Revise convocados y presentes",
           "Inicie la asamblea",
           "Presente la pregunta",
           "Abra la votación"
         ],
         responsible: "Mesa",
-        nextActionLabel: canStart ? "Iniciar asamblea" : "Ir a acreditación",
+        nextActionLabel: canStart ? "Iniciar asamblea" : "Ver participantes",
         actionId: canStart ? "start-assembly" : "go-checkin",
         actionHref: canStart ? null : `/checkin.html?assemblyId=${ctx.assemblyId}`
       });
     }
-    const accredited = Boolean(ctx.self?.isAccredited);
     return base({
       id: "owner-checkin",
-      severity: accredited ? "success" : "warning",
-      title: accredited ? "Ya está acreditado — espere el inicio" : "Participación pendiente de validación",
-      explanation: accredited
-        ? "Su participación fue aprobada. Ya puede ingresar y votar cuando se habilite una votación."
-        : "Su participación está siendo validada. No necesita realizar ninguna acción. Esta pantalla se actualizará automáticamente.",
-      steps: accredited
-        ? ["Espere a que la mesa inicie la asamblea"]
-        : ["Espere la validación de la mesa"],
+      severity: "success",
+      title: "Puedes ingresar — espera el inicio",
+      explanation:
+        "Puedes ingresar directamente porque fuiste convocado a esta asamblea. La asamblea todavía no ha iniciado. Puedes permanecer en la sala de espera.",
+      steps: ["Espere a que la mesa inicie la asamblea"],
       responsible: "Mesa",
       nextActionLabel: null,
       actionId: null,
@@ -279,7 +276,7 @@ export function resolveContextualGuide(ctx) {
         severity: "success",
         title: "Votación abierta — recibiendo votos",
         explanation:
-          "Los participantes acreditados y elegibles pueden votar ahora. Al terminar, cierre la votación para fijar el resultado.",
+          "Los convocados elegibles pueden votar ahora. Al terminar, cierre la votación para fijar el resultado.",
         steps: ["Supervise la participación", "Cierre la votación cuando corresponda"],
         responsible: "Participantes (voto) / Mesa (cierre)",
         nextActionLabel: hasPermission(ctx.user, "vote:close") ? "Cerrar votación" : null,
@@ -296,15 +293,14 @@ export function resolveContextualGuide(ctx) {
         nextActionLabel: null
       });
     }
-    if (voteStatus === "NOT_ACCREDITED") {
+    if (voteStatus === "NOT_PRESENT" || voteStatus === "NOT_ACCREDITED") {
       return base({
-        id: "owner-not-accredited-live",
-        severity: "danger",
-        title: "Participación pendiente de validación",
-        explanation:
-          "Hay una votación abierta, pero su participación todavía está siendo validada. No necesita realizar ninguna acción; esta pantalla se actualizará automáticamente.",
-        steps: ["Espere la acreditación de la mesa"],
-        responsible: "Mesa",
+        id: "owner-not-present-live",
+        severity: "warning",
+        title: "Aún no está presente",
+        explanation: "Debes estar presente en la asamblea para votar.",
+        steps: ["Ingrese a la sala con su enlace de convocatoria"],
+        responsible: "Propietario",
         nextActionLabel: null,
         actionId: null,
         actionHref: null
@@ -468,10 +464,15 @@ export function explainBlockCode(code, fallbackMessage = "") {
       explanation: "Esta votación ya fue cerrada.",
       next: "Espere la siguiente pregunta."
     },
+    NOT_PRESENT: {
+      title: "Aún no está presente",
+      explanation: "Debes estar presente en la asamblea para votar.",
+      next: "Ingrese a la sala con su enlace de convocatoria."
+    },
     NOT_ACCREDITED: {
-      title: "Participación en validación",
-      explanation: "Su participación está siendo validada. No necesita realizar ninguna acción.",
-      next: "Esta pantalla se actualizará automáticamente."
+      title: "Aún no está presente",
+      explanation: "Debes estar presente en la asamblea para votar.",
+      next: "Ingrese a la sala con su enlace de convocatoria."
     },
     NOT_ELIGIBLE: {
       title: "Sin derecho a voto",

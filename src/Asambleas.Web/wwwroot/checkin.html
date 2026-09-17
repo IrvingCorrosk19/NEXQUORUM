@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ASAMBLEAS — Acreditación</title>
+  <title>ASAMBLEAS — Participantes</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
@@ -32,22 +32,6 @@
     }
     .checkin-live .metric { font-family: "Source Serif 4", Georgia, serif; font-size: 1.75rem; font-weight: 600; }
     .checkin-search input { min-height: 3rem; font-size: 1.05rem; width: 100%; }
-    .accreditation-card {
-      padding: 1.1rem 1.15rem;
-      border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
-      display: grid; gap: 0.65rem;
-    }
-    .accreditation-card .owner-label {
-      font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.65; margin: 0;
-    }
-    .accreditation-card .owner-name { font-family: "Source Serif 4", Georgia, serif; font-size: 1.35rem; margin: 0; }
-    .accreditation-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: 0.55rem 1rem; margin: 0;
-    }
-    .accreditation-grid dt { font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.65; margin: 0; }
-    .accreditation-grid dd { margin: 0.15rem 0 0; font-size: 1.02rem; }
-    .card-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-    .card-actions .btn { min-height: 2.75rem; font-size: 0.95rem; }
     .owner-dialog {
       border: none; padding: 0; max-width: min(34rem, calc(100vw - 1.5rem));
       width: 100%; background: transparent; color: inherit;
@@ -62,6 +46,7 @@
     .owner-sheet header { display: grid; gap: 0.25rem; }
     .owner-sheet h2 { font-family: "Source Serif 4", Georgia, serif; margin: 0; font-size: 1.55rem; }
     .owner-sheet .subtitle { margin: 0; opacity: 0.7; font-size: 0.95rem; }
+    .owner-label { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.65; margin: 0; }
     .owner-section { display: grid; gap: 0.45rem; }
     .owner-section h3 {
       margin: 0; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.7;
@@ -99,33 +84,25 @@
     }
     .checkin-summary .chip strong { display: block; font-family: "Source Serif 4", Georgia, serif; font-size: 1.25rem; }
     .checkin-summary .chip span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
-    .bulk-toolbar {
-      position: sticky; top: 0; z-index: 2;
-      display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center;
-      padding: 0.65rem 0.75rem;
-      background: color-mix(in srgb, var(--color-surface) 92%, var(--brand-teal-500, #1a5f4a) 8%);
-      border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
-    }
-    .bulk-select { display: inline-flex; gap: 0.4rem; align-items: center; }
     .checkin-filters { display: grid; gap: 0.65rem; }
     @media (min-width: 720px) {
       .checkin-filters { grid-template-columns: minmax(0,1fr) 10rem 7rem; align-items: end; }
     }
-    .accreditation-table-wrap { overflow: auto; max-height: min(70vh, 42rem); border-top: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent); }
-    .accreditation-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-    .accreditation-table th, .accreditation-table td {
+    .participants-table-wrap { overflow: auto; max-height: min(70vh, 42rem); border-top: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent); }
+    .participants-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    .participants-table th, .participants-table td {
       padding: 0.55rem 0.45rem; text-align: left; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
       vertical-align: top;
     }
-    .accreditation-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; position: sticky; top: 0; background: var(--color-surface, #f7f4ef); }
-    .accreditation-table tr.is-accredited { background: color-mix(in srgb, var(--brand-teal-500, #1a5f4a) 6%, transparent); }
+    .participants-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; position: sticky; top: 0; background: var(--color-surface, #f7f4ef); }
+    .participants-table tr.is-present { background: color-mix(in srgb, var(--brand-teal-500, #1a5f4a) 6%, transparent); }
     .quorum-config-warn { color: #9b2c2c; font-size: 0.85rem; margin: 0.35rem 0 0; }
     .alert-warn { border-left: 3px solid #9b2c2c; padding: 0.75rem 0.9rem; background: color-mix(in srgb, #9b2c2c 8%, transparent); }
     @media (max-width: 720px) {
-      .accreditation-table thead { display: none; }
-      .accreditation-table tr { display: grid; gap: 0.25rem; padding: 0.75rem 0; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent); }
-      .accreditation-table td { border: 0; padding: 0.1rem 0; }
-      .accreditation-table td::before { content: attr(data-label); display: block; font-size: 0.68rem; text-transform: uppercase; opacity: 0.65; }
+      .participants-table thead { display: none; }
+      .participants-table tr { display: grid; gap: 0.25rem; padding: 0.75rem 0; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent); }
+      .participants-table td { border: 0; padding: 0.1rem 0; }
+      .participants-table td::before { content: attr(data-label); display: block; font-size: 0.68rem; text-transform: uppercase; opacity: 0.65; }
     }
   </style>
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
@@ -148,7 +125,7 @@
     <header class="app-top" role="banner">
       <div class="ia-top-context">
         <span class="ia-top-context__brand">ASAMBLEAS</span>
-        <span class="ia-top-context__path" id="ia-context-label">Acreditación</span>
+        <span class="ia-top-context__path" id="ia-context-label">Participantes</span>
       </div>
       <div class="cluster">
         <span id="ia-role-chip" class="badge badge-live"></span>
@@ -161,31 +138,20 @@
       <div id="contextual-guide" class="cx-guide" role="region" aria-live="polite"></div>
       <p id="sr-announcer" class="sr-live" aria-live="polite"></p>
       <section class="page-hero">
-        <h1 id="page-title">Acreditación</h1>
+        <h1 id="page-title">Participantes</h1>
         <p class="muted" id="assembly-label"></p>
       </section>
       <div id="desk-banner" class="checkin-banner" hidden>
         <p class="banner-text" id="desk-banner-text"></p>
         <div class="cluster">
-          <button type="button" id="btn-open-desk" class="btn btn-primary" hidden>Abrir mesa de acreditación</button>
-          <button type="button" id="btn-close-desk" class="btn btn-secondary" hidden>Cerrar mesa</button>
+          <button type="button" id="btn-open-desk" class="btn btn-primary" hidden>Abrir presencia</button>
+          <button type="button" id="btn-close-desk" class="btn btn-secondary" hidden>Cerrar presencia</button>
         </div>
       </div>
       <div id="coeff-warn" class="alert alert-warn" hidden role="alert"></div>
       <div class="checkin-shell">
         <div class="stack">
-          <div id="checkin-summary" class="checkin-summary" aria-label="Resumen de acreditación"></div>
-          <div class="bulk-toolbar" id="bulk-toolbar" hidden>
-            <label class="bulk-select">
-              <input type="checkbox" id="chk-select-visible" />
-              <span>Seleccionar visibles</span>
-            </label>
-            <button type="button" id="btn-select-filtered" class="btn btn-secondary">Seleccionar filtrados</button>
-            <span id="selected-count" class="muted">0 seleccionados</span>
-            <button type="button" id="btn-bulk-selected" class="btn btn-primary">Acreditar seleccionados verificados</button>
-            <button type="button" id="btn-bulk-deaccredit" class="btn btn-secondary">Quitar acreditación</button>
-            <button type="button" id="btn-bulk-accredit" class="btn btn-secondary" hidden title="Excepcional: requiere permiso administrativo">Acreditar ausentes (excepción)</button>
-          </div>
+          <div id="checkin-summary" class="checkin-summary" aria-label="Resumen de participantes"></div>
           <div class="checkin-filters">
             <div class="field checkin-search">
               <label for="participant-filter">Buscar nombre, unidad…</label>
@@ -195,8 +161,7 @@
               <label for="status-filter">Estado</label>
               <select id="status-filter">
                 <option value="all">Todos</option>
-                <option value="invited">Invitados</option>
-                <option value="accredited">Acreditados</option>
+                <option value="invited">Convocados</option>
                 <option value="present">Presentes</option>
                 <option value="observed">Observados</option>
               </select>
@@ -210,7 +175,7 @@
               </select>
             </div>
           </div>
-          <div id="cards-root" class="accreditation-table-wrap"><div class="skeleton" style="height:10rem"></div></div>
+          <div id="cards-root" class="participants-table-wrap"><div class="skeleton" style="height:10rem"></div></div>
           <div class="pager cluster" id="pager" hidden>
             <button type="button" class="btn btn-secondary" id="btn-page-prev">Anterior</button>
             <span id="page-label" class="muted"></span>
@@ -238,12 +203,12 @@
             <div id="live-quorum-meta" class="muted"></div>
           </div>
           <div>
-            <div class="muted">Presentes / Acreditados</div>
+            <div class="muted">Presentes / Convocados</div>
             <div id="live-counts" class="metric" style="font-size:1.25rem">—</div>
           </div>
           <div>
             <div class="muted">Recientes</div>
-            <div id="recent-root" class="recent-list muted">Sin acreditaciones aún</div>
+            <div id="recent-root" class="recent-list muted">Sin cambios de presencia aún</div>
           </div>
         </aside>
       </div>
@@ -260,27 +225,11 @@
       <div id="owner-dialog-body"></div>
       <div class="cta-row" id="owner-dialog-actions">
         <button type="button" id="btn-dialog-close" class="btn btn-secondary">Cerrar</button>
-        <button type="button" id="btn-dialog-accredit" class="btn btn-primary">Acreditar</button>
-      </div>
-    </div>
-  </dialog>
-
-  <dialog id="bulk-preview-dialog" class="owner-dialog" aria-labelledby="bulk-preview-title">
-    <div class="owner-sheet">
-      <header>
-        <p class="owner-label">Acreditación masiva</p>
-        <h2 id="bulk-preview-title">Previsualización</h2>
-        <p class="subtitle" id="bulk-preview-summary"></p>
-      </header>
-      <div id="bulk-preview-body"></div>
-      <div class="cta-row">
-        <button type="button" id="btn-bulk-preview-cancel" class="btn btn-secondary">Cancelar</button>
-        <button type="button" id="btn-bulk-preview-confirm" class="btn btn-primary">Confirmar acreditación</button>
       </div>
     </div>
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/js/modules/checkin-app.js?v=accredit6"></script>
+  <script type="module" src="/js/modules/checkin-app.js?v=presence1"></script>
 </body>
 </html>

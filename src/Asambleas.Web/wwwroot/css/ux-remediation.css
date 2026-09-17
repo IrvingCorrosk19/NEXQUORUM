@@ -335,7 +335,7 @@ select::placeholder {
   }
 }
 
-/* Accreditation desk / participant filters (checkin) */
+/* Presence desk / participant filters (checkin) */
 @media (max-width: 430px) {
   .checkin-shell {
     grid-template-columns: 1fr;
@@ -358,6 +358,7 @@ select::placeholder {
     box-sizing: border-box;
   }
 
+  .participants-table-wrap,
   .accreditation-card,
   .accreditation-table-wrap,
   .checkin-summary {

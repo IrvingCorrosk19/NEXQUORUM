@@ -7,7 +7,7 @@ import { primaryCtaForStatus } from "./room-state.js";
 const STATUS_LABELS = {
   Draft: "Borrador",
   Scheduled: "Programada",
-  CheckIn: "Acreditación abierta",
+  CheckIn: "Presencia abierta",
   InProgress: "En curso",
   Paused: "En pausa",
   Completed: "Finalizada",
@@ -40,17 +40,17 @@ export function resolvePrimaryAction(assembly, { assemblyId } = {}) {
     case "Scheduled":
       return {
         key: "startCheckin",
-        label: "Abrir acreditación",
+        label: "Abrir presencia",
         description:
-          "Permite registrar y validar a los participantes antes de constituir formalmente la asamblea.",
+          "Abre la ventana de presencia para que los convocados puedan unirse y constituir quórum.",
         href: `/checkin.html?assemblyId=${encodeURIComponent(id)}`,
         needsPost: "start-checkin"
       };
     case "CheckIn":
       return {
         key: "start",
-        label: "Ir a acreditación",
-        description: "La ventana de acreditación está abierta. Valida asistencia y quórum.",
+        label: "Ver participantes",
+        description: "La presencia está abierta. Supervise convocados y quórum.",
         href: `/checkin.html?assemblyId=${encodeURIComponent(id)}`,
         needsPost: null,
         secondary: {

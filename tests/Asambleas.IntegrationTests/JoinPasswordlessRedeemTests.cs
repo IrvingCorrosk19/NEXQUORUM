@@ -230,7 +230,7 @@ public sealed class JoinPasswordlessRedeemTests
     }
 
     [Fact]
-    public async Task Completed_assembly_blocks_redeem_without_cookie()
+    public async Task Completed_assembly_allows_historical_redeem_without_opening_participation()
     {
         await _fixture.ResetDatabaseAsync();
         MockEmailProvider.Clear();
@@ -246,12 +246,11 @@ public sealed class JoinPasswordlessRedeemTests
 
         var client = Anon();
         var redeem = await RedeemAsync(client, raw);
-        redeem.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await IsAuthedAsync(client)).Should().BeFalse();
-        var text = await redeem.Content.ReadAsStringAsync();
-        text.Should().Contain("finaliz");
-        text.Should().NotContain("Token");
-        text.Should().NotContain(assemblyId.ToString("D"));
+        redeem.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await IsAuthedAsync(client)).Should().BeTrue();
+        var body = await redeem.Content.ReadAsStringAsync();
+        body.Should().Contain("historical", "acceso histórico autorizado tras finalizar");
+        body.Should().NotContain("Token");
     }
 
     [Fact]

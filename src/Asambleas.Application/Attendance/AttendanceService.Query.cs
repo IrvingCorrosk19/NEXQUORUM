@@ -25,10 +25,16 @@ public sealed partial class AttendanceService
         if (!string.IsNullOrWhiteSpace(status))
         {
             var st = status.Trim();
-            if (string.Equals(st, "accredited", StringComparison.OrdinalIgnoreCase))
-                query = query.Where(p => p.IsAccredited);
-            else if (string.Equals(st, "registered", StringComparison.OrdinalIgnoreCase))
-                query = query.Where(p => !p.IsAccredited && p.AttendanceStatus == AttendanceStatus.Registered);
+            // Legacy "accredited" filter → present participants (convocation + presence model).
+            if (string.Equals(st, "accredited", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(st, "present", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(p =>
+                    p.AttendanceStatus == AttendanceStatus.Present
+                    || p.AttendanceStatus == AttendanceStatus.CheckedIn
+                    || p.AttendanceStatus == AttendanceStatus.TemporarilyDisconnected);
+            else if (string.Equals(st, "registered", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(st, "convoked", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(p => p.AttendanceStatus == AttendanceStatus.Registered);
             else if (string.Equals(st, "observed", StringComparison.OrdinalIgnoreCase))
                 query = query.Where(p => p.RoleCode == "Observer");
             else if (Enum.TryParse<AttendanceStatus>(st, true, out var parsed))
@@ -73,13 +79,18 @@ public sealed partial class AttendanceService
         if (!string.IsNullOrWhiteSpace(status))
         {
             var st = status.Trim();
-            if (string.Equals(st, "accredited", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(st, "accredited", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(st, "present", StringComparison.OrdinalIgnoreCase))
             {
-                query = query.Where(p => p.IsAccredited);
+                query = query.Where(p =>
+                    p.AttendanceStatus == AttendanceStatus.Present
+                    || p.AttendanceStatus == AttendanceStatus.CheckedIn
+                    || p.AttendanceStatus == AttendanceStatus.TemporarilyDisconnected);
             }
-            else if (string.Equals(st, "registered", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(st, "registered", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(st, "convoked", StringComparison.OrdinalIgnoreCase))
             {
-                query = query.Where(p => !p.IsAccredited && p.AttendanceStatus == AttendanceStatus.Registered);
+                query = query.Where(p => p.AttendanceStatus == AttendanceStatus.Registered);
             }
             else if (string.Equals(st, "observed", StringComparison.OrdinalIgnoreCase))
             {
@@ -123,7 +134,9 @@ public sealed partial class AttendanceService
         var items = participants.Select(p =>
         {
             string? code = null;
-            decimal? coeff = p.IsAccredited ? p.EffectiveCoefficientPercent : null;
+            decimal? coeff = Mapping.CountsTowardQuorum(p.AttendanceStatus)
+                ? p.EffectiveCoefficientPercent
+                : null;
             if (p.UnitId is Guid uid && unitMeta.TryGetValue(uid, out var meta))
             {
                 code = meta.Code;
@@ -180,13 +193,13 @@ public sealed partial class AttendanceService
                 continue;
             }
 
-            if (!p.IsAccredited && p.AttendanceStatus == AttendanceStatus.Registered
+            if (p.AttendanceStatus == AttendanceStatus.Registered
                 && !IsDeskStaffRole(p.RoleCode))
             {
                 items.Add(new AttendanceExceptionItemDto(
                     p.UserId, p.DisplayName, unitCode, "AbsentInvitee",
-                    reps, "Convocado no acreditado", null, p.UpdatedAtUtc,
-                    "Acreditar|Observar|Rechazar", null, null));
+                    reps, "Convocado aún no presente", null, p.UpdatedAtUtc,
+                    "Avisar|Observar", null, null));
             }
         }
 
