@@ -1,6 +1,7 @@
 namespace Asambleas.Web.Controllers;
 
 using Asambleas.Application.Attendance;
+using Asambleas.Application.Communications;
 using Asambleas.Application.Security;
 using Asambleas.Contracts.Assemblies;
 using Asambleas.Contracts.Realtime;
@@ -16,15 +17,18 @@ public sealed class AttendanceController : ControllerBase
     private readonly AttendanceService _attendance;
     private readonly AssemblySummonService _summon;
     private readonly LobbyAdmissionService _lobby;
+    private readonly ConvocationService _convocations;
 
     public AttendanceController(
         AttendanceService attendance,
         AssemblySummonService summon,
-        LobbyAdmissionService lobby)
+        LobbyAdmissionService lobby,
+        ConvocationService convocations)
     {
         _attendance = attendance;
         _summon = summon;
         _lobby = lobby;
+        _convocations = convocations;
     }
 
     [HttpGet("participants")]
@@ -37,6 +41,9 @@ public sealed class AttendanceController : ControllerBase
         [FromQuery] string? status,
         CancellationToken cancellationToken)
     {
+        // Heal roster: convocated owners without login were previously skipped.
+        await _convocations.SyncAssemblyParticipantsAsync(assemblyId, cancellationToken);
+
         if (skip is null && take is null && string.IsNullOrWhiteSpace(q) && string.IsNullOrWhiteSpace(status))
         {
             // Backward-compatible full list for existing clients.

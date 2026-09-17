@@ -105,6 +105,12 @@ public static class AuditEventType
     public const string OwnerAccessSuspended = "OWNER_ACCESS_SUSPENDED";
     public const string OwnerAccessRestored = "OWNER_ACCESS_RESTORED";
 
+    public const string ExternalLoginAttempt = "EXTERNAL_LOGIN_ATTEMPT";
+    public const string ExternalLoginSucceeded = "EXTERNAL_LOGIN_SUCCEEDED";
+    public const string ExternalLoginFailed = "EXTERNAL_LOGIN_FAILED";
+    public const string ExternalLoginLinked = "EXTERNAL_LOGIN_LINKED";
+    public const string ExternalLoginUnlinked = "EXTERNAL_LOGIN_UNLINKED";
+
     public const string OwnerPasswordResetRequested = "OWNER_PASSWORD_RESET_REQUESTED";
     public const string OwnerPasswordResetCompleted = "OWNER_PASSWORD_RESET_COMPLETED";
 

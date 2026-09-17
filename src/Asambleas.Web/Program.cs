@@ -8,10 +8,14 @@ using Asambleas.Web.Hubs;
 using Asambleas.Web.Middleware;
 using Asambleas.Web.Realtime;
 using Asambleas.Web.Security;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -39,10 +43,6 @@ try
     builder.Services.AddScoped<IAssemblyRealtimePublisher, SignalRAssemblyRealtimePublisher>();
     builder.Services.AddSingleton<IAssemblyHubPresence, AssemblyHubPresenceTracker>();
 
-    builder.Services
-        .AddAuthentication(IdentityConstants.ApplicationScheme)
-        .AddIdentityCookies();
-
     var allowInsecureCookies = builder.Environment.IsDevelopment()
         || string.Equals(builder.Environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase)
         || builder.Configuration.GetValue("ASAMBLEAS_ALLOW_INSECURE_LOGIN", false);
@@ -51,6 +51,12 @@ try
     var cookieSecure = allowInsecureCookies
         ? CookieSecurePolicy.SameAsRequest
         : CookieSecurePolicy.Always;
+
+    var authBuilder = builder.Services
+        .AddAuthentication(IdentityConstants.ApplicationScheme);
+    authBuilder.AddIdentityCookies();
+
+    ConfigureExternalAuthentication(authBuilder, builder.Configuration, cookieSecure);
 
     builder.Services.ConfigureApplicationCookie(options =>
     {
@@ -383,6 +389,78 @@ static string RedactSensitivePath(string path)
     }
 
     return path;
+}
+
+static void ConfigureExternalAuthentication(
+    AuthenticationBuilder authBuilder,
+    IConfiguration configuration,
+    CookieSecurePolicy cookieSecure)
+{
+    void ConfigureCorrelation(Microsoft.AspNetCore.Authentication.RemoteAuthenticationOptions options)
+    {
+        options.CorrelationCookie.HttpOnly = true;
+        options.CorrelationCookie.SecurePolicy = cookieSecure;
+        options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+        options.SaveTokens = false;
+    }
+
+    // Always register handlers so Challenge can resolve schemes; endpoints still gate on real secrets.
+    authBuilder.AddGoogle(ExternalAuthService.Google, options =>
+    {
+        var id = configuration["Authentication:Google:ClientId"];
+        var secret = configuration["Authentication:Google:ClientSecret"];
+        options.ClientId = string.IsNullOrWhiteSpace(id) ? "unconfigured" : id;
+        options.ClientSecret = string.IsNullOrWhiteSpace(secret) ? "unconfigured" : secret;
+        options.CallbackPath = "/signin-google";
+        options.Scope.Clear();
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
+        ConfigureCorrelation(options);
+    });
+
+    authBuilder.AddOpenIdConnect(ExternalAuthService.Microsoft, options =>
+    {
+        var id = configuration["Authentication:Microsoft:ClientId"];
+        var secret = configuration["Authentication:Microsoft:ClientSecret"];
+        options.Authority = "https://login.microsoftonline.com/common/v2.0";
+        options.ClientId = string.IsNullOrWhiteSpace(id) ? "unconfigured" : id;
+        options.ClientSecret = string.IsNullOrWhiteSpace(secret) ? "unconfigured" : secret;
+        options.ResponseType = OpenIdConnectResponseType.Code;
+        options.CallbackPath = "/signin-microsoft";
+        options.GetClaimsFromUserInfoEndpoint = true;
+        options.MapInboundClaims = false;
+        options.Scope.Clear();
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
+        options.TokenValidationParameters.NameClaimType = "name";
+        options.TokenValidationParameters.ValidateIssuer = true;
+        options.TokenValidationParameters.IssuerValidator = (issuer, _, _) =>
+        {
+            if (issuer.StartsWith("https://login.microsoftonline.com/", StringComparison.OrdinalIgnoreCase)
+                || issuer.StartsWith("https://sts.windows.net/", StringComparison.OrdinalIgnoreCase)
+                || issuer.StartsWith("https://login.microsoft.com/", StringComparison.OrdinalIgnoreCase))
+            {
+                return issuer;
+            }
+
+            throw new SecurityTokenInvalidIssuerException($"Issuer not accepted: {issuer}");
+        };
+        ConfigureCorrelation(options);
+        options.NonceCookie.HttpOnly = true;
+        options.NonceCookie.SecurePolicy = cookieSecure;
+        options.NonceCookie.SameSite = SameSiteMode.Lax;
+        options.Events = new OpenIdConnectEvents
+        {
+            OnRemoteFailure = ctx =>
+            {
+                ctx.Response.Redirect("/?oauth_error=cancelled");
+                ctx.HandleResponse();
+                return Task.CompletedTask;
+            }
+        };
+    });
 }
 
 public sealed class QuorumOptions

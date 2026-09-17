@@ -23,6 +23,7 @@ public sealed class ConvocationService
     private readonly CommunicationConfigurationService _config;
     private readonly DeliveryDispatchService _dispatch;
     private readonly AssemblyAccessLinkService _accessLinks;
+    private readonly IOwnerPortalIdentityService _identity;
 
     public ConvocationService(
         IAsambleasDbContext db,
@@ -31,7 +32,8 @@ public sealed class ConvocationService
         ICommunicationEnvironment environment,
         CommunicationConfigurationService config,
         DeliveryDispatchService dispatch,
-        AssemblyAccessLinkService accessLinks)
+        AssemblyAccessLinkService accessLinks,
+        IOwnerPortalIdentityService identity)
     {
         _db = db;
         _currentTenant = currentTenant;
@@ -40,6 +42,7 @@ public sealed class ConvocationService
         _config = config;
         _dispatch = dispatch;
         _accessLinks = accessLinks;
+        _identity = identity;
     }
 
     public async Task<IReadOnlyList<ConvocationSummaryDto>> ListForAssemblyAsync(
@@ -787,27 +790,63 @@ public sealed class ConvocationService
             .Where(r => r.IsValid && r.UserId is Guid userId && userId != Guid.Empty)
             .ToList();
 
-        // Recipients created before the owner activated still have null UserId — sync from Owner.
+        // Recipients / owners without a login account cannot appear on the accreditation desk
+        // (participants are keyed by UserId). Provision a passwordless Owner identity when missing.
         var needsUserSync = recipients
             .Where(r => r.IsValid && r.OwnerId is Guid && (r.UserId is null || r.UserId == Guid.Empty))
             .ToList();
         if (needsUserSync.Count > 0)
         {
             var ownerIdsForSync = needsUserSync.Select(r => r.OwnerId!.Value).Distinct().ToList();
-            var ownerUsers = await _db.Owners.AsNoTracking()
-                .Where(o => ownerIdsForSync.Contains(o.Id) && o.UserId != null)
-                .Select(o => new { o.Id, o.UserId })
+            var owners = await _db.Owners
+                .Where(o => ownerIdsForSync.Contains(o.Id))
                 .ToListAsync(cancellationToken);
-            var byOwner = ownerUsers.ToDictionary(x => x.Id, x => x.UserId!.Value);
+            var ownersById = owners.ToDictionary(o => o.Id);
+
+            Guid? organizationId = await _db.PropertyHorizontals.AsNoTracking()
+                .Where(p => p.Id == propertyHorizontalId)
+                .Select(p => (Guid?)p.OrganizationId)
+                .FirstOrDefaultAsync(cancellationToken);
+
             foreach (var recipient in needsUserSync)
             {
-                if (byOwner.TryGetValue(recipient.OwnerId!.Value, out var uid))
+                if (!ownersById.TryGetValue(recipient.OwnerId!.Value, out var owner))
                 {
-                    recipient.UserId = uid;
-                    if (!enrollable.Contains(recipient))
+                    continue;
+                }
+
+                Guid userId;
+                if (owner.UserId is Guid linked && linked != Guid.Empty)
+                {
+                    userId = linked;
+                }
+                else
+                {
+                    var email = !string.IsNullOrWhiteSpace(owner.Email)
+                        ? owner.Email
+                        : recipient.Email;
+                    if (string.IsNullOrWhiteSpace(email))
                     {
-                        enrollable.Add(recipient);
+                        continue;
                     }
+
+                    var displayName = string.IsNullOrWhiteSpace(owner.DisplayName)
+                        ? (string.IsNullOrWhiteSpace(recipient.DisplayName) ? email.Trim() : recipient.DisplayName.Trim())
+                        : owner.DisplayName.Trim();
+
+                    userId = await _identity.EnsureOwnerUserPasswordlessAsync(
+                        tenantId,
+                        organizationId,
+                        email.Trim(),
+                        displayName,
+                        cancellationToken);
+                    owner.UserId = userId;
+                }
+
+                recipient.UserId = userId;
+                if (!enrollable.Contains(recipient))
+                {
+                    enrollable.Add(recipient);
                 }
             }
         }
@@ -882,6 +921,43 @@ public sealed class ConvocationService
                 UpdatedAtUtc = now
             });
         }
+    }
+
+    /// <summary>
+    /// Heals accreditation roster: re-enrolls valid recipients from the latest sent/draft convocation
+    /// (provisions Owner login accounts when missing so they appear on the desk).
+    /// </summary>
+    public async Task SyncAssemblyParticipantsAsync(Guid assemblyId, CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var assembly = await EnsureAssemblyAsync(assemblyId, cancellationToken);
+
+        var convocation = await _db.Convocations
+            .AsNoTracking()
+            .Where(c => c.AssemblyId == assemblyId
+                        && (c.Status == ConvocationStatus.Sent || c.Status == ConvocationStatus.Draft))
+            .OrderByDescending(c => c.SentAtUtc ?? c.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (convocation is null)
+        {
+            return;
+        }
+
+        var recipients = await _db.ConvocationRecipients
+            .Where(r => r.ConvocationId == convocation.Id && r.IsValid)
+            .ToListAsync(cancellationToken);
+        if (recipients.Count == 0)
+        {
+            return;
+        }
+
+        await EnsureAssemblyParticipantsForRecipientsAsync(
+            assembly.Id,
+            assembly.TenantId,
+            assembly.PropertyHorizontalId,
+            recipients,
+            cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task PopulateRecipientsAsync(

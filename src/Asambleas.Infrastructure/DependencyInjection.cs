@@ -96,6 +96,7 @@ public static class DependencyInjection
         services.AddScoped<IPhImportWorkbookService, PhImportWorkbookService>();
         services.AddScoped<IMotionImportWorkbookService, MotionImportWorkbookService>();
         services.AddScoped<IOwnerPortalIdentityService, OwnerPortalIdentityService>();
+        services.AddScoped<ExternalAuthService>();
         services.AddScoped<Func<SmtpClientFactoryArgs, IEmailProvider>>(sp => args =>
         {
             var settings = SmtpClientSettings.FromJson(args.SettingsJson, args.Password);

@@ -31,13 +31,34 @@ public sealed class OwnerPortalIdentityService : IOwnerPortalIdentityService
         return user?.Email;
     }
 
-    public async Task<Guid> EnsureOwnerUserAsync(
+    public Task<Guid> EnsureOwnerUserAsync(
         Guid tenantId,
         Guid? organizationId,
         string email,
         string displayName,
         string password,
+        CancellationToken cancellationToken = default) =>
+        EnsureOwnerUserAsync(tenantId, organizationId, email, displayName, password, passwordless: false, cancellationToken);
+
+    public Task<Guid> EnsureOwnerUserPasswordlessAsync(
+        Guid tenantId,
+        Guid? organizationId,
+        string email,
+        string displayName,
         CancellationToken cancellationToken = default)
+    {
+        var password = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)) + "Aa1!";
+        return EnsureOwnerUserAsync(tenantId, organizationId, email, displayName, password, passwordless: true, cancellationToken);
+    }
+
+    private async Task<Guid> EnsureOwnerUserAsync(
+        Guid tenantId,
+        Guid? organizationId,
+        string email,
+        string displayName,
+        string password,
+        bool passwordless,
+        CancellationToken cancellationToken)
     {
         var existing = await FindUserIdByEmailAsync(email, cancellationToken);
         if (existing is Guid id)
@@ -75,18 +96,12 @@ public sealed class OwnerPortalIdentityService : IOwnerPortalIdentityService
         }
 
         await LinkOwnerRoleAsync(user.Id, cancellationToken);
-        return user.Id;
-    }
+        if (passwordless)
+        {
+            await _userManager.AddClaimAsync(user, new System.Security.Claims.Claim("asambleas:auth", "passwordless"));
+        }
 
-    public Task<Guid> EnsureOwnerUserPasswordlessAsync(
-        Guid tenantId,
-        Guid? organizationId,
-        string email,
-        string displayName,
-        CancellationToken cancellationToken = default)
-    {
-        var password = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)) + "Aa1!";
-        return EnsureOwnerUserAsync(tenantId, organizationId, email, displayName, password, cancellationToken);
+        return user.Id;
     }
 
     public async Task LinkOwnerRoleAsync(Guid userId, CancellationToken cancellationToken = default)
