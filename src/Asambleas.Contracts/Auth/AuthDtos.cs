@@ -41,11 +41,15 @@ public sealed record CompletePasswordResetRequest(string Token, string Password)
 
 public sealed record EmailOtpRequestDto(string Email, string? ReturnUrl = null);
 
+/// <param name="Accepted">Request was processed without revealing whether the email exists.</param>
+/// <param name="DeliveryConfirmed">True only when SMTP (or allowed non-prod mock) accepted the message.</param>
 public sealed record EmailOtpRequestResponse(
     bool Accepted,
     string Detail,
     DateTimeOffset? ResendAvailableAtUtc = null,
-    string? SuggestedProvider = null);
+    string? SuggestedProvider = null,
+    bool DeliveryConfirmed = false,
+    string? ErrorCode = null);
 
 public sealed record EmailOtpVerifyDto(string Email, string Code, string? ReturnUrl = null);
 

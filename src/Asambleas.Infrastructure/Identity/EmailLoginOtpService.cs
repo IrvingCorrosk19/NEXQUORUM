@@ -27,14 +27,19 @@ public sealed class EmailLoginOtpService
     public const int MaxAttempts = 5;
     public const int MaxRequestsPerEmailPerHour = 8;
 
-    private static readonly string GenericAccepted =
-        "Si hay una convocatoria o invitación activa para ese correo, enviamos un código de 6 dígitos. Revisa tu bandeja y spam.";
+    private static readonly string GenericReceived =
+        "Si el correo está registrado o tiene una invitación activa, recibirás un código.";
+
+    private static readonly string SentConfirmed =
+        "Código enviado. Revisa tu bandeja de entrada y correo no deseado.";
+
+    private static readonly string SendFailedUser =
+        "No pudimos enviar el código en este momento. Intenta nuevamente.";
 
     private readonly IAsambleasDbContext _db;
     private readonly IOwnerPortalIdentityService _identity;
     private readonly CommunicationConfigurationService _communications;
     private readonly AssemblyAccessLinkService _accessLinks;
-    private readonly IEmailProvider _mockEmail;
     private readonly ExternalAuthService _externalAuth;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IAuditService _audit;
@@ -48,7 +53,6 @@ public sealed class EmailLoginOtpService
         IOwnerPortalIdentityService identity,
         CommunicationConfigurationService communications,
         AssemblyAccessLinkService accessLinks,
-        IEmailProvider mockEmail,
         ExternalAuthService externalAuth,
         UserManager<ApplicationUser> userManager,
         IAuditService audit,
@@ -61,7 +65,6 @@ public sealed class EmailLoginOtpService
         _identity = identity;
         _communications = communications;
         _accessLinks = accessLinks;
-        _mockEmail = mockEmail;
         _externalAuth = externalAuth;
         _userManager = userManager;
         _audit = audit;
@@ -92,12 +95,17 @@ public sealed class EmailLoginOtpService
         CancellationToken cancellationToken = default)
     {
         var suggested = !string.IsNullOrWhiteSpace(email) ? SuggestProvider(email.Trim()) : null;
-        var resendAt = DateTimeOffset.UtcNow.Add(ResendCooldown);
-        var generic = new EmailOtpRequestResponse(true, GenericAccepted, resendAt, suggested);
+        // Anti-enumeration: never claim delivery unless SMTP/mock (non-prod) accepted the message.
+        var softReceived = new EmailOtpRequestResponse(
+            Accepted: true,
+            Detail: GenericReceived,
+            ResendAvailableAtUtc: null,
+            SuggestedProvider: suggested,
+            DeliveryConfirmed: false);
 
         if (string.IsNullOrWhiteSpace(email) || !email.Contains('@', StringComparison.Ordinal))
         {
-            return generic;
+            return softReceived;
         }
 
         var normalized = email.Trim().ToLowerInvariant();
@@ -114,8 +122,7 @@ public sealed class EmailLoginOtpService
         var eligibility = await ResolveEligibilityAsync(normalized, cancellationToken);
         if (eligibility is null)
         {
-            // Same timing-ish response; do not reveal absence.
-            return generic;
+            return softReceived;
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -126,20 +133,24 @@ public sealed class EmailLoginOtpService
                 cancellationToken);
         if (recentCount >= MaxRequestsPerEmailPerHour)
         {
-            return generic;
+            return softReceived;
         }
 
         var latest = await _db.EmailLoginChallenges.IgnoreQueryFilters()
             .Where(c => c.EmailNormalized == normalized && c.ConsumedAtUtc == null && c.ExpiresAtUtc > now)
             .OrderByDescending(c => c.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
-        if (latest is not null && latest.LastSentAtUtc.Add(ResendCooldown) > now)
+        // Cooldown only after a confirmed send (LastSentAtUtc > CreatedAtUtc means SMTP accepted).
+        if (latest is not null
+            && latest.LastSentAtUtc >= latest.CreatedAtUtc
+            && latest.LastSentAtUtc.Add(ResendCooldown) > now)
         {
             return new EmailOtpRequestResponse(
-                true,
-                GenericAccepted,
-                latest.LastSentAtUtc.Add(ResendCooldown),
-                suggested);
+                Accepted: true,
+                Detail: SentConfirmed,
+                ResendAvailableAtUtc: latest.LastSentAtUtc.Add(ResendCooldown),
+                SuggestedProvider: suggested,
+                DeliveryConfirmed: true);
         }
 
         // Invalidate previous active challenges for this email.
@@ -162,7 +173,8 @@ public sealed class EmailLoginOtpService
             CodeHash = HashCode(normalized, code),
             ExpiresAtUtc = now.Add(CodeTtl),
             AttemptCount = 0,
-            LastSentAtUtc = now,
+            // Placeholder until SMTP accepts; cooldown must not treat this as a successful send.
+            LastSentAtUtc = DateTimeOffset.UnixEpoch,
             ReturnUrl = safeReturn,
             RequestIpHash = ipHash
         };
@@ -171,7 +183,17 @@ public sealed class EmailLoginOtpService
 
         try
         {
-            await SendCodeEmailAsync(eligibility, normalized, code, challenge.ExpiresAtUtc, cancellationToken);
+            var providerName = await SendCodeEmailAsync(
+                eligibility,
+                normalized,
+                code,
+                challenge.ExpiresAtUtc,
+                cancellationToken);
+
+            challenge.LastSentAtUtc = DateTimeOffset.UtcNow;
+            challenge.UpdatedAtUtc = challenge.LastSentAtUtc;
+            await _db.SaveChangesAsync(cancellationToken);
+
             await WriteAuditAsync(
                 AuditEventType.EmailOtpSent,
                 eligibility.TenantId,
@@ -181,17 +203,52 @@ public sealed class EmailLoginOtpService
                     emailDomain = DomainOf(normalized),
                     assemblyId = eligibility.AssemblyId,
                     propertyHorizontalId = eligibility.PropertyHorizontalId,
-                    challengeId = challenge.Id
+                    challengeId = challenge.Id,
+                    provider = providerName
                 },
                 cancellationToken);
+
+            return new EmailOtpRequestResponse(
+                Accepted: true,
+                Detail: SentConfirmed,
+                ResendAvailableAtUtc: challenge.LastSentAtUtc.Add(ResendCooldown),
+                SuggestedProvider: suggested,
+                DeliveryConfirmed: true);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Email OTP send failed for domain {Domain}", DomainOf(normalized));
-            // Still return generic — no enumeration / no code leak.
-        }
+            _logger.LogWarning(
+                ex,
+                "Email OTP send failed for domain {Domain} challenge {ChallengeId}",
+                DomainOf(normalized),
+                challenge.Id);
 
-        return new EmailOtpRequestResponse(true, GenericAccepted, now.Add(ResendCooldown), suggested);
+            challenge.ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1);
+            challenge.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            await WriteAuditAsync(
+                AuditEventType.EmailOtpSendFailed,
+                eligibility.TenantId,
+                null,
+                metadata: new
+                {
+                    emailDomain = DomainOf(normalized),
+                    assemblyId = eligibility.AssemblyId,
+                    propertyHorizontalId = eligibility.PropertyHorizontalId,
+                    challengeId = challenge.Id,
+                    reason = SanitizeSendFailure(ex)
+                },
+                cancellationToken);
+
+            return new EmailOtpRequestResponse(
+                Accepted: false,
+                Detail: SendFailedUser,
+                ResendAvailableAtUtc: null,
+                SuggestedProvider: suggested,
+                DeliveryConfirmed: false,
+                ErrorCode: "SEND_FAILED");
+        }
     }
 
     public async Task<EmailOtpVerifyResponse> VerifyAsync(
@@ -535,21 +592,25 @@ public sealed class EmailLoginOtpService
             AssemblyStatus: null);
     }
 
-    private async Task SendCodeEmailAsync(
+    private async Task<string> SendCodeEmailAsync(
         Eligibility eligibility,
         string email,
         string code,
         DateTimeOffset expiresAt,
         CancellationToken cancellationToken)
     {
-        IEmailProvider provider = _mockEmail;
-        if (eligibility.PropertyHorizontalId is Guid phId)
+        var resolved = await _communications.TryResolveEmailForSystemAuthAsync(
+            eligibility.PropertyHorizontalId,
+            cancellationToken);
+        if (resolved is null)
         {
-            var resolved = await _communications.TryResolvePhEmailProviderSystemAsync(phId, cancellationToken);
-            if (resolved is not null)
-            {
-                provider = resolved.Value.Provider;
-            }
+            throw new InvalidOperationException("SMTP_NOT_CONFIGURED");
+        }
+
+        var (provider, usedSandbox, providerName) = resolved.Value;
+        if (provider.ProviderType != CommunicationProviderType.Smtp && !usedSandbox)
+        {
+            throw new InvalidOperationException("SMTP_NOT_CONFIGURED");
         }
 
         var subject = $"Código de acceso — {eligibility.PropertyHorizontalName}";
@@ -580,10 +641,41 @@ public sealed class EmailLoginOtpService
                 Headers: null),
             cancellationToken);
 
-        if (!result.Succeeded)
+        if (!result.Succeeded || result.Status != DeliveryStatus.Sent)
         {
-            throw new InvalidOperationException(result.Detail ?? "SMTP send failed");
+            throw new InvalidOperationException(result.Detail ?? "SMTP_REJECTED");
         }
+
+        return providerName;
+    }
+
+    private static string SanitizeSendFailure(Exception ex)
+    {
+        var raw = ex.Message ?? string.Empty;
+        if (raw.Contains("SMTP_NOT_CONFIGURED", StringComparison.Ordinal))
+        {
+            return "SMTP_NOT_CONFIGURED";
+        }
+
+        if (raw.Contains("AUTHENTICATION_FAILED", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("535", StringComparison.Ordinal))
+        {
+            return "AUTHENTICATION_FAILED";
+        }
+
+        if (raw.Contains("TLS_FAILED", StringComparison.OrdinalIgnoreCase)
+            || raw.Contains("CONNECTION_TIMEOUT", StringComparison.OrdinalIgnoreCase))
+        {
+            return "TRANSPORT_FAILED";
+        }
+
+        if (raw.Contains("SMTP_REJECTED", StringComparison.Ordinal)
+            || raw.StartsWith("INVALID_", StringComparison.OrdinalIgnoreCase))
+        {
+            return "SMTP_REJECTED";
+        }
+
+        return "SEND_FAILED";
     }
 
     private static EmailOtpVerifyResponse Fail(string code, string message) =>

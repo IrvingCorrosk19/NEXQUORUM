@@ -23,12 +23,20 @@ public sealed class MockEmailProvider : IEmailProvider
 
     public CommunicationProviderType ProviderType => CommunicationProviderType.Mock;
 
-    public bool SimulateFailure { get; set; }
+    public bool SimulateFailure
+    {
+        get => ForceFailure;
+        set => ForceFailure = value;
+    }
+
+    /// <summary>Process-wide switch for integration tests (scoped DI cannot share instance flags).</summary>
+    public static bool ForceFailure { get; set; }
 
     public static IReadOnlyList<CapturedMockEmail> Snapshot() => Captured.ToArray();
 
     public static void Clear()
     {
+        ForceFailure = false;
         while (Captured.TryDequeue(out _))
         {
         }
@@ -40,7 +48,7 @@ public sealed class MockEmailProvider : IEmailProvider
             "MOCK email to={To} subject={Subject} fail={Fail}",
             message.To,
             message.Subject,
-            SimulateFailure);
+            ForceFailure);
 
         Captured.Enqueue(new CapturedMockEmail(
             DateTimeOffset.UtcNow,
@@ -52,7 +60,7 @@ public sealed class MockEmailProvider : IEmailProvider
         {
         }
 
-        if (SimulateFailure)
+        if (ForceFailure)
         {
             return Task.FromResult(new ProviderSendResult(
                 false,

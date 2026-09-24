@@ -9,6 +9,8 @@ using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
 using Asambleas.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 public sealed class CommunicationConfigurationService
 {
@@ -23,6 +25,8 @@ public sealed class CommunicationConfigurationService
     private readonly IEmailProvider _mockEmail;
     private readonly IWhatsAppProvider _mockWhatsApp;
     private readonly ISmsProvider _mockSms;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<CommunicationConfigurationService> _logger;
 
     public CommunicationConfigurationService(
         IAsambleasDbContext db,
@@ -33,7 +37,9 @@ public sealed class CommunicationConfigurationService
         Func<SmtpClientFactoryArgs, IEmailProvider> smtpFactory,
         IEmailProvider mockEmail,
         IWhatsAppProvider mockWhatsApp,
-        ISmsProvider mockSms)
+        ISmsProvider mockSms,
+        IConfiguration configuration,
+        ILogger<CommunicationConfigurationService> logger)
     {
         _db = db;
         _currentTenant = currentTenant;
@@ -44,6 +50,8 @@ public sealed class CommunicationConfigurationService
         _mockEmail = mockEmail;
         _mockWhatsApp = mockWhatsApp;
         _mockSms = mockSms;
+        _configuration = configuration;
+        _logger = logger;
     }
 
     public async Task<CommunicationProfileDto> GetOrCreateProfileAsync(
@@ -412,6 +420,111 @@ public sealed class CommunicationConfigurationService
             ? "Mock"
             : row.ProviderType.ToString();
         return (provider, forceMock, name);
+    }
+
+    /// <summary>
+    /// Resolves email provider for system auth mail (OTP / passwordless).
+    /// Prefer PH SMTP; optional platform <c>Communications:SystemEmail:*</c> fallback.
+    /// Never returns Mock in Production.
+    /// </summary>
+    public async Task<(IEmailProvider Provider, bool UsedSandbox, string ProviderName)?> TryResolveEmailForSystemAuthAsync(
+        Guid? propertyHorizontalId,
+        CancellationToken cancellationToken = default)
+    {
+        if (propertyHorizontalId is Guid phId)
+        {
+            var ph = await TryResolvePhEmailProviderSystemAsync(phId, cancellationToken);
+            if (ph is not null)
+            {
+                if (ph.Value.Provider.ProviderType == CommunicationProviderType.Smtp && !ph.Value.UsedSandbox)
+                {
+                    return ph;
+                }
+
+                if (_environment.IsNonProduction)
+                {
+                    return ph;
+                }
+
+                // Production must not treat Mock/sandbox as a real dispatch for OTP.
+                _logger.LogWarning(
+                    "Rejecting non-SMTP/sandbox email provider for system auth on PH {PhId} in Production",
+                    phId);
+            }
+        }
+
+        var system = TryCreateSystemSmtpFromConfiguration();
+        if (system is not null)
+        {
+            return system;
+        }
+
+        if (_environment.IsNonProduction)
+        {
+            return (_mockEmail, true, "Mock");
+        }
+
+        return null;
+    }
+
+    private (IEmailProvider Provider, bool UsedSandbox, string ProviderName)? TryCreateSystemSmtpFromConfiguration()
+    {
+        var host = _configuration["Communications:SystemEmail:Host"]
+                   ?? _configuration["SMTP_HOST"];
+        var from = _configuration["Communications:SystemEmail:FromAddress"]
+                   ?? _configuration["SMTP_FROM_EMAIL"];
+        var password = _configuration["Communications:SystemEmail:Password"]
+                       ?? _configuration["SMTP_PASSWORD"];
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(password))
+        {
+            return null;
+        }
+
+        var portText = _configuration["Communications:SystemEmail:Port"]
+                       ?? _configuration["SMTP_PORT"]
+                       ?? "587";
+        _ = int.TryParse(portText, out var port);
+        if (port is < 1 or > 65535)
+        {
+            port = 587;
+        }
+
+        var useSslText = _configuration["Communications:SystemEmail:UseSsl"]
+                         ?? _configuration["SMTP_USE_SSL"]
+                         ?? "true";
+        _ = bool.TryParse(useSslText, out var useSsl);
+        if (port == 587)
+        {
+            useSsl = true;
+        }
+
+        var username = _configuration["Communications:SystemEmail:Username"]
+                       ?? _configuration["SMTP_USERNAME"]
+                       ?? from;
+        var fromName = _configuration["Communications:SystemEmail:FromDisplayName"]
+                       ?? _configuration["SMTP_FROM_NAME"]
+                       ?? "ASAMBLEAS";
+
+        var settingsJson = JsonSerializer.Serialize(new
+        {
+            host,
+            port,
+            useSsl,
+            username,
+            fromAddress = from,
+            fromDisplayName = fromName
+        });
+
+        try
+        {
+            var provider = _smtpFactory(SmtpClientFactoryArgs.FromChannel(settingsJson, password));
+            return (provider, false, "SystemSmtp");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "System SMTP configuration is invalid");
+            return null;
+        }
     }
 
     /// <summary>

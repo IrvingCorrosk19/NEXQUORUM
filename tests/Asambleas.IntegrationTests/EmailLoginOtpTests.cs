@@ -29,7 +29,8 @@ public sealed class EmailLoginOtpTests
         res.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await res.Content.ReadFromJsonAsync<EmailOtpRequestResponse>();
         body!.Accepted.Should().BeTrue();
-        body.Detail.Should().Contain("código");
+        body.DeliveryConfirmed.Should().BeFalse();
+        body.Detail.Should().Contain("recibirás");
         MockEmailProvider.Snapshot().Should().BeEmpty();
     }
 
@@ -52,6 +53,8 @@ public sealed class EmailLoginOtpTests
         req.EnsureSuccessStatusCode();
         var accepted = await req.Content.ReadFromJsonAsync<EmailOtpRequestResponse>();
         accepted!.Accepted.Should().BeTrue();
+        accepted.DeliveryConfirmed.Should().BeTrue();
+        accepted.Detail.Should().Contain("Código enviado");
 
         var captured = MockEmailProvider.Snapshot().LastOrDefault(m => m.To.Equals(email, StringComparison.OrdinalIgnoreCase));
         captured.Should().NotBeNull("OTP email should be sent for seeded owner");
@@ -71,6 +74,39 @@ public sealed class EmailLoginOtpTests
 
         var me = await client.GetAsync("/api/auth/me");
         me.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Request_does_not_claim_delivery_when_provider_rejects()
+    {
+        await _fixture.ResetDatabaseAsync();
+        MockEmailProvider.Clear();
+        MockEmailProvider.ForceFailure = true;
+        try
+        {
+            var client = _fixture.Factory.CreateClient();
+            var email = "owner101@ocean.demo";
+            var res = await client.PostAsJsonAsync("/api/auth/email-otp/request", new EmailOtpRequestDto(email));
+            res.StatusCode.Should().Be(HttpStatusCode.OK);
+            var body = await res.Content.ReadFromJsonAsync<EmailOtpRequestResponse>();
+            body!.Accepted.Should().BeFalse();
+            body.DeliveryConfirmed.Should().BeFalse();
+            body.ErrorCode.Should().Be("SEND_FAILED");
+            body.Detail.Should().Contain("No pudimos enviar");
+            body.ResendAvailableAtUtc.Should().BeNull();
+
+            using var scope = _fixture.Factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AsambleasDbContext>();
+            var challenges = await db.EmailLoginChallenges.IgnoreQueryFilters()
+                .Where(c => c.EmailNormalized == email)
+                .ToListAsync();
+            challenges.Should().NotBeEmpty();
+            challenges.All(c => c.ExpiresAtUtc <= DateTimeOffset.UtcNow).Should().BeTrue();
+        }
+        finally
+        {
+            MockEmailProvider.ForceFailure = false;
+        }
     }
 
     [Fact]

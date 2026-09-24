@@ -290,9 +290,27 @@ otpRequestForm?.addEventListener("submit", async (ev) => {
         body: { email, returnUrl: safeReturnUrl() }
       })
     );
-    AppFeedback.success(result?.detail || "Si hay una convocatoria activa, enviamos el código.", {
-      title: "Revisa tu correo"
-    });
+    if (result?.deliveryConfirmed === true) {
+      AppFeedback.success(
+        result?.detail || "Código enviado. Revisa tu bandeja de entrada y correo no deseado.",
+        { title: "Código enviado" }
+      );
+      showVerifyStep(email, result?.resendAvailableAtUtc);
+      return;
+    }
+    if (result?.accepted === false || result?.errorCode === "SEND_FAILED") {
+      AppFeedback.error(
+        result?.detail || "No pudimos enviar el código en este momento. Intenta nuevamente.",
+        { title: "Envío no disponible" }
+      );
+      return;
+    }
+    // Soft ack: request received without confirming mailbox delivery (unknown email / rate limit).
+    AppFeedback.info(
+      result?.detail ||
+        "Si el correo está registrado o tiene una invitación activa, recibirás un código.",
+      { title: "Solicitud recibida" }
+    );
     showVerifyStep(email, result?.resendAvailableAtUtc);
   } catch (err) {
     AppFeedback.fromError(err, "No pudimos enviar el código. Inténtalo de nuevo en unos minutos.");
@@ -344,10 +362,28 @@ otpResend?.addEventListener("click", async () => {
         body: { email: pendingEmail, returnUrl: safeReturnUrl() }
       })
     );
-    AppFeedback.success("Si la convocatoria sigue activa, enviamos un código nuevo.", {
-      title: "Código reenviado"
-    });
-    startResendCountdown(Date.parse(result?.resendAvailableAtUtc) || Date.now() + 60000);
+    if (result?.deliveryConfirmed === true) {
+      AppFeedback.success(
+        result?.detail || "Código enviado. Revisa tu bandeja de entrada y correo no deseado.",
+        { title: "Código reenviado" }
+      );
+      startResendCountdown(Date.parse(result?.resendAvailableAtUtc) || Date.now() + 60000);
+      return;
+    }
+    if (result?.accepted === false || result?.errorCode === "SEND_FAILED") {
+      AppFeedback.error(
+        result?.detail || "No pudimos enviar el código en este momento. Intenta nuevamente.",
+        { title: "Reenvío no disponible" }
+      );
+      if (otpResend) otpResend.disabled = false;
+      if (otpResendHint) otpResendHint.textContent = "Puedes intentar reenviar el código ahora.";
+      return;
+    }
+    AppFeedback.info(
+      result?.detail ||
+        "Si el correo está registrado o tiene una invitación activa, recibirás un código.",
+      { title: "Solicitud recibida" }
+    );
   } catch (err) {
     AppFeedback.fromError(err, "No pudimos reenviar el código.");
   }
