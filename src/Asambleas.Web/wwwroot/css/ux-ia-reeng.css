@@ -119,11 +119,67 @@
   color: #5eead4;
 }
 
+.owners-actions {
+  vertical-align: middle;
+  width: 19rem;
+}
+
+.owners-actions .ux-row-actions,
+.owner-action-bar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-items: stretch;
+  margin: 0;
+  padding: 0.15rem 0;
+  width: 100%;
+}
+
+.owners-actions .owner-action-bar,
 .owners-actions .ux-row-actions {
-  display: flex;
-  gap: 0.35rem;
-  align-items: center;
-  justify-content: flex-end;
+  width: 19rem;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+.owner-action-bar .btn {
+  margin: 0;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.7rem;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.owner-action-bar .ux-menu {
+  justify-self: end;
+  align-self: center;
+}
+
+.owner-action-bar .ux-menu .btn {
+  width: auto;
+  min-width: 2.5rem;
+}
+
+.owner-action-bar__danger {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.owner-action-bar__danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+}
+
+#owner-drawer-footer {
+  display: block;
+}
+
+#owner-drawer-footer .owner-action-bar {
+  width: 100%;
+  max-width: 22rem;
+  margin-left: 0;
+  padding: 0;
 }
 
 .ux-drawer[hidden] {
@@ -254,8 +310,30 @@
     flex: 1 1 calc(50% - 0.4rem);
   }
 
+  .owners-actions {
+    width: auto;
+  }
+
+  .owners-actions .owner-action-bar,
+  .owners-actions .ux-row-actions,
+  #owner-drawer-footer .owner-action-bar {
+    width: 100%;
+    max-width: 22rem;
+    margin-left: 0;
+  }
+
+  .owner-action-bar .btn {
+    min-height: var(--touch-min, 2.75rem);
+  }
+
   .assoc-chip-row,
   .filter-chips {
     max-width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .owner-action-bar {
+    grid-template-columns: 1fr;
   }
 }

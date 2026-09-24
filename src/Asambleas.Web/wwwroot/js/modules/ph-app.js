@@ -1576,6 +1576,14 @@ async function loadOwners({ soft = false } = {}) {
             ? `<button type="button" class="assoc-chip assoc-chip--more" data-owner-units="${o.id}" aria-label="${extra} unidades más">+${extra} más</button>`
             : "")
         : `<span class="muted">Sin unidad</span>`;
+      const sendAction = action
+        ? `<button type="button" class="btn btn-secondary btn-sm" data-invite="${o.id}">${escapeHtml(action)}</button>`
+        : access === "Active"
+          ? `<button type="button" class="btn btn-secondary btn-sm" data-reset-password="${o.id}">Enviar restablecimiento</button>`
+          : "";
+      const statusAction = inactive
+        ? `<button type="button" class="btn btn-secondary btn-sm" data-reactivate-owner-row="${o.id}">Reactivar</button>`
+        : `<button type="button" class="btn btn-secondary btn-sm" data-deactivate-owner-row="${o.id}">Desactivar</button>`;
       return `<tr class="${inactive ? "is-inactive-row" : ""}">
       <td><input type="checkbox" value="${o.id}" aria-label="Seleccionar ${escapeHtml(o.displayName)}" /></td>
       <td>
@@ -1587,27 +1595,17 @@ async function loadOwners({ soft = false } = {}) {
       <td>${Math.round(Number(o.coefficientPercent))}%</td>
       <td><span class="badge badge-access">${escapeHtml(platformAccessLabel(access))}</span></td>
       <td class="owners-actions">
-        <div class="ux-row-actions">
-          <button type="button" class="btn btn-secondary" data-owner="${o.id}">Ver</button>
+        <div class="owner-action-bar">
+          <button type="button" class="btn btn-secondary btn-sm" data-owner="${o.id}">Ver</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-edit-owner="${o.id}">Editar</button>
+          ${sendAction}
+          ${statusAction}
+          <button type="button" class="btn btn-ghost btn-sm owner-action-bar__danger" data-delete-owner-row="${o.id}">Eliminar…</button>
           <div class="ux-menu">
-            <button type="button" class="btn btn-ghost" data-more-owner="${o.id}" aria-haspopup="true" aria-label="Más acciones">⋮</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-more-owner="${o.id}" aria-haspopup="true" aria-label="Más acciones">⋮</button>
             <div class="ux-menu__panel" id="owner-more-${o.id}" hidden>
-              <button type="button" data-edit-owner="${o.id}">Editar</button>
               <button type="button" data-owner="${o.id}">Ver detalle</button>
               <button type="button" data-owner-units="${o.id}">Administrar unidades</button>
-              ${
-                action
-                  ? `<button type="button" data-invite="${o.id}">${escapeHtml(action)}</button>`
-                  : access === "Active"
-                    ? `<button type="button" data-reset-password="${o.id}">Enviar restablecimiento</button>`
-                    : ""
-              }
-              ${
-                inactive
-                  ? `<button type="button" data-reactivate-owner-row="${o.id}">Reactivar</button>`
-                  : `<button type="button" data-deactivate-owner-row="${o.id}">Desactivar</button>`
-              }
-              <button type="button" class="is-danger" data-delete-owner-row="${o.id}">Eliminar…</button>
             </div>
           </div>
         </div>
@@ -2020,20 +2018,20 @@ async function showOwner(ownerId) {
     <div class="row"><span>Invitación expira</span><span>${escapeHtml(expires)}</span></div>
   `;
   $("#owner-drawer-footer").innerHTML = `
-    <button type="button" class="btn btn-primary" data-edit-owner="${o.id}">Editar</button>
-    <div class="cta-row">
-      ${canInvite ? `<button type="button" class="btn btn-secondary" data-invite-detail="${o.id}">${escapeHtml(inviteLabel)}</button>` : ""}
+    <div class="owner-action-bar">
+      <button type="button" class="btn btn-secondary btn-sm" data-edit-owner="${o.id}">Editar</button>
+      ${canInvite ? `<button type="button" class="btn btn-secondary btn-sm" data-invite-detail="${o.id}">${escapeHtml(inviteLabel)}</button>` : ""}
       ${
         access === "Active"
-          ? `<button type="button" class="btn btn-secondary" data-reset-password-detail="${o.id}">Enviar restablecimiento</button>`
+          ? `<button type="button" class="btn btn-secondary btn-sm" data-reset-password-detail="${o.id}">Enviar restablecimiento</button>`
           : ""
       }
       ${
         inactive
-          ? `<button type="button" class="btn btn-secondary" data-reactivate-owner="${o.id}">Reactivar</button>`
-          : `<button type="button" class="btn btn-secondary" data-deactivate-owner="${o.id}">Desactivar</button>`
+          ? `<button type="button" class="btn btn-secondary btn-sm" data-reactivate-owner="${o.id}">Reactivar</button>`
+          : `<button type="button" class="btn btn-secondary btn-sm" data-deactivate-owner="${o.id}">Desactivar</button>`
       }
-      <button type="button" class="btn btn-danger" data-delete-owner="${o.id}">Eliminar…</button>
+      <button type="button" class="btn btn-ghost btn-sm owner-action-bar__danger" data-delete-owner="${o.id}">Eliminar…</button>
     </div>`;
 
   const body = $("#owner-drawer-body");
