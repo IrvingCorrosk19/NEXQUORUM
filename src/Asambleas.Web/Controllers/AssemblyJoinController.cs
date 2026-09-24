@@ -259,8 +259,7 @@ public sealed class AssemblyJoinController : ControllerBase
                 .ToList();
         }
 
-        var existingClaims = await _userManager.GetClaimsAsync(user);
-        var extra = BuildOwnerSessionClaims(user, link.PropertyHorizontalId, roles, permissions, existingClaims);
+        var extra = BuildOwnerSessionClaims(link.PropertyHorizontalId, roles, permissions);
 
         await _signInManager.SignOutAsync();
         await _signInManager.SignInWithClaimsAsync(user, isPersistent: false, extra);
@@ -448,23 +447,14 @@ public sealed class AssemblyJoinController : ControllerBase
     }
 
     private static List<Claim> BuildOwnerSessionClaims(
-        ApplicationUser user,
         Guid propertyHorizontalId,
         IReadOnlyList<string> roles,
-        IReadOnlyCollection<string> permissions,
-        IList<Claim> existingClaims)
+        IReadOnlyCollection<string> permissions)
     {
         var claims = new List<Claim>
         {
-            new(AsambleasClaimTypes.TenantId, user.TenantId.ToString("D")),
-            new(AsambleasClaimTypes.DisplayName, user.DisplayName),
             new(AsambleasClaimTypes.PropertyHorizontalId, propertyHorizontalId.ToString("D"))
         };
-
-        if (user.OrganizationId is Guid orgId)
-        {
-            claims.Add(new Claim(AsambleasClaimTypes.OrganizationId, orgId.ToString("D")));
-        }
 
         foreach (var role in roles)
         {

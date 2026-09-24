@@ -420,7 +420,7 @@ public sealed class PhOnboardingController : ControllerBase
 
         var permissions = RolePermissionMap.GetPermissions(roles).ToList();
         var refreshedClaims = await _userManager.GetClaimsAsync(user);
-        var extra = BuildSessionClaims(user, roles, permissions, refreshedClaims);
+        var extra = BuildSessionClaims(roles, permissions, refreshedClaims);
         await _signInManager.SignOutAsync();
         await _signInManager.SignInWithClaimsAsync(user, isPersistent: false, extra);
 
@@ -539,21 +539,11 @@ public sealed class PhOnboardingController : ControllerBase
     }
 
     private static List<Claim> BuildSessionClaims(
-        ApplicationUser user,
         IReadOnlyList<string> roles,
         IReadOnlyCollection<string> permissions,
         IList<Claim> existingClaims)
     {
-        var claims = new List<Claim>
-        {
-            new(AsambleasClaimTypes.TenantId, user.TenantId.ToString("D")),
-            new(AsambleasClaimTypes.DisplayName, user.DisplayName)
-        };
-
-        if (user.OrganizationId is Guid orgId)
-        {
-            claims.Add(new Claim(AsambleasClaimTypes.OrganizationId, orgId.ToString("D")));
-        }
+        var claims = new List<Claim>();
 
         var phClaim = existingClaims.FirstOrDefault(c => c.Type == AsambleasClaimTypes.PropertyHorizontalId);
         if (phClaim is not null)

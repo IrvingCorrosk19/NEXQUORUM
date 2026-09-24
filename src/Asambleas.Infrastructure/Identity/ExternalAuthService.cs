@@ -386,7 +386,7 @@ public sealed class ExternalAuthService
 
         var existingClaims = await _userManager.GetClaimsAsync(user);
         var permissions = RolePermissionMap.GetPermissions(roles).ToList();
-        var claims = BuildSessionClaims(user, roles, permissions, existingClaims);
+        var claims = BuildSessionClaims(roles, permissions, existingClaims);
 
         await _signInManager.SignOutAsync();
         await _signInManager.SignInWithClaimsAsync(user, isPersistent: false, claims);
@@ -534,21 +534,11 @@ public sealed class ExternalAuthService
     }
 
     private static List<Claim> BuildSessionClaims(
-        ApplicationUser user,
         IReadOnlyList<string> roles,
         IReadOnlyCollection<string> permissions,
         IList<Claim> existingClaims)
     {
-        var claims = new List<Claim>
-        {
-            new("tenant_id", user.TenantId.ToString("D")),
-            new("display_name", user.DisplayName)
-        };
-
-        if (user.OrganizationId is Guid orgId)
-        {
-            claims.Add(new Claim("organization_id", orgId.ToString("D")));
-        }
+        var claims = new List<Claim>();
 
         var phClaim = existingClaims.FirstOrDefault(c => c.Type == "property_horizontal_id");
         if (phClaim is not null && !string.IsNullOrWhiteSpace(phClaim.Value))

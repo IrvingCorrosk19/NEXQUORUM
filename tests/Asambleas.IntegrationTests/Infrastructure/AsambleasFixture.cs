@@ -54,10 +54,14 @@ public static class TestConnectionString
 public sealed class AsambleasWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly string _connectionString;
+    private readonly Action<IServiceCollection>? _configureServices;
 
-    public AsambleasWebApplicationFactory(string? connectionString = null)
+    public AsambleasWebApplicationFactory(
+        string? connectionString = null,
+        Action<IServiceCollection>? configureServices = null)
     {
         _connectionString = connectionString ?? TestConnectionString.Resolve();
+        _configureServices = configureServices;
     }
 
     public string ConnectionString => _connectionString;
@@ -80,6 +84,11 @@ public sealed class AsambleasWebApplicationFactory : WebApplicationFactory<Progr
                 ["ASAMBLEAS_ALLOW_INSECURE_LOGIN"] = "true"
             });
         });
+
+        if (_configureServices is not null)
+        {
+            builder.ConfigureServices(_configureServices);
+        }
     }
 }
 

@@ -107,7 +107,7 @@ public sealed class AuthController : ControllerBase
 
         var existingClaims = await _userManager.GetClaimsAsync(user);
         var permissions = RolePermissionMap.GetPermissions(roles).ToList();
-        var extraClaims = BuildClaims(user, roles, permissions, existingClaims);
+        var extraClaims = BuildClaims(roles, permissions, existingClaims);
 
         // Mitigate session fixation: clear any prior cookie before issuing a new identity.
         if (Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var priorUserId) && priorUserId != Guid.Empty)
@@ -257,21 +257,14 @@ public sealed class AuthController : ControllerBase
     }
 
     private static List<Claim> BuildClaims(
-        ApplicationUser user,
         IReadOnlyList<string> roles,
         IReadOnlyCollection<string> permissions,
         IList<Claim> existingClaims)
     {
-        var claims = new List<Claim>
-        {
-            new(AsambleasClaimTypes.TenantId, user.TenantId.ToString("D")),
-            new(AsambleasClaimTypes.DisplayName, user.DisplayName)
-        };
-
-        if (user.OrganizationId is Guid orgId)
-        {
-            claims.Add(new Claim(AsambleasClaimTypes.OrganizationId, orgId.ToString("D")));
-        }
+        // tenant_id, organization_id and display_name are issued by
+        // AsambleasUserClaimsPrincipalFactory so cookie renewal does not drop them
+        // and SignInWithClaimsAsync does not add a second copy.
+        var claims = new List<Claim>();
 
         // Do not silently assign a demo PH. Only carry an explicit stored claim.
         // PlatformAdmin/global users may have zero PH selected until they create/switch one.

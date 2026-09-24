@@ -30,6 +30,18 @@ public sealed class AsambleasUserClaimsPrincipalFactory
             return principal;
         }
 
+        // Security-stamp validation rebuilds the principal from this factory and drops
+        // claims that login attached only through SignInWithClaimsAsync.
+        EnsureSingleClaim(identity, AsambleasClaimTypes.TenantId, user.TenantId.ToString("D"));
+        EnsureSingleClaim(
+            identity,
+            AsambleasClaimTypes.OrganizationId,
+            user.OrganizationId?.ToString("D"));
+        EnsureSingleClaim(
+            identity,
+            AsambleasClaimTypes.DisplayName,
+            string.IsNullOrWhiteSpace(user.DisplayName) ? null : user.DisplayName);
+
         foreach (var claim in identity.FindAll(AsambleasClaimTypes.Permission).ToList())
         {
             identity.RemoveClaim(claim);
@@ -57,5 +69,18 @@ public sealed class AsambleasUserClaimsPrincipalFactory
         }
 
         return principal;
+    }
+
+    private static void EnsureSingleClaim(ClaimsIdentity identity, string claimType, string? value)
+    {
+        foreach (var existing in identity.FindAll(claimType).ToList())
+        {
+            identity.RemoveClaim(existing);
+        }
+
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            identity.AddClaim(new Claim(claimType, value));
+        }
     }
 }
