@@ -413,6 +413,7 @@ function wireUi() {
   $("#btn-cancel-owner")?.addEventListener("click", () => {
     editingOwnerId = null;
     $("#form-owner").reset();
+    renderOwnerLinkedUnitsSummary([]);
     $("#owner-form-wrap").hidden = true;
   });
   $("#btn-goto-import")?.addEventListener("click", () => {
@@ -1739,6 +1740,30 @@ async function bulkInvite() {
   }
 }
 
+function renderOwnerLinkedUnitsSummary(activeLinks) {
+  const summary = $("#owner-linked-units-summary");
+  const labelEl = $("#owner-unit-select-label");
+  if (!summary) return;
+  const links = (activeLinks || []).filter((u) => u && u.isActive !== false);
+  if (!links.length) {
+    summary.hidden = true;
+    summary.innerHTML = "";
+    if (labelEl) labelEl.textContent = "Unidad";
+    return;
+  }
+  summary.hidden = false;
+  summary.innerHTML = `
+    <p style="margin:0 0 0.35rem"><strong>Unidades ya vinculadas</strong></p>
+    <div class="assoc-chip-row">${links
+      .map(
+        (u) =>
+          `<span class="assoc-chip" title="${escapeHtml(u.unitCode || "")}">${escapeHtml(u.unitCode || "—")} · ${Math.round(Number(u.sharePercent || 0))}%</span>`
+      )
+      .join("")}</div>
+    <p class="muted" style="margin:0.4rem 0 0;font-size:0.85rem">La selección previa se mantiene. Solo elige abajo si quieres vincular <em>otra</em> unidad.</p>`;
+  if (labelEl) labelEl.textContent = "Vincular otra unidad (opcional)";
+}
+
 async function startOwnerCreate() {
   editingOwnerId = null;
   const form = $("#form-owner");
@@ -1752,7 +1777,8 @@ async function startOwnerCreate() {
     hint.hidden = true;
     hint.textContent = "";
   }
-  await ensureOwnerUnitSelectOptions();
+  renderOwnerLinkedUnitsSummary([]);
+  await ensureOwnerUnitSelectOptions({ emptyLabel: "— asociar después —" });
   $("#btn-save-owner").textContent = "Guardar propietario";
   const title = $("#owner-form-title");
   if (title) title.textContent = "Nuevo propietario";
@@ -1841,8 +1867,13 @@ async function startOwnerEdit(ownerId) {
   form.identification.value = o.identification || "";
   form.email.value = o.email || "";
   form.phone.value = o.phone || "";
-  const linkedIds = (o.units || []).filter((u) => u.isActive).map((u) => u.unitId);
-  await ensureOwnerUnitSelectOptions({ excludeUnitIds: linkedIds });
+  const activeLinks = (o.units || []).filter((u) => u.isActive);
+  const linkedIds = activeLinks.map((u) => u.unitId);
+  renderOwnerLinkedUnitsSummary(activeLinks);
+  await ensureOwnerUnitSelectOptions({
+    excludeUnitIds: linkedIds,
+    emptyLabel: activeLinks.length ? "— no vincular otra —" : "— asociar después —"
+  });
   form.unitId.value = "";
   $("#btn-save-owner").textContent = "Guardar cambios";
   const title = $("#owner-form-title");
@@ -1852,7 +1883,11 @@ async function startOwnerEdit(ownerId) {
 }
 
 /** Load PH units into #owner-unit-select (owner create/edit / drawer link). */
-async function ensureOwnerUnitSelectOptions({ excludeUnitIds = [], selectEl = null } = {}) {
+async function ensureOwnerUnitSelectOptions({
+  excludeUnitIds = [],
+  selectEl = null,
+  emptyLabel = "— asociar después —"
+} = {}) {
   const select = selectEl || $("#owner-unit-select");
   if (!select || !currentPhId) return [];
   try {
@@ -1863,7 +1898,7 @@ async function ensureOwnerUnitSelectOptions({ excludeUnitIds = [], selectEl = nu
     const current = select.value;
     const options = (units || []).filter((u) => !excluded.has(String(u.id)));
     select.innerHTML =
-      `<option value="">— asociar después —</option>` +
+      `<option value="">${escapeHtml(emptyLabel)}</option>` +
       options.map((u) => `<option value="${u.id}">${escapeHtml(u.code)}</option>`).join("");
     if (current && !excluded.has(String(current))) {
       select.value = current;
@@ -2042,22 +2077,12 @@ async function showOwner(ownerId, opts = {}) {
   $("#owner-drawer-sub").textContent = manageUnits
     ? "Administrar unidades"
     : ownerLifecycleLabel(o.status);
-  $("#owner-drawer-body").innerHTML = `
-    <h3>Información</h3>
-    <div class="row"><span>Identificación</span><span>${escapeHtml([o.identificationType, o.identification].filter(Boolean).join(" ") || "—")}</span></div>
-    <div class="row"><span>Email</span><span>${escapeHtml(maskEmail(o.email))}</span></div>
-    <div class="row"><span>Teléfono</span><span>${escapeHtml(o.phone || "—")}</span></div>
-    <h3>Unidades vinculadas</h3>
-    <ul style="margin:0;padding-left:1.1rem">${(o.units || [])
-      .map(
-        (u) =>
-          `<li>${escapeHtml(u.unitCode)} · ${Math.round(Number(u.unitCoefficientPercent))}% · participación ${Math.round(Number(u.sharePercent))}%
-          ${u.isActive ? `<button type="button" class="btn btn-ghost" data-end-own="${u.ownershipId}">Finalizar</button>` : " · histórico"}</li>`
-      )
-      .join("") || "<li>Sin unidades</li>"}</ul>
-    ${
-      canAdministerCurrentPh()
-        ? `<h3>Vincular unidad</h3>
+  const linkHeading = activeLinks.length ? "Vincular otra unidad" : "Vincular unidad";
+  const linkBtnLabel = activeLinks.length ? "Vincular otra" : "Vincular unidad";
+  const linkFormHtml = !canAdministerCurrentPh()
+    ? ""
+    : linkableUnits.length
+      ? `<h3 id="owner-link-section">${escapeHtml(linkHeading)}</h3>
     <form id="form-link-owner-unit" class="unit-hub-form" style="margin-top:0.5rem">
       <label>Unidad
         <select name="unitId" id="drawer-link-unit-select" required>
@@ -2073,16 +2098,28 @@ async function showOwner(ownerId, opts = {}) {
         <input name="effectiveFrom" type="date" required />
       </label>
       <div class="cta-row" style="margin-top:0.75rem">
-        <button type="submit" class="btn btn-primary" ${linkableUnits.length ? "" : "disabled"}>Vincular unidad</button>
+        <button type="submit" class="btn btn-primary">${escapeHtml(linkBtnLabel)}</button>
       </div>
-      ${
-        linkableUnits.length
-          ? ""
-          : `<p class="muted" style="margin:0.5rem 0 0">No hay unidades disponibles para vincular (todas ya están asociadas o el PH no tiene unidades).</p>`
-      }
     </form>`
-        : ""
-    }
+      : activeLinks.length
+        ? `<p id="owner-link-section" class="muted" style="margin:0.75rem 0 0">Todas las unidades del PH ya están vinculadas a este propietario. No hace falta volver a vincular.</p>`
+        : `<h3 id="owner-link-section">Vincular unidad</h3>
+    <p class="muted" style="margin:0.5rem 0 0">No hay unidades disponibles en este PH para vincular.</p>`;
+
+  $("#owner-drawer-body").innerHTML = `
+    <h3>Información</h3>
+    <div class="row"><span>Identificación</span><span>${escapeHtml([o.identificationType, o.identification].filter(Boolean).join(" ") || "—")}</span></div>
+    <div class="row"><span>Email</span><span>${escapeHtml(maskEmail(o.email))}</span></div>
+    <div class="row"><span>Teléfono</span><span>${escapeHtml(o.phone || "—")}</span></div>
+    <h3 id="owner-linked-units">Unidades vinculadas${activeLinks.length ? ` (${activeLinks.length})` : ""}</h3>
+    <ul style="margin:0;padding-left:1.1rem">${(o.units || [])
+      .map(
+        (u) =>
+          `<li>${escapeHtml(u.unitCode)} · ${Math.round(Number(u.unitCoefficientPercent))}% · participación ${Math.round(Number(u.sharePercent))}%
+          ${u.isActive ? `<button type="button" class="btn btn-ghost" data-end-own="${u.ownershipId}">Finalizar</button>` : " · histórico"}</li>`
+      )
+      .join("") || "<li>Sin unidades</li>"}</ul>
+    ${linkFormHtml}
     <h3>Acceso</h3>
     <div class="row"><span>Estado</span><span class="badge badge-access">${escapeHtml(platformAccessLabel(access))}</span></div>
     <div class="row"><span>Invitación expira</span><span>${escapeHtml(expires)}</span></div>
@@ -2222,7 +2259,11 @@ async function showOwner(ownerId, opts = {}) {
 
   openOwnerDrawer();
   if (manageUnits) {
-    body.querySelector("#form-link-owner-unit")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const scrollTarget =
+      activeLinks.length > 0
+        ? body.querySelector("#owner-linked-units")
+        : body.querySelector("#owner-link-section") || body.querySelector("#form-link-owner-unit");
+    scrollTarget?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 }
 
