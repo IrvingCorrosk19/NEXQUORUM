@@ -878,7 +878,10 @@ function switchTab(tab) {
     p.hidden = p.dataset.panel !== tab;
   });
   if (tab === "units") loadUnits({ soft: false });
-  if (tab === "owners") loadOwners({ soft: true });
+  if (tab === "owners") {
+    loadOwners({ soft: true });
+    void ensureOwnerUnitSelectOptions();
+  }
   if (tab === "coefficients") loadCoefficients({ soft: true });
   if (tab === "readiness") loadReadiness({ soft: true });
   if (tab === "assemblies") loadAssemblies({ soft: true });
@@ -1621,7 +1624,7 @@ async function loadOwners({ soft = false } = {}) {
     btn.addEventListener("click", () => showOwner(btn.dataset.owner))
   );
   tbody.querySelectorAll("[data-owner-units]").forEach((btn) =>
-    btn.addEventListener("click", () => showOwner(btn.dataset.ownerUnits))
+    btn.addEventListener("click", () => manageOwnerUnits(btn.dataset.ownerUnits))
   );
   tbody.querySelectorAll("[data-edit-owner]").forEach((btn) =>
     btn.addEventListener("click", () => startOwnerEdit(btn.dataset.editOwner))
@@ -1736,7 +1739,7 @@ async function bulkInvite() {
   }
 }
 
-function startOwnerCreate() {
+async function startOwnerCreate() {
   editingOwnerId = null;
   const form = $("#form-owner");
   form.reset();
@@ -1749,6 +1752,7 @@ function startOwnerCreate() {
     hint.hidden = true;
     hint.textContent = "";
   }
+  await ensureOwnerUnitSelectOptions();
   $("#btn-save-owner").textContent = "Guardar propietario";
   const title = $("#owner-form-title");
   if (title) title.textContent = "Nuevo propietario";
@@ -1837,12 +1841,37 @@ async function startOwnerEdit(ownerId) {
   form.identification.value = o.identification || "";
   form.email.value = o.email || "";
   form.phone.value = o.phone || "";
+  const linkedIds = (o.units || []).filter((u) => u.isActive).map((u) => u.unitId);
+  await ensureOwnerUnitSelectOptions({ excludeUnitIds: linkedIds });
   form.unitId.value = "";
   $("#btn-save-owner").textContent = "Guardar cambios";
   const title = $("#owner-form-title");
   if (title) title.textContent = "Editar propietario";
   $("#owner-form-wrap").hidden = false;
   form.firstName?.focus();
+}
+
+/** Load PH units into #owner-unit-select (owner create/edit / drawer link). */
+async function ensureOwnerUnitSelectOptions({ excludeUnitIds = [], selectEl = null } = {}) {
+  const select = selectEl || $("#owner-unit-select");
+  if (!select || !currentPhId) return [];
+  try {
+    const units = await api(`/api/ph/${currentPhId}/units`, {
+      dedupeKey: `ph-units:${currentPhId}:`
+    });
+    const excluded = new Set((excludeUnitIds || []).map(String));
+    const current = select.value;
+    const options = (units || []).filter((u) => !excluded.has(String(u.id)));
+    select.innerHTML =
+      `<option value="">— asociar después —</option>` +
+      options.map((u) => `<option value="${u.id}">${escapeHtml(u.code)}</option>`).join("");
+    if (current && !excluded.has(String(current))) {
+      select.value = current;
+    }
+    return units || [];
+  } catch {
+    return [];
+  }
 }
 
 async function onSaveOwner(ev) {
@@ -1988,7 +2017,12 @@ function openOwnerDrawer() {
   drawer.setAttribute("aria-hidden", "false");
 }
 
-async function showOwner(ownerId) {
+async function manageOwnerUnits(ownerId) {
+  await showOwner(ownerId, { manageUnits: true });
+}
+
+async function showOwner(ownerId, opts = {}) {
+  const manageUnits = opts.manageUnits === true;
   const o = await api(`/api/ph/${currentPhId}/owners/${ownerId}`);
   const inactive = o.status === "Inactive";
   const access = o.platformAccessStatus || "NotInvited";
@@ -1997,15 +2031,23 @@ async function showOwner(ownerId) {
   const expires = o.invitationExpiresAtUtc
     ? new Date(o.invitationExpiresAtUtc).toLocaleString("es-PA", { dateStyle: "medium", timeStyle: "short" })
     : "—";
+  const activeLinks = (o.units || []).filter((u) => u.isActive);
+  const linkedIds = activeLinks.map((u) => u.unitId);
+  const allUnits = manageUnits || canAdministerCurrentPh()
+    ? await ensureOwnerUnitSelectOptions({ excludeUnitIds: linkedIds })
+    : [];
+  const linkableUnits = (allUnits || []).filter((u) => !linkedIds.map(String).includes(String(u.id)));
 
   $("#owner-drawer-title").textContent = o.displayName || "Propietario";
-  $("#owner-drawer-sub").textContent = ownerLifecycleLabel(o.status);
+  $("#owner-drawer-sub").textContent = manageUnits
+    ? "Administrar unidades"
+    : ownerLifecycleLabel(o.status);
   $("#owner-drawer-body").innerHTML = `
     <h3>Información</h3>
     <div class="row"><span>Identificación</span><span>${escapeHtml([o.identificationType, o.identification].filter(Boolean).join(" ") || "—")}</span></div>
     <div class="row"><span>Email</span><span>${escapeHtml(maskEmail(o.email))}</span></div>
     <div class="row"><span>Teléfono</span><span>${escapeHtml(o.phone || "—")}</span></div>
-    <h3>Unidades</h3>
+    <h3>Unidades vinculadas</h3>
     <ul style="margin:0;padding-left:1.1rem">${(o.units || [])
       .map(
         (u) =>
@@ -2013,6 +2055,34 @@ async function showOwner(ownerId) {
           ${u.isActive ? `<button type="button" class="btn btn-ghost" data-end-own="${u.ownershipId}">Finalizar</button>` : " · histórico"}</li>`
       )
       .join("") || "<li>Sin unidades</li>"}</ul>
+    ${
+      canAdministerCurrentPh()
+        ? `<h3>Vincular unidad</h3>
+    <form id="form-link-owner-unit" class="unit-hub-form" style="margin-top:0.5rem">
+      <label>Unidad
+        <select name="unitId" id="drawer-link-unit-select" required>
+          <option value="">— seleccionar —</option>
+          ${linkableUnits.map((u) => `<option value="${u.id}">${escapeHtml(u.code)}</option>`).join("")}
+        </select>
+      </label>
+      <label>% titularidad
+        <input name="sharePercent" id="drawer-link-share" type="number" step="1" min="1" max="100" value="100" />
+      </label>
+      <p id="drawer-link-share-hint" class="muted" style="margin:0.25rem 0" hidden></p>
+      <label>Fecha efectiva
+        <input name="effectiveFrom" type="date" required />
+      </label>
+      <div class="cta-row" style="margin-top:0.75rem">
+        <button type="submit" class="btn btn-primary" ${linkableUnits.length ? "" : "disabled"}>Vincular unidad</button>
+      </div>
+      ${
+        linkableUnits.length
+          ? ""
+          : `<p class="muted" style="margin:0.5rem 0 0">No hay unidades disponibles para vincular (todas ya están asociadas o el PH no tiene unidades).</p>`
+      }
+    </form>`
+        : ""
+    }
     <h3>Acceso</h3>
     <div class="row"><span>Estado</span><span class="badge badge-access">${escapeHtml(platformAccessLabel(access))}</span></div>
     <div class="row"><span>Invitación expira</span><span>${escapeHtml(expires)}</span></div>
@@ -2061,11 +2131,99 @@ async function showOwner(ownerId) {
     btn.addEventListener("click", async () => {
       await api(`/api/ph/${currentPhId}/ownerships/${btn.dataset.endOwn}/end`, { method: "POST" });
       AppFeedback.success("La relación quedó en histórico.", { title: "Relación finalizada" });
-      await showOwner(ownerId);
+      await showOwner(ownerId, opts);
       await loadOwners();
     })
   );
+
+  const linkForm = body.querySelector("#form-link-owner-unit");
+  if (linkForm) {
+    const dateInput = linkForm.querySelector('[name="effectiveFrom"]');
+    if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+    const unitSelect = linkForm.querySelector("#drawer-link-unit-select");
+    const shareInput = linkForm.querySelector("#drawer-link-share");
+    const shareHint = linkForm.querySelector("#drawer-link-share-hint");
+    const syncDrawerShare = async () => {
+      const unitId = unitSelect?.value;
+      if (!unitId || !shareInput) return;
+      try {
+        const detail = await api(`/api/ph/${currentPhId}/units/${unitId}/ownerships`);
+        const used = Number(detail.activeShareTotalPercent || 0);
+        const remaining = Math.max(0, Math.round(100 - used));
+        const activeCount = (detail.owners || []).filter((x) => x.isActive).length;
+        if (remaining <= 0) {
+          const equal = Math.round(100 / (activeCount + 1));
+          shareInput.value = String(equal);
+          if (shareHint) {
+            shareHint.hidden = false;
+            shareHint.textContent = `La unidad ya está al 100%. Al vincular se redistribuirá (~${equal}% cada uno).`;
+          }
+        } else {
+          shareInput.max = String(remaining);
+          shareInput.value = String(remaining);
+          if (shareHint) {
+            shareHint.hidden = false;
+            shareHint.textContent =
+              used > 0
+                ? `Ya hay ${Math.round(used)}% asignado. Quedan ${remaining}% para este propietario.`
+                : "Primer titular: se sugiere 100%.";
+          }
+        }
+      } catch {
+        if (shareHint) {
+          shareHint.hidden = false;
+          shareHint.textContent = "No se pudo consultar la titularidad. Revisa el % manualmente.";
+        }
+      }
+    };
+    unitSelect?.addEventListener("change", () => void syncDrawerShare());
+    linkForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const data = formData(linkForm);
+      if (!data.unitId) {
+        AppFeedback.warning("Selecciona una unidad.", { title: "Unidad requerida" });
+        return;
+      }
+      const unit = linkableUnits.find((u) => String(u.id) === String(data.unitId));
+      const ok = await confirmDialog({
+        title: "Confirmar vinculación",
+        body: `Propietario: ${o.displayName || o.email}\nUnidad: ${unit?.code || data.unitId}\nParticipación: ${data.sharePercent || 100}%\nFecha efectiva: ${data.effectiveFrom}`,
+        confirmLabel: "Vincular"
+      });
+      if (!ok) return;
+      try {
+        await api(`/api/ph/${currentPhId}/ownerships`, {
+          method: "POST",
+          body: {
+            ownerId,
+            unitId: data.unitId,
+            sharePercent: Number(data.sharePercent || 100),
+            effectiveFromUtc: data.effectiveFrom
+              ? new Date(`${data.effectiveFrom}T12:00:00`).toISOString()
+              : undefined
+          }
+        });
+        AppFeedback.success("La unidad quedó vinculada al propietario.", { title: "Vinculación" });
+        await loadOwners({ soft: false });
+        await loadUnits({ soft: false }).catch(() => {});
+        await showOwner(ownerId, { manageUnits: true });
+      } catch (err) {
+        const msg = err?.message || String(err);
+        if (/already linked|OWNERSHIP_DUPLICATE|ya (está|esta) vinculad/i.test(msg)) {
+          AppFeedback.warning("Este propietario ya está vinculado a esa unidad.", {
+            title: "Unidad duplicada"
+          });
+          return;
+        }
+        AppFeedback.fromError(err, msg);
+      }
+    });
+  }
+
   openOwnerDrawer();
+  if (manageUnits) {
+    body.querySelector("#form-link-owner-unit")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
 }
 
 async function deactivateOwner(ownerId) {
