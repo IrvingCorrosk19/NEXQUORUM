@@ -446,7 +446,10 @@ export default {
     factMotion: "Pregunta",
     factVoting: "Votación",
     factConnection: "Conexión",
-    continue: "Continuar"
+    continue: "Continuar",
+    minimize: "Minimizar",
+    restore: "Ver estado",
+    waitingMinimizedHint: "Toca para ver el aviso completo"
   },
   connection: {
     online: "Conectado",

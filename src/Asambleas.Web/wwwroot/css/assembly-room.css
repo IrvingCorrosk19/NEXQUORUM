@@ -945,6 +945,14 @@
   background: color-mix(in srgb, var(--color-teal-900, #134e4a) 28%, var(--surface-elevated, #152033));
   color: var(--text-primary, #e8eef8);
   box-shadow: none;
+  position: relative;
+}
+
+.waiting-room-banner__minimize {
+  align-self: flex-end;
+  margin-top: 0.15rem;
+  color: inherit;
+  opacity: 0.92;
 }
 
 .waiting-room-banner[hidden] {

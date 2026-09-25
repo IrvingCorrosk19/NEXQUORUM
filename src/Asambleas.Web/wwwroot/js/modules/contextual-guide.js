@@ -519,6 +519,7 @@ export function explainBlockCode(code, fallbackMessage = "") {
 export function renderContextualGuide(root, guide, opts = {}) {
   if (!root || !guide) return;
   const tone = guide.severity || "info";
+  const isStage = root.id === "contextual-guide-stage";
   const steps = (guide.steps || [])
     .map((s, i) => `<li><span class="cx-guide__step-n">${i + 1}</span> ${escapeHtml(s)}</li>`)
     .join("");
@@ -539,15 +540,23 @@ export function renderContextualGuide(root, guide, opts = {}) {
       : `<button type="button" class="btn btn-primary cx-guide__cta" data-cx-action="${escapeHtml(guide.actionId || "")}">${escapeHtml(guide.nextActionLabel || "Continuar")}</button>`
     : "";
 
+  const minimizeLabel = t("guide.minimize") || "Minimizar";
+  const minimizeHtml = isStage
+    ? `<button type="button" class="btn btn-ghost btn-sm cx-guide__minimize" data-cx-minimize title="${escapeHtml(minimizeLabel)}" aria-label="${escapeHtml(minimizeLabel)}">${escapeHtml(minimizeLabel)}</button>`
+    : "";
+
   root.hidden = false;
-  root.className = `cx-guide cx-guide--${tone}${root.id === "contextual-guide-stage" ? " cx-guide-stage" : ""}`;
+  root.className = `cx-guide cx-guide--${tone}${isStage ? " cx-guide-stage" : ""}`;
   root.setAttribute("role", "region");
   const titleId = `cx-guide-title-${root.id || "main"}`;
   root.setAttribute("aria-labelledby", titleId);
   root.innerHTML = `
     <header class="cx-guide__head">
-      <p class="cx-guide__eyebrow">${escapeHtml(t("guide.eyebrow") || "Estado y siguiente paso")}</p>
-      <h3 id="${titleId}" class="cx-guide__title">${escapeHtml(guide.title)}</h3>
+      <div class="cx-guide__head-main">
+        <p class="cx-guide__eyebrow">${escapeHtml(t("guide.eyebrow") || "Estado y siguiente paso")}</p>
+        <h3 id="${titleId}" class="cx-guide__title">${escapeHtml(guide.title)}</h3>
+      </div>
+      ${minimizeHtml}
     </header>
     <p class="cx-guide__explain">${escapeHtml(guide.explanation)}</p>
     ${steps ? `<ol class="cx-guide__steps">${steps}</ol>` : ""}
@@ -563,10 +572,81 @@ export function renderContextualGuide(root, guide, opts = {}) {
   if (btn && opts.onAction) {
     btn.addEventListener("click", () => opts.onAction(btn.getAttribute("data-cx-action") || "", guide));
   }
+  const minBtn = root.querySelector("[data-cx-minimize]");
+  if (minBtn && typeof opts.onMinimize === "function") {
+    minBtn.addEventListener("click", () => opts.onMinimize(guide));
+  }
 }
 
 export function hideContextualGuide(root) {
   if (!root) return;
   root.hidden = true;
   root.innerHTML = "";
+}
+
+const STAGE_MIN_KEY = "asambleas.room.cxGuideStageMinimized";
+const WAIT_MIN_KEY = "asambleas.room.waitingBannerMinimized";
+
+export function isStageGuideMinimized() {
+  try {
+    return sessionStorage.getItem(STAGE_MIN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setStageGuideMinimized(value) {
+  try {
+    sessionStorage.setItem(STAGE_MIN_KEY, value ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isWaitingBannerMinimized() {
+  try {
+    return sessionStorage.getItem(WAIT_MIN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setWaitingBannerMinimized(value) {
+  try {
+    sessionStorage.setItem(WAIT_MIN_KEY, value ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Compact restore chip for minimized stage status on phone/tablet. */
+export function renderStageGuideChip(host, guide, opts = {}) {
+  if (!host) return;
+  if (!guide) {
+    host.hidden = true;
+    host.innerHTML = "";
+    return;
+  }
+  const restoreLabel = t("guide.restore") || "Ver estado";
+  host.hidden = false;
+  host.className = `cx-guide-stage-chip cx-guide-stage-chip--${guide.severity || "info"}`;
+  host.setAttribute("role", "status");
+  host.innerHTML = `
+    <div class="cx-guide-stage-chip__text">
+      <strong>${escapeHtml(t("guide.eyebrow") || "Estado y siguiente paso")}</strong>
+      <span>${escapeHtml(guide.title)}</span>
+    </div>
+    <button type="button" class="btn btn-secondary btn-sm cx-guide-stage-chip__cta" data-cx-restore>
+      ${escapeHtml(restoreLabel)}
+    </button>
+  `;
+  host.querySelector("[data-cx-restore]")?.addEventListener("click", () => {
+    if (typeof opts.onRestore === "function") opts.onRestore(guide);
+  });
+}
+
+export function hideStageGuideChip(host) {
+  if (!host) return;
+  host.hidden = true;
+  host.innerHTML = "";
 }

@@ -35,8 +35,28 @@
   font-weight: 600;
 }
 
+.cx-guide__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.cx-guide__head-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.cx-guide__minimize {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.55rem;
+}
+
 .cx-guide__title {
-  margin: 0 0 0.45rem;
+  margin: 0;
   font-family: "Source Serif 4", Georgia, serif;
   font-size: 1.05rem;
   font-weight: 600;
@@ -141,6 +161,69 @@
 }
 .cx-guide-stage[hidden] { display: none !important; }
 
+.cx-guide-stage-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin: 0 0 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--border-default) 80%, transparent);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.cx-guide-stage-chip[hidden] {
+  display: none !important;
+}
+
+.cx-guide-stage-chip__text {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.cx-guide-stage-chip__text strong {
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cx-guide-stage-chip__text span {
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cx-guide-stage-chip__cta {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.cx-guide-stage-chip--info {
+  border-color: color-mix(in srgb, var(--status-info) 35%, transparent);
+}
+.cx-guide-stage-chip--success {
+  border-color: color-mix(in srgb, var(--status-success) 35%, transparent);
+}
+.cx-guide-stage-chip--warning {
+  border-color: color-mix(in srgb, var(--status-warning) 40%, transparent);
+  background: color-mix(in srgb, var(--status-warning-bg) 70%, var(--surface-elevated));
+}
+.cx-guide-stage-chip--danger {
+  border-color: color-mix(in srgb, var(--status-danger) 40%, transparent);
+  background: color-mix(in srgb, var(--status-danger-bg) 70%, var(--surface-elevated));
+}
+.cx-guide-stage-chip--waiting {
+  border-color: color-mix(in srgb, var(--color-teal-400, #2dd4bf) 40%, transparent);
+}
+
 @media (max-width: 900px) {
   .cx-guide__fact {
     grid-template-columns: 1fr;
@@ -148,6 +231,13 @@
   }
   .cx-guide {
     margin-inline: 0;
+  }
+  .cx-guide-stage .cx-guide__explain,
+  .cx-guide-stage .cx-guide__who {
+    font-size: 0.86rem;
+  }
+  .cx-guide-stage .cx-guide__steps li {
+    font-size: 0.84rem;
   }
 }
 

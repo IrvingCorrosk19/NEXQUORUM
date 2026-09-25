@@ -6,7 +6,17 @@ import { renderQuorum, renderQuorumCard } from "./quorum.js";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt } from "./voting.js";
 import { createLiveVotingWorkspace } from "./live-voting-workspace.js";
 import { createMobileVotingController } from "./mobile-voting-sheet.js";
-import { resolveContextualGuide, renderContextualGuide, explainBlockCode } from "./contextual-guide.js";
+import {
+  resolveContextualGuide,
+  renderContextualGuide,
+  explainBlockCode,
+  isStageGuideMinimized,
+  setStageGuideMinimized,
+  isWaitingBannerMinimized,
+  setWaitingBannerMinimized,
+  renderStageGuideChip,
+  hideStageGuideChip
+} from "./contextual-guide.js";
 import {
   completeFloor,
   cancelOwnFloor,
@@ -93,6 +103,8 @@ const els = {
   waitingBanner: qs("#waiting-room-banner"),
   waitingTitle: qs("#waiting-room-title"),
   waitingBody: qs("#waiting-room-body"),
+  stageGuideChip: qs("#cx-guide-stage-chip"),
+  waitingChip: qs("#waiting-room-chip"),
   participants: qs("#participant-strip"),
   participantCount: qs("#participant-count"),
   agenda: qs("#agenda-panel"),
@@ -1839,9 +1851,11 @@ function syncLiveMode() {
 
   const waiting =
     status === "Scheduled" || status === "CheckIn" || status === "Draft";
+  const ownerViewer = state.viewerRole !== "Operator";
   if (els.waitingBanner) {
-    els.waitingBanner.hidden = !waiting;
-    if (waiting) {
+    const minimized = ownerViewer && isWaitingBannerMinimized();
+    els.waitingBanner.hidden = !waiting || minimized;
+    if (waiting && !minimized) {
       if (els.waitingTitle) {
         els.waitingTitle.textContent =
           t("assembly.notStartedTitle") || "La asamblea todavía no ha comenzado.";
@@ -1850,6 +1864,27 @@ function syncLiveMode() {
         els.waitingBody.textContent =
           t("assembly.notStartedBody") ||
           "Puedes permanecer aquí. La sala se actualizará automáticamente cuando comience.";
+      }
+      ensureWaitingMinimizeControl(els.waitingBanner);
+    }
+    if (els.waitingChip) {
+      if (waiting && minimized) {
+        els.waitingChip.hidden = false;
+        els.waitingChip.innerHTML = `
+          <div class="cx-guide-stage-chip__text">
+            <strong>${escapeHtml(t("assembly.notStartedTitle") || "Asamblea aún no iniciada")}</strong>
+            <span>${escapeHtml(t("guide.waitingMinimizedHint") || "Toca para ver el aviso completo")}</span>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm cx-guide-stage-chip__cta" data-waiting-restore>
+            ${escapeHtml(t("guide.restore") || "Ver estado")}
+          </button>`;
+        els.waitingChip.querySelector("[data-waiting-restore]")?.addEventListener("click", () => {
+          setWaitingBannerMinimized(false);
+          syncLiveMode();
+        });
+      } else {
+        els.waitingChip.hidden = true;
+        els.waitingChip.innerHTML = "";
       }
     }
   }
@@ -2246,18 +2281,55 @@ function syncContextualGuide() {
 
   if (guideRoot) renderContextualGuide(guideRoot, guide, { onAction });
 
+  const chip = els.stageGuideChip || qs("#cx-guide-stage-chip");
   if (stageRoot) {
     const operator = state.viewerRole === "Operator";
     const showStage =
       !operator &&
       (String(guide.id).includes("owner") || guide.severity === "danger" || guide.severity === "warning") &&
       guide.id !== "owner-can-vote";
-    if (showStage) renderContextualGuide(stageRoot, guide, { onAction });
-    else {
+    if (showStage) {
+      if (isStageGuideMinimized()) {
+        stageRoot.hidden = true;
+        stageRoot.innerHTML = "";
+        renderStageGuideChip(chip, guide, {
+          onRestore: () => {
+            setStageGuideMinimized(false);
+            syncContextualGuide();
+          }
+        });
+      } else {
+        hideStageGuideChip(chip);
+        renderContextualGuide(stageRoot, guide, {
+          onAction,
+          onMinimize: () => {
+            setStageGuideMinimized(true);
+            syncContextualGuide();
+          }
+        });
+      }
+    } else {
       stageRoot.hidden = true;
       stageRoot.innerHTML = "";
+      hideStageGuideChip(chip);
     }
   }
+}
+
+function ensureWaitingMinimizeControl(banner) {
+  if (!banner || state.viewerRole === "Operator") return;
+  if (banner.querySelector("[data-waiting-minimize]")) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn btn-ghost btn-sm waiting-room-banner__minimize";
+  btn.setAttribute("data-waiting-minimize", "1");
+  btn.textContent = t("guide.minimize") || "Minimizar";
+  btn.setAttribute("aria-label", btn.textContent);
+  btn.addEventListener("click", () => {
+    setWaitingBannerMinimized(true);
+    syncLiveMode();
+  });
+  banner.appendChild(btn);
 }
 
 /** Coalesce SignalR/UI bursts into one paint per animation frame. */
