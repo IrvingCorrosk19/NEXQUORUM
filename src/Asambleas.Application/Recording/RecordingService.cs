@@ -1,10 +1,14 @@
 namespace Asambleas.Application.Recording;
 
+using System.Globalization;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Asambleas.Application.Abstractions;
+using Asambleas.Application.Assembly;
 using Asambleas.Application.Common;
 using Asambleas.Application.Meeting;
 using Asambleas.Application.Security;
+using Asambleas.Contracts.Assemblies;
 using Asambleas.Contracts.Recordings;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
@@ -596,28 +600,14 @@ public sealed class RecordingService
             .Take(500)
             .ToListAsync(cancellationToken);
 
-        var timeline = auditEvents
-            .Select(e =>
-            {
-                double? offset = null;
-                Guid? recordingId = null;
-                if (recordingStart is DateTimeOffset start && primaryRecording is not null)
-                {
-                    offset = Math.Round((e.OccurredAtUtc - start).TotalSeconds, 1);
-                    if (offset >= 0)
-                    {
-                        recordingId = primaryRecording.Id;
-                    }
-                }
-
-                return new SessionTimelineEventDto(
-                    e.OccurredAtUtc,
-                    e.EventType,
-                    HumanizeAudit(e.EventType),
-                    offset,
-                    recordingId);
-            })
-            .ToList();
+        var showParticipantNames = await CanSeeParticipantNamesAsync(assemblyId, cancellationToken);
+        var timeline = await BuildTimelineAsync(
+            assemblyId,
+            auditEvents,
+            recordingStart,
+            primaryRecording?.Id,
+            showParticipantNames,
+            cancellationToken);
 
         DateTimeOffset? completedAt = auditEvents
             .Where(e => e.EventType == AuditEventType.AssemblyCompleted)
@@ -1022,6 +1012,266 @@ public sealed class RecordingService
 
     private static string? Truncate(string? value, int max) =>
         value is null ? null : value.Length <= max ? value : value[..max];
+
+    private async Task<bool> CanSeeParticipantNamesAsync(Guid assemblyId, CancellationToken cancellationToken)
+    {
+        if (IsBoardRole() || HasPermission(Permissions.MeetingModerate))
+        {
+            return true;
+        }
+
+        var userId = _currentTenant.UserId;
+        if (userId is null)
+        {
+            return false;
+        }
+
+        var roleCode = await _db.AssemblyParticipants
+            .AsNoTracking()
+            .Where(p => p.AssemblyId == assemblyId && p.UserId == userId)
+            .Select(p => p.RoleCode)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return AssemblyRoomRules.ResolveViewerRole(roleCode) == AssemblyViewerRoles.Operator;
+    }
+
+    /// <summary>
+    /// Public timeline text depends on the viewer. Audit rows keep the full event, including the participant name.
+    /// </summary>
+    private async Task<List<SessionTimelineEventDto>> BuildTimelineAsync(
+        Guid assemblyId,
+        IReadOnlyList<AuditEvent> auditEvents,
+        DateTimeOffset? recordingStart,
+        Guid? primaryRecordingId,
+        bool showParticipantNames,
+        CancellationToken cancellationToken)
+    {
+        var people = await _db.AssemblyParticipants
+            .AsNoTracking()
+            .Where(p => p.AssemblyId == assemblyId)
+            .Select(p => new { p.UserId, p.DisplayName, p.UnitId })
+            .ToListAsync(cancellationToken);
+        var peopleById = people.ToDictionary(
+            p => p.UserId,
+            p => (Name: p.DisplayName, p.UnitId));
+
+        var unitIds = people.Where(p => p.UnitId is not null).Select(p => p.UnitId!.Value).ToHashSet();
+        foreach (var audit in auditEvents)
+        {
+            if (TryReadGuid(audit.MetadataJson, "unitId") is Guid unitId)
+            {
+                unitIds.Add(unitId);
+            }
+        }
+
+        var unitCodes = unitIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await _db.Units
+                .AsNoTracking()
+                .Where(u => unitIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.Code, cancellationToken);
+
+        var quorumAt = auditEvents
+            .Select((e, index) => (e, index, coefficient: TryReadDecimal(e.MetadataJson, "currentCoefficient")))
+            .Where(x => x.e.EventType == AuditEventType.QuorumChanged && x.coefficient is not null)
+            .Select(x => (x.index, x.e.OccurredAtUtc, Coefficient: x.coefficient!.Value))
+            .ToList();
+
+        var consumedQuorum = new HashSet<int>();
+        var timeline = new List<SessionTimelineEventDto>(auditEvents.Count);
+        for (var i = 0; i < auditEvents.Count; i++)
+        {
+            var audit = auditEvents[i];
+            if (IsPresenceAudit(audit.EventType))
+            {
+                var match = quorumAt.FirstOrDefault(q =>
+                    q.index > i
+                    && !consumedQuorum.Contains(q.index)
+                    && q.OccurredAtUtc >= audit.OccurredAtUtc
+                    && (q.OccurredAtUtc - audit.OccurredAtUtc).TotalSeconds <= 5);
+                int? afterIndex = match.index > i ? match.index : null;
+                if (afterIndex is int consumed)
+                {
+                    consumedQuorum.Add(consumed);
+                }
+
+                decimal? before = null;
+                var priorQuorum = quorumAt.Where(q => q.index < i).ToList();
+                if (priorQuorum.Count > 0)
+                {
+                    before = priorQuorum[^1].Coefficient;
+                }
+
+                decimal? after = afterIndex is int quorumIndex
+                    ? quorumAt.First(q => q.index == quorumIndex).Coefficient
+                    : null;
+                timeline.Add(ToTimelineEvent(
+                    audit,
+                    recordingStart,
+                    primaryRecordingId,
+                    PresenceLabel(audit, peopleById, unitCodes, showParticipantNames, before, after)));
+                continue;
+            }
+
+            if (audit.EventType == AuditEventType.QuorumChanged && consumedQuorum.Contains(i))
+            {
+                continue;
+            }
+
+            timeline.Add(ToTimelineEvent(audit, recordingStart, primaryRecordingId, HumanizeAudit(audit.EventType)));
+        }
+
+        return timeline;
+    }
+
+    private static SessionTimelineEventDto ToTimelineEvent(
+        AuditEvent audit,
+        DateTimeOffset? recordingStart,
+        Guid? primaryRecordingId,
+        string label)
+    {
+        double? offset = null;
+        Guid? recordingId = null;
+        if (recordingStart is DateTimeOffset start && primaryRecordingId is Guid recording)
+        {
+            offset = Math.Round((audit.OccurredAtUtc - start).TotalSeconds, 1);
+            if (offset >= 0)
+            {
+                recordingId = recording;
+            }
+        }
+
+        return new SessionTimelineEventDto(audit.OccurredAtUtc, audit.EventType, label, offset, recordingId);
+    }
+
+    private static bool IsPresenceAudit(string eventType) =>
+        eventType is AuditEventType.ParticipantConnected
+            or AuditEventType.ParticipantDisconnected
+            or AuditEventType.ParticipantLeft;
+
+    private static string PresenceLabel(
+        AuditEvent audit,
+        IReadOnlyDictionary<Guid, (string Name, Guid? UnitId)> peopleById,
+        IReadOnlyDictionary<Guid, string> unitCodes,
+        bool showParticipantNames,
+        decimal? quorumBefore,
+        decimal? quorumAfter)
+    {
+        var participantId = TryReadGuid(audit.MetadataJson, "userId") ?? audit.UserId;
+        peopleById.TryGetValue(participantId ?? Guid.Empty, out var person);
+        var unitId = TryReadGuid(audit.MetadataJson, "unitId") ?? person.UnitId;
+        var unitCode = unitId is Guid id && unitCodes.TryGetValue(id, out var code) ? code : null;
+        var verb = PresenceVerb(audit);
+        var who = showParticipantNames ? person.Name?.Trim() : null;
+
+        var action = string.IsNullOrWhiteSpace(unitCode)
+            ? verb
+            : $"Unidad {unitCode} {verb}";
+        var subject = string.IsNullOrWhiteSpace(who) ? action : $"{who} — {action}";
+
+        if (quorumBefore is decimal before && quorumAfter is decimal after)
+        {
+            return $"{subject} — Quórum {FormatPercent(before)} → {FormatPercent(after)}";
+        }
+
+        if (quorumAfter is decimal onlyAfter)
+        {
+            return $"{subject} — Quórum {FormatPercent(onlyAfter)}";
+        }
+
+        return subject;
+    }
+
+    private static string PresenceVerb(AuditEvent audit)
+    {
+        var status = TryReadString(audit.MetadataJson, "status");
+        if (audit.EventType == AuditEventType.ParticipantConnected
+            || string.Equals(status, nameof(AttendanceStatus.Present), StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, nameof(AttendanceStatus.CheckedIn), StringComparison.OrdinalIgnoreCase))
+        {
+            return "se conectó";
+        }
+
+        return "se desconectó";
+    }
+
+    private static string FormatPercent(decimal value) =>
+        $"{value.ToString("0.00", CultureInfo.InvariantCulture)}%";
+
+    private static Guid? TryReadGuid(string json, string name)
+    {
+        if (!TryReadProperty(json, name, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.String && value.TryGetGuid(out var id))
+        {
+            return id;
+        }
+
+        return null;
+    }
+
+    private static decimal? TryReadDecimal(string json, string name)
+    {
+        if (!TryReadProperty(json, name, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var number))
+        {
+            return number;
+        }
+
+        if (value.ValueKind == JsonValueKind.String
+            && decimal.TryParse(value.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
+    private static string? TryReadString(string json, string name)
+    {
+        if (!TryReadProperty(json, name, out var value) || value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        return value.GetString();
+    }
+
+    private static string Pascal(string name) =>
+        string.IsNullOrEmpty(name) ? name : char.ToUpperInvariant(name[0]) + name[1..];
+
+    private static bool TryReadProperty(string json, string name, out JsonElement value)
+    {
+        value = default;
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (!document.RootElement.TryGetProperty(name, out var found)
+                && !document.RootElement.TryGetProperty(Pascal(name), out found))
+            {
+                return false;
+            }
+
+            value = found.Clone();
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 
     private static string HumanizeAudit(string eventType) => eventType switch
     {
