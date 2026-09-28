@@ -9,11 +9,12 @@ using Asambleas.Application.Abstractions;
 /// </summary>
 public sealed class AssemblyHubPresenceTracker : IAssemblyHubPresence
 {
-    private readonly ConcurrentDictionary<string, (Guid AssemblyId, Guid UserId)> _byConnection = new();
+    private readonly ConcurrentDictionary<string, (Guid AssemblyId, Guid UserId, bool CountsAsPresence)> _byConnection = new();
     private readonly ConcurrentDictionary<(Guid AssemblyId, Guid UserId), ConcurrentDictionary<string, byte>> _connections = new();
+    private readonly ConcurrentDictionary<(Guid AssemblyId, Guid UserId), ConcurrentDictionary<string, byte>> _presence = new();
     private readonly ConcurrentDictionary<(Guid AssemblyId, Guid UserId), (Guid TenantId, DateTimeOffset Deadline)> _grace = new();
 
-    public void SetConnected(Guid assemblyId, Guid userId, string connectionId)
+    public void SetConnected(Guid assemblyId, Guid userId, string connectionId, bool countsAsPresence = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
 
@@ -23,10 +24,15 @@ public sealed class AssemblyHubPresenceTracker : IAssemblyHubPresence
             Detach(connectionId, previous.AssemblyId, previous.UserId);
         }
 
-        _byConnection[connectionId] = (assemblyId, userId);
+        _byConnection[connectionId] = (assemblyId, userId, countsAsPresence);
         var bag = _connections.GetOrAdd((assemblyId, userId), static _ => new ConcurrentDictionary<string, byte>());
         bag[connectionId] = 0;
-        CancelDisconnectGrace(assemblyId, userId);
+        if (countsAsPresence)
+        {
+            var presence = _presence.GetOrAdd((assemblyId, userId), static _ => new ConcurrentDictionary<string, byte>());
+            presence[connectionId] = 0;
+            CancelDisconnectGrace(assemblyId, userId);
+        }
     }
 
     public void RemoveConnection(string connectionId)
@@ -41,6 +47,9 @@ public sealed class AssemblyHubPresenceTracker : IAssemblyHubPresence
 
     public bool IsHubConnected(Guid assemblyId, Guid userId) =>
         _connections.TryGetValue((assemblyId, userId), out var bag) && !bag.IsEmpty;
+
+    public bool IsPresenceConnected(Guid assemblyId, Guid userId) =>
+        _presence.TryGetValue((assemblyId, userId), out var bag) && !bag.IsEmpty;
 
     public IReadOnlyCollection<Guid> ListConnectedUserIds(Guid assemblyId)
     {
@@ -92,6 +101,15 @@ public sealed class AssemblyHubPresenceTracker : IAssemblyHubPresence
         if (bag.IsEmpty)
         {
             _connections.TryRemove(new KeyValuePair<(Guid AssemblyId, Guid UserId), ConcurrentDictionary<string, byte>>((assemblyId, userId), bag));
+        }
+
+        if (_presence.TryGetValue((assemblyId, userId), out var presence))
+        {
+            presence.TryRemove(connectionId, out _);
+            if (presence.IsEmpty)
+            {
+                _presence.TryRemove(new KeyValuePair<(Guid AssemblyId, Guid UserId), ConcurrentDictionary<string, byte>>((assemblyId, userId), presence));
+            }
         }
     }
 }

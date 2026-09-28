@@ -138,7 +138,10 @@ public sealed partial class AttendanceService
         var userIds = participants.Select(p => p.UserId).ToList();
         var repCounts = await _db.AssemblyRepresentations
             .AsNoTracking()
-            .Where(r => r.AssemblyId == assemblyId && r.IsActive && userIds.Contains(r.RepresentativeUserId))
+            .Where(r => r.AssemblyId == assemblyId
+                        && r.IsActive
+                        && r.CoefficientSnapshot > 0
+                        && userIds.Contains(r.RepresentativeUserId))
             .GroupBy(r => r.RepresentativeUserId)
             .Select(g => new { UserId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.UserId, x => x.Count, cancellationToken);
@@ -176,8 +179,8 @@ public sealed partial class AttendanceService
     }
 
     /// <summary>
-    /// Unexpected SignalR loss keeps the person in quorum only during this window, then they stop counting.
-    /// Explicit leave does not wait.
+    /// Unexpected SignalR loss stops live quorum immediately and records Left after this window.
+    /// Explicit leave does not wait. The attendance history is kept either way.
     /// </summary>
     public static readonly TimeSpan UnexpectedDisconnectGrace = TimeSpan.FromSeconds(45);
 
@@ -267,7 +270,7 @@ public sealed partial class AttendanceService
             cancellationToken: cancellationToken);
 
         var unitCode = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);
-        var dto = Mapping.ToParticipantDto(participant, unitCode, participant.EffectiveCoefficientPercent);
+        var dto = Mapping.ToParticipantDto(participant, unitCode, coefficientPercent: null, representationCount: 0);
         await _realtime.PublishAttendanceAsync(assemblyId, dto, cancellationToken);
         await _quorum.RecalculateAndSnapshotAsync(assemblyId, AttendanceStatus.Left.ToString(), cancellationToken);
         return true;
@@ -375,12 +378,34 @@ public sealed partial class AttendanceService
             cancellationToken: cancellationToken);
 
         var unitCode = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);
-        var dto = Mapping.ToParticipantDto(participant, unitCode, participant.EffectiveCoefficientPercent);
+        var counting = status == AttendanceStatus.Present;
+        var liveRepresentations = counting
+            ? await CountLiveRepresentationsAsync(assemblyId, userId, cancellationToken)
+            : 0;
+        decimal? liveCoefficient = counting && participant.EffectiveCoefficientPercent > 0
+            ? participant.EffectiveCoefficientPercent
+            : null;
+        var dto = Mapping.ToParticipantDto(participant, unitCode, liveCoefficient, liveRepresentations);
         await _realtime.PublishAttendanceAsync(assemblyId, dto, cancellationToken);
 
         await _quorum.RecalculateAndSnapshotAsync(assemblyId, status.ToString(), cancellationToken);
 
         return dto;
+    }
+
+    private async Task<int> CountLiveRepresentationsAsync(
+        Guid assemblyId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        return await _db.AssemblyRepresentations
+            .AsNoTracking()
+            .CountAsync(
+                r => r.AssemblyId == assemblyId
+                     && r.IsActive
+                     && r.RepresentativeUserId == userId
+                     && r.CoefficientSnapshot > 0,
+                cancellationToken);
     }
 
     /// <summary>

@@ -71,7 +71,7 @@ public sealed class AssemblyHub : Hub
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(assemblyId));
         Context.Items[AssemblyItemKey] = assemblyId;
-        _hubPresence.SetConnected(assemblyId, userId, Context.ConnectionId);
+        _hubPresence.SetConnected(assemblyId, userId, Context.ConnectionId, markPresence);
 
         // Terminal assemblies: observe-only — never MarkConnected / quorum mutation.
         if (!AssemblyAccessService.AllowsPresenceMutation(status))
@@ -130,7 +130,7 @@ public sealed class AssemblyHub : Hub
             }
 
             _hubPresence.CancelDisconnectGrace(assemblyId, userId);
-            if (_hubPresence.IsHubConnected(assemblyId, userId))
+            if (_hubPresence.IsPresenceConnected(assemblyId, userId))
             {
                 return;
             }
@@ -169,7 +169,7 @@ public sealed class AssemblyHub : Hub
                     CancellationToken.None);
 
                 if (AssemblyAccessService.AllowsPresenceMutation(status)
-                    && !_hubPresence.IsHubConnected(assemblyId, userId))
+                    && !_hubPresence.IsPresenceConnected(assemblyId, userId))
                 {
                     _hubPresence.BeginDisconnectGrace(
                         assemblyId,

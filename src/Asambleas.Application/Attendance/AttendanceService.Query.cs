@@ -119,7 +119,10 @@ public sealed partial class AttendanceService
         var repCounts = userIds.Count == 0
             ? new Dictionary<Guid, int>()
             : await _db.AssemblyRepresentations.AsNoTracking()
-                .Where(r => r.AssemblyId == assemblyId && r.IsActive && userIds.Contains(r.RepresentativeUserId))
+                .Where(r => r.AssemblyId == assemblyId
+                            && r.IsActive
+                            && r.CoefficientSnapshot > 0
+                            && userIds.Contains(r.RepresentativeUserId))
                 .GroupBy(r => r.RepresentativeUserId)
                 .Select(g => new { UserId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.UserId, x => x.Count, cancellationToken);

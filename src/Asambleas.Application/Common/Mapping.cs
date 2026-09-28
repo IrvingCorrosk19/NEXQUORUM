@@ -106,10 +106,9 @@ internal static class Mapping
     }
 
     public static bool CountsTowardQuorum(AttendanceStatus status) =>
-        status is AttendanceStatus.Present
-            or AttendanceStatus.TemporarilyDisconnected;
+        status is AttendanceStatus.Present;
 
-    /// <summary>Present (or briefly disconnected) participants contribute to quorum. Convocation alone does not.</summary>
+    /// <summary>Only someone currently in the room contributes. A dropped connection and convocation alone do not.</summary>
     public static bool ContributesToQuorum(AssemblyParticipant participant) =>
         CountsTowardQuorum(participant.AttendanceStatus);
 }

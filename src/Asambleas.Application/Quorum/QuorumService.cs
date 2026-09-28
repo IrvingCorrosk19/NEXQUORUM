@@ -277,8 +277,8 @@ public sealed class QuorumService
     }
 
     /// <summary>
-    /// Live quorum counts connected participants who represent a unit with a percentage above zero.
-    /// A moderator present only as Mesa, a closed tab already marked Left, and convocation alone do not count.
+    /// Live quorum counts participants whose room presence is Present and who represent a unit with a percentage above zero.
+    /// A disconnect, a moderator present only as Mesa, and convocation alone do not count.
     /// The same unit is never summed twice across reconnections or co-owners.
     /// </summary>
     private async Task<(
@@ -308,8 +308,7 @@ public sealed class QuorumService
         var connected = await _db.AssemblyParticipants
             .AsNoTracking()
             .Where(p => p.AssemblyId == assembly.Id
-                        && (p.AttendanceStatus == AttendanceStatus.Present
-                            || p.AttendanceStatus == AttendanceStatus.TemporarilyDisconnected))
+                        && p.AttendanceStatus == AttendanceStatus.Present)
             .Select(p => new { p.UserId, p.UnitId, p.EffectiveCoefficientPercent })
             .ToListAsync(cancellationToken);
 

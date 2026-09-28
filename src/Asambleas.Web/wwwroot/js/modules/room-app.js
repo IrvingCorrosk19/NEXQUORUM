@@ -1033,11 +1033,9 @@ function buildParticipantsListHtml() {
               ? t("assembly.handRaised") || "Palabra"
               : p.attendanceStatus === "Present"
                 ? t("assembly.connectedShort") || "Conectado"
-                : p.attendanceStatus === "TemporarilyDisconnected"
-                  ? "Reconectando"
-                  : p.attendanceStatus === "Left"
-                    ? "Desconectado"
-                    : t("assembly.pendingShort") || "Pendiente";
+                : p.attendanceStatus === "TemporarilyDisconnected" || p.attendanceStatus === "Left"
+                  ? "Desconectado"
+                  : t("assembly.pendingShort") || "Pendiente";
           return `<li class="meeting-people-item">
             <div class="meeting-people-copy">
               <strong>${escapeHtml(friendlyParticipantName(p))}</strong>
@@ -1541,6 +1539,16 @@ function syncParticipantsFromList(list) {
   }
 }
 
+function isLiveRoomPresence(p) {
+  return /^Present$/i.test(String(p?.attendanceStatus || ""));
+}
+
+function liveRepresentedUnits(p) {
+  if (!isLiveRoomPresence(p)) return 0;
+  const units = Number(p?.representationCount || 0);
+  return Number.isFinite(units) && units > 0 ? units : 0;
+}
+
 function renderPresenceSummary(items) {
   const el = qs("#presence-summary");
   const diagnostics = qs("#ops-diagnostics");
@@ -1550,9 +1558,8 @@ function renderPresenceSummary(items) {
   let represented = 0;
   for (const p of items) {
     convocados += 1;
-    const st = String(p.attendanceStatus || "").toLowerCase();
-    if (st === "present" || st === "temporarilydisconnected") present += 1;
-    represented += Number(p.representationCount || 0);
+    if (isLiveRoomPresence(p)) present += 1;
+    represented += liveRepresentedUnits(p);
   }
   const media = getLiveKitParticipantCounts();
   const connected = Number(media.connected || 0);
@@ -1594,7 +1601,7 @@ function renderHybridCockpit(items) {
     const pt = (p.presenceType || "").toLowerCase();
     if (pt === "inperson") inPerson += 1;
     else if (pt === "virtual" || pt === "hybrid") virtual += 1;
-    represented += Number(p.representationCount || 0);
+    represented += liveRepresentedUnits(p);
   }
   el.hidden = false;
   el.innerHTML = `
@@ -1734,8 +1741,8 @@ function resolvePresenceProjection(p) {
   if (/Waiting/i.test(entry)) {
     return { key: "lobby", label: "En lobby", title: "Esperando admisión" };
   }
-  if (/TemporarilyDisconnected/i.test(st)) {
-    return { key: "connected", label: "Conectado", title: "Conectado (reconectando)" };
+  if (/TemporarilyDisconnected|^Left$/i.test(st)) {
+    return { key: "absent", label: "Desconectado", title: "Desconectado de la sala" };
   }
   return { key: "absent", label: "Ausente", title: "Ausente / no en sala" };
 }
@@ -1782,14 +1789,7 @@ function renderParticipants() {
         .join("");
       const st = String(p.attendanceStatus || "");
       const connected = /^Present$/i.test(st);
-      const presenceLabel =
-        st === "Present"
-          ? "Conectado"
-          : st === "TemporarilyDisconnected"
-            ? "Reconectando"
-            : st === "Left"
-              ? "Desconectado"
-              : st || "—";
+      const presenceLabel = st === "Present" ? "Conectado" : "Desconectado";
       const entry = String(p.roomEntryStatus || "");
       const waiting = /Waiting/i.test(entry);
       const summonBtn =

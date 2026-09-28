@@ -41,7 +41,7 @@ public sealed class PresenceGraceWorker : BackgroundService
             var due = _presence.TakeExpiredDisconnectGrace(DateTimeOffset.UtcNow);
             foreach (var item in due)
             {
-                if (_presence.IsHubConnected(item.AssemblyId, item.UserId))
+                if (_presence.IsPresenceConnected(item.AssemblyId, item.UserId))
                 {
                     continue;
                 }
