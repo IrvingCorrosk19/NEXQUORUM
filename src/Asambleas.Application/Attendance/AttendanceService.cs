@@ -175,6 +175,12 @@ public sealed partial class AttendanceService
             .ToList();
     }
 
+    /// <summary>
+    /// Unexpected SignalR loss keeps the person in quorum only during this window, then they stop counting.
+    /// Explicit leave does not wait.
+    /// </summary>
+    public static readonly TimeSpan UnexpectedDisconnectGrace = TimeSpan.FromSeconds(45);
+
     public async Task<AssemblyParticipantDto> MarkConnectedAsync(
         Guid assemblyId,
         Guid userId,
@@ -186,6 +192,85 @@ public sealed partial class AttendanceService
             AttendanceStatus.Present,
             AuditEventType.ParticipantConnected,
             cancellationToken);
+    }
+
+    public async Task<AssemblyParticipantDto> MarkLeftAsync(
+        Guid assemblyId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        return await UpdatePresenceAsync(
+            assemblyId,
+            userId,
+            AttendanceStatus.Left,
+            AuditEventType.ParticipantDisconnected,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Ends the grace window. No-op if the person already reconnected or already left.
+    /// Historical check-in and attendance records stay.
+    /// </summary>
+    public async Task<bool> FinalizeGraceDisconnectAsync(
+        Guid assemblyId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+
+        var assembly = await _db.Assemblies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken);
+        if (assembly is null || AssemblyLifecycle.IsTerminal(assembly.Status))
+        {
+            return false;
+        }
+
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        var now = DateTimeOffset.UtcNow;
+        var updated = await _db.AssemblyParticipants
+            .Where(p => p.AssemblyId == assemblyId
+                        && p.UserId == userId
+                        && p.AttendanceStatus == AttendanceStatus.TemporarilyDisconnected)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(p => p.AttendanceStatus, AttendanceStatus.Left)
+                    .SetProperty(p => p.UpdatedAtUtc, now),
+                cancellationToken);
+
+        if (updated == 0)
+        {
+            return false;
+        }
+
+        var participant = await _db.AssemblyParticipants
+            .AsNoTracking()
+            .FirstAsync(p => p.AssemblyId == assemblyId && p.UserId == userId, cancellationToken);
+
+        _db.AttendanceRecords.Add(new AttendanceRecord
+        {
+            TenantId = assembly.TenantId,
+            AssemblyId = assemblyId,
+            UserId = userId,
+            UnitId = participant.UnitId,
+            PresenceType = participant.PresenceType ?? PresenceType.Virtual,
+            Status = AttendanceStatus.Left,
+            TimestampUtc = now
+        });
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.WriteAsync(
+            AuditEventType.ParticipantDisconnected,
+            assemblyId,
+            metadata: new { userId, Status = AttendanceStatus.Left.ToString(), Reason = "GraceExpired" },
+            cancellationToken: cancellationToken);
+
+        var unitCode = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);
+        var dto = Mapping.ToParticipantDto(participant, unitCode, participant.EffectiveCoefficientPercent);
+        await _realtime.PublishAttendanceAsync(assemblyId, dto, cancellationToken);
+        await _quorum.RecalculateAndSnapshotAsync(assemblyId, AttendanceStatus.Left.ToString(), cancellationToken);
+        return true;
     }
 
     public async Task<AssemblyParticipantDto> MarkDisconnectedAsync(
@@ -231,6 +316,12 @@ public sealed partial class AttendanceService
 
         var now = DateTimeOffset.UtcNow;
         var previous = participant.AttendanceStatus;
+
+        if (status == AttendanceStatus.TemporarilyDisconnected && previous == AttendanceStatus.Left)
+        {
+            var unitCodeEarly = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);
+            return Mapping.ToParticipantDto(participant, unitCodeEarly, participant.EffectiveCoefficientPercent);
+        }
 
         // On first effective presence, freeze unit representations (convocation authorizes; no mesa accredit).
         if (status is AttendanceStatus.Present or AttendanceStatus.CheckedIn)

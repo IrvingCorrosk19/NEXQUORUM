@@ -12,6 +12,7 @@ import { startHybridShell } from "./hybrid-router.js";
 let assemblyId = assemblyIdFromUrl();
 let dirty = false;
 let canManage = false;
+let assemblyClosed = false;
 
 function showError(message) {
   showPageError(message);
@@ -25,11 +26,17 @@ async function loadAgenda() {
   const data = await api(`/api/assemblies/${assemblyId}/agenda`);
   const root = qs("#agenda-list");
   const items = data.items || [];
+  const closedNote = assemblyClosed
+    ? `<p class="muted">Agenda en solo lectura. La asamblea está cerrada y ya no se pueden agregar ni modificar puntos.</p>`
+    : "";
   if (!items.length) {
-    root.innerHTML = `<p class="muted">No hay puntos de agenda. Agregue al menos uno para completar la preparación.</p>`;
+    root.innerHTML = assemblyClosed
+      ? `${closedNote}<p class="muted">No hay puntos de agenda.</p>`
+      : `<p class="muted">No hay puntos de agenda. Agregue al menos uno para completar la preparación.</p>`;
     return;
   }
   root.innerHTML = `
+    ${closedNote}
     <ol class="agenda-edit-list">
       ${items
         .map(
@@ -105,8 +112,15 @@ async function init() {
   }
 
   canManage = hasPermission(user, "agenda:manage");
-  if (!canManage) {
-    qs("#add-panel").hidden = true;
+  assemblyClosed = assembly.status === "Completed" || assembly.status === "Cancelled";
+  if (!canManage || assemblyClosed) {
+    const panel = qs("#add-panel");
+    if (panel) panel.hidden = true;
+  }
+  if (assemblyClosed) {
+    qs("#agenda-form")?.querySelectorAll("input, button").forEach((el) => {
+      el.disabled = true;
+    });
   }
 
   await loadAgenda();
@@ -114,11 +128,11 @@ async function init() {
   qs("#agenda-form")?.addEventListener("input", markDirty);
   qs("#agenda-form")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    if (!canManage) return;
+    if (!canManage || assemblyClosed) return;
     await saveAgendaItem();
   });
 
-  if (isReadinessReturnContext()) {
+  if (!assemblyClosed && isReadinessReturnContext()) {
     mountReadinessActionBar({
       assemblyId,
       getDirty: () => dirty,

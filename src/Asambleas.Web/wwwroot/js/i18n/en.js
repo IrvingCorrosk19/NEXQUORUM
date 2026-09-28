@@ -164,7 +164,8 @@ export default {
     publishFailed: "Could not enable camera/microphone. The intervention is not marked complete.",
     publishFailedReceiveOk:
       "Could not enable camera/microphone. You remain connected and can see/hear others. Use Retry.",
-    floorMicEnabled: "You have the floor: microphone enabled.",
+    floorMicEnabled: "You have the floor. You may turn your microphone on.",
+    floorMicLocked: "Request the floor before turning the microphone on.",
     unstableConnection: "Your connection is unstable. We are adjusting quality to keep you connected.",
     participantMediaIssue: "{name} — media issue",
     connected: "Connected to the room",

@@ -95,6 +95,8 @@ public sealed class MeetingTokenSecurityTests
             .Should().NotBe(Asambleas.Application.Meeting.MeetingService.BaseParticipantIdentity(o.Identity!));
         p.CanPublish.Should().BeTrue();
         o.CanPublish.Should().BeTrue();
+        p.CanPublishMicrophone.Should().BeTrue("the mesa keeps microphone control");
+        o.CanPublishMicrophone.Should().BeFalse("participants cannot publish a microphone until the floor is granted");
     }
 
     [Fact(DisplayName = "Cross-assembly meeting room info is tenant-scoped")]

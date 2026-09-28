@@ -111,6 +111,8 @@ export function createMobileVotingController(options) {
   } = options;
 
   let phase = "idle"; // idle|full|minimized|confirm|submitting|receipt|closed|ineligible|error
+  let receiptAckShown = false;
+  let receiptAckTimer = 0;
   let selected = null;
   let clientRequestId = null;
   let lastAlertedSessionId = null;
@@ -238,6 +240,11 @@ export function createMobileVotingController(options) {
       selected = null;
       clientRequestId = null;
       lastAlertedSessionId = null;
+      receiptAckShown = false;
+      if (receiptAckTimer) {
+        clearTimeout(receiptAckTimer);
+        receiptAckTimer = 0;
+      }
     }
     boundSessionId = sid;
   }
@@ -357,8 +364,13 @@ export function createMobileVotingController(options) {
     if (voted) {
       selected = null;
       clearDraft(sid);
-      renderReceiptView(st);
       setPhase("receipt");
+      if (receiptAckShown) {
+        showOverlay(false);
+        showBanner(false);
+        return;
+      }
+      renderReceiptView(st);
       showOverlay(true);
       showBanner(false);
       return;
@@ -430,6 +442,7 @@ export function createMobileVotingController(options) {
   function showOverlay(visible) {
     overlay.hidden = !visible;
     overlay.classList.toggle("is-compact", !isCompactViewport());
+    if (!visible) overlay.classList.remove("mvo--ack");
     document.body.classList.toggle("mvo-open", visible);
   }
 
@@ -596,6 +609,7 @@ export function createMobileVotingController(options) {
     const footer = overlay.querySelector("#mvo-footer");
     const title = overlay.querySelector("#mvo-title");
     if (title) title.textContent = t("mvote.registered") || "Voto registrado correctamente";
+    overlay.classList.add("mvo--ack");
     body.innerHTML = `
       <div class="mvo__receipt" role="status">
         <p class="mvo__receipt-ok">${escapeHtml(t("mvote.registered") || "Voto registrado correctamente")}</p>
@@ -617,10 +631,25 @@ export function createMobileVotingController(options) {
         t("mvote.backToAssembly") || "Volver a la asamblea"
       )}</button>`;
     footer.querySelector("[data-mvo-done]")?.addEventListener("click", () => {
-      hideAll();
-      setPhase("idle");
+      dismissReceiptAck();
       focusReturnEl?.focus?.();
     });
+    if (!receiptAckTimer) {
+      receiptAckTimer = window.setTimeout(() => {
+        receiptAckTimer = 0;
+        dismissReceiptAck();
+      }, 4200);
+    }
+  }
+
+  function dismissReceiptAck() {
+    receiptAckShown = true;
+    if (receiptAckTimer) {
+      clearTimeout(receiptAckTimer);
+      receiptAckTimer = 0;
+    }
+    hideAll();
+    setPhase("receipt");
   }
 
   function renderIneligible(code) {

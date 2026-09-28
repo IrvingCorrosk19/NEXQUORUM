@@ -19,6 +19,7 @@ public sealed class AssemblyService
     private readonly Quorum.QuorumService _quorum;
     private readonly IScreenShareCoordinator _screenShare;
     private readonly Recording.RecordingService _recordings;
+    private readonly AssemblyReadinessService _readiness;
 
     public AssemblyService(
         IAsambleasDbContext db,
@@ -27,7 +28,8 @@ public sealed class AssemblyService
         IAssemblyRealtimePublisher realtime,
         Quorum.QuorumService quorum,
         IScreenShareCoordinator screenShare,
-        Recording.RecordingService recordings)
+        Recording.RecordingService recordings,
+        AssemblyReadinessService readiness)
     {
         _db = db;
         _currentTenant = currentTenant;
@@ -36,6 +38,7 @@ public sealed class AssemblyService
         _quorum = quorum;
         _screenShare = screenShare;
         _recordings = recordings;
+        _readiness = readiness;
     }
 
     public async Task<IReadOnlyList<AssemblySummaryDto>> ListForCurrentUserAsync(
@@ -111,6 +114,31 @@ public sealed class AssemblyService
     public Task<AssemblySummaryDto> CompleteAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
         TransitionAsync(assemblyId, AssemblyStatus.Completed, AuditEventType.AssemblyCompleted, cancellationToken);
 
+    /// <summary>
+    /// Start (CheckIn → InProgress) and close (→ Completed) require blocking preparation checks.
+    /// Resume from pause does not re-run them.
+    /// </summary>
+    private static bool RequiresMandatoryPreparation(AssemblyStatus from, AssemblyStatus target) =>
+        target == AssemblyStatus.Completed
+        || (target == AssemblyStatus.InProgress && from == AssemblyStatus.CheckIn);
+
+    private async Task EnsureMandatoryPreparationAsync(
+        Domain.Entities.Assembly assembly,
+        AssemblyStatus target,
+        CancellationToken cancellationToken)
+    {
+        var readiness = await _readiness.BuildAsync(assembly, cancellationToken);
+        if (readiness.BlockingOpenCount == 0)
+        {
+            return;
+        }
+
+        var verb = target == AssemblyStatus.Completed ? "cerrar" : "iniciar";
+        throw new DomainException(
+            "PREPARATION_INCOMPLETE",
+            $"No se puede {verb} la asamblea mientras falten requisitos obligatorios de preparación. {string.Join(" ", readiness.Blockers)}");
+    }
+
     /// <summary>Draft → Scheduled (explicit publish / programar).</summary>
     public async Task<AssemblySummaryDto> PublishScheduledAsync(
         Guid assemblyId,
@@ -161,6 +189,11 @@ public sealed class AssemblyService
         if (validateCoefficients)
         {
             await _quorum.EnsureCoefficientConfigurationAllowsProgressAsync(assemblyId, cancellationToken);
+        }
+
+        if (RequiresMandatoryPreparation(from, target))
+        {
+            await EnsureMandatoryPreparationAsync(assembly, target, cancellationToken);
         }
 
         if (target == AssemblyStatus.Completed)

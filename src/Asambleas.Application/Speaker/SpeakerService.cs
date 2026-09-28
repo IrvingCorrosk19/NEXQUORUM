@@ -2,6 +2,7 @@ namespace Asambleas.Application.Speaker;
 
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Common;
+using Asambleas.Application.Meeting;
 using Asambleas.Contracts.Speakers;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Entities;
@@ -15,17 +16,20 @@ public sealed class SpeakerService
     private readonly ICurrentTenant _currentTenant;
     private readonly IAuditService _audit;
     private readonly IAssemblyRealtimePublisher _realtime;
+    private readonly IParticipantMicrophoneGate _microphones;
 
     public SpeakerService(
         IAsambleasDbContext db,
         ICurrentTenant currentTenant,
         IAuditService audit,
-        IAssemblyRealtimePublisher realtime)
+        IAssemblyRealtimePublisher realtime,
+        IParticipantMicrophoneGate microphones)
     {
         _db = db;
         _currentTenant = currentTenant;
         _audit = audit;
         _realtime = realtime;
+        _microphones = microphones;
     }
 
     public async Task<SpeakerRequestDto> RequestAsync(
@@ -235,6 +239,7 @@ public sealed class SpeakerService
         entity.UpdatedAtUtc = now;
 
         await _db.SaveChangesAsync(cancellationToken);
+        await LockParticipantMicrophoneAsync(assemblyId, userId, cancellationToken);
         await PublishQueueAsync(assemblyId, cancellationToken);
 
         return ToDto(entity);
@@ -263,6 +268,11 @@ public sealed class SpeakerService
         var active = await _db.SpeakerRequests
             .Where(s => s.AssemblyId == assemblyId && s.Status == SpeakerRequestStatus.Granted)
             .ToListAsync(cancellationToken);
+        var revokedUserIds = active
+            .Select(s => s.UserId)
+            .Where(id => id != entity.UserId)
+            .Distinct()
+            .ToList();
 
         foreach (var granted in active)
         {
@@ -283,6 +293,12 @@ public sealed class SpeakerService
             metadata: new { entity.Id, entity.UserId },
             cancellationToken: cancellationToken);
 
+        foreach (var revokedUserId in revokedUserIds)
+        {
+            await LockParticipantMicrophoneAsync(assemblyId, revokedUserId, cancellationToken);
+        }
+
+        await _microphones.SetAllowedAsync(assemblyId, entity.UserId, allowed: true, cancellationToken);
         await PublishQueueAsync(assemblyId, cancellationToken);
 
         return ToDto(entity);
@@ -306,12 +322,14 @@ public sealed class SpeakerService
             throw new DomainException($"Speaker request cannot be completed from status '{entity.Status}'.");
         }
 
+        var speakerUserId = entity.UserId;
         var now = DateTimeOffset.UtcNow;
         entity.Status = SpeakerRequestStatus.Completed;
         entity.CompletedAtUtc = now;
         entity.UpdatedAtUtc = now;
 
         await _db.SaveChangesAsync(cancellationToken);
+        await LockParticipantMicrophoneAsync(assemblyId, speakerUserId, cancellationToken);
         await PublishQueueAsync(assemblyId, cancellationToken);
 
         return ToDto(entity);
@@ -335,6 +353,8 @@ public sealed class SpeakerService
             throw new DomainException($"Speaker request cannot be rejected from status '{entity.Status}'.");
         }
 
+        var hadFloor = entity.Status == SpeakerRequestStatus.Granted;
+        var speakerUserId = entity.UserId;
         entity.Status = SpeakerRequestStatus.Rejected;
         entity.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
@@ -345,6 +365,11 @@ public sealed class SpeakerService
             assemblyId,
             metadata: new { entity.Id, entity.UserId },
             cancellationToken: cancellationToken);
+
+        if (hadFloor)
+        {
+            await LockParticipantMicrophoneAsync(assemblyId, speakerUserId, cancellationToken);
+        }
 
         await PublishQueueAsync(assemblyId, cancellationToken);
 
@@ -399,6 +424,24 @@ public sealed class SpeakerService
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
         return await BuildQueueAsync(assemblyId, cancellationToken);
+    }
+
+    private async Task LockParticipantMicrophoneAsync(
+        Guid assemblyId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var roleCode = await _db.AssemblyParticipants
+            .AsNoTracking()
+            .Where(p => p.AssemblyId == assemblyId && p.UserId == userId)
+            .Select(p => p.RoleCode)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (roleCode is not null && MeetingService.CanPublishFromRole(roleCode))
+        {
+            return;
+        }
+
+        await _microphones.SetAllowedAsync(assemblyId, userId, allowed: false, cancellationToken);
     }
 
     private async Task PublishQueueAsync(Guid assemblyId, CancellationToken cancellationToken)

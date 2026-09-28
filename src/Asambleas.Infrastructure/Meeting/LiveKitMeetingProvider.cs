@@ -73,6 +73,7 @@ public sealed class LiveKitMeetingProvider : IMeetingProvider
             request.CanPublish,
             request.CanSubscribe,
             request.CanPublishScreenShare,
+            request.CanPublishMicrophone,
             ttl,
             out var expiresAtUtc);
 

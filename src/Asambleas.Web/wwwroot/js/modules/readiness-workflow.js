@@ -6,6 +6,7 @@ import { resolveDestination } from "./return-context.js";
 import { resolvePrimaryAction } from "./ia-actions.js";
 import { hasPermission } from "./auth.js";
 import { isOperator } from "./roles.js";
+import { isTerminalStatus } from "./assembly-lifecycle.js";
 
 function statusMeta(check) {
   if (check.status === "Ready") {
@@ -91,6 +92,19 @@ export function renderReadinessPanel(panel, readiness, ctx) {
  * @param {(action: object) => void} onRun
  */
 export function renderNextAction(host, readiness, assembly, ctx, onRun) {
+  if (isTerminalStatus(assembly?.status)) {
+    const action = resolvePrimaryAction(assembly, ctx);
+    host.innerHTML = `
+      <div class="ia-primary-action">
+        <h3 class="ia-primary-action__title">Asamblea cerrada</h3>
+        <p class="ia-primary-action__desc">La preparación ya no es obligatoria. Puedes consultar el resumen, el acta, las evidencias y el expediente.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="${action.href || "#"}">${escapeHtml(action.label)}</a>
+        </div>
+      </div>`;
+    return;
+  }
+
   const next = readiness?.nextAction;
   const allBlockingDone = Boolean(readiness?.readyToStart);
 

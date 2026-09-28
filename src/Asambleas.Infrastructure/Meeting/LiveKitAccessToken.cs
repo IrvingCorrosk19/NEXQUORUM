@@ -18,16 +18,27 @@ internal static class LiveKitAccessToken
         bool canPublish,
         bool canSubscribe,
         bool canPublishScreenShare,
+        bool canPublishMicrophone,
         TimeSpan ttl,
         out DateTimeOffset expiresAtUtc)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(roomName);
-        // LiveKit source allowlist: owners may publish camera/mic; screen share only when authorized.
-        var sources = new List<string> { "camera", "microphone" };
-        if (canPublishScreenShare)
+        // Camera stays available. Microphone is a separate grant so a browser
+        // cannot publish audio unless the server allowlist includes it.
+        var sources = new List<string>();
+        if (canPublish)
         {
-            sources.Add("screen_share");
-            sources.Add("screen_share_audio");
+            sources.Add("camera");
+            if (canPublishMicrophone)
+            {
+                sources.Add("microphone");
+            }
+
+            if (canPublishScreenShare)
+            {
+                sources.Add("screen_share");
+                sources.Add("screen_share_audio");
+            }
         }
 
         var videoGrant = new Dictionary<string, object>

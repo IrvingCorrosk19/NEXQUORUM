@@ -69,8 +69,10 @@ public static class DependencyInjection
             .AddDefaultTokenProviders();
 
         services.AddScoped<IMeetingProvider, LiveKitMeetingProvider>();
+        services.AddScoped<IParticipantMicrophoneGate, LiveKitParticipantMicrophoneGate>();
         services.AddSingleton<IAssemblyRecordingStorage, LocalFileAssemblyRecordingStorage>();
         services.AddHttpClient("livekit-egress");
+        services.AddHttpClient("livekit-room", client => client.Timeout = TimeSpan.FromSeconds(8));
         services.AddScoped<IMeetingRecordingProvider, LiveKitMeetingRecordingProvider>();
         services.AddScoped<DemoDataSeeder>();
 

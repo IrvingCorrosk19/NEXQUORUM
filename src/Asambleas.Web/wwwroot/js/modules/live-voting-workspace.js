@@ -23,15 +23,14 @@ function humanQuestionStatus(m, activeMotionId, session) {
   if (sessionOpen && sid && sid === m.id) {
     return { key: "active", label: "Votación abierta" };
   }
-  if (m.status === "Voting" && (!sid || sid === m.id)) {
+  if (m.status === "Voting" && sessionOpen && (!sid || sid === m.id)) {
     return { key: "active", label: "Votación abierta" };
   }
-  if (m.status === "Approved" || m.status === "Rejected") {
-    return { key: "answered", label: "Respondida" };
-  }
+  if (m.status === "Approved") return { key: "answered", label: "Aprobada" };
+  if (m.status === "Rejected") return { key: "answered", label: "Rechazada" };
   if (m.status === "Cancelled") return { key: "closed", label: "Anulada" };
   if (m.status === "Closed") return { key: "closed", label: "Cerrada" };
-  if (m.status === "Presented" || (m.id === activeMotionId && m.status !== "Draft")) {
+  if (m.status === "Presented" || (m.id === activeMotionId && m.status === "Presented")) {
     return { key: "pending", label: "Presentada — falta abrir votación" };
   }
   if (m.status === "Draft") return { key: "pending", label: "Borrador — falta presentar" };

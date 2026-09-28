@@ -104,8 +104,7 @@ internal static class Mapping
     }
 
     public static bool CountsTowardQuorum(AttendanceStatus status) =>
-        status is AttendanceStatus.CheckedIn
-            or AttendanceStatus.Present
+        status is AttendanceStatus.Present
             or AttendanceStatus.TemporarilyDisconnected;
 
     /// <summary>Present (or briefly disconnected) participants contribute to quorum. Convocation alone does not.</summary>

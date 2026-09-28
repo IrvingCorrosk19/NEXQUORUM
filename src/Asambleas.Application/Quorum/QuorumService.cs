@@ -324,9 +324,9 @@ public sealed class QuorumService
     }
 
     /// <summary>
-    /// Quorum from active AssemblyRepresentation rows whose representative is present
-    /// (CheckedIn / Present / TemporarilyDisconnected). Convocation alone does not count.
-    /// Unit coefficients are never double-counted (unique active representation per unit).
+    /// Live quorum counts who is in the room now (Present) or inside the short reconnect grace
+    /// (TemporarilyDisconnected). A closed tab that already became Left, and convocation alone, do not count.
+    /// The same unit is never summed twice.
     /// </summary>
     private async Task<(
         decimal CurrentCoefficient,
@@ -351,8 +351,7 @@ public sealed class QuorumService
         var contributingUserIds = await _db.AssemblyParticipants
             .AsNoTracking()
             .Where(p => p.AssemblyId == assembly.Id
-                        && (p.AttendanceStatus == AttendanceStatus.CheckedIn
-                            || p.AttendanceStatus == AttendanceStatus.Present
+                        && (p.AttendanceStatus == AttendanceStatus.Present
                             || p.AttendanceStatus == AttendanceStatus.TemporarilyDisconnected))
             .Select(p => p.UserId)
             .ToListAsync(cancellationToken);

@@ -14,6 +14,8 @@ using Asambleas.Contracts.Assemblies;
 
 using Asambleas.Domain.Common;
 
+using Asambleas.Domain.Services;
+
 using Microsoft.EntityFrameworkCore;
 
 using AssemblyEntity = Asambleas.Domain.Entities.Assembly;
@@ -352,6 +354,16 @@ public sealed class AssemblyReadinessService
 
 
 
+        if (AssemblyLifecycle.IsTerminal(assembly.Status))
+
+        {
+
+            checks = RelaxClosedAssemblyChecks(checks, agendaReady);
+
+        }
+
+
+
         var blockingOpen = checks.Count(c =>
 
             c.Severity == ReadinessSeverities.Blocking && c.Status != ReadinessCheckStatuses.Ready);
@@ -481,6 +493,38 @@ public sealed class AssemblyReadinessService
     }
 
 
+
+    /// <summary>
+    /// A closed assembly is historical. Missing preparation is recorded, not a required next step.
+    /// </summary>
+    private static List<ReadinessCheckDto> RelaxClosedAssemblyChecks(
+        List<ReadinessCheckDto> checks,
+        bool agendaReady)
+    {
+        return checks
+            .Select(check =>
+            {
+                if (check.Status == ReadinessCheckStatuses.Ready)
+                {
+                    return check;
+                }
+
+                var description = check.Key == ReadinessCheckKeys.Agenda && !agendaReady
+                    ? "La asamblea está cerrada. La agenda queda en consulta y ya no se puede modificar."
+                    : check.Description;
+
+                return check with
+                {
+                    Status = ReadinessCheckStatuses.Optional,
+                    Severity = ReadinessSeverities.Info,
+                    Description = description,
+                    ActionLabel = null,
+                    DestinationKey = null,
+                    CanAct = false
+                };
+            })
+            .ToList();
+    }
 
     private static ReadinessActionDto? PickNextAction(IReadOnlyList<ReadinessCheckDto> checks)
 

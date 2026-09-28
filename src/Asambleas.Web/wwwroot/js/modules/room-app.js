@@ -4,8 +4,8 @@ import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { renderQuorum, renderQuorumCard } from "./quorum.js";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt } from "./voting.js";
-import { createLiveVotingWorkspace } from "./live-voting-workspace.js";
-import { createMobileVotingController } from "./mobile-voting-sheet.js";
+import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=room-motion1";
+import { createMobileVotingController } from "./mobile-voting-sheet.js?v=room-phone1";
 import {
   resolveContextualGuide,
   renderContextualGuide,
@@ -155,6 +155,7 @@ let handActionBusy = false;
 /** Transient UX phase: idle | requesting | cancelling | completing */
 let handPhase = "idle";
 let lastFloorToastId = null;
+let lastMicGateFloorId = null;
 let mobileVoting = null;
 
 function ensureMobileVoting() {
@@ -215,11 +216,19 @@ const liveWorkspace = createLiveVotingWorkspace({
       const room = await hydrateRoomState(assemblyId, {
         userId: state.user?.userId || state.user?.id
       });
-      if (room?.motion) state.motion = room.motion;
-      if (room?.session) state.session = room.session;
+      state.motion = room?.motion && !isFinishedMotion(room.motion) ? room.motion : null;
+      const roomOpen = room?.session?.status === "Open" || room?.session?.Status === "Open";
+      if (roomOpen) {
+        state.session = room.session;
+        if (room?.tally) state.tally = room.tally;
+        if (room?.myVote) state.myVote = room.myVote;
+      } else {
+        state.session = null;
+        state.tally = null;
+        state.myVote = null;
+        state.myVoteStatus = null;
+      }
       if (room?.agenda) state.agenda = room.agenda;
-      if (room?.tally) state.tally = room.tally;
-      if (room?.myVote) state.myVote = room.myVote;
       const motions = await fetchAssemblyMotions({ force: true }).catch(() => null);
       if (Array.isArray(motions)) state.motions = motions;
       if (room?.session?.status === "Open" || room?.session?.Status === "Open") {
@@ -271,6 +280,15 @@ function myGrantedFloor() {
     return current;
   }
   return null;
+}
+
+function isMeetingModerator() {
+  return state.viewerRole === "Operator" || hasPermission(state.user, "meeting:moderate");
+}
+
+/** Participants may open the mic only while the mesa has granted them the floor. */
+function canUseMicrophone() {
+  return isMeetingModerator() || Boolean(myGrantedFloor());
 }
 
 function myQueuePosition() {
@@ -551,10 +569,17 @@ function syncMeetingControlBar() {
   const people = state.participants.size;
 
   if (micBtn) {
-    micBtn.setAttribute("aria-pressed", String(micOn));
-    micBtn.setAttribute("aria-label", micOn ? t("lobby.muteMic") : t("lobby.unmuteMic"));
-    micBtn.classList.toggle("is-off", !micOn);
-    micBtn.title = micOn ? t("lobby.muteMic") : t("lobby.unmuteMic");
+    const micAllowed = canUseMicrophone();
+    micBtn.disabled = !micAllowed;
+    micBtn.setAttribute("aria-pressed", String(micOn && micAllowed));
+    micBtn.classList.toggle("is-off", !micOn || !micAllowed);
+    const micLabel = !micAllowed
+      ? t("assembly.floorMicLocked") || "Pida la palabra para activar el micrófono."
+      : micOn
+        ? t("lobby.muteMic")
+        : t("lobby.unmuteMic");
+    micBtn.setAttribute("aria-label", micLabel);
+    micBtn.title = micLabel;
   }
   if (camBtn) {
     camBtn.setAttribute("aria-pressed", String(camOn));
@@ -999,9 +1024,13 @@ function buildParticipantsListHtml() {
             ? t("assembly.speaking") || "Hablando"
             : hand
               ? t("assembly.handRaised") || "Palabra"
-              : ["Present", "CheckedIn", "TemporarilyDisconnected"].includes(p.attendanceStatus)
+              : p.attendanceStatus === "Present"
                 ? t("assembly.connectedShort") || "Conectado"
-                : t("assembly.pendingShort") || "Pendiente";
+                : p.attendanceStatus === "TemporarilyDisconnected"
+                  ? "Reconectando"
+                  : p.attendanceStatus === "Left"
+                    ? "Desconectado"
+                    : t("assembly.pendingShort") || "Pendiente";
           return `<li class="meeting-people-item">
             <div class="meeting-people-copy">
               <strong>${escapeHtml(friendlyParticipantName(p))}</strong>
@@ -1514,7 +1543,7 @@ function renderPresenceSummary(items) {
   for (const p of items) {
     convocados += 1;
     const st = String(p.attendanceStatus || "").toLowerCase();
-    if (st === "present" || st === "checkedin" || st === "temporarilydisconnected") present += 1;
+    if (st === "present" || st === "temporarilydisconnected") present += 1;
     represented += Number(p.representationCount || 0);
   }
   const media = getLiveKitParticipantCounts();
@@ -1666,7 +1695,7 @@ function resolvePresenceProjection(p) {
   const overlay = state.summonByUser.get(uid);
   const st = String(p?.attendanceStatus || "");
   const entry = String(p?.roomEntryStatus || "");
-  const connected = /Present|CheckedIn/i.test(st);
+  const connected = /^Present$/i.test(st);
 
   if (overlay?.status === "notifying") {
     return { key: "notifying", label: "Avisando", title: overlay.detail || "Enviando aviso…" };
@@ -1744,7 +1773,15 @@ function renderParticipants() {
         .map((w) => w[0]?.toUpperCase() || "")
         .join("");
       const st = String(p.attendanceStatus || "");
-      const connected = /Present|CheckedIn/i.test(st);
+      const connected = /^Present$/i.test(st);
+      const presenceLabel =
+        st === "Present"
+          ? "Conectado"
+          : st === "TemporarilyDisconnected"
+            ? "Reconectando"
+            : st === "Left"
+              ? "Desconectado"
+              : st || "—";
       const entry = String(p.roomEntryStatus || "");
       const waiting = /Waiting/i.test(entry);
       const summonBtn =
@@ -1763,7 +1800,7 @@ function renderParticipants() {
         <span class="avatar" aria-hidden="true">${escapeHtml(initials)}</span>
         <div class="participant-meta">
           <strong>${escapeHtml(name)}</strong>
-          <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(p.attendanceStatus || "")} · ${escapeHtml(p.presenceType || "—")}${waiting ? " · En espera" : ""}</span>
+          <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(presenceLabel)} · ${escapeHtml(p.presenceType || "—")}${waiting ? " · En espera" : ""}</span>
           ${renderSummonStatusBadge(p)}
           ${summonBtn}
           ${admitBtns}
@@ -2078,6 +2115,66 @@ function emptyState(what, why = "", next = "") {
     </div>`;
 }
 
+function motionStatusOf(motionOrStatus) {
+  if (typeof motionOrStatus === "string") return motionOrStatus;
+  return String(motionOrStatus?.status || motionOrStatus?.Status || "");
+}
+
+function isFinishedMotion(motionOrStatus) {
+  const status = motionStatusOf(motionOrStatus);
+  return status === "Approved" || status === "Rejected" || status === "Cancelled";
+}
+
+function rememberMotion(motion) {
+  const id = String(motion?.id || motion?.Id || "");
+  if (!id) return;
+  const list = Array.isArray(state.motions) ? [...state.motions] : [];
+  const idx = list.findIndex((m) => String(m.id || m.Id || "") === id);
+  if (idx >= 0) list[idx] = { ...list[idx], ...motion, id: motion.id || motion.Id || list[idx].id };
+  else list.push({ ...motion, id: motion.id || motion.Id });
+  state.motions = list;
+}
+
+let finishedMotionNoticeKey = "";
+
+function announceFinishedMotion(motionId, status) {
+  const normalized = motionStatusOf(status);
+  const key = `${motionId || ""}:${normalized}`;
+  if (!motionId || finishedMotionNoticeKey === key) return;
+  finishedMotionNoticeKey = key;
+  const label =
+    normalized === "Rejected" ? "rechazada" : normalized === "Approved" ? "aprobada" : "cerrada";
+  showToast(`La moción fue ${label}. Puede continuar con la siguiente.`, "info");
+}
+
+/** Drop a decided motion from the live slot. Votes and the motion row stay in history. */
+function finishMotion(motionId, status) {
+  const id = String(motionId || "");
+  const normalized = motionStatusOf(status);
+  if (id) {
+    const current = (state.motions || []).find((m) => String(m.id || m.Id || "") === id) || {};
+    rememberMotion({ ...current, id: current.id || motionId, status: normalized || current.status });
+  }
+  const activeId = String(state.motion?.id || state.motion?.Id || "");
+  if (!state.motion || !activeId || activeId === id || isFinishedMotion(state.motion)) {
+    const next = (state.motions || []).find((m) => {
+      const mid = String(m.id || m.Id || "");
+      if (id && mid === id) return false;
+      const st = motionStatusOf(m);
+      return st === "Presented" || st === "Voting";
+    });
+    state.motion = next || null;
+  }
+  const sessionMotion = String(state.session?.motionId || state.session?.MotionId || "");
+  const sessionStatus = String(state.session?.status || state.session?.Status || "");
+  if (state.session && (sessionStatus !== "Open" || sessionMotion === id)) {
+    state.session = null;
+    state.tally = null;
+    state.myVote = null;
+    state.myVoteStatus = null;
+  }
+}
+
 function renderMotion() {
   if (!els.motion) return;
   const operator = state.viewerRole === "Operator";
@@ -2097,7 +2194,7 @@ function renderMotion() {
        </div>`
     : "";
 
-  if (!state.motion) {
+  if (!state.motion || isFinishedMotion(state.motion)) {
     els.motion.innerHTML =
       emptyState(
         t("assembly.noMotion"),
@@ -2145,8 +2242,7 @@ async function presentMotionFlow() {
     const list = Array.isArray(motions) ? motions : motions?.items || [];
     const draft =
       list.find((m) => m.status === "Draft") ||
-      list.find((m) => m.status === "Presented") ||
-      list[0];
+      list.find((m) => m.status === "Presented");
     if (!draft) {
       showError(t("assembly.noMotionAvailable") || "No hay mociones disponibles.");
       return;
@@ -2227,13 +2323,16 @@ function syncContextualGuide() {
   const stageRoot = qs("#contextual-guide-stage");
   if (!guideRoot && !stageRoot) return;
 
+  const guideMotion = state.motion && !isFinishedMotion(state.motion) ? state.motion : null;
+  const guideSession =
+    state.session?.status === "Open" || state.session?.Status === "Open" ? state.session : null;
   const guide = resolveContextualGuide({
     role: state.viewerRole === "Operator" ? "Operator" : "Owner",
     user: state.user,
     assembly: state.assembly,
-    motion: state.motion,
+    motion: guideMotion,
     motions: state.motions || [],
-    session: state.session,
+    session: guideSession,
     quorum: state.quorum,
     self: findSelfParticipant(),
     participants:
@@ -2440,22 +2539,24 @@ function refreshPanelsNow() {
       if (ac !== bc) return ac - bc;
       return String(a.id || "").localeCompare(String(b.id || ""));
     });
-  const activeMotionId = state.motion?.id || state.session?.motionId || null;
+  const liveMotion = state.motion && !isFinishedMotion(state.motion) ? state.motion : null;
+  const sessionOpen = state.session?.status === "Open" || state.session?.Status === "Open";
+  const activeMotionId = liveMotion?.id || (sessionOpen ? state.session?.motionId || state.session?.MotionId : null) || null;
   const questionIdx = activeMotionId
     ? orderedMotions.findIndex((m) => m.id === activeMotionId)
     : -1;
 
   renderVotePanel(els.vote, {
-    session: state.session,
-    tally: state.tally,
+    session: sessionOpen ? state.session : null,
+    tally: sessionOpen ? state.tally : null,
     myVote: state.myVote,
     myStatus: state.myVoteStatus || null,
-    motion: state.motion,
+    motion: liveMotion,
     canCast: eligibleToShowCast,
     canOpen:
       operator &&
       hasPermission(state.user, "vote:open") &&
-      state.motion?.status === "Presented" &&
+      liveMotion?.status === "Presented" &&
       state.session?.status !== "Open",
     canClose: operator && hasPermission(state.user, "vote:close"),
     operatorView: operator,
@@ -2567,8 +2668,11 @@ function refreshPanelsNow() {
       });
       if (!ok) return;
       const result = await closeVoting(assemblyId, state.session.id);
-      state.session = { ...state.session, status: "Closed" };
-      state.tally = result.tally;
+      const motionId = result?.motionId || result?.MotionId || state.session?.motionId;
+      const motionStatus = result?.motionStatus || result?.MotionStatus || result?.tally?.decisionStatus;
+      ensureMobileVoting()?.onClosed();
+      finishMotion(motionId, motionStatus);
+      announceFinishedMotion(motionId, motionStatus);
       refreshPanels();
     }
   });
@@ -2580,8 +2684,8 @@ function refreshPanelsNow() {
     }
     liveWorkspace.renderQuestionnaire(els.vote, {
       motions: state.motions || [],
-      activeMotionId: state.motion?.id,
-      session: state.session,
+      activeMotionId,
+      session: sessionOpen ? state.session : null,
       canManage:
         operator &&
         (hasPermission(state.user, "motion:create") || hasPermission(state.user, "vote:open"))
@@ -2635,9 +2739,16 @@ function applyRoomState(room) {
   state.assembly = room.assembly || state.assembly;
   state.quorum = room.quorum;
   state.agenda = room.agenda;
-  state.motion = room.motion;
-  state.session = room.session;
-  state.tally = room.tally;
+  state.motion = room.motion && !isFinishedMotion(room.motion) ? room.motion : null;
+  const roomSession = room.session;
+  const roomSessionStatus = String(roomSession?.status || roomSession?.Status || "");
+  if (roomSession && roomSessionStatus !== "Open") {
+    state.session = null;
+    state.tally = null;
+  } else {
+    state.session = roomSession;
+    state.tally = room.tally;
+  }
   state.queue = room.queue;
   state.myVote = room.myVote;
   state.myVoteStatus = room.myVoteStatus || state.myVoteStatus || null;
@@ -2746,22 +2857,30 @@ function syncOfficialSpeakerHighlight() {
 }
 
 async function syncPublishForFloor() {
-  // Governance floor ≠ LiveKit publish gate. Do not mute/reconnect others when
-  // the president grants the floor — only highlight + optionally unmute the holder.
   const { current, identity } = syncOfficialSpeakerHighlight();
-  const mine = current && state.user && current.userId === state.user.userId;
+  const mine = Boolean(current && state.user && canUseMicrophone() && myGrantedFloor());
   if (identity) {
     setMediaViewMode("focus");
   } else {
     setMediaViewMode("grid");
   }
-  if (mine) {
-    try {
-      await setLocalMicrophoneEnabled(true);
-      showToast(t("assembly.youHaveFloor"), "success");
-    } catch (error) {
-      showToast(error.message || t("media.publishFailed"), "error");
-      renderIncidentStrip();
+  if (!canUseMicrophone()) {
+    lastMicGateFloorId = null;
+    if (getLocalPublishIntent().mic) {
+      try {
+        await setLocalMicrophoneEnabled(false);
+      } catch {
+        /* the server grant also drops the track */
+      }
+    }
+  } else if (mine) {
+    const floorId = String(current?.id || current?.Id || "floor");
+    if (lastMicGateFloorId !== floorId) {
+      lastMicGateFloorId = floorId;
+      showToast(
+        t("assembly.floorMicEnabled") || "Tiene la palabra. Ya puede activar su micrófono.",
+        "success"
+      );
     }
   }
   renderMediaCockpit();
@@ -2807,6 +2926,14 @@ async function bootstrapMeeting() {
     });
     if (micBtn) {
       micBtn.addEventListener("click", async () => {
+        if (!canUseMicrophone()) {
+          showToast(
+            t("assembly.floorMicLocked") || "Pida la palabra para activar el micrófono.",
+            "info"
+          );
+          syncMeetingControlBar();
+          return;
+        }
         const next = micBtn.getAttribute("aria-pressed") !== "true";
         setMediaBusy(next ? t("media.connectingMic") || "Conectando micrófono…" : "");
         micBtn.disabled = true;
@@ -2825,7 +2952,6 @@ async function bootstrapMeeting() {
           }
           await unlockRemoteAudio();
         } finally {
-          micBtn.disabled = false;
           setMediaBusy("");
           syncMeetingControlBar();
         }
@@ -2921,8 +3047,9 @@ async function bootstrapMeeting() {
     const token = await fetchJoinToken(assemblyId);
     const { identity } = syncOfficialSpeakerHighlight();
     const canPublish = Boolean(token.canPublish);
+    const moderator = isMeetingModerator();
     const wantCam = prefs.cameraEnabled !== false;
-    const wantMic = prefs.micEnabled !== false;
+    const wantMic = moderator && prefs.micEnabled !== false;
     await connectLiveKit(els.video, token, {
       enableCamera: wantCam && canPublish,
       enableMic: wantMic && canPublish,
@@ -2938,6 +3065,7 @@ async function bootstrapMeeting() {
       /* ignore */
     }
     syncHandTiles();
+    syncMeetingControlBar();
   } catch (error) {
     const msg = String(error?.message || "");
     const friendly =
@@ -3367,10 +3495,25 @@ async function init() {
       syncPublishForFloor().catch(() => {});
     },
     motionUpdated: async (m) => {
-      state.motion = m;
+      const status = motionStatusOf(m);
+      if (isFinishedMotion(status)) {
+        ensureMobileVoting()?.onClosed();
+        finishMotion(m?.id || m?.Id, status);
+        announceFinishedMotion(m?.id || m?.Id, status);
+      } else if (m) {
+        rememberMotion(m);
+        state.motion = m;
+      }
       try {
         const motions = await fetchAssemblyMotions({ force: true });
         if (Array.isArray(motions)) state.motions = motions;
+        if (isFinishedMotion(status)) {
+          const next = (state.motions || []).find((item) => {
+            const st = motionStatusOf(item);
+            return st === "Presented" || st === "Voting";
+          });
+          state.motion = next || null;
+        }
       } catch {
         /* keep */
       }
@@ -3449,16 +3592,14 @@ async function init() {
       refreshPanels();
     },
     votingClosed: (result) => {
-      state.session = {
-        ...state.session,
-        id: result.votingSessionId,
-        status: "Closed",
-        motionId: result.motionId
-      };
-      state.tally = result.tally;
+      const motionId = result?.motionId || result?.MotionId;
+      const motionStatus =
+        result?.motionStatus || result?.MotionStatus || result?.tally?.decisionStatus || result?.tally?.DecisionStatus;
+      ensureMobileVoting()?.onClosed();
+      finishMotion(motionId, motionStatus);
+      announceFinishedMotion(motionId, motionStatus);
       refreshPanels();
       liveWorkspace.handleRealtime("votingClosed");
-      ensureMobileVoting()?.onClosed();
     },
     votingCancelled: (session) => {
       state.session = session;
@@ -3549,6 +3690,13 @@ async function init() {
         cancelLabel: "Ahora no"
       });
       if (!ok) return;
+      if (device !== "camera" && !canUseMicrophone()) {
+        showToast(
+          t("assembly.floorMicLocked") || "Pida la palabra para activar el micrófono.",
+          "info"
+        );
+        return;
+      }
       try {
         if (device === "camera") await setLocalCameraEnabled(true);
         else await setLocalMicrophoneEnabled(true);
@@ -3567,6 +3715,14 @@ async function init() {
   });
 
   await state.hub.start(assemblyId);
+  window.addEventListener("pagehide", () => {
+    if (state.intentionalDisconnect) return;
+    try {
+      state.hub?.connection?.invoke("LeaveAssembly", assemblyId);
+    } catch {
+      /* the server grace window covers a dropped tab */
+    }
+  });
   try {
     const { setLiveSessionGuard, clearLiveSessionGuard } = await import("./ph-context.js");
     setLiveSessionGuard({

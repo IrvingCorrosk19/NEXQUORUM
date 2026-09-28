@@ -664,6 +664,10 @@
   scrollbar-color: color-mix(in srgb, var(--color-teal-500, #14b8a6) 45%, #64748b) transparent;
 }
 
+.room[data-role="owner"] #governance-sidebar > #contextual-guide {
+  display: none !important;
+}
+
 .sidebar::-webkit-scrollbar {
   width: 6px;
 }
@@ -1962,6 +1966,10 @@ body:has(.room--meeting-ux) {
   cursor: pointer;
   position: relative;
   transition: background 140ms ease, color 140ms ease;
+}
+.mcb-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .mcb-btn:hover,
 .mcb-btn:focus-visible {

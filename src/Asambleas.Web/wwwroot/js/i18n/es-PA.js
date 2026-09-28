@@ -170,7 +170,8 @@ export default {
     publishFailed: "No se pudo activar cámara/micrófono. La intervención no se marca como finalizada.",
     publishFailedReceiveOk:
       "No se pudo activar cámara/micrófono. Sigue conectado: puede ver y oír a los demás. Use Reintentar.",
-    floorMicEnabled: "Tiene la palabra: micrófono habilitado.",
+    floorMicEnabled: "Tiene la palabra. Ya puede activar su micrófono.",
+    floorMicLocked: "Pida la palabra para activar el micrófono.",
     unstableConnection: "Tu conexión está inestable. Ajustamos la calidad para mantenerte conectado.",
     participantMediaIssue: "{name} — problema de medios",
     connected: "Conectados a la sala",

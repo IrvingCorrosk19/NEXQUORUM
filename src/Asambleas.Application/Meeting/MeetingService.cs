@@ -98,6 +98,8 @@ public sealed class MeetingService
         }
 
         var canPublish = await ResolveCanPublishAsync(assemblyId, userId, participant.RoleCode, cancellationToken);
+        var canMicrophone = await ResolveCanPublishMicrophoneAsync(
+            assemblyId, userId, participant.RoleCode, cancellationToken);
         var canScreen = CanScreenShareFromClaimsOrRole(participant.RoleCode);
         var connectionSuffix = Guid.NewGuid().ToString("N")[..8];
         var identity = BuildParticipantIdentity(userId, connectionSuffix);
@@ -112,7 +114,8 @@ public sealed class MeetingService
                 CanSubscribe: true,
                 CanPublishScreenShare: canScreen,
                 Ttl: DefaultTokenTtl,
-                IdentityOverride: identity),
+                IdentityOverride: identity,
+                CanPublishMicrophone: canMicrophone),
             cancellationToken);
 
         return new MeetingJoinTokenResponse(
@@ -124,7 +127,8 @@ public sealed class MeetingService
             token.ExpiresAtUtc,
             CanPublish: canPublish,
             Identity: identity,
-            CanPublishScreenShare: canScreen);
+            CanPublishScreenShare: canScreen,
+            CanPublishMicrophone: canMicrophone);
     }
 
     public async Task<MeetingRoomInfoDto> GetRoomInfoAsync(
@@ -255,9 +259,9 @@ public sealed class MeetingService
     }
 
     /// <summary>
-    /// Moderators always have elevated meeting controls. Media publish for the video
-    /// conference is granted separately to all registered join participants (see
-    /// <see cref="ResolveCanPublishAsync"/>); governance floor is not used to gate A/V.
+    /// Moderators always publish microphone. Other participants publish microphone
+    /// only while they hold the granted floor. The join token is the first gate;
+    /// <see cref="IParticipantMicrophoneGate"/> updates LiveKit if the floor changes mid-session.
     /// </summary>
     public static bool CanPublishFromRole(string roleCode) =>
         RolePermissionMap.HasPermission([roleCode], Permissions.MeetingModerate);
@@ -277,6 +281,25 @@ public sealed class MeetingService
         _ = roleCode;
         _ = cancellationToken;
         return Task.FromResult(true);
+    }
+
+    private async Task<bool> ResolveCanPublishMicrophoneAsync(
+        Guid assemblyId,
+        Guid userId,
+        string roleCode,
+        CancellationToken cancellationToken)
+    {
+        if (CanPublishFromRole(roleCode)
+            || _currentTenant.Permissions.Contains(Permissions.MeetingModerate))
+        {
+            return true;
+        }
+
+        return await _db.SpeakerRequests.AnyAsync(
+            s => s.AssemblyId == assemblyId
+                 && s.UserId == userId
+                 && s.Status == SpeakerRequestStatus.Granted,
+            cancellationToken);
     }
 
     private async Task<ParticipantCtx> RequireLiveParticipantAsync(

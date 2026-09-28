@@ -14,4 +14,15 @@ public sealed class NullAssemblyHubPresence : IAssemblyHubPresence
     public bool IsHubConnected(Guid assemblyId, Guid userId) => false;
 
     public IReadOnlyCollection<Guid> ListConnectedUserIds(Guid assemblyId) => Array.Empty<Guid>();
+
+    public void BeginDisconnectGrace(Guid assemblyId, Guid userId, Guid tenantId, DateTimeOffset deadlineUtc)
+    {
+    }
+
+    public void CancelDisconnectGrace(Guid assemblyId, Guid userId)
+    {
+    }
+
+    public IReadOnlyList<PendingPresenceGrace> TakeExpiredDisconnectGrace(DateTimeOffset utcNow) =>
+        Array.Empty<PendingPresenceGrace>();
 }

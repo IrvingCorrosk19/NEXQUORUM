@@ -129,7 +129,13 @@ public sealed class AssemblyHub : Hub
                 return;
             }
 
-            await _attendance.MarkDisconnectedAsync(assemblyId, userId, Context.ConnectionAborted);
+            _hubPresence.CancelDisconnectGrace(assemblyId, userId);
+            if (_hubPresence.IsHubConnected(assemblyId, userId))
+            {
+                return;
+            }
+
+            await _attendance.MarkLeftAsync(assemblyId, userId, Context.ConnectionAborted);
             await _meetings.ClearIfPresenterLeftAsync(assemblyId, userId, Context.ConnectionAborted);
         }
         catch (Exception ex)
@@ -162,8 +168,14 @@ public sealed class AssemblyHub : Hub
                     permissions,
                     CancellationToken.None);
 
-                if (AssemblyAccessService.AllowsPresenceMutation(status))
+                if (AssemblyAccessService.AllowsPresenceMutation(status)
+                    && !_hubPresence.IsHubConnected(assemblyId, userId))
                 {
+                    _hubPresence.BeginDisconnectGrace(
+                        assemblyId,
+                        userId,
+                        _currentTenant.TenantId,
+                        DateTimeOffset.UtcNow.Add(AttendanceService.UnexpectedDisconnectGrace));
                     await _attendance.MarkDisconnectedAsync(assemblyId, userId, CancellationToken.None);
                     await _meetings.ClearIfPresenterLeftAsync(assemblyId, userId, CancellationToken.None);
                 }

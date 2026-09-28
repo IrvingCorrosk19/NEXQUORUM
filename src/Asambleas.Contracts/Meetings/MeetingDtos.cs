@@ -11,7 +11,8 @@ public sealed record MeetingJoinTokenResponse(
     DateTimeOffset ExpiresAtUtc,
     bool CanPublish = false,
     string? Identity = null,
-    bool CanPublishScreenShare = false);
+    bool CanPublishScreenShare = false,
+    bool CanPublishMicrophone = false);
 
 public sealed record MeetingRoomInfoDto(
     Guid AssemblyId,

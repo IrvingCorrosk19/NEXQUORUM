@@ -19,7 +19,7 @@ import {
   renderReadinessCompact,
   renderNextAction,
   renderQuickLinks
-} from "./readiness-workflow.js";
+} from "./readiness-workflow.js?v=closed-agenda1";
 import { writeIaContext } from "./ia-context.js";
 import { historicalOverviewUrl, isTerminalStatus, renderHistoricalBanner } from "./assembly-lifecycle.js";
 import { startHybridShell, softNavigate } from "./hybrid-router.js";

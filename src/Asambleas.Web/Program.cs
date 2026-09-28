@@ -42,6 +42,7 @@ try
     builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, AsambleasUserClaimsPrincipalFactory>();
     builder.Services.AddScoped<IAssemblyRealtimePublisher, SignalRAssemblyRealtimePublisher>();
     builder.Services.AddSingleton<IAssemblyHubPresence, AssemblyHubPresenceTracker>();
+    builder.Services.AddHostedService<PresenceGraceWorker>();
 
     var allowInsecureCookies = builder.Environment.IsDevelopment()
         || string.Equals(builder.Environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase)
