@@ -188,7 +188,10 @@ public sealed record AssemblyDashboardDto(
     string Modality,
     AssemblyReadinessDto Readiness,
     AssemblyDashboardCountsDto Counts,
-    string PrimaryCta);
+    string PrimaryCta,
+    decimal? QuorumOpening = null,
+    decimal? QuorumMaximum = null,
+    decimal? QuorumClosing = null);
 
 public sealed record AssemblyRoomStateDto(
     AssemblyDetailDto Assembly,

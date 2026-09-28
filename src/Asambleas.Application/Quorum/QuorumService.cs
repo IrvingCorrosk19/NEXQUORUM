@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 
 public sealed class QuorumService
 {
+    public const string AssemblyStartReason = "AssemblyStart";
     public const string AssemblyEndReason = "AssemblyEnd";
 
     private readonly IAsambleasDbContext _db;
@@ -118,6 +119,56 @@ public sealed class QuorumService
                 s.EligibleUnits))
             .ToListAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Opening is the coefficient when the assembly started, maximum is the highest during the meeting,
+    /// and closing is the coefficient frozen at AssemblyEnd.
+    /// </summary>
+    public async Task<(decimal Opening, decimal Maximum, decimal Closing)?> TryGetClosedMeetingSpanAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        var snapshots = await _db.QuorumSnapshots
+            .AsNoTracking()
+            .Where(s => s.AssemblyId == assemblyId)
+            .OrderBy(s => s.TimestampUtc)
+            .Select(s => new QuorumSpanPoint(s.TimestampUtc, s.PresentCoefficient, s.Reason))
+            .ToListAsync(cancellationToken);
+
+        if (snapshots.Count == 0)
+        {
+            return null;
+        }
+
+        var startedAt = await _db.AuditEvents
+            .AsNoTracking()
+            .Where(e => e.AssemblyId == assemblyId && e.EventType == AuditEventType.AssemblyStarted)
+            .OrderBy(e => e.OccurredAtUtc)
+            .Select(e => (DateTimeOffset?)e.OccurredAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var closing = snapshots.LastOrDefault(s => s.Reason == AssemblyEndReason) ?? snapshots[^1];
+        var opening = snapshots.LastOrDefault(s => s.Reason == AssemblyStartReason);
+        if (opening is null && startedAt is DateTimeOffset start)
+        {
+            opening = snapshots.LastOrDefault(s => s.TimestampUtc <= start)
+                ?? snapshots.FirstOrDefault(s => s.TimestampUtc >= start);
+        }
+
+        opening ??= snapshots[0];
+
+        var from = startedAt ?? opening.TimestampUtc;
+        var to = closing.TimestampUtc;
+        var during = snapshots.Where(s => s.TimestampUtc >= from && s.TimestampUtc <= to).ToList();
+        var maximum = during.Count == 0
+            ? opening.PresentCoefficient
+            : during.Max(s => s.PresentCoefficient);
+        maximum = Math.Max(maximum, Math.Max(opening.PresentCoefficient, closing.PresentCoefficient));
+
+        return (opening.PresentCoefficient, maximum, closing.PresentCoefficient);
+    }
+
+    private sealed record QuorumSpanPoint(DateTimeOffset TimestampUtc, decimal PresentCoefficient, string? Reason);
 
     public Task<QuorumStateDto> RecalculateAndSnapshotAsync(
         Guid assemblyId,

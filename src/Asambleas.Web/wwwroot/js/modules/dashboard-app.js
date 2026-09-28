@@ -72,6 +72,16 @@ async function loadReadinessData() {
   return null;
 }
 
+function formatClosedQuorum(assembly) {
+  const opening = assembly.quorumOpening ?? assembly.QuorumOpening;
+  const maximum = assembly.quorumMaximum ?? assembly.QuorumMaximum;
+  const closing = assembly.quorumClosing ?? assembly.QuorumClosing;
+  const numbers = [opening, maximum, closing].map((value) => Number(value));
+  if (numbers.some((value) => !Number.isFinite(value))) return "—";
+  const pct = (value) => `${value.toFixed(2)}%`;
+  return `${pct(numbers[0])} Apertura · ${pct(numbers[1])} Máximo · ${pct(numbers[2])} Cierre`;
+}
+
 function paintDashboard(user, assembly, readiness, operator, counts = null) {
   const phId = assembly.propertyHorizontalId;
   const phName = assembly.propertyHorizontalName || "PH";
@@ -113,10 +123,11 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
   const c = counts || assembly.counts || {};
   const prepDone = readiness?.completedChecks ?? 0;
   const prepTotal = readiness?.totalChecks ?? 0;
+  const quorumValue = assembly.status === "Completed" ? formatClosedQuorum(assembly) : "—";
   qs("#assembly-stat-strip").innerHTML = `
     <div class="ia-stat"><div class="ia-stat__value">${prepTotal ? `${prepDone}/${prepTotal}` : "—"}</div><div class="ia-stat__label">Preparación</div></div>
     <div class="ia-stat"><div class="ia-stat__value">${c.participants ?? c.Participants ?? "—"}</div><div class="ia-stat__label">Participantes</div></div>
-    <div class="ia-stat"><div class="ia-stat__value">—</div><div class="ia-stat__label">Quórum</div></div>
+    <div class="ia-stat ia-stat--quorum"><div class="ia-stat__value">${escapeHtml(quorumValue)}</div><div class="ia-stat__label">Quórum</div></div>
     <div class="ia-stat"><div class="ia-stat__value">${c.motions ?? c.Motions ?? "—"}</div><div class="ia-stat__label">Votaciones</div></div>`;
 
   writeIaContext({ phId, phName, assemblyId, assemblyTitle: title, assemblyStatus: assembly.status || "" });

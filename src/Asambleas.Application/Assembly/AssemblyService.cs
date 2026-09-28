@@ -196,6 +196,14 @@ public sealed class AssemblyService
             await EnsureMandatoryPreparationAsync(assembly, target, cancellationToken);
         }
 
+        if (target == AssemblyStatus.InProgress && from != AssemblyStatus.Paused)
+        {
+            await _quorum.RecalculateAndSnapshotAsync(
+                assemblyId,
+                Quorum.QuorumService.AssemblyStartReason,
+                cancellationToken);
+        }
+
         if (target == AssemblyStatus.Completed)
         {
             var openVoting = await _db.VotingSessions.AnyAsync(

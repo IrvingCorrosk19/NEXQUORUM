@@ -188,6 +188,20 @@ public sealed class AssemblyRoomService
             metrics.AgendaCount,
             metrics.MotionCount);
 
+        decimal? quorumOpening = null;
+        decimal? quorumMaximum = null;
+        decimal? quorumClosing = null;
+        if (assembly.Status == AssemblyStatus.Completed)
+        {
+            var span = await _quorum.TryGetClosedMeetingSpanAsync(assemblyId, cancellationToken);
+            if (span is not null)
+            {
+                quorumOpening = span.Value.Opening;
+                quorumMaximum = span.Value.Maximum;
+                quorumClosing = span.Value.Closing;
+            }
+        }
+
         return new AssemblyDashboardDto(
             detail.Id,
             detail.Title,
@@ -198,7 +212,10 @@ public sealed class AssemblyRoomService
             detail.Modality,
             readiness,
             counts,
-            AssemblyRoomRules.ResolvePrimaryCta(detail.Status));
+            AssemblyRoomRules.ResolvePrimaryCta(detail.Status),
+            quorumOpening,
+            quorumMaximum,
+            quorumClosing);
     }
 
     public Task<AssemblyMinutesDto> GetMinutesAsync(

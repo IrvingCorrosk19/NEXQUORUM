@@ -160,6 +160,20 @@
   text-transform: uppercase;
 }
 
+.ia-stat--quorum .ia-stat__value {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 720px) {
+  .ia-stat--quorum {
+    grid-column: span 2;
+  }
+}
+
 .ia-primary-action {
   display: grid;
   gap: 0.65rem;
