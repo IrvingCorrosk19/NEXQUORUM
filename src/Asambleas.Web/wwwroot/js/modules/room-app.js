@@ -2,7 +2,7 @@ import { api, cachedGet, invalidateCachedGet } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
-import { renderQuorum, renderQuorumCard } from "./quorum.js";
+import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=room-quorum1";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt } from "./voting.js";
 import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=room-motion1";
 import { createMobileVotingController } from "./mobile-voting-sheet.js?v=room-phone1";
@@ -2054,6 +2054,7 @@ function renderQuorumDetails() {
       )}</dd></div>
       <div><dt>${escapeHtml(t("quorum.coefficient"))}</dt><dd class="metric-number">${Number(q.currentCoefficient ?? 0).toFixed(2)}%</dd></div>
       <div><dt>${escapeHtml(t("quorum.requiredMinimum") || "Mínimo requerido")}</dt><dd class="metric-number">${Number(q.requiredCoefficient ?? 0).toFixed(2)}%</dd></div>
+      <div><dt>${escapeHtml(t("quorum.contributingPeople") || "Personas en el quórum")}</dt><dd>${contributingPeople(q) ?? "—"}</dd></div>
       <div><dt>${escapeHtml(t("quorum.presentUnits"))}</dt><dd>${q.presentUnits ?? "—"}</dd></div>
       <div><dt>${escapeHtml(t("quorum.coeffBasis") || "Base del PH")}</dt><dd>${escapeHtml(
         t("quorum.coeffHint", {
@@ -2448,7 +2449,7 @@ function refreshPanelsNow() {
   syncMobileOverview();
   renderAgenda(els.agenda, state.agenda, {
     canManage: operator && hasPermission(state.user, "agenda:manage"),
-    compact: !operator,
+    compact: false,
     onActivate: async (id) => {
       state.agenda = await setActiveAgendaItem(assemblyId, id);
       refreshPanels();

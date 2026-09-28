@@ -69,7 +69,8 @@ internal static class Mapping
         DateTimeOffset calculatedAtUtc,
         decimal eligibleCoefficientTotal = 0m,
         bool coefficientConfigurationInvalid = false,
-        string? coefficientConfigurationMessage = null) =>
+        string? coefficientConfigurationMessage = null,
+        int contributingParticipants = 0) =>
         new(
             assemblyId,
             currentCoefficient,
@@ -84,7 +85,8 @@ internal static class Mapping
                 : Math.Max(0m, Math.Round(requiredCoefficient - currentCoefficient, 4, MidpointRounding.AwayFromZero)),
             EligibleCoefficientTotal: eligibleCoefficientTotal,
             CoefficientConfigurationInvalid: coefficientConfigurationInvalid,
-            CoefficientConfigurationMessage: coefficientConfigurationMessage);
+            CoefficientConfigurationMessage: coefficientConfigurationMessage,
+            ContributingParticipants: contributingParticipants);
 
     public static async Task<string?> ResolveUnitCodeAsync(
         IAsambleasDbContext db,

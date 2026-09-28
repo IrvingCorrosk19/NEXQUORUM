@@ -426,6 +426,7 @@ export default {
     missing: "Falta",
     progress: "Progreso de quórum",
     presentUnits: "Unidades presentes",
+    contributingPeople: "Personas en el quórum",
     coefficient: "Coeficiente representado",
     lastUpdate: "Última actualización",
     coeffHint: "Mínimo requerido: {pct}% del total elegible ({total}%)",

@@ -931,3 +931,29 @@
     overflow: hidden;
   }
 }
+
+/* Agenda, motion and vote stay in the stack under the call, including while a vote is open. */
+.room.room--meeting-ux.room--ocean #governance-sidebar #panel-agenda,
+.room.room--meeting-ux.room--ocean #governance-sidebar #panel-motion,
+.room.room--meeting-ux.room--ocean #governance-sidebar #panel-vote,
+.room.room--meeting-ux.room--ocean[data-role="owner"][data-voting="open"] #governance-sidebar #panel-agenda,
+.room.room--meeting-ux.room--ocean[data-role="owner"][data-voting="open"] #governance-sidebar #panel-motion {
+  display: grid !important;
+  visibility: visible !important;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.room.room--meeting-ux.room--ocean #governance-sidebar #agenda-panel,
+.room.room--meeting-ux.room--ocean #governance-sidebar #panel-agenda .agenda-list {
+  display: block !important;
+  visibility: visible !important;
+  width: 100%;
+  max-width: 100%;
+  max-height: none !important;
+  overflow: visible !important;
+}

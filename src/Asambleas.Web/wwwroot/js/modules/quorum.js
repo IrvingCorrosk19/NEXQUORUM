@@ -3,6 +3,16 @@ import { escapeHtml } from "./ui.js";
 
 const lastValues = new WeakMap();
 
+/** People who are connected and represent a unit with a percentage. Not the raw connection count. */
+export function contributingPeople(quorum) {
+  const raw = quorum?.contributingParticipants ?? quorum?.ContributingParticipants;
+  if (raw == null || raw === "") {
+    return quorum?.presentUnits ?? null;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : quorum?.presentUnits ?? null;
+}
+
 /**
  * Quorum visualization: current / required coefficient points of the PH.
  * Values are coefficient percent-points (Σ units ≈ 100), NOT a progress bar percent.
@@ -52,6 +62,7 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
         <span class="badge ${reached ? "badge-live" : "badge-warn"}">${escapeHtml(statusText)}</span>
         <span class="quorum-chip-values">
           <strong class="metric-number" data-quorum-current>${currentLabel}</strong>
+          <span class="quorum-chip-people" title="${escapeHtml(t("quorum.contributingPeople") || "Personas en el quórum")}">${contributingPeople(quorum) ?? "—"}</span>
         </span>
       </div>
       ${configBanner}
@@ -86,10 +97,8 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
         ${currentLabel} / ${requiredLabel}
       </meter>
       ${
-        quorum.presentUnits != null
-          ? `<p class="muted quorum-units">${quorum.presentUnits}${
-              quorum.eligibleUnits != null ? ` / ${quorum.eligibleUnits}` : ""
-            }</p>`
+        contributingPeople(quorum) != null
+          ? `<p class="muted quorum-units">${escapeHtml(t("quorum.contributingPeople") || "Personas en el quórum")}: ${contributingPeople(quorum)}</p>`
           : ""
       }
     </div>
@@ -124,6 +133,10 @@ export function renderQuorumCard(root, quorum) {
       aria-valuemin="0" aria-valuemax="100" aria-valuenow="${trackPct.toFixed(0)}"
       aria-label="${escapeHtml(status)}">
       <span style="width:${trackPct}%"></span>
+    </div>
+    <div class="quorum-card__row">
+      <span>${escapeHtml(t("quorum.contributingPeople") || "Personas en el quórum")}</span>
+      <small>${contributingPeople(quorum) ?? "—"}</small>
     </div>
     <div class="quorum-card__row">
       <span>${escapeHtml(t("quorum.requiredMinimum") || "Mínimo requerido")}</span>

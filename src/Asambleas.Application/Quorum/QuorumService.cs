@@ -84,57 +84,8 @@ public sealed class QuorumService
             return last is null ? null : ToHistoricalDto(assembly, last);
         }
 
-        var latest = await _db.QuorumSnapshots
-            .AsNoTracking()
-            .Where(s => s.AssemblyId == assemblyId)
-            .OrderByDescending(s => s.TimestampUtc)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (latest is not null)
-        {
-            // Always recompute padón totals for live reads — snapshot rows do not store EligibleCoefficientTotal
-            // or configuration validity; omitting them made clients see 0 / silent invalid padrones.
-            var eligibleCoeffs = await _db.Units
-                .AsNoTracking()
-                .Where(u => u.TenantId == assembly.TenantId
-                            && u.PropertyHorizontalId == assembly.PropertyHorizontalId
-                            && u.IsActive)
-                .Select(u => u.CoefficientPercent)
-                .ToListAsync(cancellationToken);
-            var eligibleTotal = Math.Round(eligibleCoeffs.Sum(), 4, MidpointRounding.AwayFromZero);
-            var eligibleUnits = eligibleCoeffs.Count > 0
-                ? eligibleCoeffs.Count
-                : (latest.EligibleUnits > 0
-                    ? latest.EligibleUnits
-                    : await _db.Units
-                        .AsNoTracking()
-                        .CountAsync(
-                            u => u.TenantId == assembly.TenantId
-                                 && u.PropertyHorizontalId == assembly.PropertyHorizontalId,
-                            cancellationToken));
-            var (invalid, message) = DiagnoseCoefficientConfiguration(
-                eligibleTotal,
-                assembly.RequiredQuorumPercent);
-
-            var missing = latest.Status == QuorumStatus.Reached
-                ? 0m
-                : Math.Max(0m, Math.Round(latest.RequiredCoefficient - latest.PresentCoefficient, 4, MidpointRounding.AwayFromZero));
-
-            return new QuorumDto(
-                assemblyId,
-                latest.PresentCoefficient,
-                latest.RequiredCoefficient,
-                assembly.RequiredQuorumPercent,
-                latest.Status == QuorumStatus.Reached,
-                latest.PresentUnits,
-                eligibleUnits,
-                latest.TimestampUtc,
-                missing,
-                EligibleCoefficientTotal: eligibleTotal,
-                CoefficientConfigurationInvalid: invalid,
-                CoefficientConfigurationMessage: message);
-        }
-
+        // Live room always recomputes from who is connected and represents a unit.
+        // A stored snapshot can still count a moderator who has no percentage.
         return await CalculateReadOnlyAsync(assembly, cancellationToken);
     }
 
@@ -243,7 +194,8 @@ public sealed class QuorumService
             now,
             calculation.EligibleCoefficientTotal,
             calculation.CoefficientConfigurationInvalid,
-            calculation.CoefficientConfigurationMessage);
+            calculation.CoefficientConfigurationMessage,
+            calculation.ContributingParticipants);
 
         await _audit.WriteAsync(
             AuditEventType.QuorumChanged,
@@ -320,13 +272,14 @@ public sealed class QuorumService
             missing,
             calculation.EligibleCoefficientTotal,
             calculation.CoefficientConfigurationInvalid,
-            calculation.CoefficientConfigurationMessage);
+            calculation.CoefficientConfigurationMessage,
+            calculation.ContributingParticipants);
     }
 
     /// <summary>
-    /// Live quorum counts who is in the room now (Present) or inside the short reconnect grace
-    /// (TemporarilyDisconnected). A closed tab that already became Left, and convocation alone, do not count.
-    /// The same unit is never summed twice.
+    /// Live quorum counts connected participants who represent a unit with a percentage above zero.
+    /// A moderator present only as Mesa, a closed tab already marked Left, and convocation alone do not count.
+    /// The same unit is never summed twice across reconnections or co-owners.
     /// </summary>
     private async Task<(
         decimal CurrentCoefficient,
@@ -336,7 +289,8 @@ public sealed class QuorumService
         int EligibleUnits,
         decimal EligibleCoefficientTotal,
         bool CoefficientConfigurationInvalid,
-        string? CoefficientConfigurationMessage)> CalculateInternalAsync(
+        string? CoefficientConfigurationMessage,
+        int ContributingParticipants)> CalculateInternalAsync(
         Domain.Entities.Assembly assembly,
         CancellationToken cancellationToken)
     {
@@ -347,48 +301,70 @@ public sealed class QuorumService
                         && u.IsActive)
             .Select(u => new { u.Id, u.CoefficientPercent })
             .ToListAsync(cancellationToken);
+        var eligibleById = eligibleUnits
+            .Where(u => u.CoefficientPercent > 0)
+            .ToDictionary(u => u.Id, u => u.CoefficientPercent);
 
-        var contributingUserIds = await _db.AssemblyParticipants
+        var connected = await _db.AssemblyParticipants
             .AsNoTracking()
             .Where(p => p.AssemblyId == assembly.Id
                         && (p.AttendanceStatus == AttendanceStatus.Present
                             || p.AttendanceStatus == AttendanceStatus.TemporarilyDisconnected))
-            .Select(p => p.UserId)
+            .Select(p => new { p.UserId, p.UnitId, p.EffectiveCoefficientPercent })
             .ToListAsync(cancellationToken);
 
-        // Unique by UnitId — never sum the same unit twice (co-owners, reconnect, duplicate rows).
-        var presentCoefficients = contributingUserIds.Count == 0
-            ? new List<decimal>()
+        var connectedUserIds = connected.Select(p => p.UserId).Distinct().ToList();
+        var representationRows = connectedUserIds.Count == 0
+            ? []
             : await _db.AssemblyRepresentations
                 .AsNoTracking()
                 .Where(r => r.AssemblyId == assembly.Id
                             && r.IsActive
-                            && contributingUserIds.Contains(r.RepresentativeUserId))
-                .GroupBy(r => r.UnitId)
-                .Select(g => g.Max(r => r.CoefficientSnapshot))
+                            && r.CoefficientSnapshot > 0
+                            && connectedUserIds.Contains(r.RepresentativeUserId))
+                .Select(r => new { r.UnitId, r.RepresentativeUserId, r.CoefficientSnapshot })
                 .ToListAsync(cancellationToken);
 
-        // Fallback for legacy rows without representations: single UnitId on participant.
-        if (presentCoefficients.Count == 0 && contributingUserIds.Count > 0)
+        var unitCoefficient = new Dictionary<Guid, decimal>();
+        var contributors = new HashSet<Guid>();
+        foreach (var row in representationRows)
         {
-            var legacyUnitIds = await _db.AssemblyParticipants
-                .AsNoTracking()
-                .Where(p => p.AssemblyId == assembly.Id
-                            && contributingUserIds.Contains(p.UserId)
-                            && p.UnitId != null)
-                .Select(p => p.UnitId!.Value)
-                .Distinct()
-                .ToListAsync(cancellationToken);
+            if (!eligibleById.ContainsKey(row.UnitId) || row.CoefficientSnapshot <= 0)
+            {
+                continue;
+            }
 
-            presentCoefficients = eligibleUnits
-                .Where(u => legacyUnitIds.Contains(u.Id))
-                .Select(u => u.CoefficientPercent)
-                .ToList();
+            contributors.Add(row.RepresentativeUserId);
+            if (!unitCoefficient.TryGetValue(row.UnitId, out var existing) || row.CoefficientSnapshot > existing)
+            {
+                unitCoefficient[row.UnitId] = row.CoefficientSnapshot;
+            }
+        }
+
+        // Legacy rows with no representation: only an assigned coefficient counts.
+        // A UnitId alone does not pull the padrón percentage onto a moderator.
+        foreach (var participant in connected)
+        {
+            if (participant.EffectiveCoefficientPercent <= 0 || participant.UnitId is not Guid unitId)
+            {
+                continue;
+            }
+
+            if (!eligibleById.ContainsKey(unitId))
+            {
+                continue;
+            }
+
+            contributors.Add(participant.UserId);
+            if (!unitCoefficient.ContainsKey(unitId))
+            {
+                unitCoefficient[unitId] = participant.EffectiveCoefficientPercent;
+            }
         }
 
         var calculation = QuorumEngine.Calculate(
             eligibleUnits.Select(u => u.CoefficientPercent),
-            presentCoefficients,
+            unitCoefficient.Values,
             assembly.RequiredQuorumPercent);
 
         var (invalid, message) = DiagnoseCoefficientConfiguration(
@@ -399,11 +375,12 @@ public sealed class QuorumService
             calculation.CurrentCoefficient,
             calculation.RequiredCoefficient,
             calculation.QuorumReached,
-            calculation.PresentUnits,
+            unitCoefficient.Count,
             eligibleUnits.Count,
             calculation.EligibleCoefficientTotal,
             invalid,
-            message);
+            message,
+            contributors.Count);
     }
 
     /// <summary>
