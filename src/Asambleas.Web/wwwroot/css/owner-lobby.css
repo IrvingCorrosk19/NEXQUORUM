@@ -5,7 +5,9 @@ body.is-fullscreen-ops {
 }
 
 .lobby-main {
+  grid-area: workspace;
   width: min(720px, 100%);
+  min-width: 0;
   margin-inline: auto;
   box-sizing: border-box;
   padding-inline: max(0.75rem, env(safe-area-inset-left));
@@ -18,6 +20,7 @@ body.is-fullscreen-ops {
 .ia-asm-nav,
 .ia-asm-tabs {
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -47,9 +50,15 @@ body.is-fullscreen-ops {
   margin-bottom: 0.35rem;
 }
 
+.lobby-stack {
+  width: 100%;
+  min-width: 0;
+}
+
 .lobby-stack .panel {
-  overflow-x: clip;
+  min-width: 0;
   max-width: 100%;
+  overflow-x: clip;
 }
 
 .participant-facts-grid,
@@ -57,12 +66,40 @@ body.is-fullscreen-ops {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem 0.85rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.participant-facts-grid > div,
+.accreditation-grid > div {
+  min-width: 0;
+}
+
+.participant-facts-grid dt,
+.participant-facts-grid dd,
+.accreditation-grid dt,
+.accreditation-grid dd {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.device-preview {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.device-selectors {
+  width: 100%;
+  min-width: 0;
 }
 
 .device-selectors select,
 .device-selectors .input,
 #preview-video,
 #preview-fallback {
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
 }

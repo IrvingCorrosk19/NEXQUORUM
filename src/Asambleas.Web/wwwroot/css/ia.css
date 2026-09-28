@@ -881,7 +881,16 @@ body.is-fullscreen-ops .app-nav {
 }
 
 body.is-fullscreen-ops .app-shell {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "top"
+    "workspace";
+  min-width: 0;
+  max-width: 100%;
+}
+
+body.is-fullscreen-ops .app-top {
+  min-width: 0;
 }
 
 /* —— Global PH context switcher —— */
