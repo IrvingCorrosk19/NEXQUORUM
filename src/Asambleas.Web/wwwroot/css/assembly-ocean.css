@@ -957,3 +957,141 @@
   max-height: none !important;
   overflow: visible !important;
 }
+
+/* Remote portrait: show the received frame inside the card. Landscape stays cover. */
+.room.room--meeting-ux.room--ocean .media-tile.is-portrait-remote:not(.is-local):not(.is-screen-share) video,
+.room.room--meeting-ux.room--ocean .media-tile.is-portrait-remote:not(.is-local):not(.is-screen-share) .media-track {
+  object-fit: contain !important;
+  object-position: center center !important;
+  background: #07111f;
+}
+
+/* Chat sits beside the call on desktop and opens as a sheet on phones. */
+.room.room--meeting-ux.room--ocean .call-and-chat {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.room.room--meeting-ux.room--ocean #panel-chat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  background: var(--ocean-surface, #0e1a2b);
+  border: 1px solid var(--ocean-line, rgba(232, 238, 248, 0.12));
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.room.room--meeting-ux.room--ocean #panel-chat .chat-dock__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  padding: 0.55rem 0.7rem 0;
+}
+
+.room.room--meeting-ux.room--ocean #panel-chat .chat-dock__header .section-title {
+  margin: 0;
+}
+
+.room.room--meeting-ux.room--ocean #panel-chat .chat-dock__note {
+  flex: 0 0 auto;
+  margin: 0.2rem 0.7rem 0.35rem;
+  font-size: 0.78rem;
+}
+
+.room.room--meeting-ux.room--ocean #panel-chat .chat-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important;
+  margin: 0 0.55rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.room.room--meeting-ux.room--ocean #panel-chat .chat-form {
+  flex: 0 0 auto;
+  position: static;
+  margin: 0;
+  padding: 0.55rem 0.55rem 0.65rem;
+  background: var(--ocean-surface, #0e1a2b);
+}
+
+@media (min-width: 768px) {
+  .room.room--meeting-ux.room--ocean .call-and-chat {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.75rem;
+    height: min(48vh, 34rem);
+    max-height: min(48vh, 34rem);
+    min-height: 14rem;
+  }
+
+  .room.room--meeting-ux.room--ocean .call-and-chat > .video-stage {
+    flex: 1 1 auto;
+    width: auto !important;
+    min-width: 0;
+    height: 100% !important;
+    max-height: none !important;
+    min-height: 0 !important;
+  }
+
+  .room.room--meeting-ux.room--ocean .call-and-chat > #panel-chat {
+    flex: 0 0 min(22rem, 34%);
+    width: min(22rem, 34%);
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .room.room--meeting-ux.room--ocean .chat-dock__close,
+  .room.room--meeting-ux.room--ocean .mcb-btn--chat {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .room.room--meeting-ux.room--ocean .call-and-chat {
+    display: block;
+  }
+
+  .room.room--meeting-ux.room--ocean .call-and-chat > #panel-chat {
+    display: none !important;
+  }
+
+  .room.room--meeting-ux.room--ocean .call-and-chat > #panel-chat.is-open {
+    display: flex !important;
+    position: fixed;
+    z-index: 35;
+    left: max(0.45rem, env(safe-area-inset-left, 0px));
+    right: max(0.45rem, env(safe-area-inset-right, 0px));
+    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    height: min(52dvh, 26rem);
+    max-height: calc(100dvh - 9rem);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .room.room--meeting-ux.room--ocean #panel-chat .chat-form {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .room.room--meeting-ux.room--ocean #panel-chat .chat-form .input,
+  .room.room--meeting-ux.room--ocean #panel-chat .chat-form .btn {
+    flex: 1 1 auto;
+    min-height: 2.75rem;
+  }
+
+  .room.room--meeting-ux.room--ocean #panel-chat .chat-form .btn {
+    flex: 0 0 auto;
+  }
+
+  .room.room--meeting-ux.room--ocean .mcb-btn--chat {
+    display: inline-flex !important;
+  }
+}

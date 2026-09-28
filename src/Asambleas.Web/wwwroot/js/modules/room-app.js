@@ -63,8 +63,8 @@ import {
   switchLocalDevices,
   syncHandRaisedIndicators,
   unlockRemoteAudio
-} from "./meeting.js";
-import { initI18n, statusLabel, t } from "../i18n/i18n.js";
+} from "./meeting.js?v=room-remote1";
+import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=room-floor-mic1";
 import {
   assemblyIdFromUrl,
   confirmDialog,
@@ -542,7 +542,14 @@ function wireRoomViewportChrome() {
     }
   };
   tabs.forEach((tab) => {
-    tab.addEventListener("click", () => activate(tab.getAttribute("data-sidebar-tab") || "agenda"));
+    tab.addEventListener("click", () => {
+      const key = tab.getAttribute("data-sidebar-tab") || "agenda";
+      if (key === "chat") {
+        setChatOpen(true);
+        return;
+      }
+      activate(key);
+    });
   });
   roomTabs.forEach((tab) => {
     tab.addEventListener("click", () => activate(tab.getAttribute("data-room-tab") || "vote"));
@@ -1201,6 +1208,7 @@ function wireMeetingDrawers() {
       }
       handPhase = "requesting";
       syncMeetingControlBar();
+      primeMicrophonePermission();
       await requestFloor(assemblyId, state.user.displayName);
       await hydrateSpeakerQueue();
       handPhase = "idle";
@@ -2857,6 +2865,33 @@ function syncOfficialSpeakerHighlight() {
   return { current, identity };
 }
 
+function primeMicrophonePermission() {
+  if (!navigator.mediaDevices?.getUserMedia || isMeetingModerator()) return;
+  navigator.mediaDevices
+    .getUserMedia({ audio: true })
+    .then((stream) => {
+      stream.getTracks().forEach((track) => track.stop());
+    })
+    .catch(() => {
+      /* the grant still tries to open the microphone */
+    });
+}
+
+async function openMicrophoneForGrantedFloor() {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const result = await setLocalMicrophoneEnabled(true);
+      if (result?.ok) return true;
+    } catch {
+      /* permission on the call may arrive a moment after the floor grant */
+    }
+    if (attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+  }
+  return false;
+}
+
 async function syncPublishForFloor() {
   const { current, identity } = syncOfficialSpeakerHighlight();
   const mine = Boolean(current && state.user && canUseMicrophone() && myGrantedFloor());
@@ -2878,9 +2913,13 @@ async function syncPublishForFloor() {
     const floorId = String(current?.id || current?.Id || "floor");
     if (lastMicGateFloorId !== floorId) {
       lastMicGateFloorId = floorId;
+      const opened = await openMicrophoneForGrantedFloor();
       showToast(
-        t("assembly.floorMicEnabled") || "Tiene la palabra. Ya puede activar su micrófono.",
-        "success"
+        opened
+          ? t("assembly.floorMicEnabled") || "Tiene la palabra. Su micrófono está activo."
+          : t("assembly.floorMicEnableFailed") ||
+              "Tiene la palabra. Active el micrófono si no se encendió solo.",
+        opened ? "success" : "info"
       );
     }
   }
@@ -3111,8 +3150,60 @@ async function loadChatHistory() {
   }
 }
 
+function chatIsPhoneLayout() {
+  return window.matchMedia("(max-width: 767px)").matches;
+}
+
+function setChatOpen(open) {
+  const panel = qs("#panel-chat");
+  const btn = qs("#btn-chat");
+  if (!panel) return;
+  const phone = chatIsPhoneLayout();
+  const visible = phone ? Boolean(open) : true;
+  panel.classList.toggle("is-open", visible);
+  panel.setAttribute("aria-hidden", visible ? "false" : "true");
+  if (btn) {
+    btn.setAttribute("aria-expanded", String(phone && visible));
+    btn.setAttribute("aria-pressed", String(phone && visible));
+    btn.classList.toggle("is-active", phone && visible);
+  }
+  if (!phone || !visible) panel.style.bottom = "";
+  else pinChatComposer();
+  if (phone && visible) qs("#chat-input")?.focus();
+}
+
+function pinChatComposer() {
+  const panel = qs("#panel-chat");
+  if (!panel?.classList.contains("is-open") || !chatIsPhoneLayout()) return;
+  const viewport = window.visualViewport;
+  const keyboard = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+  panel.style.bottom = `calc(4.75rem + env(safe-area-inset-bottom, 0px) + ${Math.round(keyboard)}px)`;
+}
+
+function wireChatDock() {
+  setChatOpen(false);
+  const phoneQuery = window.matchMedia("(max-width: 767px)");
+  qs("#btn-chat")?.addEventListener("click", () => {
+    const open = qs("#panel-chat")?.classList.contains("is-open");
+    setChatOpen(!open);
+  });
+  qs("#btn-open-chat")?.addEventListener("click", () => {
+    closeMeetingDrawers();
+    setChatOpen(true);
+    qs("#chat-input")?.focus();
+  });
+  qs("#btn-close-chat")?.addEventListener("click", () => setChatOpen(false));
+  phoneQuery.addEventListener?.("change", () => setChatOpen(false));
+  window.visualViewport?.addEventListener("resize", pinChatComposer);
+  window.visualViewport?.addEventListener("scroll", pinChatComposer);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && chatIsPhoneLayout()) setChatOpen(false);
+  });
+}
+
 function wireChat() {
   const form = qs("#chat-form");
+  wireChatDock();
   if (!form) return;
   form.addEventListener("submit", async (e) => {
     e.preventDefault();

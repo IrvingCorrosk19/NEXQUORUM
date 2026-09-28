@@ -180,6 +180,86 @@ function updateEnterGate(self, assembly) {
 }
 
 let autoEnterScheduled = false;
+let entryInFlight = false;
+let cameraPrompt = null;
+
+function lobbyText(key, fallback) {
+  const value = t(key);
+  return !value || value === key ? fallback : value;
+}
+
+function askCameraEntry() {
+  if (!device.camera) return Promise.resolve("skip");
+  const dialog = qs("#camera-entry-dialog");
+  if (!dialog?.showModal) return Promise.resolve("on");
+  if (cameraPrompt) return cameraPrompt;
+  const message = qs("#camera-entry-message");
+  const offBtn = qs("#btn-camera-entry-off");
+  const onBtn = qs("#btn-camera-entry-on");
+  if (message) {
+    message.textContent = lobbyText(
+      "lobby.cameraEntryBody",
+      "Tu cámara está encendida. Al entrar a la asamblea, los demás participantes podrán verte."
+    );
+  }
+  if (offBtn) offBtn.textContent = lobbyText("lobby.cameraEntryOff", "Apagar cámara");
+  if (onBtn) onBtn.textContent = lobbyText("lobby.cameraEntryOn", "Entrar con cámara");
+  cameraPrompt = new Promise((resolve) => {
+    let settled = false;
+    const finish = (choice) => {
+      if (settled) return;
+      settled = true;
+      dialog.removeEventListener("cancel", onCancel);
+      dialog.removeEventListener("close", onClose);
+      dialog.removeEventListener("click", onBackdrop);
+      offBtn?.removeEventListener("click", onOff);
+      onBtn?.removeEventListener("click", onOn);
+      if (dialog.open) dialog.close();
+      resolve(choice);
+    };
+    const onOff = () => finish("off");
+    const onOn = () => finish("on");
+    const onCancel = (event) => {
+      event.preventDefault();
+      finish("cancel");
+    };
+    const onClose = () => finish("cancel");
+    const onBackdrop = (event) => {
+      if (event.target === dialog) finish("cancel");
+    };
+    dialog.addEventListener("cancel", onCancel);
+    dialog.addEventListener("close", onClose);
+    dialog.addEventListener("click", onBackdrop);
+    offBtn?.addEventListener("click", onOff);
+    onBtn?.addEventListener("click", onOn);
+    dialog.showModal();
+  }).finally(() => {
+    cameraPrompt = null;
+  });
+  return cameraPrompt;
+}
+
+async function beginEntry(options = {}) {
+  if (entryInFlight) return false;
+  if (device.camera) {
+    const choice = await askCameraEntry();
+    if (choice === "cancel") return false;
+    if (choice === "off") {
+      device.camera = false;
+      updateToggleLabels();
+    }
+  }
+  if (entryInFlight) return false;
+  entryInFlight = true;
+  try {
+    await enterAssembly(options);
+    return true;
+  } catch (error) {
+    entryInFlight = false;
+    throw error;
+  }
+}
+
 function scheduleAutoEnterIfLive(assembly, self) {
   if (autoEnterScheduled) return;
   if (!shouldAutoEnterRoom(assembly)) return;
@@ -193,9 +273,9 @@ function scheduleAutoEnterIfLive(assembly, self) {
     variant: "success"
   });
   window.setTimeout(() => {
-    enterAssembly({ allowGovernanceOnly: true })
-      .then(() => {
-        document.documentElement.dataset.lobbyAutoEnter = "ok";
+    beginEntry({ allowGovernanceOnly: true })
+      .then((entered) => {
+        document.documentElement.dataset.lobbyAutoEnter = entered ? "ok" : "camera-choice";
       })
       .catch((err) => {
         document.documentElement.dataset.lobbyAutoEnter = "fail";
@@ -613,9 +693,10 @@ async function init() {
     saveDevicePrefs({ speakerId: e.target.value });
   });
   qs("#btn-enter").addEventListener("click", () => {
-    enterAssembly().catch((error) => {
+    beginEntry().catch((error) => {
       showError(error.message);
-      qs("#btn-enter").disabled = false;
+      const btn = qs("#btn-enter");
+      if (btn) btn.disabled = false;
     });
   });
   qs("#btn-cancel-entry")?.addEventListener("click", async () => {

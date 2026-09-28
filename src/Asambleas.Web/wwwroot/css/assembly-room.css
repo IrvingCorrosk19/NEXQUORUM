@@ -1367,6 +1367,12 @@
   object-fit: cover;
   display: block;
 }
+.media-tile.is-portrait-remote:not(.is-local):not(.is-screen-share) video,
+.media-tile.is-portrait-remote:not(.is-local):not(.is-screen-share) .media-track {
+  object-fit: contain;
+  object-position: center center;
+  background: #07111f;
+}
 .media-tile-video audio {
   position: absolute;
   width: 0;

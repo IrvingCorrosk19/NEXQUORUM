@@ -15,14 +15,14 @@ export async function initI18n(requested) {
   locale = resolveLocale(requested);
   try {
     if (locale.startsWith("en")) {
-      catalog = (await import("./en.js")).default;
+      catalog = (await import("./en.js?v=cam-confirm1")).default;
       locale = "en";
     } else {
-      catalog = (await import("./es-PA.js")).default;
+      catalog = (await import("./es-PA.js?v=cam-confirm1")).default;
       locale = "es-PA";
     }
   } catch {
-    catalog = (await import("./es-PA.js")).default;
+    catalog = (await import("./es-PA.js?v=cam-confirm1")).default;
     locale = "es-PA";
   }
   localStorage.setItem(STORAGE_KEY, locale);

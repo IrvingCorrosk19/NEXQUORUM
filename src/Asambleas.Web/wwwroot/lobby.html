@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="/css/ia.css?v=sala-fit1" />
   <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
-  <link rel="stylesheet" href="/css/owner-lobby.css?v=sala-fit1" />
+  <link rel="stylesheet" href="/css/owner-lobby.css?v=cam-confirm1" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -114,6 +114,13 @@
     </main>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/js/modules/lobby-app.js?v=rt2"></script>
+  <dialog id="camera-entry-dialog" class="dialog camera-entry-dialog" aria-labelledby="camera-entry-message">
+    <p id="camera-entry-message">Tu cámara está encendida. Al entrar a la asamblea, los demás participantes podrán verte.</p>
+    <div class="dialog-actions">
+      <button type="button" id="btn-camera-entry-off" class="btn btn-secondary">Apagar cámara</button>
+      <button type="button" id="btn-camera-entry-on" class="btn btn-primary">Entrar con cámara</button>
+    </div>
+  </dialog>
+  <script type="module" src="/js/modules/lobby-app.js?v=cam-confirm1"></script>
 </body>
 </html>

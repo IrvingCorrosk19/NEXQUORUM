@@ -83,6 +83,36 @@ body.is-fullscreen-ops {
   word-break: break-word;
 }
 
+.camera-entry-dialog {
+  background: var(--surface-elevated, #162033);
+  color: var(--text-primary, #e8eef8);
+  border: 1px solid var(--border-default, rgba(232, 238, 248, 0.16));
+}
+
+.camera-entry-dialog p {
+  color: var(--text-primary, #e8eef8);
+  line-height: 1.45;
+}
+
+.camera-entry-dialog .dialog-actions {
+  background: transparent;
+}
+
+.camera-entry-dialog .btn {
+  min-height: 2.75rem;
+}
+
+@media (max-width: 430px) {
+  .camera-entry-dialog .dialog-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .camera-entry-dialog .btn {
+    width: 100%;
+  }
+}
+
 .device-preview {
   width: 100%;
   max-width: 100%;

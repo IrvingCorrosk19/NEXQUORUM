@@ -467,6 +467,23 @@ function ensureTile(container, identity, label, { isLocal = false, isScreen = fa
   return tile;
 }
 
+function watchRemoteVideoAspect(tile, videoEl) {
+  if (!videoEl || tile.classList.contains("is-local") || tile.classList.contains("is-screen-share")) {
+    return;
+  }
+  const apply = () => {
+    const width = videoEl.videoWidth || 0;
+    const height = videoEl.videoHeight || 0;
+    if (width < 2 || height < 2) return;
+    const portrait = height > width;
+    videoEl.classList.toggle("is-portrait", portrait);
+    tile.classList.toggle("is-portrait-remote", portrait);
+  };
+  videoEl.addEventListener("loadedmetadata", apply);
+  videoEl.addEventListener("resize", apply);
+  apply();
+}
+
 function attachTrackToTile(tile, track, { mirror = false, isLocal = false } = {}) {
   const mount = tile.querySelector(".media-tile-video");
   if (!mount) return;
@@ -483,6 +500,7 @@ function attachTrackToTile(tile, track, { mirror = false, isLocal = false } = {}
     mount.appendChild(el);
     tile.classList.add("has-video");
     tile.classList.remove("camera-off");
+    if (!isLocal) watchRemoteVideoAspect(tile, el);
     el.play?.().catch(() => {});
   } else if (track.kind === "audio") {
     // One remote TrackSid → one <audio> in this tile (replace any prior).
