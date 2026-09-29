@@ -1,9 +1,10 @@
 import { me } from "./auth.js";
-import { initI18n, t } from "../i18n/i18n.js";
+import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
 import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getMinutes } from "./room-state.js";
 import { bootIaPage } from "./ia-page.js?v=tabs1";
+import { assemblyLabel } from "./assembly-labels.js";
 
 const assemblyId = assemblyIdFromUrl();
 
@@ -36,9 +37,9 @@ function renderMinutes(data) {
       <p class="brand">ASAMBLEAS</p>
       <h2>${escapeHtml(data.title || t("minutes.title"))}</h2>
       <p class="muted">${escapeHtml(data.propertyHorizontalName || "")}</p>
-      <p class="muted">${escapeHtml(formatDateTime(data.scheduledAtUtc))} · ${escapeHtml(data.modality || "")} · ${escapeHtml(data.status || "")}</p>
+      <p class="muted">${escapeHtml(formatDateTime(data.scheduledAtUtc))} · ${escapeHtml(assemblyLabel(data.modality))} · ${escapeHtml(assemblyLabel(data.status))}</p>
       <p class="muted">Doc: ${escapeHtml(data.documentId || "—")}${data.contentHash ? ` · SHA-256: ${escapeHtml(data.contentHash.slice(0, 16))}…` : ""}</p>
-      <p><span class="badge ${c.status === "COMPLETE" ? "badge-success" : "badge-warn"}">${escapeHtml(c.status || "—")}</span></p>
+      <p><span class="badge ${c.status === "COMPLETE" ? "badge-success" : "badge-warn"}">${escapeHtml(assemblyLabel(c.status))}</span></p>
     </header>
 
     <nav class="minutes-outline" aria-label="Secciones">
@@ -53,13 +54,13 @@ function renderMinutes(data) {
     <section id="sec-attendance" class="minutes-section">
       <h3>Asistencia y representación</h3>
       <p class="muted">${attendance.length} participantes presentes</p>
-      <ul>${attendance.map((p) => `<li><strong>${escapeHtml(p.displayName)}</strong> · ${escapeHtml(p.unitCode || "—")} · ${pct(p.effectiveCoefficientPercent ?? p.coefficientPercent)} · ${escapeHtml(p.attendanceStatus || "")}</li>`).join("") || "<li>—</li>"}</ul>
+      <ul>${attendance.map((p) => `<li><strong>${escapeHtml(p.displayName)}</strong> · ${escapeHtml(p.unitCode || "—")} · ${pct(p.effectiveCoefficientPercent ?? p.coefficientPercent)} · ${escapeHtml(assemblyLabel(p.attendanceStatus))}</li>`).join("") || "<li>—</li>"}</ul>
       ${
         reps.length
           ? `<h4>Representaciones efectivas</h4><ul>${reps
               .map(
                 (r) =>
-                  `<li>${escapeHtml(r.unitCode)} · ${pct(r.coefficientSnapshot)} · ${escapeHtml(r.representativeDisplayName)} (${escapeHtml(r.source)})</li>`
+                  `<li>${escapeHtml(r.unitCode)} · ${pct(r.coefficientSnapshot)} · ${escapeHtml(r.representativeDisplayName)} (${escapeHtml(assemblyLabel(r.source))})</li>`
               )
               .join("")}</ul>`
           : ""
@@ -84,7 +85,7 @@ function renderMinutes(data) {
       <h3>Intervenciones</h3>
       <ul>${interventions
         .filter((i) => i.status === "Completed" || i.status === "Granted")
-        .map((i) => `<li>${escapeHtml(i.displayName)} · ${escapeHtml(i.status)}</li>`)
+        .map((i) => `<li>${escapeHtml(i.displayName)} · ${escapeHtml(assemblyLabel(i.status))}</li>`)
         .join("") || "<li class='muted'>Sin intervenciones registradas.</li>"}</ul>
     </section>
 
@@ -103,7 +104,7 @@ function renderMinutes(data) {
                   ${
                     results
                       ? `<p>A favor ${pct(results.inFavorCoefficient)} · En contra ${pct(results.againstCoefficient)} · Abst. ${pct(results.abstentionCoefficient)} · Votos ${results.votesCast ?? 0}</p>
-                         <p class="muted">${escapeHtml(results.decisionExplanation || session?.decisionStatus || results.decisionStatus || motion.status || "")}</p>
+                         <p class="muted">${escapeHtml(results.decisionExplanation || assemblyLabel(session?.decisionStatus || results.decisionStatus || motion.status))}</p>
                          ${session?.hidePartialResults ? "<p class='muted'>Votación secreta: no se publican votos individuales.</p>" : ""}`
                       : `<p class="muted">Sin resultado cerrado.</p>`
                   }
@@ -119,7 +120,7 @@ function renderMinutes(data) {
       <ul>${decisions
         .map(
           (d) =>
-            `<li><strong>${escapeHtml(d.decisionNumber)}</strong> · ${escapeHtml(d.motionCode)} · ${escapeHtml(d.decisionStatus)} · ${escapeHtml(d.explanation || "")}</li>`
+            `<li><strong>${escapeHtml(d.decisionNumber)}</strong> · ${escapeHtml(d.motionCode)} · ${escapeHtml(assemblyLabel(d.decisionStatus))} · ${escapeHtml(d.explanation || "")}</li>`
         )
         .join("") || "<li class='muted'>Sin decisiones.</li>"}</ul>
     </section>

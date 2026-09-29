@@ -17,7 +17,7 @@ public static class DocumentLabels
         "Completed" => "Finalizada",
         "Cancelled" => "Cancelada",
         "Archived" => "Archivada",
-        _ => string.IsNullOrWhiteSpace(status) ? "—" : status
+        _ => "—"
     };
 
     public static string Modality(string? modality) => modality switch
@@ -25,7 +25,7 @@ public static class DocumentLabels
         "Virtual" or "VIRTUAL" => "Virtual",
         "InPerson" or "In-Person" or "Presencial" => "Presencial",
         "Hybrid" or "HYBRID" => "Híbrida",
-        _ => string.IsNullOrWhiteSpace(modality) ? "—" : modality
+        _ => "—"
     };
 
     public static string Role(string? role) => role switch
@@ -38,7 +38,7 @@ public static class DocumentLabels
         "Auditor" or "AssemblyAuditor" => "Auditor",
         "Board" or "BoardMember" => "Junta Directiva",
         "Proxy" or "Representative" => "Representante",
-        _ => string.IsNullOrWhiteSpace(role) ? "Participante" : role
+        _ => "Participante"
     };
 
     public static string AttendanceStatus(string? status) => status switch
@@ -49,8 +49,9 @@ public static class DocumentLabels
         "Present" => "Presente",
         "TemporarilyDisconnected" => "Desconectado temporalmente",
         "Absent" => "Ausente",
-        "Left" => "Se retiró",
-        _ => string.IsNullOrWhiteSpace(status) ? "—" : status
+        "Left" => "Salió",
+        "Reingreso" => "Entró nuevamente",
+        _ => string.IsNullOrWhiteSpace(status) ? "—" : "—"
     };
 
     /// <summary>Deprecated field label. Prefer presence status for live assemblies.</summary>
@@ -63,9 +64,10 @@ public static class DocumentLabels
             "Present" or "CheckedIn" => "Presente",
             "TemporarilyDisconnected" => "Desconectado (breve)",
             "Left" => "Salió",
+            "Reingreso" => "Entró nuevamente",
             "Registered" when legacyAccredited => "Histórico: acreditado (sin presencia)",
             "Registered" => "Convocado",
-            _ => string.IsNullOrWhiteSpace(attendanceStatus) ? "—" : attendanceStatus
+            _ => string.IsNullOrWhiteSpace(attendanceStatus) ? "—" : "—"
         };
 
     public static string RepresentationSource(string? source) => source switch
@@ -73,7 +75,8 @@ public static class DocumentLabels
         "Power" or "Proxy" => "Poder de representación",
         "Owner" or "Ownership" => "Titularidad / propietario",
         "Board" => "Junta Directiva",
-        _ => string.IsNullOrWhiteSpace(source) ? "—" : source
+        "Convocation" => "Convocatoria",
+        _ => "—"
     };
 
     public static string QuorumStatus(string? status, bool? reached = null)
@@ -85,8 +88,36 @@ public static class DocumentLabels
             "Reached" or "Met" => "QUÓRUM ALCANZADO",
             "NotReached" or "Below" => "QUÓRUM NO ALCANZADO",
             "TemporarilyDisconnected" => "Participantes desconectados temporalmente",
-            _ => string.IsNullOrWhiteSpace(status) ? "—" : status
+            _ => "—"
         };
+    }
+
+    /// <summary>
+    /// Presence event on the quorum timeline. Operational codes are omitted.
+    /// </summary>
+    public static string QuorumPresenceEvent(string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason)) return "";
+        return reason.Trim() switch
+        {
+            "Present" or "CheckedIn" => "Presente",
+            "Left" => "Salió",
+            "Reingreso" => "Entró nuevamente",
+            "TemporarilyDisconnected" => "Se desconectó",
+            "Registered" or "Invited" => "Convocado",
+            "NotReached" or "Reached" or "Met" or "NotMet" or "Below"
+                or "AssemblyEnd" or "AssemblyStart" or "VotingOpen" or "VotingClose"
+                or "ThresholdReached" or "ThresholdLost" => "",
+            _ => ""
+        };
+    }
+
+    public static string QuorumTimeline(string? status, string? reason)
+    {
+        var state = QuorumStatus(status);
+        var presence = QuorumPresenceEvent(reason);
+        if (string.IsNullOrWhiteSpace(presence) || state == "—") return string.IsNullOrWhiteSpace(presence) ? state : presence;
+        return $"{state} · {presence}";
     }
 
     public static string DocumentLifecycle(string? assemblyStatus)
@@ -114,15 +145,17 @@ public static class DocumentLabels
         "Closed" => "Cerrada",
         "Cancelled" => "Anulada",
         "Draft" => "Borrador",
-        _ => string.IsNullOrWhiteSpace(status) ? "—" : status
+        "Locked" => "Cerrada",
+        _ => "—"
     };
 
     public static string DecisionStatus(string? status) => status switch
     {
         "Approved" or "Aprobado" => "Aprobada",
         "Rejected" or "Rechazado" => "Rechazada",
+        "NoValidDecision" => "Sin decisión válida",
         "Tied" => "Empate",
         "Cancelled" => "Anulada",
-        _ => string.IsNullOrWhiteSpace(status) ? "—" : status
+        _ => "—"
     };
 }

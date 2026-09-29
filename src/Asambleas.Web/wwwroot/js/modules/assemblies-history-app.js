@@ -3,6 +3,7 @@ import { me, logout } from "./auth.js";
 import { escapeHtml, formatDateTime, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { bootIaPage } from "./ia-page.js?v=tabs1";
+import { assemblyLabel } from "./assembly-labels.js";
 
 function showError(message) {
   showPageError(message);
@@ -27,7 +28,7 @@ function render(filter = "") {
       return `
       <article class="panel">
         <h2 style="font-family:'Source Serif 4',Georgia,serif;margin:0 0 0.35rem">${escapeHtml(a.title)}</h2>
-        <p class="muted">${a.scheduledAtUtc ? escapeHtml(formatDateTime(a.scheduledAtUtc)) : "—"} · ${escapeHtml(a.status)}</p>
+        <p class="muted">${a.scheduledAtUtc ? escapeHtml(formatDateTime(a.scheduledAtUtc)) : "—"} · ${escapeHtml(assemblyLabel(a.status))}</p>
         <div class="cta-row" style="margin-top:0.75rem">
           <a class="btn btn-primary" href="/expediente.html?assemblyId=${a.id}">Ver expediente</a>
           ${finished ? "" : `<a class="btn btn-secondary" href="/dashboard.html?assemblyId=${a.id}">Abrir panel</a>`}

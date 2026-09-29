@@ -160,20 +160,19 @@ public static class PremiumTextDocuments
         foreach (var s in CompressSnapshots(p.QuorumSnapshots))
         {
             sb.AppendLine(
-                $"{DocumentDates.Long(s.TimestampUtc)}\t{DocumentLabels.QuorumStatus(s.Status)}\t" +
+                $"{DocumentDates.Long(s.TimestampUtc)}\t{DocumentLabels.QuorumTimeline(s.Status, s.Reason)}\t" +
                 $"presente {DocumentLabels.Coefficient(s.PresentCoefficient)}\t" +
-                $"requerido {DocumentLabels.Coefficient(s.RequiredCoefficient)}" +
-                (string.IsNullOrWhiteSpace(s.Reason) ? "" : $"\t{s.Reason}"));
+                $"requerido {DocumentLabels.Coefficient(s.RequiredCoefficient)}");
         }
-        if (p.QuorumSnapshots.Count == 0) sb.AppendLine("(sin snapshots)");
+        if (p.QuorumSnapshots.Count == 0) sb.AppendLine("Sin lecturas de quórum.");
         sb.AppendLine();
-        sb.AppendLine("## TRAZABILIDAD TÉCNICA (snapshots completos)");
+        sb.AppendLine("## TRAZABILIDAD DEL QUÓRUM");
         foreach (var s in p.QuorumSnapshots)
         {
             sb.AppendLine(
-                $"{DocumentDates.IsoTechnical(s.TimestampUtc)}\t{s.Status}\t" +
-                $"present={s.PresentCoefficient.ToString("0.####", CultureInfo.InvariantCulture)}%\t" +
-                $"required={s.RequiredCoefficient.ToString("0.####", CultureInfo.InvariantCulture)}%\t{s.Reason}");
+                $"{DocumentDates.IsoTechnical(s.TimestampUtc)}\t{DocumentLabels.QuorumTimeline(s.Status, s.Reason)}\t" +
+                $"presente={s.PresentCoefficient.ToString("0.####", CultureInfo.InvariantCulture)}%\t" +
+                $"requerido={s.RequiredCoefficient.ToString("0.####", CultureInfo.InvariantCulture)}%");
         }
         return DocumentDesign.Utf8Text(sb.ToString());
     }

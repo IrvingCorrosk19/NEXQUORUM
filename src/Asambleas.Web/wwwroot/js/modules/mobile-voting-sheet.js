@@ -3,8 +3,8 @@
  * Server remains authoritative; SignalR only signals refresh.
  * Does not disconnect LiveKit or use window.confirm/alert.
  */
-import { castVote, getMyVoteStatus } from "./voting.js";
-import { t } from "../i18n/i18n.js";
+import { castVote, getMyVoteStatus } from "./voting.js?v=labels-es1";
+import { t } from "../i18n/i18n.js?v=labels-es1";
 import { escapeHtml } from "./ui.js";
 
 const CHOICES = ["InFavor", "Against", "Abstention"];

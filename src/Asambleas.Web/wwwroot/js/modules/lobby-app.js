@@ -1,5 +1,5 @@
 import { me } from "./auth.js";
-import { initI18n, t } from "../i18n/i18n.js";
+import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { hydrateRoomState } from "./room-state.js";

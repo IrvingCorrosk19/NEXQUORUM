@@ -264,7 +264,7 @@ public static class PremiumPdfDocuments
                     DocumentDesign.SectionTitle(col.Item(), "Evolución del quórum");
                     if (compressed.Count == 0)
                     {
-                        col.Item().Text("Sin snapshots de quórum.").FontColor(DocumentDesign.Muted);
+                        col.Item().Text("Sin lecturas de quórum.").FontColor(DocumentDesign.Muted);
                     }
                     else
                     {
@@ -281,7 +281,7 @@ public static class PremiumPdfDocuments
                             foreach (var s in compressed)
                             {
                                 table.Cell().Element(CellBody).Text(DocumentDates.Long(s.TimestampUtc));
-                                table.Cell().Element(CellBody).Text(DocumentLabels.QuorumStatus(s.Status));
+                                table.Cell().Element(CellBody).Text(DocumentLabels.QuorumTimeline(s.Status, s.Reason));
                                 table.Cell().Element(CellBody).AlignRight()
                                     .Text(DocumentLabels.Coefficient(s.PresentCoefficient));
                                 table.Cell().Element(CellBody).AlignRight()

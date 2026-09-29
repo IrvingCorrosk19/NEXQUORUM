@@ -1,11 +1,12 @@
 import { api } from "./api.js";
 import { me, hasPermission } from "./auth.js";
-import { initI18n, t } from "../i18n/i18n.js";
+import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getParticipants, hydrateRoomState } from "./room-state.js";
 import { isOperator } from "./roles.js";
-import { renderQuorum } from "./quorum.js";
+import { renderQuorum } from "./quorum.js?v=labels-es1";
+import { assemblyLabel } from "./assembly-labels.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js?v=tabs1";
@@ -75,7 +76,7 @@ function canCloseDesk() {
 function errorMessage(error) {
   const code = error?.payload?.code || error?.payload?.extensions?.code;
   if (code === "ASSEMBLY_NOT_OPEN_FOR_CHECKIN") {
-    return t("checkin.deskClosed", { status: assemblyStatus || "—" });
+    return t("checkin.deskClosed", { status: assemblyLabel(assemblyStatus) });
   }
   if (code === "OWNER_DRAFT") {
     return "El propietario está en borrador y sin unidades elegibles. Asigne unidad y actívelo.";
@@ -112,7 +113,7 @@ function updateDeskBanner() {
       btnClose.textContent = t("checkin.closeDesk");
     }
   } else {
-    text.textContent = t("checkin.deskClosed", { status: assemblyStatus || "—" });
+    text.textContent = t("checkin.deskClosed", { status: assemblyLabel(assemblyStatus) });
     if (btnClose) btnClose.hidden = true;
     if (btnOpen) {
       btnOpen.hidden = !canOpenDesk();
@@ -125,16 +126,16 @@ function invitationLabel(p) {
   if (["CheckedIn", "Present", "TemporarilyDisconnected", "Left", "Registered"].includes(p.attendanceStatus)) {
     return t("checkin.convoked") || "Convocado";
   }
-  return p.attendanceStatus || "—";
+  return assemblyLabel(p.attendanceStatus);
 }
 
 function presenceLabel(p) {
   if (p.attendanceStatus === "Present") return "Presente";
   if (p.attendanceStatus === "TemporarilyDisconnected") return "Desconectado";
-  if (p.attendanceStatus === "Left") return "Retirado";
+  if (p.attendanceStatus === "Left") return "Salió";
   if (p.attendanceStatus === "CheckedIn") return "Presente";
   if (p.attendanceStatus === "Registered") return "Ausente";
-  return p.attendanceStatus || "—";
+  return assemblyLabel(p.attendanceStatus);
 }
 
 function observationLabel(p) {
@@ -269,7 +270,7 @@ function updateLive() {
   } else if (root) {
     root.textContent = "—";
     const meta = qs("#live-quorum-meta");
-    if (meta) meta.textContent = deskIsOpen() ? "" : t("checkin.assemblyStatus") + ": " + (assemblyStatus || "—");
+    if (meta) meta.textContent = deskIsOpen() ? "" : t("checkin.assemblyStatus") + ": " + assemblyLabel(assemblyStatus);
   }
 
   const recentRoot = qs("#recent-root");
@@ -393,9 +394,9 @@ function renderOwnerModalBody(preview, participant) {
     </div>
     <div class="owner-section">
       <h3>${escapeHtml(t("checkin.role"))} / ${escapeHtml(t("checkin.presence"))}</h3>
-      <p style="margin:0">${escapeHtml(participant?.roleCode || "—")} · ${escapeHtml(
-        preview.attendanceStatus || participant?.attendanceStatus || "—"
-      )}${participant?.presenceType ? ` · ${escapeHtml(participant.presenceType)}` : ""}</p>
+      <p style="margin:0">${escapeHtml(assemblyLabel(participant?.roleCode))} · ${escapeHtml(
+        assemblyLabel(preview.attendanceStatus || participant?.attendanceStatus)
+      )}${participant?.presenceType ? ` · ${escapeHtml(assemblyLabel(participant.presenceType))}` : ""}</p>
     </div>
     <div class="owner-section">
       <h3>${escapeHtml(t("checkin.ownedUnits"))}</h3>
@@ -457,7 +458,7 @@ function closeOwnerModal() {
 async function ensureDeskOpen() {
   if (deskIsOpen()) return true;
   if (!canOpenDesk()) {
-    throw Object.assign(new Error(t("checkin.deskClosed", { status: assemblyStatus || "—" })), {
+    throw Object.assign(new Error(t("checkin.deskClosed", { status: assemblyLabel(assemblyStatus) })), {
       payload: { code: "ASSEMBLY_NOT_OPEN_FOR_CHECKIN" }
     });
   }
@@ -491,8 +492,8 @@ async function closeDesk() {
     if (assembly) assembly.status = assemblyStatus;
     updateDeskBanner();
     syncCheckinGuide();
-    announce(t("checkin.deskClosed", { status: assemblyStatus }));
-    showToast(t("checkin.deskClosed", { status: assemblyStatus }), "success");
+    announce(t("checkin.deskClosed", { status: assemblyLabel(assemblyStatus) }));
+    showToast(t("checkin.deskClosed", { status: assemblyLabel(assemblyStatus) }), "success");
   } catch (error) {
     showError(errorMessage(error));
   } finally {

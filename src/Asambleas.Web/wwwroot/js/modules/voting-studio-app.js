@@ -5,6 +5,7 @@ import { escapeHtml, showToast, qs, confirmDialog } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { showGlobalLoader, hideGlobalLoader } from "./loading.js";
 import { mountReadinessActionBar } from "./readiness-actions.js";
+import { assemblyLabel } from "./assembly-labels.js";
 import { isReadinessReturnContext } from "./return-context.js";
 import { bootIaPage } from "./ia-page.js?v=tabs1";
 import { readIaContext } from "./ia-context.js";
@@ -598,7 +599,7 @@ function renderLists() {
                 (s) => `
               <tr>
                 <td data-label="Título"><strong>${escapeHtml(s.title)}</strong></td>
-                <td data-label="Estado">${escapeHtml(STATUS_LABELS[s.status] || s.status || "—")}</td>
+                <td data-label="Estado">${escapeHtml(STATUS_LABELS[s.status] || assemblyLabel(s.status))}</td>
                 <td data-label="Respuestas">${s.responseCount || 0}</td>
                 <td data-label="Acción" class="col-actions">
                   <button type="button" class="btn btn-secondary btn-sm" data-edit-survey="${s.id}">Editar</button>

@@ -7,6 +7,7 @@ import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js?v=tabs1";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";
+import { assemblyLabel } from "./assembly-labels.js";
 
 let assemblyId = assemblyIdFromUrl();
 let selectedId = null;
@@ -29,7 +30,7 @@ function statusEs(status) {
     Partial: "Parcial",
     Failed: "Fallida"
   };
-  return map[status] || status || "—";
+  return map[status] || assemblyLabel(status);
 }
 
 function normalizeOwnerList(data) {
@@ -74,7 +75,7 @@ async function loadCreateOwnerPicker() {
               <span class="muted"> · ${escapeHtml(o.email || "sin email")}</span>
               <span class="muted"> · ${(o.unitCodes || []).join(", ") || "sin unidad"}</span>
             </span>
-            <span class="badge">${escapeHtml(o.status || "")}</span>
+            <span class="badge">${escapeHtml(assemblyLabel(o.status))}</span>
           </li>`
           )
           .join("")}
@@ -227,7 +228,7 @@ function deliveryStatusEs(status) {
     Skipped: "Omitida",
     NotSent: "No enviada"
   };
-  return map[status] || status || "—";
+  return map[status] || assemblyLabel(status);
 }
 
 async function renderDeliveryPanel(convocationId) {

@@ -1,10 +1,11 @@
 import { api } from "./api.js";
 import { me } from "./auth.js";
-import { initI18n, t } from "../i18n/i18n.js";
+import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { ensureAssemblyIdOrRedirect, isValidAssemblyId } from "./assembly-context.js?v=guid1";
 import { bootIaPage } from "./ia-page.js?v=tabs1";
+import { assemblyLabel } from "./assembly-labels.js";
 
 let assemblyId = assemblyIdFromUrl();
 let previewObjectUrl = null;
@@ -369,7 +370,7 @@ function renderRecordings(list) {
     <article class="exp-card" style="min-height:auto">
       <div class="exp-card__icon">${ICONS.grabacion}</div>
       <h3 class="exp-card__title">${escapeHtml(r.displayFileName || r.id)}</h3>
-      <p class="exp-card__meta">Estado: ${escapeHtml(r.status)} · Duración: ${formatDuration(r.durationSeconds)} · Tamaño: ${escapeHtml(r.fileSizeLabel || formatSize(r.fileSizeBytes))}</p>
+      <p class="exp-card__meta">Estado: ${escapeHtml(assemblyLabel(r.status))} · Duración: ${formatDuration(r.durationSeconds)} · Tamaño: ${escapeHtml(r.fileSizeLabel || formatSize(r.fileSizeBytes))}</p>
       <p class="exp-card__meta">Proveedor: ${escapeHtml(r.provider || "—")}</p>
       ${r.failureReason ? `<p class="inline-alert inline-alert-error">${escapeHtml(r.failureReason)}</p>` : ""}
       ${emptyReady ? `<p class="inline-alert inline-alert-error">La grabación figura como lista pero el archivo aún no está en el servidor (0 bytes).</p>` : ""}
@@ -457,7 +458,7 @@ function renderTimeline(items) {
       const seekBtn = canSeek
         ? `<button type="button" class="btn btn-ghost" data-seek-rec="${escapeHtml(e.recordingId)}" data-seek-sec="${e.offsetSecondsFromRecordingStart}">Ver en grabación</button>`
         : "";
-      return `<li><strong>${escapeHtml(offset)}</strong> · ${escapeHtml(e.label || e.eventType)} ${seekBtn}</li>`;
+      return `<li><strong>${escapeHtml(offset)}</strong> · ${escapeHtml(e.label || assemblyLabel(e.eventType))} ${seekBtn}</li>`;
     })
     .join("");
 

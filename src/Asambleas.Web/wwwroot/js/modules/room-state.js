@@ -1,5 +1,5 @@
 import { api } from "./api.js";
-import { t } from "../i18n/i18n.js";
+import { t } from "../i18n/i18n.js?v=labels-es1";
 
 /**
  * Fetches a JSON API path. On 404 returns { ok:false, status:404, data:null, message }.

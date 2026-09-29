@@ -1,9 +1,10 @@
 import { me } from "./auth.js";
-import { initI18n, t } from "../i18n/i18n.js";
+import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
 import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getEvidence } from "./room-state.js";
 import { bootIaPage } from "./ia-page.js?v=tabs1";
+import { assemblyLabel, quorumTimelineText } from "./assembly-labels.js";
 
 const assemblyId = assemblyIdFromUrl();
 
@@ -28,30 +29,30 @@ function renderEvidence(data) {
   root.innerHTML = `
     <header>
       <h2 style="margin-top:0">${escapeHtml(data.title || t("evidence.title"))}</h2>
-      <p class="muted">${escapeHtml(data.propertyHorizontalName || "")} · ${escapeHtml(data.status || "")}</p>
-      <p><span class="badge ${c.status === "COMPLETE" ? "badge-success" : "badge-warn"}">${escapeHtml(c.status || "—")}</span>
+      <p class="muted">${escapeHtml(data.propertyHorizontalName || "")} · ${escapeHtml(assemblyLabel(data.status))}</p>
+      <p><span class="badge ${c.status === "COMPLETE" ? "badge-success" : "badge-warn"}">${escapeHtml(assemblyLabel(c.status))}</span>
          <a class="btn btn-secondary" style="margin-left:0.5rem" href="/minutes.html?assemblyId=${assemblyId}">Acta</a></p>
       ${(c.notes || []).map((n) => `<p class="muted">• ${escapeHtml(n)}</p>`).join("")}
     </header>
 
     <section class="minutes-section">
       <h3>Asistencia</h3>
-      <ul>${(data.attendance || []).map((p) => `<li>${escapeHtml(p.displayName)} · ${escapeHtml(p.unitCode || "—")} · ${pct(p.effectiveCoefficientPercent ?? p.coefficientPercent)} · ${escapeHtml(p.attendanceStatus || "—")}</li>`).join("") || "<li>—</li>"}</ul>
+      <ul>${(data.attendance || []).map((p) => `<li>${escapeHtml(p.displayName)} · ${escapeHtml(p.unitCode || "—")} · ${pct(p.effectiveCoefficientPercent ?? p.coefficientPercent)} · ${escapeHtml(assemblyLabel(p.attendanceStatus))}</li>`).join("") || "<li>—</li>"}</ul>
     </section>
 
     <section class="minutes-section">
       <h3>Representaciones</h3>
-      <ul>${(data.representations || []).map((r) => `<li>${escapeHtml(r.unitCode)} · ${pct(r.coefficientSnapshot)} · ${escapeHtml(r.representativeDisplayName)} · ${escapeHtml(r.source)}${r.isActive ? "" : " (inactiva)"}</li>`).join("") || "<li class='muted'>Sin representaciones materializadas.</li>"}</ul>
+      <ul>${(data.representations || []).map((r) => `<li>${escapeHtml(r.unitCode)} · ${pct(r.coefficientSnapshot)} · ${escapeHtml(r.representativeDisplayName)} · ${escapeHtml(assemblyLabel(r.source))}${r.isActive ? "" : " (inactiva)"}</li>`).join("") || "<li class='muted'>Sin representaciones materializadas.</li>"}</ul>
     </section>
 
     <section class="minutes-section">
-      <h3>Quórum (snapshots)</h3>
-      <ul>${(data.quorumSnapshots || []).slice(0, 20).map((s) => `<li>${escapeHtml(formatDateTime(s.timestampUtc))} · ${pct(s.presentCoefficient)} / ${pct(s.requiredCoefficient)} · ${escapeHtml(s.status || "")}${s.reason ? ` · ${escapeHtml(s.reason)}` : ""}</li>`).join("") || "<li>—</li>"}</ul>
+      <h3>Línea de tiempo de quórum</h3>
+      <ul>${(data.quorumSnapshots || []).slice(0, 20).map((s) => `<li>${escapeHtml(formatDateTime(s.timestampUtc))} · ${pct(s.presentCoefficient)} / ${pct(s.requiredCoefficient)} · ${escapeHtml(quorumTimelineText(s.status, s.reason) || "—")}</li>`).join("") || "<li>—</li>"}</ul>
     </section>
 
     <section class="minutes-section">
       <h3>Decisiones</h3>
-      <ul>${(data.decisions || []).map((d) => `<li><strong>${escapeHtml(d.decisionNumber)}</strong> ${escapeHtml(d.motionTitle)} → ${escapeHtml(d.explanation || d.decisionStatus)}</li>`).join("") || "<li class='muted'>Sin decisiones.</li>"}</ul>
+      <ul>${(data.decisions || []).map((d) => `<li><strong>${escapeHtml(d.decisionNumber)}</strong> ${escapeHtml(d.motionTitle)} → ${escapeHtml(d.explanation || assemblyLabel(d.decisionStatus))}</li>`).join("") || "<li class='muted'>Sin decisiones.</li>"}</ul>
     </section>
 
     <section class="minutes-section">
@@ -62,7 +63,7 @@ function renderEvidence(data) {
         .slice(0, 80)
         .map(
           (e) =>
-            `<li><strong>${escapeHtml(e.eventType)}</strong>
+            `<li><strong>${escapeHtml(assemblyLabel(e.eventType))}</strong>
              <div class="muted">${escapeHtml(formatDateTime(e.occurredAtUtc))}</div></li>`
         )
         .join("") || "<li>—</li>"}</ol>

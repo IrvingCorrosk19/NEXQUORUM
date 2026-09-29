@@ -388,7 +388,11 @@ public sealed partial class AttendanceService
         var dto = Mapping.ToParticipantDto(participant, unitCode, liveCoefficient, liveRepresentations);
         await _realtime.PublishAttendanceAsync(assemblyId, dto, cancellationToken);
 
-        await _quorum.RecalculateAndSnapshotAsync(assemblyId, status.ToString(), cancellationToken);
+        var snapshotReason = status == AttendanceStatus.Present
+            && previous is AttendanceStatus.Left or AttendanceStatus.TemporarilyDisconnected
+            ? "Reingreso"
+            : status.ToString();
+        await _quorum.RecalculateAndSnapshotAsync(assemblyId, snapshotReason, cancellationToken);
 
         return dto;
     }

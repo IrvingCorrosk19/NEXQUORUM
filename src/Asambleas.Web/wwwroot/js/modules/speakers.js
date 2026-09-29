@@ -1,6 +1,7 @@
 import { api } from "./api.js";
-import { t } from "../i18n/i18n.js";
+import { t } from "../i18n/i18n.js?v=labels-es1";
 import { escapeHtml } from "./ui.js";
+import { assemblyLabel } from "./assembly-labels.js";
 
 export async function requestFloor(assemblyId, displayName = null) {
   return api(`/api/assemblies/${assemblyId}/speakers/request`, {
@@ -113,7 +114,7 @@ export function renderSpeakerQueue(
                 ? escapeHtml(t("assembly.speaking"))
                 : wait
                   ? escapeHtml(wait)
-                  : escapeHtml(item.status || "")
+                  : escapeHtml(assemblyLabel(item.status))
             }</span>
           </div>
           <div class="speaker-actions cluster">

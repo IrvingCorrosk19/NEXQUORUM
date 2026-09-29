@@ -2,7 +2,8 @@ import { api, invalidateCachedGet } from "./api.js";
 import { escapeHtml, confirmDialog, showToast, qs } from "./ui.js";
 import { showGlobalLoader, hideGlobalLoader, forceHideGlobalLoader, setGlobalLoaderMessage } from "./loading.js";
 import { hasPermission } from "./auth.js";
-import { openVoting, closeVoting, mapOpenVotingError } from "./voting.js";
+import { openVoting, closeVoting, mapOpenVotingError } from "./voting.js?v=labels-es1";
+import { assemblyLabel } from "./assembly-labels.js";
 
 /** Deterministic question order: DisplayOrder → CreatedAt → Id. */
 function sortMotionsDeterministic(motions) {
@@ -608,7 +609,7 @@ export function createLiveVotingWorkspace({
         <label class="live-pick-row">
           <input type="radio" name="motionId" value="${m.id}" />
           <span><strong>${escapeHtml(m.code)}</strong> — ${escapeHtml(m.title)}
-          <small class="muted">v${m.versionNumber || 1} · ${escapeHtml(m.status)}</small></span>
+          <small class="muted">v${m.versionNumber || 1} · ${escapeHtml(assemblyLabel(m.status))}</small></span>
         </label>`
         )
         .join("")}</div>
@@ -884,10 +885,10 @@ export function createLiveVotingWorkspace({
       <header><h3>Historial de versiones</h3></header>
       <ul class="stack">${(items || [])
         .map(
-          (h) => `<li><strong>V${h.versionNumber}</strong> · ${escapeHtml(h.status)}
+          (h) => `<li><strong>V${h.versionNumber}</strong> · ${escapeHtml(assemblyLabel(h.status))}
           · votos ${h.acceptedBallots}
           ${h.cancellationReason ? `<br/><em>${escapeHtml(h.cancellationReason)}</em>` : ""}
-          ${h.decisionStatus ? ` · ${escapeHtml(h.decisionStatus)}` : ""}</li>`
+          ${h.decisionStatus ? ` · ${escapeHtml(assemblyLabel(h.decisionStatus))}` : ""}</li>`
         )
         .join("") || "<li>Sin sesiones aún</li>"}</ul>
       <footer class="live-vote-dialog-actions">

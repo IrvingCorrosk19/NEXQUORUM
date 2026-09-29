@@ -4,6 +4,7 @@ import { isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { bootIaPage } from "./ia-page.js?v=tabs1";
+import { assemblyLabel } from "./assembly-labels.js";
 import {
   fillTimeSelect,
   phLocalToUtcIso,
@@ -321,7 +322,7 @@ function renderAgenda() {
           <div class="muted">${escapeHtml(e.propertyHorizontalName)} · ${escapeHtml(e.modality)}</div>
           <div class="muted">${escapeHtml(e.countdownLabel || "")}</div>
         </div>
-        <span class="status-pill ${escapeHtml(e.calendarStatus)}">${escapeHtml(e.calendarStatus)}</span>
+        <span class="status-pill ${escapeHtml(e.calendarStatus)}">${escapeHtml(assemblyLabel(e.calendarStatus))}</span>
       </article>`;
     }
     html += `</section>`;
@@ -390,14 +391,14 @@ async function openEvent(id) {
     const ev = await api(`/api/calendar/events/${id}`);
     state.selected = ev;
     const drawer = qs("#event-drawer");
-    qs("#drawer-status").innerHTML = `<span class="status-pill ${escapeHtml(ev.calendarStatus)}">${escapeHtml(ev.calendarStatus)}</span>`;
+    qs("#drawer-status").innerHTML = `<span class="status-pill ${escapeHtml(ev.calendarStatus)}">${escapeHtml(assemblyLabel(ev.calendarStatus))}</span>`;
     qs("#drawer-title").textContent = ev.title;
     qs("#drawer-body").innerHTML = `
       <div><strong>${escapeHtml(ev.propertyHorizontalName)}</strong></div>
       <div>${escapeHtml(formatInTz(ev.scheduledAtUtc, ev.timeZoneId))}</div>
       <div>Modalidad: <strong>${escapeHtml(ev.modality)}</strong></div>
-      <div>Estado: <strong>${escapeHtml(ev.status)}</strong>${ev.wasRescheduled ? " · Reprogramada" : ""}</div>
-      <div>Convocatoria: <strong>${escapeHtml(ev.convocationStatus || "Pendiente")}</strong></div>
+      <div>Estado: <strong>${escapeHtml(assemblyLabel(ev.status))}</strong>${ev.wasRescheduled ? " · Reprogramada" : ""}</div>
+      <div>Convocatoria: <strong>${escapeHtml(assemblyLabel(ev.convocationStatus || "Pendiente"))}</strong></div>
       <div>Confirmados: <strong>${ev.confirmedCount}</strong> / ${ev.participantCount}</div>
       <div>${escapeHtml(ev.countdownLabel || "")}</div>
       ${ev.locationText ? `<div>Ubicación: ${escapeHtml(ev.locationText)}</div>` : ""}`;

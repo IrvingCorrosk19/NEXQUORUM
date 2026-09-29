@@ -1,6 +1,6 @@
 import { api } from "./api.js";
 import { explainBlockCode } from "./contextual-guide.js";
-import { t } from "../i18n/i18n.js";
+import { t } from "../i18n/i18n.js?v=labels-es1";
 import { escapeHtml } from "./ui.js";
 
 export function mapOpenVotingError(error) {

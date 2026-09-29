@@ -1287,7 +1287,20 @@ public sealed class RecordingService
         AuditEventType.VotingOpened => "Votación abierta",
         AuditEventType.VotingClosed => "Votación cerrada",
         AuditEventType.QuorumReached => "Quórum alcanzado",
-        AuditEventType.CheckIn => "Check-in",
-        _ => eventType.Replace('_', ' ')
+        AuditEventType.QuorumLost => "Quórum perdido",
+        AuditEventType.QuorumChanged => "Quórum actualizado",
+        AuditEventType.CheckIn => "Presencia",
+        AuditEventType.ParticipantConnected => "Se conectó",
+        AuditEventType.ParticipantDisconnected => "Se desconectó",
+        AuditEventType.ParticipantLeft => "Salió",
+        AuditEventType.ParticipantReturned => "Entró nuevamente",
+        AuditEventType.AssemblyPaused => "Asamblea pausada",
+        AuditEventType.AssemblyResumed => "Asamblea reanudada",
+        AuditEventType.AssemblyCancelled => "Asamblea cancelada",
+        AuditEventType.MotionPresented => "Moción presentada",
+        AuditEventType.DecisionCreated => "Decisión registrada",
+        AuditEventType.ResultCalculated => "Resultado calculado",
+        AuditEventType.AgendaChanged => "Agenda actualizada",
+        _ => "Evento registrado"
     };
 }

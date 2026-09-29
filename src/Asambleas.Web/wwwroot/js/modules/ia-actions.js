@@ -3,6 +3,7 @@
  * Maps existing AssemblyStatus domain states.
  */
 import { primaryCtaForStatus } from "./room-state.js";
+import { assemblyLabel } from "./assembly-labels.js";
 
 const STATUS_LABELS = {
   Draft: "Borrador",
@@ -98,7 +99,7 @@ export function resolvePrimaryAction(assembly, { assemblyId } = {}) {
 }
 
 export function statusLabelEs(status) {
-  return STATUS_LABELS[status] || status || "—";
+  return STATUS_LABELS[status] || assemblyLabel(status);
 }
 
 /** Filter bucket for PH assemblies list. */

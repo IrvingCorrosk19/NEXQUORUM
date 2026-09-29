@@ -1,4 +1,4 @@
-import { t } from "../i18n/i18n.js";
+import { t } from "../i18n/i18n.js?v=labels-es1";
 
 let toastRegion = null;
 

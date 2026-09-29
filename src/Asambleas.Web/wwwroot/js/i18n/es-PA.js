@@ -503,6 +503,21 @@ export default {
     InProgress: "En curso",
     Paused: "Pausada",
     Completed: "Completada",
-    Cancelled: "Cancelada"
+    Cancelled: "Cancelada",
+    Present: "Presente",
+    Left: "Salió",
+    Reingreso: "Entró nuevamente",
+    TemporarilyDisconnected: "Desconectado",
+    CheckedIn: "Presente",
+    Registered: "Convocado",
+    Presented: "Presentada",
+    Voting: "En votación",
+    Approved: "Aprobada",
+    Rejected: "Rechazada",
+    NoValidDecision: "Sin decisión válida",
+    Open: "Abierta",
+    Closed: "Cerrada",
+    NotReached: "Sin quórum",
+    Reached: "Quórum alcanzado"
   }
 };

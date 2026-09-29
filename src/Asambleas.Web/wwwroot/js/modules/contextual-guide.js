@@ -4,7 +4,7 @@
  */
 import { escapeHtml } from "./ui.js";
 import { hasPermission } from "./auth.js";
-import { t } from "../i18n/i18n.js";
+import { t } from "../i18n/i18n.js?v=labels-es1";
 
 /**
  * @typedef {{

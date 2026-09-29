@@ -1,11 +1,13 @@
 import { me } from "./auth.js";
-import { initI18n, t } from "../i18n/i18n.js";
+import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
 import { assemblyIdFromUrl, escapeHtml, formatDuration, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { hydrateRoomState } from "./room-state.js";
-import { renderQuorum } from "./quorum.js";
+import { renderQuorum } from "./quorum.js?v=labels-es1";
 import { renderAgenda } from "./agenda.js";
 import { createAssemblyConnection } from "./signalr-client.js";
+import { assemblyLabel } from "./assembly-labels.js";
+import { voteResultPhrase } from "./voting.js?v=labels-es1";
 
 const assemblyId = assemblyIdFromUrl();
 const state = {
@@ -40,7 +42,7 @@ function renderAll() {
     motion.innerHTML = `
       <p><strong>${escapeHtml(state.motion.code)}</strong> — ${escapeHtml(state.motion.title)}</p>
       <p>${escapeHtml(state.motion.body || "")}</p>
-      <span class="badge badge-live">${escapeHtml(state.motion.status)}</span>
+      <span class="badge badge-live">${escapeHtml(assemblyLabel(state.motion.status))}</span>
     `;
   }
 
@@ -48,7 +50,7 @@ function renderAll() {
   if (!state.session) {
     voting.innerHTML = `<div class="empty-state">${escapeHtml(t("assembly.noVoting"))}</div>`;
   } else if (state.session.status === "Closed" && state.tally) {
-    const d = state.tally.decisionStatus || "—";
+    const d = voteResultPhrase(state.tally.decisionStatus, state.tally.decisionExplanation || state.tally.explanation);
     voting.innerHTML = `
       <p class="badge badge-success">${escapeHtml(t("voting.officialResult"))}</p>
       <p><strong>${escapeHtml(t("voting.result"))}: ${escapeHtml(d)}</strong></p>
@@ -58,7 +60,7 @@ function renderAll() {
     `;
   } else {
     voting.innerHTML = `
-      <p class="badge badge-live">${escapeHtml(state.session.status)}</p>
+      <p class="badge badge-live">${escapeHtml(assemblyLabel(state.session.status))}</p>
       ${
         state.tally && !state.session.hidePartialResults
           ? `<p>${escapeHtml(t("voting.votesReceived"))}: ${state.tally.votesCast ?? "—"}</p>`

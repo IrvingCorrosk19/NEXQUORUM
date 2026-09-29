@@ -1,6 +1,6 @@
 import { hasPermission, logout, me } from "./auth.js";
 import { isOperator, isOwnerPortalUser } from "./roles.js";
-import { initI18n, t } from "../i18n/i18n.js";
+import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
 import {
   assemblyIdFromUrl,
   confirmDialog,

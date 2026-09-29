@@ -2,10 +2,10 @@ import { api, cachedGet, invalidateCachedGet } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
-import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=room-quorum1";
-import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=vote-cause1";
-import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=vote-cause1";
-import { createMobileVotingController } from "./mobile-voting-sheet.js?v=room-phone1";
+import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=labels-es1";
+import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=labels-es1";
+import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=labels-es1";
+import { createMobileVotingController } from "./mobile-voting-sheet.js?v=labels-es1";
 import {
   resolveContextualGuide,
   renderContextualGuide,
@@ -16,7 +16,7 @@ import {
   setWaitingBannerMinimized,
   renderStageGuideChip,
   hideStageGuideChip
-} from "./contextual-guide.js";
+} from "./contextual-guide.js?v=labels-es1";
 import {
   completeFloor,
   cancelOwnFloor,
@@ -29,7 +29,7 @@ import {
   skipFloor,
   activeSpeakerQueue,
   queuePositionFor
-} from "./speakers.js";
+} from "./speakers.js?v=labels-es1";
 import { renderAgenda, setActiveAgendaItem } from "./agenda.js";
 import {
   claimScreenShare,
@@ -64,7 +64,7 @@ import {
   syncHandRaisedIndicators,
   unlockRemoteAudio
 } from "./meeting.js?v=room-remote1";
-import { initI18n, statusLabel, t } from "../i18n/i18n.js";
+import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=labels-es1";
 import {
   assemblyIdFromUrl,
   confirmDialog,
@@ -2065,7 +2065,7 @@ function renderQuorumDetails() {
   details.innerHTML = `
     <dl class="quorum-details-list">
       <div><dt>${escapeHtml(t("quorum.status") || "Estado")}</dt><dd>${escapeHtml(
-        q.quorumReached ? t("quorum.reached") : t("quorum.notReached")
+        q.quorumReached ? t("quorum.reached") || "Quórum alcanzado" : t("quorum.notReached") || "Quórum no alcanzado"
       )}</dd></div>
       <div><dt>${escapeHtml(t("quorum.coefficient"))}</dt><dd class="metric-number">${Number(q.currentCoefficient ?? 0).toFixed(2)}%</dd></div>
       <div><dt>${escapeHtml(t("quorum.requiredMinimum") || "Mínimo requerido")}</dt><dd class="metric-number">${Number(q.requiredCoefficient ?? 0).toFixed(2)}%</dd></div>
@@ -2248,7 +2248,7 @@ function renderMotion() {
           ? `<button type="button" class="btn btn-ghost" data-action="expand-motion">${escapeHtml(t("assembly.showMore"))}</button>`
           : ""
       }
-      <p class="muted">${escapeHtml(t("assembly.motionStatus"))}: ${escapeHtml(state.motion.status || "")}</p>
+      <p class="muted">${escapeHtml(t("assembly.motionStatus"))}: ${escapeHtml(statusLabel(state.motion.status))}</p>
       ${
         state.motion.status === "Draft" || canPresent
           ? presentControls
