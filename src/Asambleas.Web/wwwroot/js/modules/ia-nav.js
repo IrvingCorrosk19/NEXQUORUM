@@ -102,45 +102,21 @@ export function buildAssemblyTabsHtml(ctx) {
   const canVote = hasPermission(ctx.user, "motion:create") || hasPermission(ctx.user, "vote:open");
   const canAudit = hasPermission(ctx.user, "audit:view");
   const canExp = hasPermission(ctx.user, "expediente:view");
-  const isLive = ["InProgress", "Paused", "CheckIn"].includes(status);
   const isDone = ["Completed", "Cancelled"].includes(status);
 
-  // Lifecycle-aware priority: live → room first; finished → results; else → prep.
-  const tabs = isLive
-    ? [
-        { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
-        { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala" },
-        { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Participantes" },
-        { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda" },
-        canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
-        canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias" } : null,
-        { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta", more: true },
-        canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria", more: true } : null,
-        { id: "asm-readiness", href: `/dashboard.html?${q}#readiness`, label: "Preparación", more: true },
-        canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente", more: true } : null
-      ]
-    : isDone
-      ? [
-          { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
-          { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta" },
-          canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias" } : null,
-          canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente" } : null,
-          canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Resultados", more: true } : null,
-          { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda", more: true },
-          { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Participantes", more: true }
-        ]
-      : [
-          { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
-          { id: "asm-readiness", href: `/dashboard.html?${q}#readiness`, label: "Preparación" },
-          canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
-          { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Participantes" },
-          { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda" },
-          canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
-          { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala" },
-          { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta" },
-          canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias", more: true } : null,
-          canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente", more: true } : null
-        ];
+  // Agenda stays before Sala: points are prepared before the assembly starts.
+  const tabs = [
+    { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
+    { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Participantes" },
+    { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda" },
+    { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala" },
+    canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
+    canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias" } : null,
+    { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta", more: true },
+    canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria", more: true } : null,
+    !isDone ? { id: "asm-readiness", href: `/dashboard.html?${q}#readiness`, label: "Preparación", more: true } : null,
+    canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente", more: true } : null
+  ];
 
   const filtered = tabs.filter(Boolean).filter((t) => {
     // Owners never see the operator presence desk tab.

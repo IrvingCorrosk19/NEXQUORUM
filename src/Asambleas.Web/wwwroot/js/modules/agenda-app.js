@@ -4,7 +4,7 @@ import { initI18n } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js";
+import { bootIaPage } from "./ia-page.js?v=tabs1";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";
 import { startHybridShell } from "./hybrid-router.js";

@@ -4,7 +4,7 @@ import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { hydrateRoomState } from "./room-state.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js";
+import { bootIaPage } from "./ia-page.js?v=tabs1";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { attachJoinSummonListener } from "./join-summon.js";
 import {

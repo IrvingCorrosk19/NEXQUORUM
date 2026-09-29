@@ -4,7 +4,7 @@ import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { ensureAssemblyIdOrRedirect, isValidAssemblyId } from "./assembly-context.js?v=guid1";
-import { bootIaPage } from "./ia-page.js";
+import { bootIaPage } from "./ia-page.js?v=tabs1";
 
 let assemblyId = assemblyIdFromUrl();
 let previewObjectUrl = null;

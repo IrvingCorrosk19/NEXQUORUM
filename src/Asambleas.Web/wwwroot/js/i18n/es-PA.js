@@ -425,7 +425,7 @@ export default {
     reached: "Quórum alcanzado",
     reachedShort: "Quórum OK",
     notReached: "Sin quórum",
-    notReachedShort: "Sin quórum",
+    notReachedShort: "Quórum",
     required: "Requerido",
     missing: "Falta",
     progress: "Progreso de quórum",

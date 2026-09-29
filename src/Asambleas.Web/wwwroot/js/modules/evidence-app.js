@@ -3,7 +3,7 @@ import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getEvidence } from "./room-state.js";
-import { bootIaPage } from "./ia-page.js";
+import { bootIaPage } from "./ia-page.js?v=tabs1";
 
 const assemblyId = assemblyIdFromUrl();
 
@@ -51,7 +51,7 @@ function renderEvidence(data) {
 
     <section class="minutes-section">
       <h3>Decisiones</h3>
-      <ul>${(data.decisions || []).map((d) => `<li><strong>${escapeHtml(d.decisionNumber)}</strong> ${escapeHtml(d.motionTitle)} → ${escapeHtml(d.decisionStatus)}</li>`).join("") || "<li class='muted'>Sin decisiones.</li>"}</ul>
+      <ul>${(data.decisions || []).map((d) => `<li><strong>${escapeHtml(d.decisionNumber)}</strong> ${escapeHtml(d.motionTitle)} → ${escapeHtml(d.explanation || d.decisionStatus)}</li>`).join("") || "<li class='muted'>Sin decisiones.</li>"}</ul>
     </section>
 
     <section class="minutes-section">

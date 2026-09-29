@@ -1364,8 +1364,15 @@
 .media-tile-video .media-track {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center center;
+  background: #07111f;
   display: block;
+}
+.media-tile.is-screen-share video,
+.media-tile.is-screen-share .media-track {
+  object-fit: contain;
+  background: #05080d;
 }
 .media-tile.is-portrait-remote:not(.is-local):not(.is-screen-share) video,
 .media-tile.is-portrait-remote:not(.is-local):not(.is-screen-share) .media-track {
@@ -1726,11 +1733,13 @@ body:has(.room--meeting-ux) {
   max-height: 100%;
 }
 
-.room--meeting-ux .media-tile-video video,
-.room--meeting-ux .media-tile-video .media-track {
+.room--meeting-ux .media-tile:not(.is-screen-share) video,
+.room--meeting-ux .media-tile:not(.is-screen-share) .media-track {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center center;
+  background: #07111f;
 }
 
 .room--meeting-ux .stage-actions {
@@ -3125,14 +3134,14 @@ body:has(.room--meeting-ux) {
     min-height: var(--touch-min, 2.75rem);
   }
 
-  .media-tile-video video,
-  .media-tile-video .media-track,
-  .media-tile video,
-  .video-stage video,
+  .media-tile:not(.is-screen-share) video,
+  .media-tile:not(.is-screen-share) .media-track,
+  .media-tile.is-screen-share video,
+  .video-stage .media-tile video,
   #preview-video,
   .screen-share-stage video {
-    object-fit: cover;
-    object-position: center;
+    object-fit: contain;
+    object-position: center center;
     width: 100%;
     height: 100%;
     max-width: 100%;

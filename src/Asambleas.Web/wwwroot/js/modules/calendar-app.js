@@ -3,7 +3,7 @@ import { logout, me, hasPermission } from "./auth.js";
 import { isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { bootIaPage } from "./ia-page.js";
+import { bootIaPage } from "./ia-page.js?v=tabs1";
 import {
   fillTimeSelect,
   phLocalToUtcIso,

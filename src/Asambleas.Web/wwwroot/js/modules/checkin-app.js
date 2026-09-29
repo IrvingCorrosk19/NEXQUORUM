@@ -8,7 +8,7 @@ import { isOperator } from "./roles.js";
 import { renderQuorum } from "./quorum.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js";
+import { bootIaPage } from "./ia-page.js?v=tabs1";
 import { startHybridShell } from "./hybrid-router.js";
 import { resolveContextualGuide, renderContextualGuide } from "./contextual-guide.js";
 
@@ -206,20 +206,25 @@ function syncCheckinGuide() {
   });
 }
 
+function coefficientPoints(p) {
+  const raw = p?.effectiveCoefficientPercent;
+  const n = raw == null || raw === "" ? Number(p?.coefficientPercent || 0) : Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 function renderSummary() {
   const host = qs("#checkin-summary");
   if (!host) return;
-  const owners = participants.filter((p) => !isOperatorRole(p));
-  const invited = owners.length;
-  const presentOwners = owners.filter((p) => isPresent(p)).length;
+  const invited = participants.length;
+  const presentPeople = participants.filter((p) => isPresent(p)).length;
   const mesaStaff = participants.filter((p) => isOperatorRole(p)).length;
-  const coeff = owners
+  const coeff = participants
     .filter((p) => isPresent(p))
-    .reduce((s, p) => s + Number(p.effectiveCoefficientPercent || p.coefficientPercent || 0), 0);
-  const units = owners.reduce((s, p) => s + Number(p.representationCount || 0), 0);
+    .reduce((s, p) => s + coefficientPoints(p), 0);
+  const units = participants.reduce((s, p) => s + Number(p.representationCount || 0), 0);
   host.innerHTML = `
-    <div class="chip"><strong>${invited}</strong><span>Propietarios convocados</span></div>
-    <div class="chip"><strong>${presentOwners}</strong><span>Presentes</span></div>
+    <div class="chip"><strong>${invited}</strong><span>Convocados</span></div>
+    <div class="chip"><strong>${presentPeople}</strong><span>Presentes</span></div>
     <div class="chip"><strong>${units}</strong><span>Unidades representadas</span></div>
     <div class="chip"><strong>${coeff.toFixed(2)}%</strong><span>Coeficiente presente</span></div>
     <div class="chip"><strong>${mesaStaff}</strong><span>Personal de mesa</span></div>
@@ -228,7 +233,7 @@ function renderSummary() {
 
 function updateLive() {
   const present = participants.filter((p) => isPresent(p)).length;
-  const convocados = participants.filter((p) => !isOperatorRole(p)).length;
+  const convocados = participants.length;
   const counts = qs("#live-counts");
   if (counts) counts.textContent = `${present} / ${convocados}`;
 

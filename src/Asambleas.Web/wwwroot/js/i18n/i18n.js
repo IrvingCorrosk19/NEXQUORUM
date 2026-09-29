@@ -15,14 +15,14 @@ export async function initI18n(requested) {
   locale = resolveLocale(requested);
   try {
     if (locale.startsWith("en")) {
-      catalog = (await import("./en.js?v=cam-confirm1")).default;
+      catalog = (await import("./en.js?v=room-copy1")).default;
       locale = "en";
     } else {
-      catalog = (await import("./es-PA.js?v=cam-confirm1")).default;
+      catalog = (await import("./es-PA.js?v=room-copy1")).default;
       locale = "es-PA";
     }
   } catch {
-    catalog = (await import("./es-PA.js?v=cam-confirm1")).default;
+    catalog = (await import("./es-PA.js?v=room-copy1")).default;
     locale = "es-PA";
   }
   localStorage.setItem(STORAGE_KEY, locale);
@@ -36,11 +36,12 @@ export function getLocale() {
 
 export function t(path, vars = {}) {
   if (!catalog) {
-    return path;
+    return "";
   }
 
   const value = path.split(".").reduce((acc, key) => (acc == null ? undefined : acc[key]), catalog);
-  let text = typeof value === "string" ? value : path;
+  if (typeof value !== "string") return "";
+  let text = value;
 
   for (const [key, replacement] of Object.entries(vars)) {
     text = text.replaceAll(`{${key}}`, String(replacement));
@@ -53,5 +54,5 @@ export function statusLabel(status) {
   if (!status) {
     return "—";
   }
-  return t(`status.${status}`) !== `status.${status}` ? t(`status.${status}`) : status;
+  return t(`status.${status}`) || status;
 }

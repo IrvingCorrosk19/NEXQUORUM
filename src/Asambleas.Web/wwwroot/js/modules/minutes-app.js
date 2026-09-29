@@ -3,7 +3,7 @@ import { initI18n, t } from "../i18n/i18n.js";
 import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getMinutes } from "./room-state.js";
-import { bootIaPage } from "./ia-page.js";
+import { bootIaPage } from "./ia-page.js?v=tabs1";
 
 const assemblyId = assemblyIdFromUrl();
 
@@ -103,7 +103,7 @@ function renderMinutes(data) {
                   ${
                     results
                       ? `<p>A favor ${pct(results.inFavorCoefficient)} · En contra ${pct(results.againstCoefficient)} · Abst. ${pct(results.abstentionCoefficient)} · Votos ${results.votesCast ?? 0}</p>
-                         <p class="muted">${escapeHtml(session?.appliedDecisionRule || results.appliedDecisionRule || "")} → ${escapeHtml(session?.decisionStatus || results.decisionStatus || motion.status || "")}</p>
+                         <p class="muted">${escapeHtml(results.decisionExplanation || session?.decisionStatus || results.decisionStatus || motion.status || "")}</p>
                          ${session?.hidePartialResults ? "<p class='muted'>Votación secreta: no se publican votos individuales.</p>" : ""}`
                       : `<p class="muted">Sin resultado cerrado.</p>`
                   }

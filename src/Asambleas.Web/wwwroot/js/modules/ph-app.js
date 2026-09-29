@@ -1,6 +1,6 @@
 import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
-import { mountIaShell, phHref } from "./ia-nav.js";
+import { mountIaShell, phHref } from "./ia-nav.js?v=tabs1";
 import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
 import { formatDateTime, confirmDialog, notify } from "./ui.js";
 import { AppFeedback } from "./app-feedback.js";

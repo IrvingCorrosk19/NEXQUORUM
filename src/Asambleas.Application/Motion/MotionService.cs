@@ -474,7 +474,7 @@ public sealed class MotionService
         var ballots = sessionIds.Count == 0
             ? 0
             : await _db.Votes.CountAsync(v => sessionIds.Contains(v.VotingSessionId), cancellationToken);
-        if (ballots > 0 || motion.Status is MotionStatus.Approved or MotionStatus.Rejected or MotionStatus.Cancelled)
+        if (ballots > 0 || motion.Status is MotionStatus.Approved or MotionStatus.Rejected or MotionStatus.Cancelled or MotionStatus.NoValidDecision)
         {
             throw new DomainException(
                 "MOTION_HAS_HISTORY",
@@ -685,7 +685,7 @@ public sealed class MotionService
             throw new DomainException("Archived motions cannot be edited.");
         }
 
-        if (motion.Status is MotionStatus.Approved or MotionStatus.Rejected or MotionStatus.Cancelled)
+        if (motion.Status is MotionStatus.Approved or MotionStatus.Rejected or MotionStatus.Cancelled or MotionStatus.NoValidDecision)
         {
             throw new DomainException(
                 "VOTING_IMMUTABLE",
@@ -731,7 +731,7 @@ public sealed class MotionService
         MotionEntity motion,
         CancellationToken cancellationToken)
     {
-        if (motion.Status is MotionStatus.Approved or MotionStatus.Rejected or MotionStatus.Cancelled)
+        if (motion.Status is MotionStatus.Approved or MotionStatus.Rejected or MotionStatus.Cancelled or MotionStatus.NoValidDecision)
         {
             return ("Immutable", 0, null, "Registro histórico inmutable.");
         }
@@ -756,7 +756,7 @@ public sealed class MotionService
                     v => closedWithBallots.Contains(v.VotingSessionId),
                     cancellationToken);
                 if (priorBallots > 0
-                    || motion.Status is MotionStatus.Approved or MotionStatus.Rejected or MotionStatus.Cancelled)
+                    || motion.Status is MotionStatus.Approved or MotionStatus.Rejected or MotionStatus.Cancelled or MotionStatus.NoValidDecision)
                 {
                     return ("Immutable", priorBallots, null, "Registro histórico inmutable.");
                 }

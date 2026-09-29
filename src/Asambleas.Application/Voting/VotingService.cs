@@ -12,6 +12,7 @@ using Asambleas.Domain.Voting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 public sealed class VotingService
 {
@@ -864,36 +865,31 @@ public sealed class VotingService
         var abstentionVotes = votes.Count(v => v.Choice == VoteChoice.Abstention);
 
         var decisionRule = _decisionRules.Resolve(session.AppliedDecisionRule);
-        var decision = decisionRule.Decide(new DecisionContext(
+        var voteDecision = decisionRule.Decide(new DecisionContext(
             inFavor,
             against,
             abstention,
             session.RequiredThresholdPercent,
             session.EligibleCoefficient));
         var ruleCode = session.AppliedDecisionRule ?? decisionRule.RuleCode;
+        var quorum = await _quorum.RecalculateAndSnapshotAsync(assemblyId, "VotingClose", cancellationToken);
+        var outcome = VoteCloseOutcome.Resolve(quorum.QuorumReached, voteDecision);
 
         var now = DateTimeOffset.UtcNow;
         session.Status = VotingSessionStatus.Closed;
         session.ClosedAtUtc = now;
         session.UpdatedAtUtc = now;
         session.AppliedDecisionRule = ruleCode;
-        session.DecisionStatus = decision.ToString();
+        session.DecisionStatus = outcome.DecisionStatus;
+        session.RuleSnapshotJson = MergeCloseOutcome(session.RuleSnapshotJson, outcome, quorum);
 
-        motion.Status = decision;
+        motion.Status = outcome.MotionStatus;
         motion.UpdatedAtUtc = now;
 
         await _db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        await _quorum.RecalculateAndSnapshotAsync(assemblyId, "VotingClose", cancellationToken);
-
-        var thresholdPart = session.RequiredThresholdPercent is decimal th
-            ? $" Umbral: {th:0.####}%."
-            : string.Empty;
-        var explanation =
-            $"Método: {session.CalculationMethod}. Regla: {ruleCode}.{thresholdPart} " +
-            $"A favor {inFavor:0.####}% vs en contra {against:0.####}% " +
-            $"(abstención {abstention:0.####}%). Decisión: {decision}.";
+        var explanation = outcome.Display;
 
         var participating = Math.Round(votes.Sum(v => v.CoefficientPercent), 4, MidpointRounding.AwayFromZero);
         var policy = ResultVisibility.Parse(session.ResultVisibilityPolicy, session.HidePartialResults);
@@ -905,7 +901,7 @@ public sealed class VotingService
             against,
             abstention,
             votes.Count,
-            decision.ToString(),
+            outcome.DecisionStatus,
             inFavorVotes,
             againstVotes,
             abstentionVotes,
@@ -922,7 +918,7 @@ public sealed class VotingService
         var response = new CloseVotingSessionResponse(
             session.Id,
             motion.Id,
-            decision.ToString(),
+            outcome.DecisionStatus,
             tally);
 
         await _audit.WriteAsync(
@@ -938,7 +934,12 @@ public sealed class VotingService
             {
                 VotingSessionId = session.Id,
                 MotionId = motion.Id,
-                Decision = decision.ToString(),
+                Decision = outcome.DecisionStatus,
+                DecisionDisplay = outcome.Display,
+                DecisionCause = outcome.Cause,
+                QuorumReached = quorum.QuorumReached,
+                QuorumCoefficient = quorum.CurrentCoefficient,
+                RequiredQuorum = quorum.RequiredCoefficient,
                 AppliedDecisionRule = ruleCode,
                 RequiredThresholdPercent = session.RequiredThresholdPercent,
                 InFavor = inFavor,
@@ -960,7 +961,10 @@ public sealed class VotingService
             {
                 VotingSessionId = session.Id,
                 MotionId = motion.Id,
-                Decision = decision.ToString(),
+                Decision = outcome.DecisionStatus,
+                DecisionDisplay = outcome.Display,
+                DecisionCause = outcome.Cause,
+                QuorumReached = quorum.QuorumReached,
                 AppliedDecisionRule = ruleCode,
                 RequiredThresholdPercent = session.RequiredThresholdPercent,
                 InFavor = inFavor,
@@ -1332,12 +1336,8 @@ public sealed class VotingService
         var participating = Math.Round(votes.Sum(v => v.CoefficientPercent), 4, MidpointRounding.AwayFromZero);
         var policy = ResultVisibility.Parse(session.ResultVisibilityPolicy, session.HidePartialResults);
 
-        string? explanation = null;
-        if (!string.IsNullOrWhiteSpace(decisionStatus) && !string.IsNullOrWhiteSpace(session.AppliedDecisionRule))
-        {
-            explanation =
-                $"Resultado calculado según la regla configurada ({session.AppliedDecisionRule}).";
-        }
+        var explanation = ReadDecisionDisplay(session.RuleSnapshotJson)
+            ?? VoteCloseOutcome.DisplayForStatus(decisionStatus);
 
         if (hideTrend)
         {
@@ -1619,6 +1619,59 @@ public sealed class VotingService
     /// Serializes cast/close on the same voting session (PostgreSQL row lock).
     /// Prevents accepted votes after ClosedAt with a frozen tally that omits them.
     /// </summary>
+    private static string MergeCloseOutcome(
+        string? snapshotJson,
+        VoteCloseOutcome outcome,
+        Contracts.Quorum.QuorumStateDto quorum)
+    {
+        JsonObject root;
+        try
+        {
+            root = string.IsNullOrWhiteSpace(snapshotJson)
+                ? new JsonObject()
+                : JsonNode.Parse(snapshotJson) as JsonObject ?? new JsonObject();
+        }
+        catch (JsonException)
+        {
+            root = new JsonObject();
+        }
+
+        root["DecisionHeadline"] = outcome.Headline;
+        root["DecisionCause"] = outcome.Cause;
+        root["DecisionDisplay"] = outcome.Display;
+        root["QuorumReachedAtClose"] = quorum.QuorumReached;
+        root["QuorumCoefficientAtClose"] = quorum.CurrentCoefficient;
+        root["RequiredQuorumAtClose"] = quorum.RequiredCoefficient;
+        return root.ToJsonString();
+    }
+
+    private static string? ReadDecisionDisplay(string? snapshotJson)
+    {
+        if (string.IsNullOrWhiteSpace(snapshotJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(snapshotJson);
+            if (doc.RootElement.TryGetProperty("DecisionDisplay", out var display))
+            {
+                var text = display.GetString();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    return text;
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            /* keep the status fallback */
+        }
+
+        return null;
+    }
+
     private async Task<IDbContextTransaction> BeginExclusiveVotingSessionAsync(
         Guid votingSessionId,
         CancellationToken cancellationToken)

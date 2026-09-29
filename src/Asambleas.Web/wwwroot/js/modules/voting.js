@@ -248,8 +248,7 @@ export function renderVotePanel(
         <p class="vote-now-kicker">${escapeHtml(t("voting.prepareTitle"))}</p>
         ${
           motion
-            ? `<h3 class="vote-question">${escapeHtml(motion.title || motion.code || "")}</h3>
-               ${motion.body ? `<p class="muted vote-question-body">${escapeHtml(motion.body)}</p>` : ""}`
+            ? ""
             : `<p class="empty-state-what">${escapeHtml(t("assembly.noVoting"))}</p>
                <p class="empty-state-why">${escapeHtml(t("assembly.noVotingWhy"))}</p>`
         }
@@ -664,20 +663,30 @@ function resultRow(label, votes, coefficient) {
   `;
 }
 
+export function voteResultPhrase(status, explanation) {
+  const stored = String(explanation || "").trim();
+  if (stored.includes("—")) return stored;
+  const value = String(status || "");
+  if (value === "Approved" || /^Aprobad/i.test(value)) return "Aprobada — Alcanzó los votos requeridos";
+  if (value === "Rejected" || /^Rechazad/i.test(value)) return "Rechazada — No alcanzó los votos requeridos";
+  if (value === "NoValidDecision" || /Sin decisión/i.test(value)) return "Sin decisión válida — Quórum insuficiente";
+  return value || "—";
+}
+
 function renderOfficialResult(tally, session, motion) {
-  const decision = tally.decisionStatus || tally.DecisionStatus || "—";
+  const decision = tally.decisionStatus || tally.DecisionStatus || "";
+  const phrase = voteResultPhrase(decision, tally.decisionExplanation || tally.DecisionExplanation);
   const rule = tally.appliedDecisionRule || tally.AppliedDecisionRule;
-  const explanation = tally.decisionExplanation || tally.DecisionExplanation;
-  const approved = /Approved|Aprob/i.test(String(decision));
+  const approved = /^Aprobad/i.test(phrase);
+  const invalid = /Sin decisión/i.test(phrase);
   return `
     <div class="result-premium result-reveal" role="status">
       <p class="vote-now-kicker">${escapeHtml(t("voting.closedBanner"))}</p>
-      ${motion ? `<h3 class="vote-question">${escapeHtml(motion.title || "")}</h3>` : ""}
-      <p class="result-decision ${approved ? "is-approved" : "is-rejected"}">${escapeHtml(decision)}</p>
-      <p><strong>${escapeHtml(t("voting.result"))}:</strong> ${escapeHtml(decision)}</p>
+      ${motion ? `<h3 class="vote-question">${escapeHtml(motion.questionText || motion.body || motion.title || "")}</h3>` : ""}
+      <p class="result-decision ${approved ? "is-approved" : invalid ? "is-invalid" : "is-rejected"}">${escapeHtml(phrase)}</p>
       <p>${escapeHtml(t("voting.method"))}: ${escapeHtml(t("voting.methodCoefficient"))}</p>
       ${rule ? `<p class="muted">${escapeHtml(t("voting.ruleApplied"))}: ${escapeHtml(rule)}</p>` : ""}
-      ${explanation ? `<p class="muted">${escapeHtml(explanation)}</p>` : `<p class="muted">${escapeHtml(t("voting.ruleDisclaimer"))}</p>`}
+      <p class="muted">${escapeHtml(t("voting.ruleDisclaimer"))}</p>
       ${resultRow(t("voting.inFavor"), tally.inFavorVotes ?? tally.votesInFavor, tally.inFavorCoefficient)}
       ${resultRow(t("voting.against"), tally.againstVotes ?? tally.votesAgainst, tally.againstCoefficient)}
       ${resultRow(t("voting.abstention"), tally.abstentionVotes ?? tally.votesAbstention, tally.abstentionCoefficient)}

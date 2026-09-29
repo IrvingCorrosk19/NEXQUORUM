@@ -3,7 +3,7 @@ import { canConfigurePhComms, hasPermission, logout, me } from "./auth.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { resolveDefaultAssemblyId } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js";
+import { bootIaPage } from "./ia-page.js?v=tabs1";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";
 import { runWithButton } from "./loading.js";

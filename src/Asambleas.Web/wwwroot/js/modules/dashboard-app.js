@@ -13,7 +13,7 @@ import { showPageError } from "./app-feedback.js";
 import { getDashboard, getReadiness } from "./room-state.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
 import { api } from "./api.js";
-import { mountIaShell, buildAssemblyBreadcrumbs } from "./ia-nav.js";
+import { mountIaShell, buildAssemblyBreadcrumbs } from "./ia-nav.js?v=tabs1";
 import { resolvePrimaryAction, statusLabelEs } from "./ia-actions.js";
 import {
   renderReadinessCompact,

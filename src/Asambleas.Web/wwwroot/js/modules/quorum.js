@@ -56,7 +56,7 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
   if (compact) {
     const statusText = reached
       ? t("quorum.reachedShort") || "Quórum OK"
-      : t("quorum.notReachedShort") || "Sin quórum";
+      : t("quorum.notReachedShort") || "Quórum";
     root.innerHTML = `
       <div class="quorum-chip-inner" title="${escapeHtml(t("quorum.minimumShort") || "Mín.")} ${requiredLabel}">
         <span class="badge ${reached ? "badge-live" : "badge-warn"}">${escapeHtml(statusText)}</span>

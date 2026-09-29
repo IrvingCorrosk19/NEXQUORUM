@@ -3,8 +3,8 @@ import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=room-quorum1";
-import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt } from "./voting.js";
-import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=room-motion1";
+import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=vote-cause1";
+import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=vote-cause1";
 import { createMobileVotingController } from "./mobile-voting-sheet.js?v=room-phone1";
 import {
   resolveContextualGuide,
@@ -64,7 +64,7 @@ import {
   syncHandRaisedIndicators,
   unlockRemoteAudio
 } from "./meeting.js?v=room-remote1";
-import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=room-floor-mic1";
+import { initI18n, statusLabel, t } from "../i18n/i18n.js";
 import {
   assemblyIdFromUrl,
   confirmDialog,
@@ -998,6 +998,13 @@ function renderParticipantsDrawer() {
   renderPeoplePanel();
 }
 
+function personConnectionState(p) {
+  const status = String(p?.attendanceStatus || "");
+  if (/^Present$/i.test(status)) return "connected";
+  if (/^TemporarilyDisconnected$/i.test(status) || /^Left$/i.test(status)) return "disconnected";
+  return "pending";
+}
+
 function buildParticipantsListHtml() {
   const items = [...state.participants.values()];
   const currentId = state.queue?.currentSpeakerRequestId;
@@ -1027,13 +1034,14 @@ function buildParticipantsListHtml() {
             : r.includes("secretary")
               ? "Secretario"
               : p.unitCode || (r.includes("owner") ? "Propietario" : "");
+          const connection = personConnectionState(p);
           const status = hasFloor
             ? t("assembly.speaking") || "Hablando"
             : hand
               ? t("assembly.handRaised") || "Palabra"
-              : p.attendanceStatus === "Present"
+              : connection === "connected"
                 ? t("assembly.connectedShort") || "Conectado"
-                : p.attendanceStatus === "TemporarilyDisconnected" || p.attendanceStatus === "Left"
+                : connection === "disconnected"
                   ? "Desconectado"
                   : t("assembly.pendingShort") || "Pendiente";
           return `<li class="meeting-people-item">
@@ -1556,13 +1564,13 @@ function renderPresenceSummary(items) {
   let convocados = 0;
   let present = 0;
   let represented = 0;
+  let connected = 0;
   for (const p of items) {
     convocados += 1;
     if (isLiveRoomPresence(p)) present += 1;
+    if (personConnectionState(p) === "connected") connected += 1;
     represented += liveRepresentedUnits(p);
   }
-  const media = getLiveKitParticipantCounts();
-  const connected = Number(media.connected || 0);
   el.hidden = false;
   el.innerHTML = `
     <div class="presence-summary__item">
@@ -1787,9 +1795,8 @@ function renderParticipants() {
         .slice(0, 2)
         .map((w) => w[0]?.toUpperCase() || "")
         .join("");
-      const st = String(p.attendanceStatus || "");
-      const connected = /^Present$/i.test(st);
-      const presenceLabel = st === "Present" ? "Conectado" : "Desconectado";
+      const connected = personConnectionState(p) === "connected";
+      const presenceLabel = connected ? "Conectado" : personConnectionState(p) === "disconnected" ? "Desconectado" : "Pendiente";
       const entry = String(p.roomEntryStatus || "");
       const waiting = /Waiting/i.test(entry);
       const summonBtn =
@@ -2131,7 +2138,7 @@ function motionStatusOf(motionOrStatus) {
 
 function isFinishedMotion(motionOrStatus) {
   const status = motionStatusOf(motionOrStatus);
-  return status === "Approved" || status === "Rejected" || status === "Cancelled";
+  return status === "Approved" || status === "Rejected" || status === "Cancelled" || status === "NoValidDecision";
 }
 
 function rememberMotion(motion) {
@@ -2151,9 +2158,7 @@ function announceFinishedMotion(motionId, status) {
   const key = `${motionId || ""}:${normalized}`;
   if (!motionId || finishedMotionNoticeKey === key) return;
   finishedMotionNoticeKey = key;
-  const label =
-    normalized === "Rejected" ? "rechazada" : normalized === "Approved" ? "aprobada" : "cerrada";
-  showToast(`La moción fue ${label}. Puede continuar con la siguiente.`, "info");
+  showToast(voteResultPhrase(normalized), "info");
 }
 
 /** Drop a decided motion from the live slot. Votes and the motion row stay in history. */
@@ -2184,6 +2189,26 @@ function finishMotion(motionId, status) {
   }
 }
 
+function motionTextOverlaps(a, b) {
+  const left = String(a || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const right = String(b || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!left || !right) return false;
+  return left === right || left.startsWith(right) || right.startsWith(left);
+}
+
+function motionDisplayText(motion) {
+  const candidates = [motion?.questionText, motion?.body, motion?.title]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  const unique = [];
+  for (const text of candidates) {
+    if (unique.some((kept) => motionTextOverlaps(kept, text))) continue;
+    unique.push(text);
+  }
+  if (!unique.length) return "";
+  return unique.sort((a, b) => b.length - a.length)[0];
+}
+
 function renderMotion() {
   if (!els.motion) return;
   const operator = state.viewerRole === "Operator";
@@ -2193,7 +2218,7 @@ function renderMotion() {
     (state.assembly?.status === "InProgress" || state.assembly?.status === "Paused") &&
     state.session?.status !== "Open";
 
-  const body = state.motion?.body || "";
+  const body = motionDisplayText(state.motion);
   const long = body.length > 280;
   const presentControls = canPresent
     ? `<div class="cta-row" style="margin-top:0.75rem">
@@ -2217,7 +2242,6 @@ function renderMotion() {
   els.motion.innerHTML = `
     <article class="motion-card" aria-label="${escapeHtml(t("assembly.motion"))}">
       <p class="badge badge-live">${escapeHtml(state.motion.code || t("assembly.motion"))}</p>
-      <p><strong>${escapeHtml(state.motion.title)}</strong></p>
       <div class="motion-body ${long ? "is-clamped" : ""}" id="motion-body-text">${escapeHtml(body)}</div>
       ${
         long
@@ -2550,17 +2574,22 @@ function refreshPanelsNow() {
     });
   const liveMotion = state.motion && !isFinishedMotion(state.motion) ? state.motion : null;
   const sessionOpen = state.session?.status === "Open" || state.session?.Status === "Open";
+  const closedTally = !sessionOpen && !liveMotion ? state.closedResult : null;
+  const closedMotionId = closedTally?.motionId || closedTally?.MotionId;
+  const closedMotion = closedTally
+    ? (state.motions || []).find((m) => String(m.id || m.Id) === String(closedMotionId)) || null
+    : null;
   const activeMotionId = liveMotion?.id || (sessionOpen ? state.session?.motionId || state.session?.MotionId : null) || null;
   const questionIdx = activeMotionId
     ? orderedMotions.findIndex((m) => m.id === activeMotionId)
     : -1;
 
   renderVotePanel(els.vote, {
-    session: sessionOpen ? state.session : null,
-    tally: sessionOpen ? state.tally : null,
+    session: sessionOpen ? state.session : closedTally ? { status: "Closed" } : null,
+    tally: sessionOpen ? state.tally : closedTally,
     myVote: state.myVote,
     myStatus: state.myVoteStatus || null,
-    motion: liveMotion,
+    motion: sessionOpen ? liveMotion : closedMotion || liveMotion,
     canCast: eligibleToShowCast,
     canOpen:
       operator &&
@@ -2646,6 +2675,7 @@ function refreshPanelsNow() {
       try {
         invalidateCachedGet(`/api/assemblies/${assemblyId}/`);
         state.session = await openVoting(assemblyId, state.motion.id, hidePartial, policy);
+        state.closedResult = null;
         state.tally = {
           votesCast: 0,
           eligibleVoters: state.session.eligibleVoters,
@@ -2679,6 +2709,7 @@ function refreshPanelsNow() {
       const result = await closeVoting(assemblyId, state.session.id);
       const motionId = result?.motionId || result?.MotionId || state.session?.motionId;
       const motionStatus = result?.motionStatus || result?.MotionStatus || result?.tally?.decisionStatus;
+      state.closedResult = result?.tally || result?.Tally || null;
       ensureMobileVoting()?.onClosed();
       finishMotion(motionId, motionStatus);
       announceFinishedMotion(motionId, motionStatus);
@@ -3687,6 +3718,7 @@ async function init() {
       const motionId = result?.motionId || result?.MotionId;
       const motionStatus =
         result?.motionStatus || result?.MotionStatus || result?.tally?.decisionStatus || result?.tally?.DecisionStatus;
+      state.closedResult = result?.tally || result?.Tally || null;
       ensureMobileVoting()?.onClosed();
       finishMotion(motionId, motionStatus);
       announceFinishedMotion(motionId, motionStatus);

@@ -26,8 +26,9 @@ function humanQuestionStatus(m, activeMotionId, session) {
   if (m.status === "Voting" && sessionOpen && (!sid || sid === m.id)) {
     return { key: "active", label: "Votación abierta" };
   }
-  if (m.status === "Approved") return { key: "answered", label: "Aprobada" };
-  if (m.status === "Rejected") return { key: "answered", label: "Rechazada" };
+  if (m.status === "Approved") return { key: "answered", label: "Aprobada — Alcanzó los votos requeridos" };
+  if (m.status === "Rejected") return { key: "answered", label: "Rechazada — No alcanzó los votos requeridos" };
+  if (m.status === "NoValidDecision") return { key: "closed", label: "Sin decisión válida — Quórum insuficiente" };
   if (m.status === "Cancelled") return { key: "closed", label: "Anulada" };
   if (m.status === "Closed") return { key: "closed", label: "Cerrada" };
   if (m.status === "Presented" || (m.id === activeMotionId && m.status === "Presented")) {

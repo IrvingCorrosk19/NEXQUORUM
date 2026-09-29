@@ -8,5 +8,8 @@ public enum MotionStatus
     Approved = 3,
     Rejected = 4,
     /// <summary>Voting was cancelled after ballots; superseded by a new version.</summary>
-    Cancelled = 5
+    Cancelled = 5,
+
+    /// <summary>The session closed without a valid decision because quorum was not met.</summary>
+    NoValidDecision = 6
 }
