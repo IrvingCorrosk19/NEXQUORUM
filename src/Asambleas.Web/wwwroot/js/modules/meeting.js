@@ -467,6 +467,27 @@ function ensureTile(container, identity, label, { isLocal = false, isScreen = fa
   return tile;
 }
 
+function fitLiveKitVideo(videoEl) {
+  if (!videoEl) return;
+  videoEl.style.setProperty("position", "absolute", "important");
+  videoEl.style.setProperty("inset", "0", "important");
+  videoEl.style.setProperty("width", "100%", "important");
+  videoEl.style.setProperty("height", "100%", "important");
+  videoEl.style.setProperty("max-width", "100%", "important");
+  videoEl.style.setProperty("max-height", "100%", "important");
+  videoEl.style.setProperty("object-fit", "contain", "important");
+  videoEl.style.setProperty("object-position", "center center", "important");
+}
+
+function bindLiveKitVideoFit(videoEl) {
+  fitLiveKitVideo(videoEl);
+  if (videoEl.dataset.fitBound === "1") return;
+  videoEl.dataset.fitBound = "1";
+  const apply = () => fitLiveKitVideo(videoEl);
+  videoEl.addEventListener("loadedmetadata", apply);
+  videoEl.addEventListener("resize", apply);
+}
+
 function watchRemoteVideoAspect(tile, videoEl) {
   if (!videoEl || tile.classList.contains("is-local") || tile.classList.contains("is-screen-share")) {
     return;
@@ -497,6 +518,7 @@ function attachTrackToTile(tile, track, { mirror = false, isLocal = false } = {}
   if (track.kind === "video") {
     mount.querySelectorAll("video").forEach((v) => v.remove());
     el.classList.toggle("is-mirrored", mirror);
+    bindLiveKitVideoFit(el);
     mount.appendChild(el);
     tile.classList.add("has-video");
     tile.classList.remove("camera-off");

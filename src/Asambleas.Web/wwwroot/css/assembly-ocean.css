@@ -1112,11 +1112,25 @@
 }
 
 /* Participant cameras keep the captured frame. The tile letterboxes; it does not crop or stretch. */
+.room.room--meeting-ux.room--ocean .media-tile:not(.is-screen-share) .media-tile-video {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden;
+  background: #07111f;
+}
 .room.room--meeting-ux.room--ocean .media-tile:not(.is-screen-share) video,
 .room.room--meeting-ux.room--ocean .media-tile:not(.is-screen-share) .media-track {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
   object-fit: contain !important;
   object-position: center center !important;
-  background: #07111f;
+  background: transparent;
 }
 
 .room.room--meeting-ux.room--ocean .quorum-chip-inner .badge {

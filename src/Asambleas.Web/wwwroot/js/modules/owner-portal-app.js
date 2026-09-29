@@ -3,7 +3,7 @@ import { hasPermission, logout, me } from "./auth.js";
 import { isOperator, isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { mountIaShell } from "./ia-nav.js?v=tabs1";
+import { mountIaShell } from "./ia-nav.js?v=tabs2";
 import { utcIsoToPhLocalParts } from "./schedule-time.js";
 import { startHybridShell } from "./hybrid-router.js";
 

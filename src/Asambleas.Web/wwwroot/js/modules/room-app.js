@@ -63,7 +63,7 @@ import {
   switchLocalDevices,
   syncHandRaisedIndicators,
   unlockRemoteAudio
-} from "./meeting.js?v=room-remote1";
+} from "./meeting.js?v=room-fit2";
 import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=labels-es1";
 import {
   assemblyIdFromUrl,
@@ -2280,9 +2280,14 @@ async function presentMotionFlow() {
       showError(t("assembly.noMotionAvailable") || "No hay mociones disponibles.");
       return;
     }
+    const text = motionDisplayText(draft);
+    const code = String(draft.code || "").trim();
+    const lines = [];
+    if (code && !motionTextOverlaps(code, text)) lines.push(code);
+    if (text) lines.push(text);
     const ok = await confirmDialog({
       title: t("assembly.presentMotion") || "Presentar moción",
-      body: `${draft.code || ""}\n${draft.title || ""}\n\n${(draft.body || "").slice(0, 280)}`,
+      body: lines.join("\n\n") || "¿Presentar esta moción?",
       confirmLabel: t("confirm")
     });
     if (!ok) return;

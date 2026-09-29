@@ -104,16 +104,16 @@ export function buildAssemblyTabsHtml(ctx) {
   const canExp = hasPermission(ctx.user, "expediente:view");
   const isDone = ["Completed", "Cancelled"].includes(status);
 
-  // Agenda stays before Sala: points are prepared before the assembly starts.
+  // Convocatoria is a primary tab. Agenda stays before Sala.
   const tabs = [
     { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
+    canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
     { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Participantes" },
     { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda" },
     { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala" },
     canVote ? { id: "asm-voting", href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
     canAudit ? { id: "asm-evidence", href: `/evidence.html?${q}`, label: "Evidencias" } : null,
     { id: "asm-minutes", href: `/minutes.html?${q}`, label: "Acta", more: true },
-    canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria", more: true } : null,
     !isDone ? { id: "asm-readiness", href: `/dashboard.html?${q}#readiness`, label: "Preparación", more: true } : null,
     canExp ? { id: "asm-expediente", href: `/expediente.html?${q}`, label: "Expediente", more: true } : null
   ];

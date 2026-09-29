@@ -3,7 +3,7 @@ import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
 import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getEvidence } from "./room-state.js";
-import { bootIaPage } from "./ia-page.js?v=tabs1";
+import { bootIaPage } from "./ia-page.js?v=tabs2";
 import { assemblyLabel, quorumTimelineText } from "./assembly-labels.js";
 
 const assemblyId = assemblyIdFromUrl();

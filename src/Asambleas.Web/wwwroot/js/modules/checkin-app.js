@@ -9,7 +9,7 @@ import { renderQuorum } from "./quorum.js?v=labels-es1";
 import { assemblyLabel } from "./assembly-labels.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js?v=tabs1";
+import { bootIaPage } from "./ia-page.js?v=tabs2";
 import { startHybridShell } from "./hybrid-router.js";
 import { resolveContextualGuide, renderContextualGuide } from "./contextual-guide.js";
 

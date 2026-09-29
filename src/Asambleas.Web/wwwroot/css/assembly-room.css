@@ -1360,13 +1360,25 @@
   content: " ? Micr?fono off";
   opacity: 0.9;
 }
-.media-tile-video video,
-.media-tile-video .media-track {
+.media-tile-video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  background: #07111f;
+}
+.media-tile-video video,
+.media-tile-video .media-track {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center center;
-  background: #07111f;
+  background: transparent;
   display: block;
 }
 .media-tile.is-screen-share video,
@@ -1733,13 +1745,23 @@ body:has(.room--meeting-ux) {
   max-height: 100%;
 }
 
-.room--meeting-ux .media-tile:not(.is-screen-share) video,
-.room--meeting-ux .media-tile:not(.is-screen-share) .media-track {
+.room--meeting-ux .media-tile:not(.is-screen-share) .media-tile-video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+}
+.room--meeting-ux .media-tile:not(.is-screen-share) video,
+.room--meeting-ux .media-tile:not(.is-screen-share) .media-track {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center center;
-  background: #07111f;
+  background: transparent;
 }
 
 .room--meeting-ux .stage-actions {

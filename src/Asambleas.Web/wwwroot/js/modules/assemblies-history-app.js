@@ -2,7 +2,7 @@ import { api } from "./api.js";
 import { me, logout } from "./auth.js";
 import { escapeHtml, formatDateTime, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { bootIaPage } from "./ia-page.js?v=tabs1";
+import { bootIaPage } from "./ia-page.js?v=tabs2";
 import { assemblyLabel } from "./assembly-labels.js";
 
 function showError(message) {

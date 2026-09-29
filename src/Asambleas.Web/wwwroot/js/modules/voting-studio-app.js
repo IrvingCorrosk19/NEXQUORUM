@@ -7,7 +7,7 @@ import { showGlobalLoader, hideGlobalLoader } from "./loading.js";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { assemblyLabel } from "./assembly-labels.js";
 import { isReadinessReturnContext } from "./return-context.js";
-import { bootIaPage } from "./ia-page.js?v=tabs1";
+import { bootIaPage } from "./ia-page.js?v=tabs2";
 import { readIaContext } from "./ia-context.js";
 import { phHref } from "./ia-nav.js";
 import { openMotionImportWizard } from "./motion-import.js";

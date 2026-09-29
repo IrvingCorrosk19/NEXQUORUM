@@ -4,7 +4,7 @@ import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { hydrateRoomState } from "./room-state.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js?v=tabs1";
+import { bootIaPage } from "./ia-page.js?v=tabs2";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { attachJoinSummonListener } from "./join-summon.js";
 import {
@@ -17,7 +17,7 @@ import {
   setPreviewTracks,
   startDevicePreview,
   stopDevicePreview
-} from "./meeting.js";
+} from "./meeting.js?v=room-fit2";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { redirectToHttpsForMedia, mediaHttpsUrl } from "./secure-context.js";
 
