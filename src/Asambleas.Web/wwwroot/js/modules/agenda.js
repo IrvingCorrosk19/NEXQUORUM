@@ -2,6 +2,8 @@ import { api } from "./api.js";
 import { t } from "../i18n/i18n.js?v=labels-es1";
 import { escapeHtml } from "./ui.js";
 
+const FINISHED_MOTION = new Set(["Approved", "Rejected", "Cancelled", "NoValidDecision"]);
+
 export async function setActiveAgendaItem(assemblyId, agendaItemId) {
   return api(`/api/assemblies/${assemblyId}/agenda/active`, {
     method: "POST",
@@ -9,17 +11,22 @@ export async function setActiveAgendaItem(assemblyId, agendaItemId) {
   });
 }
 
+export async function completeActiveAgendaItem(assemblyId) {
+  return api(`/api/assemblies/${assemblyId}/agenda/complete`, { method: "POST" });
+}
+
 /**
- * Agenda with DONE / ACTIVE / PENDING visual states.
- * Items before the active one (by ordinal) are treated as DONE when isDone not provided.
+ * Agenda with FINALIZADO / ACTIVE / PENDING states.
+ * A point is FINALIZADO only after the operator finishes it.
  */
-export function renderAgenda(root, agenda, { canManage, onActivate, compact = false } = {}) {
+export function renderAgenda(root, agenda, options = {}) {
+  const { canManage, onActivate, onComplete, motions = [], votingOpen = false, compact = false } = options;
   if (!root) {
     return;
   }
 
   if (!agenda?.items?.length) {
-    root.innerHTML = `<div class="empty-state panel-compact-empty">${escapeHtml(t("assembly.noAgenda"))}</div>`;
+    root.innerHTML = `<div class="empty-state panel-compact-empty">${escapeHtml(t("assembly.noAgenda") || "Sin ítems de agenda.")}</div>`;
     return;
   }
 
@@ -27,17 +34,18 @@ export function renderAgenda(root, agenda, { canManage, onActivate, compact = fa
   const activeIndex = items.findIndex((item) => item.isActive || item.id === agenda.activeAgendaItemId);
   const progressLabel =
     activeIndex >= 0 ? `${String(activeIndex + 1).padStart(2, "0")} / ${String(items.length).padStart(2, "0")}` : `— / ${items.length}`;
+  const active = items.find((item) => item.isActive) || (activeIndex >= 0 ? items[activeIndex] : null);
+  const firstPending = items.find((item) => resolveAgendaState(item, active) === "pending");
 
   if (compact) {
-    const active = items.find((i) => i.isActive) || (activeIndex >= 0 ? items[activeIndex] : null);
     root.innerHTML = active
       ? `
         <div class="agenda-current">
-          <p class="muted">${escapeHtml(t("assembly.currentItem"))}</p>
+          <p class="muted">${escapeHtml(t("assembly.currentItem") || "Punto actual")}</p>
           <p class="metric-number">${escapeHtml(progressLabel)}</p>
           <p><strong>${escapeHtml(active.code || "")}</strong> ${escapeHtml(active.title)}</p>
         </div>`
-      : `<div class="empty-state panel-compact-empty">${escapeHtml(t("loading"))}</div>`;
+      : `<div class="empty-state panel-compact-empty">${escapeHtml(items.every((item) => isCompleted(item)) ? "Agenda finalizada" : (t("assembly.noAgenda") || "Sin punto activo."))}</div>`;
     return;
   }
 
@@ -46,16 +54,17 @@ export function renderAgenda(root, agenda, { canManage, onActivate, compact = fa
     <ul class="agenda-list">
       ${items
         .map((item, index) => {
-          const state = resolveAgendaState(item, index, activeIndex);
+          const state = resolveAgendaState(item, active);
           const stateLabel =
             state === "done"
-              ? t("assembly.agendaDone")
+              ? "FINALIZADO"
               : state === "active"
-                ? t("assembly.agendaActive")
-                : t("assembly.agendaPending");
+                ? t("assembly.agendaActive") || "Activo"
+                : t("assembly.agendaPending") || "Pendiente";
           const badgeClass =
             state === "done" ? "badge-success" : state === "active" ? "badge-live" : "badge-pending";
           const mark = state === "done" ? "✓" : state === "active" ? "●" : "";
+          const block = state === "active" ? advanceBlock(item, motions, votingOpen) : null;
 
           return `
         <li class="${state === "active" ? "active" : ""}" data-state="${state}">
@@ -68,8 +77,14 @@ export function renderAgenda(root, agenda, { canManage, onActivate, compact = fa
             <span class="badge ${badgeClass}">${escapeHtml(stateLabel)}</span>
           </div>
           ${
-            canManage && state === "pending"
-              ? `<button type="button" class="btn btn-secondary" data-activate="${item.id}">${escapeHtml(t("assembly.nextItem"))}</button>`
+            canManage && state === "active"
+              ? `<button type="button" class="btn btn-secondary" data-complete="1" ${block.blocked ? "disabled" : ""}>Finalizar punto</button>
+                 ${block.blocked ? `<p class="muted agenda-finish-hint" style="margin:0.35rem 0 0">Hay preguntas o votaciones pendientes en este punto.</p>` : ""}`
+              : ""
+          }
+          ${
+            canManage && !active && firstPending && item.id === firstPending.id
+              ? `<button type="button" class="btn btn-secondary" data-activate="${item.id}">Activar punto</button>`
               : ""
           }
         </li>`;
@@ -78,20 +93,45 @@ export function renderAgenda(root, agenda, { canManage, onActivate, compact = fa
     </ul>
   `;
 
+  root.querySelector("[data-complete]")?.addEventListener("click", () => onComplete?.());
   root.querySelectorAll("[data-activate]").forEach((btn) => {
     btn.addEventListener("click", () => onActivate?.(btn.getAttribute("data-activate")));
   });
 }
 
-function resolveAgendaState(item, index, activeIndex) {
-  if (item.status === "Done" || item.isDone) {
-    return "done";
-  }
-  if (item.isActive || (activeIndex >= 0 && index === activeIndex)) {
+function isCompleted(item) {
+  return Boolean(item?.isCompleted || item?.completedAtUtc || item?.status === "Done" || item?.isDone);
+}
+
+function resolveAgendaState(item, active) {
+  if (item.isActive || (active && item.id === active.id)) {
     return "active";
   }
-  if (activeIndex >= 0 && index < activeIndex) {
+  if (isCompleted(item)) {
     return "done";
   }
   return "pending";
+}
+
+function advanceBlock(item, motions, votingOpen) {
+  const pending = (motions || []).some((motion) => motionBelongsToItem(motion, item) && isPendingMotion(motion));
+  if (votingOpen || pending) {
+    return {
+      blocked: true,
+      reason: "Hay preguntas o votaciones pendientes en este punto."
+    };
+  }
+  return { blocked: false, reason: "" };
+}
+
+function motionBelongsToItem(motion, item) {
+  const agendaId = String(motion?.agendaItemId || motion?.AgendaItemId || "");
+  return agendaId && agendaId === String(item?.id || "");
+}
+
+function isPendingMotion(motion) {
+  const design = motion?.designStatus || motion?.DesignStatus || "";
+  if (design === "Archived") return false;
+  const status = String(motion?.status || motion?.Status || "");
+  return !FINISHED_MOTION.has(status);
 }

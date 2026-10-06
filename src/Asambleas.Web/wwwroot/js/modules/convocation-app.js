@@ -1,6 +1,6 @@
 import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
-import { assemblyIdFromUrl, confirmDialog, escapeHtml, qs } from "./ui.js";
+import { assemblyIdFromUrl, confirmDialog, escapeHtml, qs } from "./ui.js?v=agenda-return1";
 import { AppFeedback, showPageError } from "./app-feedback.js";
 import { runWithButton } from "./loading.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";

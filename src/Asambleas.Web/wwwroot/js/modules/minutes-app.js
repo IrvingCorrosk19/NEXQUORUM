@@ -78,7 +78,7 @@ function renderMinutes(data) {
 
     <section id="sec-agenda" class="minutes-section">
       <h3>Agenda</h3>
-      <ol>${agenda.map((a) => `<li>${escapeHtml(a.code || "")} ${escapeHtml(a.title || "")}${a.isActive ? " · ACTIVO" : ""}</li>`).join("") || "<li>—</li>"}</ol>
+      <ol>${agenda.map((a) => `<li>${escapeHtml(a.code || "")} ${escapeHtml(a.title || "")}${a.isCompleted ? " · FINALIZADO" : a.isActive ? " · ACTIVO" : ""}</li>`).join("") || "<li>—</li>"}</ol>
     </section>
 
     <section class="minutes-section">

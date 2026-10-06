@@ -12,6 +12,7 @@ import {
  * @param {{
  *   assemblyId: string,
  *   onSave?: () => Promise<boolean>,
+ *   onSaveReturn?: () => Promise<boolean>,
  *   getDirty?: () => boolean,
  *   setDirty?: (v: boolean) => void,
  *   saveLabel?: string,
@@ -22,6 +23,7 @@ export function mountReadinessActionBar(opts) {
   const {
     assemblyId,
     onSave = null,
+    onSaveReturn = null,
     getDirty = () => false,
     setDirty = () => {},
     saveLabel = "Guardar",
@@ -53,12 +55,14 @@ export function mountReadinessActionBar(opts) {
   main.appendChild(banner);
   document.body.appendChild(bar);
 
+  const saveReturn = onSaveReturn || onSave;
+
   const goBack = async (afterSave = false) => {
     if (!afterSave && getDirty()) {
-      const choice = await confirmUnsaved(getDirty, onSave, setDirty);
+      const choice = await confirmUnsaved(getDirty, saveReturn, setDirty);
       if (choice === "stay") return;
-      if (choice === "save-return" && onSave) {
-        const ok = await onSave();
+      if (choice === "save-return" && saveReturn) {
+        const ok = await saveReturn();
         if (!ok) return;
         setDirty(false);
       }
@@ -79,7 +83,7 @@ export function mountReadinessActionBar(opts) {
       await goBack(true);
       return;
     }
-    const ok = await onSave();
+    const ok = await (saveReturn ? saveReturn() : true);
     if (!ok) return;
     setDirty(false);
     navigateBackToReadiness(assemblyId || assemblyIdFromReturnContext());

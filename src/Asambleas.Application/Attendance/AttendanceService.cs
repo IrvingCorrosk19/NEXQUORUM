@@ -21,6 +21,7 @@ public sealed partial class AttendanceService
     private readonly IAuditService _audit;
     private readonly IAssemblyRealtimePublisher _realtime;
     private readonly QuorumService _quorum;
+    private readonly Voting.VotingService _voting;
     private readonly IAssemblyRepresentationService _representation;
     private readonly IVerifiedJoinProofService _verifiedJoinProofs;
 
@@ -30,6 +31,7 @@ public sealed partial class AttendanceService
         IAuditService audit,
         IAssemblyRealtimePublisher realtime,
         QuorumService quorum,
+        Voting.VotingService voting,
         IAssemblyRepresentationService representation,
         IVerifiedJoinProofService verifiedJoinProofs)
     {
@@ -38,6 +40,7 @@ public sealed partial class AttendanceService
         _audit = audit;
         _realtime = realtime;
         _quorum = quorum;
+        _voting = voting;
         _representation = representation;
         _verifiedJoinProofs = verifiedJoinProofs;
     }
@@ -273,6 +276,7 @@ public sealed partial class AttendanceService
         var dto = Mapping.ToParticipantDto(participant, unitCode, coefficientPercent: null, representationCount: 0);
         await _realtime.PublishAttendanceAsync(assemblyId, dto, cancellationToken);
         await _quorum.RecalculateAndSnapshotAsync(assemblyId, AttendanceStatus.Left.ToString(), cancellationToken);
+        await _voting.SyncOpenEligibilityAsync(assemblyId, cancellationToken);
         return true;
     }
 
@@ -393,6 +397,8 @@ public sealed partial class AttendanceService
             ? "Reingreso"
             : status.ToString();
         await _quorum.RecalculateAndSnapshotAsync(assemblyId, snapshotReason, cancellationToken);
+        // Presence changes quorum and who may vote next. Stored ballots are not deleted.
+        await _voting.SyncOpenEligibilityAsync(assemblyId, cancellationToken);
 
         return dto;
     }

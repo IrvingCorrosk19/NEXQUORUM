@@ -38,4 +38,9 @@ public sealed class AgendaController : ControllerBase
         [FromBody] ActivateAgendaItemRequest request,
         CancellationToken cancellationToken) =>
         _agenda.SetActiveItemAsync(assemblyId, request.AgendaItemId, cancellationToken);
+
+    [HttpPost("complete")]
+    [Authorize(Policy = Permissions.AgendaManage)]
+    public Task<AgendaListResponse> Complete(Guid assemblyId, CancellationToken cancellationToken) =>
+        _agenda.CompleteActiveItemAsync(assemblyId, cancellationToken);
 }

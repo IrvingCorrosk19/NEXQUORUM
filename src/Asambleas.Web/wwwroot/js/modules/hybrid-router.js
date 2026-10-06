@@ -19,8 +19,8 @@ const SOFT_PAGES = new Set([
 
 const MODULE_LOADERS = {
   "dashboard.html": () => import("./dashboard-app.js"),
-  "ph.html": () => import("./ph-app.js?v=owner-unit-link1"),
-  "agenda.html": () => import("./agenda-app.js"),
+  "ph.html": () => import("./ph-app.js?v=cancel-label1"),
+  "agenda.html": () => import("./agenda-app.js?v=agenda-finish1"),
   "checkin.html": () => import("./checkin-app.js"),
   "voting-studio.html": () => import("./voting-studio-app.js"),
   "owner.html": () => import("./owner-portal-app.js")

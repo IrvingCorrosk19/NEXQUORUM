@@ -6,7 +6,8 @@ public sealed record AgendaItemDto(
     int Ordinal,
     string Code,
     string Title,
-    bool IsActive);
+    bool IsActive,
+    bool IsCompleted = false);
 
 public sealed record CreateAgendaItemRequest(
     int Ordinal,

@@ -1,6 +1,6 @@
 import { api } from "./api.js";
 import { hasPermission } from "./auth.js";
-import { confirmDialog, notify } from "./ui.js";
+import { confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { runWithButton } from "./loading.js";
 

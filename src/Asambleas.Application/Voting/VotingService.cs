@@ -339,30 +339,8 @@ public sealed class VotingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, participant.TenantId);
 
-        if (participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left)
-        {
-            throw new DomainException(
-                VotingCodes.NotPresent,
-                "Debes estar presente en la asamblea para votar.");
-        }
-
-        // Prefer frozen eligibility snapshot when present.
-        var snapshot = await _db.VotingEligibilitySnapshots
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                e => e.VotingSessionId == votingSessionId && e.UserId == userId,
-                cancellationToken);
-
-        if (session.EligibleVoters > 0 && snapshot is null)
-        {
-            throw new DomainException(
-                VotingCodes.NotEligible,
-                "Participant was not eligible when this voting session opened.");
-        }
-
         if (!Enum.TryParse<VoteChoice>(request.Choice, ignoreCase: true, out var choice))
         {
-            // Accept common UI alias without inventing a separate legal meaning.
             if (string.Equals(request.Choice, "Abstain", StringComparison.OrdinalIgnoreCase))
             {
                 choice = VoteChoice.Abstention;
@@ -375,6 +353,7 @@ public sealed class VotingService
             }
         }
 
+        // A ballot already stored stays valid if the voter later leaves. Do not delete it.
         var existing = await _db.Votes
             .AsNoTracking()
             .FirstOrDefaultAsync(
@@ -396,53 +375,22 @@ public sealed class VotingService
                 "Double vote is not allowed for this voting session.");
         }
 
-        // Coefficient: prefer snapshot; else representation authority — never trust client.
-        decimal coefficient;
-        Guid? unitId;
-
-        if (snapshot is not null)
+        if (participant.AttendanceStatus != AttendanceStatus.Present)
         {
-            coefficient = snapshot.CoefficientPercent;
-            unitId = snapshot.UnitId;
-            if (request.UnitId is Guid requested
-                && snapshot.UnitId is Guid snapUnit
-                && requested != snapUnit)
-            {
-                // Ignore foreign unitId from client when snapshot exists.
-                unitId = snapUnit;
-            }
+            throw new DomainException(
+                VotingCodes.NotPresent,
+                "Debes estar conectado en la sala para votar.");
         }
-        else
+
+        var snapshot = await EnsureOpenEligibilityAsync(session, participant, cancellationToken);
+
+        var coefficient = snapshot.CoefficientPercent;
+        var unitId = snapshot.UnitId;
+        if (request.UnitId is Guid requested
+            && snapshot.UnitId is Guid snapUnit
+            && requested != snapUnit)
         {
-            var representations = await _representation.GetActiveForUserAsync(assemblyId, userId, cancellationToken);
-            if (representations.Count > 0)
-            {
-                coefficient = Math.Round(
-                    representations.Sum(r => r.CoefficientPercent),
-                    4,
-                    MidpointRounding.AwayFromZero);
-                if (request.UnitId is Guid requested
-                    && representations.Any(r => r.UnitId == requested))
-                {
-                    unitId = requested;
-                }
-                else
-                {
-                    unitId = representations[0].UnitId;
-                }
-            }
-            else
-            {
-                coefficient = participant.EffectiveCoefficientPercent;
-                unitId = participant.UnitId;
-                if (request.UnitId is Guid requestedUnit
-                    && requestedUnit != participant.UnitId)
-                {
-                    throw new DomainException(
-                        VotingCodes.NotEligible,
-                        "Vote unit must match an accredited representation.");
-                }
-            }
+            unitId = snapUnit;
         }
 
         var evidenceId = Guid.NewGuid();
@@ -1178,19 +1126,7 @@ public sealed class VotingService
                 unitCode);
         }
 
-        if (session.EligibleVoters > 0 && snapshot is null)
-        {
-            return new MyVoteStatusDto(
-                votingSessionId,
-                VotingCodes.NotEligible,
-                null,
-                null,
-                coefficient,
-                unitId,
-                unitCode);
-        }
-
-        if (participant.AttendanceStatus is AttendanceStatus.Registered or AttendanceStatus.Left)
+        if (participant.AttendanceStatus != AttendanceStatus.Present)
         {
             return new MyVoteStatusDto(
                 votingSessionId,
@@ -1200,6 +1136,22 @@ public sealed class VotingService
                 coefficient,
                 unitId,
                 unitCode);
+        }
+
+        if (snapshot is null)
+        {
+            var live = await BuildEligibilityAsync(assemblyId, session.CalculationMethod, cancellationToken);
+            if (live.All(row => row.UserId != userId))
+            {
+                return new MyVoteStatusDto(
+                    votingSessionId,
+                    VotingCodes.NotEligible,
+                    null,
+                    null,
+                    coefficient,
+                    unitId,
+                    unitCode);
+            }
         }
 
         return new MyVoteStatusDto(
@@ -1424,6 +1376,155 @@ public sealed class VotingService
             : ResultVisibilityPolicy.LiveResults;
     }
 
+    /// <summary>
+    /// Open votes follow who is connected now. A person who already voted stays in the
+    /// electorate and the ballot is kept. Closed sessions are not touched.
+    /// </summary>
+    public async Task SyncOpenEligibilityAsync(Guid assemblyId, CancellationToken cancellationToken = default)
+    {
+        var openSessions = await _db.VotingSessions
+            .Where(s => s.AssemblyId == assemblyId && s.Status == VotingSessionStatus.Open)
+            .ToListAsync(cancellationToken);
+        if (openSessions.Count == 0)
+        {
+            return;
+        }
+
+        var changed = new List<VotingSession>();
+        foreach (var session in openSessions)
+        {
+            if (await RefreshOpenEligibilityAsync(session, cancellationToken))
+            {
+                changed.Add(session);
+            }
+        }
+
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        foreach (var session in changed)
+        {
+            await PublishParticipationPulseAsync(session, cancellationToken);
+        }
+    }
+
+    private async Task<VotingEligibilitySnapshot> EnsureOpenEligibilityAsync(
+        VotingSession session,
+        AssemblyParticipant participant,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _db.VotingEligibilitySnapshots
+            .FirstOrDefaultAsync(
+                e => e.VotingSessionId == session.Id && e.UserId == participant.UserId,
+                cancellationToken);
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var live = await BuildEligibilityAsync(session.AssemblyId, session.CalculationMethod, cancellationToken);
+        var row = live.FirstOrDefault(r => r.UserId == participant.UserId)
+            ?? throw new DomainException(
+                VotingCodes.NotEligible,
+                "No estás habilitado para esta votación.");
+
+        var now = DateTimeOffset.UtcNow;
+        var snapshot = new VotingEligibilitySnapshot
+        {
+            TenantId = session.TenantId,
+            AssemblyId = session.AssemblyId,
+            VotingSessionId = session.Id,
+            UserId = row.UserId,
+            UnitId = row.UnitId,
+            CoefficientPercent = row.CoefficientPercent,
+            UnitCode = row.UnitCode,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        };
+        _db.VotingEligibilitySnapshots.Add(snapshot);
+        session.EligibleVoters += 1;
+        session.EligibleCoefficient = Math.Round(
+            session.EligibleCoefficient + row.CoefficientPercent,
+            4,
+            MidpointRounding.AwayFromZero);
+        session.UpdatedAtUtc = now;
+        return snapshot;
+    }
+
+    private async Task<bool> RefreshOpenEligibilityAsync(
+        VotingSession session,
+        CancellationToken cancellationToken)
+    {
+        var present = await BuildEligibilityAsync(session.AssemblyId, session.CalculationMethod, cancellationToken);
+        var presentByUser = present.ToDictionary(r => r.UserId);
+        var votedUserIds = await _db.Votes
+            .Where(v => v.VotingSessionId == session.Id)
+            .Select(v => v.UserId)
+            .ToListAsync(cancellationToken);
+        var keep = presentByUser.Keys.ToHashSet();
+        keep.UnionWith(votedUserIds);
+
+        var snapshots = await _db.VotingEligibilitySnapshots
+            .Where(e => e.VotingSessionId == session.Id)
+            .ToListAsync(cancellationToken);
+
+        var changed = false;
+        foreach (var snap in snapshots)
+        {
+            if (keep.Contains(snap.UserId))
+            {
+                continue;
+            }
+
+            _db.VotingEligibilitySnapshots.Remove(snap);
+            changed = true;
+        }
+
+        var existingUsers = snapshots.Select(s => s.UserId).ToHashSet();
+        var now = DateTimeOffset.UtcNow;
+        foreach (var row in present)
+        {
+            if (existingUsers.Contains(row.UserId))
+            {
+                continue;
+            }
+
+            _db.VotingEligibilitySnapshots.Add(new VotingEligibilitySnapshot
+            {
+                TenantId = session.TenantId,
+                AssemblyId = session.AssemblyId,
+                VotingSessionId = session.Id,
+                UserId = row.UserId,
+                UnitId = row.UnitId,
+                CoefficientPercent = row.CoefficientPercent,
+                UnitCode = row.UnitCode,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+            changed = true;
+        }
+
+        var kept = snapshots.Where(s => keep.Contains(s.UserId)).ToList();
+        var added = present.Where(r => !existingUsers.Contains(r.UserId)).ToList();
+        var voters = kept.Count + added.Count;
+        var coefficient = Math.Round(
+            kept.Sum(s => s.CoefficientPercent) + added.Sum(r => r.CoefficientPercent),
+            4,
+            MidpointRounding.AwayFromZero);
+        if (session.EligibleVoters != voters || session.EligibleCoefficient != coefficient)
+        {
+            session.EligibleVoters = voters;
+            session.EligibleCoefficient = coefficient;
+            session.UpdatedAtUtc = now;
+            changed = true;
+        }
+
+        return changed;
+    }
+
     private async Task<List<EligibilityRow>> BuildEligibilityAsync(
         Guid assemblyId,
         string calculationMethod,
@@ -1432,8 +1533,7 @@ public sealed class VotingService
         var participants = await _db.AssemblyParticipants
             .AsNoTracking()
             .Where(p => p.AssemblyId == assemblyId
-                        && p.AttendanceStatus != AttendanceStatus.Registered
-                        && p.AttendanceStatus != AttendanceStatus.Left)
+                        && p.AttendanceStatus == AttendanceStatus.Present)
             .ToListAsync(cancellationToken);
 
         var perPerson = calculationMethod.Equals(

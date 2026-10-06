@@ -3,8 +3,9 @@ namespace Asambleas.Domain.Entities;
 using Asambleas.Domain.Common;
 
 /// <summary>
-/// Frozen eligibility + weight at voting open. Historical tallies must not drift
-/// if later attendance or representation changes.
+/// Weight frozen when the person became eligible. Rows for an open vote follow who is
+/// connected, except a person who already voted: that row and the ballot stay if they leave.
+/// Closed sessions are never rewritten from later presence changes.
 /// </summary>
 public class VotingEligibilitySnapshot : Entity, ITenantScoped
 {

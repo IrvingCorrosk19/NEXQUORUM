@@ -15,4 +15,7 @@ public class AgendaItem : Entity, ITenantScoped
     public string Title { get; set; } = string.Empty;
 
     public bool IsActive { get; set; }
+
+    /// <summary>Set when the operator finishes the point after its motions and votes are closed.</summary>
+    public DateTimeOffset? CompletedAtUtc { get; set; }
 }

@@ -5,7 +5,7 @@ import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js?v=tabs2";
-import { mountReadinessActionBar } from "./readiness-actions.js";
+import { mountReadinessActionBar } from "./readiness-actions.js?v=agenda-return1";
 import { isReadinessReturnContext } from "./return-context.js";
 import { startHybridShell } from "./hybrid-router.js";
 
@@ -44,11 +44,22 @@ async function loadAgenda() {
         <li class="agenda-edit-item">
           <span class="agenda-edit-code">${escapeHtml(item.code || "")}</span>
           <span class="agenda-edit-title">${escapeHtml(item.title || "")}</span>
-          ${item.isActive ? `<span class="badge badge-live">Activo</span>` : ""}
+          ${item.isCompleted ? `<span class="badge badge-success">FINALIZADO</span>` : item.isActive ? `<span class="badge badge-live">Activo</span>` : ""}
         </li>`
         )
         .join("")}
     </ol>`;
+}
+
+function savedAgendaCount() {
+  return document.querySelectorAll("#agenda-list .agenda-edit-item").length;
+}
+
+function pendingAgendaInput() {
+  return {
+    title: qs("#agenda-title")?.value.trim() || "",
+    code: qs("#agenda-code")?.value.trim() || ""
+  };
 }
 
 async function saveAgendaItem() {
@@ -75,6 +86,20 @@ async function saveAgendaItem() {
     showToast(e.message, "error");
     return false;
   }
+}
+
+async function saveAndReturnAgenda() {
+  const pending = pendingAgendaInput();
+  if (!pending.title && !pending.code) {
+    if (savedAgendaCount() > 0) {
+      showError("");
+      dirty = false;
+      return true;
+    }
+    showError("Agrega al menos un punto de agenda.");
+    return false;
+  }
+  return saveAgendaItem();
 }
 
 async function init() {
@@ -140,6 +165,7 @@ async function init() {
         dirty = v;
       },
       onSave: saveAgendaItem,
+      onSaveReturn: saveAndReturnAgenda,
       saveLabel: "Guardar punto",
       hint: "Estás completando la preparación de esta asamblea — Agenda."
     });

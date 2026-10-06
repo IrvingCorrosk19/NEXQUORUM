@@ -164,8 +164,8 @@ export function confirmDialog(options) {
   const {
     title,
     body = "",
-    confirmLabel = t("confirm"),
-    cancelLabel = t("cancel"),
+    confirmLabel = t("confirm") || "Confirmar",
+    cancelLabel = t("cancel") || "Cancelar",
     danger = false,
     choiceLabel = null,
     typeConfirm = null

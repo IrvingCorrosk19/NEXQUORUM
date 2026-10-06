@@ -30,7 +30,7 @@ import {
   activeSpeakerQueue,
   queuePositionFor
 } from "./speakers.js?v=labels-es1";
-import { renderAgenda, setActiveAgendaItem } from "./agenda.js";
+import { completeActiveAgendaItem, renderAgenda, setActiveAgendaItem } from "./agenda.js?v=agenda-finish1";
 import {
   claimScreenShare,
   connectLiveKit,
@@ -152,6 +152,7 @@ let recordingTimer = null;
 let controlBarIdleTimer = null;
 /** Mutex for raise-hand / cancel / complete-own — prevents double-submit races. */
 let handActionBusy = false;
+let agendaAdvanceBusy = false;
 /** Transient UX phase: idle | requesting | cancelling | completing */
 let handPhase = "idle";
 let lastFloorToastId = null;
@@ -2487,9 +2488,27 @@ function refreshPanelsNow() {
   renderAgenda(els.agenda, state.agenda, {
     canManage: operator && hasPermission(state.user, "agenda:manage"),
     compact: false,
+    motions: state.motions || [],
+    votingOpen: (state.session?.status || state.session?.Status) === "Open",
     onActivate: async (id) => {
-      state.agenda = await setActiveAgendaItem(assemblyId, id);
-      refreshPanels();
+      try {
+        state.agenda = await setActiveAgendaItem(assemblyId, id);
+        refreshPanels();
+      } catch (error) {
+        showToast(error.message || "No se pudo activar el punto.", "error");
+      }
+    },
+    onComplete: async () => {
+      if (agendaAdvanceBusy) return;
+      agendaAdvanceBusy = true;
+      try {
+        state.agenda = await completeActiveAgendaItem(assemblyId);
+        refreshPanels();
+      } catch (error) {
+        showToast(error.message || "No se pudo finalizar el punto.", "error");
+      } finally {
+        agendaAdvanceBusy = false;
+      }
     }
   });
 
@@ -3356,7 +3375,7 @@ function wireOperatorControls() {
     }
     const agendaItems = state.agenda?.items?.length ?? 0;
     const done =
-      state.agenda?.items?.filter((i) => i.isDone || i.status === "Done").length ?? 0;
+      state.agenda?.items?.filter((i) => i.isCompleted || i.completedAtUtc || i.isDone || i.status === "Done").length ?? 0;
     const quorumText = state.quorum
       ? `${Number(state.quorum.currentCoefficient).toFixed(2)}%`
       : "—";

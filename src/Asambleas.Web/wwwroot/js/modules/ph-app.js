@@ -2,12 +2,12 @@ import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js
 import { me, logout, hasPermission } from "./auth.js";
 import { mountIaShell, phHref } from "./ia-nav.js?v=tabs2";
 import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
-import { formatDateTime, confirmDialog, notify } from "./ui.js";
+import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton } from "./loading.js";
 import { startHybridShell } from "./hybrid-router.js";
-import { createUnitsHub } from "./ph-units-hub.js?v=coef-int1";
+import { createUnitsHub } from "./ph-units-hub.js?v=cancel-label1";
 
 const STEP_LABELS = [
   "Información",
