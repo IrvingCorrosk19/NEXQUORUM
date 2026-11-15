@@ -7,12 +7,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=polish1" />
+  <link rel="stylesheet" href="/css/tokens.css?v=polish7" />
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
-  <link rel="stylesheet" href="/css/calendar.css?v=polish2" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish1" />
+  <link rel="stylesheet" href="/css/calendar.css?v=polish7" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish7" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 </head>
 <body class="layout-tabler">
@@ -31,6 +31,7 @@
           <nav id="ia-nav" aria-label="Navegación contextual">
             <div class="ia-nav-skel" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
           </nav>
+          <script src="/js/shell-paint.js?v=polish7"></script>
         </div>
       </div>
     </aside>
@@ -85,27 +86,31 @@
         </div>
         <div class="cluster calendar-nav-range">
           <button type="button" id="btn-prev" class="btn btn-ghost" aria-label="Periodo anterior">←</button>
-          <strong id="range-label"></strong>
+          <strong id="range-label">Mes actual</strong>
           <button type="button" id="btn-next" class="btn btn-ghost" aria-label="Periodo siguiente">→</button>
           <button type="button" id="btn-today" class="btn btn-secondary">Hoy</button>
         </div>
-        <div class="cluster calendar-filters">
-          <label class="sr-only" for="filter-status">Estado</label>
-          <select id="filter-status" class="form-select">
-            <option value="">Todos los estados</option>
-            <option value="Scheduled">Programada</option>
-            <option value="CheckIn">Presencia</option>
-            <option value="InProgress">En vivo</option>
-            <option value="Completed">Finalizada</option>
-            <option value="Cancelled">Cancelada</option>
-          </select>
-          <label class="sr-only" for="filter-modality">Modalidad</label>
-          <select id="filter-modality" class="form-select">
-            <option value="">Todas las modalidades</option>
-            <option value="VIRTUAL">Virtual</option>
-            <option value="PRESENCIAL">Presencial</option>
-            <option value="HIBRIDA">Híbrida</option>
-          </select>
+        <div class="calendar-filters">
+          <label class="calendar-filter">
+            <span class="sr-only">Estado</span>
+            <select id="filter-status" class="form-select">
+              <option value="">Todos los estados</option>
+              <option value="Scheduled">Programada</option>
+              <option value="CheckIn">Presencia</option>
+              <option value="InProgress">En vivo</option>
+              <option value="Completed">Finalizada</option>
+              <option value="Cancelled">Cancelada</option>
+            </select>
+          </label>
+          <label class="calendar-filter">
+            <span class="sr-only">Modalidad</span>
+            <select id="filter-modality" class="form-select">
+              <option value="">Todas las modalidades</option>
+              <option value="VIRTUAL">Virtual</option>
+              <option value="PRESENCIAL">Presencial</option>
+              <option value="HIBRIDA">Híbrida</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -129,7 +134,7 @@
     </div>
   </div>
 
-  <aside id="event-drawer" class="event-drawer" hidden aria-hidden="true">
+  <aside id="event-drawer" class="event-drawer" data-hybrid-portal hidden aria-hidden="true">
     <div class="event-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
       <header class="event-drawer-head">
         <p class="command-eyebrow" id="drawer-status"></p>
@@ -141,7 +146,7 @@
     </div>
   </aside>
 
-  <div id="schedule-dialog" class="cal-dialog" hidden>
+  <div id="schedule-dialog" class="cal-dialog" data-hybrid-portal hidden>
     <form id="schedule-form" class="cal-dialog-panel schedule-sheet" role="dialog" aria-modal="true" aria-labelledby="schedule-title">
       <header class="schedule-sheet__head">
         <div>
@@ -157,14 +162,14 @@
           <legend>Propiedad y tipo</legend>
         <div class="field" id="field-ph">
           <label for="sched-ph">Propiedad horizontal <span class="req" aria-hidden="true">*</span></label>
-          <select id="sched-ph" name="propertyHorizontalId" class="input" required aria-describedby="sched-ph-hint"></select>
+          <select id="sched-ph" name="propertyHorizontalId" class="input" required aria-describedby="sched-ph-hint err-ph"></select>
           <p id="sched-ph-hint" class="field-hint"></p>
           <p class="field-error" id="err-ph" hidden></p>
         </div>
 
         <div class="field">
           <label for="sched-title">Nombre de la asamblea <span class="req" aria-hidden="true">*</span></label>
-          <input id="sched-title" name="title" class="input" required maxlength="512" placeholder="Asamblea Ordinaria — Agosto 2026" autocomplete="off" />
+          <input id="sched-title" name="title" class="input" required maxlength="512" placeholder="Asamblea Ordinaria — Agosto 2026" autocomplete="off" aria-describedby="err-title" />
           <p class="field-error" id="err-title" hidden></p>
         </div>
 
@@ -183,12 +188,12 @@
         <div class="field-row">
           <div class="field">
             <label for="sched-date">Fecha <span class="req" aria-hidden="true">*</span></label>
-            <input id="sched-date" name="dateLocal" class="input" type="date" required />
+            <input id="sched-date" name="dateLocal" class="input" type="date" required aria-describedby="err-date" />
             <p class="field-error" id="err-date" hidden></p>
           </div>
           <div class="field">
             <label for="sched-time">Hora de inicio <span class="req" aria-hidden="true">*</span></label>
-            <select id="sched-time" name="timeLocal" class="input" required></select>
+            <select id="sched-time" name="timeLocal" class="input" required aria-describedby="sched-tz-hint err-time"></select>
             <p id="sched-tz-hint" class="field-hint">Hora local del PH</p>
             <p class="field-error" id="err-time" hidden></p>
           </div>
@@ -207,7 +212,7 @@
         </div>
         <div class="field" id="field-end-custom" hidden>
           <label for="sched-end-time">Hora de fin</label>
-          <input id="sched-end-time" name="endTimeLocal" class="input" type="time" />
+          <input id="sched-end-time" name="endTimeLocal" class="input" type="time" aria-describedby="err-end" />
           <p class="field-error" id="err-end" hidden></p>
         </div>
         </fieldset>
@@ -232,7 +237,7 @@
 
         <div class="field" id="field-location" hidden>
           <label for="sched-location">Lugar de la asamblea <span class="req" aria-hidden="true">*</span></label>
-          <input id="sched-location" name="locationText" class="input" maxlength="512" placeholder="Salón de eventos — Ocean Residences" />
+          <input id="sched-location" name="locationText" class="input" maxlength="512" placeholder="Salón de eventos — Ocean Residences" aria-describedby="err-location" />
           <p class="field-error" id="err-location" hidden></p>
         </div>
         </fieldset>
@@ -270,7 +275,7 @@
     </form>
   </div>
 
-  <div id="schedule-success-dialog" class="cal-dialog" hidden>
+  <div id="schedule-success-dialog" class="cal-dialog" data-hybrid-portal hidden>
     <div class="cal-dialog-panel schedule-success" role="dialog" aria-modal="true" aria-labelledby="success-title">
       <p class="success-kicker">Asamblea programada</p>
       <h2 id="success-title"></h2>
@@ -284,7 +289,7 @@
     </div>
   </div>
 
-  <div id="reschedule-dialog" class="cal-dialog" hidden>
+  <div id="reschedule-dialog" class="cal-dialog" data-hybrid-portal hidden>
     <form id="reschedule-form" class="cal-dialog-panel schedule-sheet" role="dialog" aria-modal="true" aria-labelledby="reschedule-title">
       <header class="schedule-sheet__head">
         <div>
@@ -320,7 +325,7 @@
     </form>
   </div>
 
-  <div id="cancel-dialog" class="cal-dialog" hidden>
+  <div id="cancel-dialog" class="cal-dialog" data-hybrid-portal hidden>
     <form id="cancel-form" class="cal-dialog-panel schedule-sheet" role="dialog" aria-modal="true" aria-labelledby="cancel-title">
       <header class="schedule-sheet__head">
         <div>
@@ -342,7 +347,7 @@
     </form>
   </div>
 
-  <div id="discard-dialog" class="cal-dialog" hidden>
+  <div id="discard-dialog" class="cal-dialog" data-hybrid-portal hidden>
     <div class="cal-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="discard-title">
       <h2 id="discard-title">¿Descartar cambios?</h2>
       <p class="muted">Perderás la información ingresada en el formulario.</p>
@@ -354,6 +359,6 @@
   </div>
 
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/calendar-app.js?v=polish1"></script>
+  <script type="module" src="/js/modules/calendar-app.js?v=polish7"></script>
 </body>
 </html>

@@ -174,7 +174,7 @@
   --bg-atmosphere: var(--surface-base);
 
   --connection-banner-bg: #ffffff;
-  --asset-version: polish1;
+  --asset-version: polish7;
 }
 
 @media (prefers-reduced-motion: reduce) {

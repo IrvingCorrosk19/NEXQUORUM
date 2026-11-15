@@ -3,7 +3,7 @@ import { hasPermission } from "./auth.js";
 import { confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { runWithButton } from "./loading.js";
-import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener } from "./query-guard.js?v=polish1";
+import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks } from "./query-guard.js?v=polish7";
 
 /**
  * Premium units hub for /ph.html#units — reuses /api/ph/* endpoints.
@@ -23,6 +23,8 @@ export function createUnitsHub(ctx) {
   let loadedPhId = null;
   let listState = "idle";
   let lastOpener = null;
+  let unitUntrap = null;
+  let unitUnbindKeyboard = null;
   const query = createQueryGuard();
 
   function esc(s) {
@@ -360,6 +362,10 @@ export function createUnitsHub(ctx) {
 
   function syncModalTabs() {
     const saved = modalMode !== "create" && !!currentUnitId;
+    const tabs = $("#dlg-unit-hub .unit-hub__tabs");
+    const dlg = $("#dlg-unit-hub");
+    if (tabs) tabs.hidden = !saved;
+    dlg?.classList.toggle("is-create", !saved);
     $$("#dlg-unit-hub [data-unit-tab]").forEach((b) => {
       if (b.dataset.unitTab === "info") {
         b.hidden = false;
@@ -392,6 +398,10 @@ export function createUnitsHub(ctx) {
       renderCreateForm();
       try { dlg.showModal(); } catch (_) { dlg.setAttribute("open", ""); }
       bindSheetViewport(dlg);
+      unitUntrap?.();
+      unitUnbindKeyboard?.();
+      unitUntrap = trapFocus(dlg);
+      unitUnbindKeyboard = wireSheetKeyboard(dlg);
       setTimeout(() => $("#form-unit-hub input[name='code']")?.focus(), 0);
       return;
     }
@@ -403,6 +413,10 @@ export function createUnitsHub(ctx) {
       renderModalBody();
       try { dlg.showModal(); } catch (_) { dlg.setAttribute("open", ""); }
       bindSheetViewport(dlg);
+      unitUntrap?.();
+      unitUnbindKeyboard?.();
+      unitUntrap = trapFocus(dlg);
+      unitUnbindKeyboard = wireSheetKeyboard(dlg);
     } catch (err) {
       AppFeedback.fromError(err);
     }
@@ -413,8 +427,6 @@ export function createUnitsHub(ctx) {
     if (dlg?.open) dlg.close();
     currentUnitId = null;
     currentDetail = null;
-    restoreOpener(lastOpener);
-    lastOpener = null;
   }
 
   function suggestNextUnitCode() {
@@ -438,7 +450,7 @@ export function createUnitsHub(ctx) {
           <label>Torre <input name="tower" maxlength="64" /></label>
           <label>Piso <input name="floor" type="number" /></label>
           <label>Tipo <input name="unitType" maxlength="64" /></label>
-          <label><span>Coeficiente % <span class="req" aria-hidden="true">*</span></span> <input name="coefficientPercent" type="number" step="1" min="0" max="100" required /></label>
+          <label><span>Coeficiente % <span class="req" aria-hidden="true">*</span></span> <input name="coefficientPercent" type="number" step="1" min="0" max="100" required aria-describedby="unit-hub-inline-error" /></label>
           <label class="check"><input type="checkbox" name="isActive" checked /> Unidad activa</label>
         </div>
         <p id="unit-hub-inline-error" class="field-error" hidden role="alert"></p>
@@ -559,15 +571,24 @@ export function createUnitsHub(ctx) {
   async function onSaveUnit(ev) {
     ev.preventDefault();
     if (busy) return;
+    busy = true;
     const err = $("#unit-hub-inline-error");
     if (err) { err.hidden = true; err.textContent = ""; }
+    const coefInput = ev.target.querySelector("[name='coefficientPercent']");
+    if (coefInput) coefInput.setAttribute("aria-invalid", "false");
     const data = formData(ev.target);
     const coef = Number(data.coefficientPercent);
     if (!(coef >= 0) || coef > 100) {
       if (err) { err.hidden = false; err.textContent = "El coeficiente debe estar entre 0 y 100 %."; }
+      if (coefInput) {
+        coefInput.setAttribute("aria-invalid", "true");
+        coefInput.focus();
+      }
+      busy = false;
       return;
     }
     const btn = $("#btn-save-unit-hub");
+    if (btn) btn.disabled = true;
     const body = {
       code: (data.code || "").trim() || null,
       tower: data.tower || null,
@@ -576,22 +597,19 @@ export function createUnitsHub(ctx) {
       coefficientPercent: coef,
       isActive: data.isActive === "on" || data.isActive === true || data.isActive === "true"
     };
-    busy = true;
     try {
       await runWithButton(btn, currentUnitId ? "Guardando…" : "Creando…", async () => {
+        await applyTestHooks();
         if (!currentUnitId) {
-          const created = await api(`/api/ph/${ctx.currentPhId}/units`, { method: "POST", body });
+          await api(`/api/ph/${ctx.currentPhId}/units`, { method: "POST", body });
           notify.success("La unidad fue creada correctamente.", { title: "Unidad creada" });
-          await loadUnits({ force: true });
-          await refreshCoeffBanner();
-          await openUnitModal(created.id, "view", "owner");
         } else {
           await api(`/api/ph/${ctx.currentPhId}/units/${currentUnitId}`, { method: "PUT", body });
           notify.success("Los cambios fueron guardados.", { title: "Unidad actualizada" });
-          await loadUnits({ force: true });
-          await refreshCoeffBanner();
-          await openUnitModal(currentUnitId, "view", "info");
         }
+        await loadUnits({ force: true });
+        await refreshCoeffBanner();
+        closeUnitModal();
       });
     } catch (ex) {
       if (err) { err.hidden = false; err.textContent = ex?.message || "No se pudo guardar."; }
@@ -908,7 +926,14 @@ export function createUnitsHub(ctx) {
     $("#btn-empty-new-unit")?.addEventListener("click", () => openUnitModal(null, "create"));
     $("#btn-units-retry")?.addEventListener("click", () => loadUnits({ force: true }));
     $("#unit-hub-close")?.addEventListener("click", closeUnitModal);
-    $("#dlg-unit-hub")?.addEventListener("close", () => restoreOpener(lastOpener));
+    $("#dlg-unit-hub")?.addEventListener("close", () => {
+      unitUntrap?.();
+      unitUnbindKeyboard?.();
+      unitUntrap = null;
+      unitUnbindKeyboard = null;
+      restoreOpener(lastOpener);
+      lastOpener = null;
+    });
     $("#dlg-unit-hub")?.addEventListener("click", (e) => {
       if (e.target === e.currentTarget) closeUnitModal();
     });

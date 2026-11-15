@@ -1115,6 +1115,11 @@ dialog.app-sheet::backdrop,
   display: none;
 }
 
+.layout-tabler .unit-hub__tabs[hidden],
+#dlg-unit-hub.is-create .unit-hub__tabs {
+  display: none !important;
+}
+
 @media (max-width: 767px) {
   dialog.app-sheet,
   .layout-tabler dialog.app-sheet,

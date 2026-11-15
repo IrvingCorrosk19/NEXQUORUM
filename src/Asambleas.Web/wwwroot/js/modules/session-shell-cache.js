@@ -17,6 +17,35 @@ function scopeKey(user) {
   return `${user?.tenantId || ""}:${user?.userId || ""}`;
 }
 
+const NAV_KEY = "asambleas.shell.nav.v1";
+
+function clearNavSnapshot() {
+  try {
+    sessionStorage.removeItem(NAV_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function persistNavSnapshot(snap) {
+  if (!snap?.navHtml || snap.navHtml.includes("ia-nav-skel")) return;
+  try {
+    sessionStorage.setItem(
+      NAV_KEY,
+      JSON.stringify({
+        v: 1,
+        phId: snap.phId || "",
+        navHtml: snap.navHtml,
+        displayName: snap.displayName || "",
+        roleLabel: snap.roleLabel || "",
+        avatar: snap.avatar || ""
+      })
+    );
+  } catch {
+    /* ignore quota */
+  }
+}
+
 export function invalidateShellSessionCache(reason = "manual") {
   MEM.me = null;
   MEM.meExpires = 0;
@@ -26,6 +55,9 @@ export function invalidateShellSessionCache(reason = "manual") {
     sessionStorage.removeItem("asambleas.shell.me.v1");
   } catch {
     /* ignore */
+  }
+  if (reason === "logout" || reason === "user-mismatch" || reason === "401") {
+    clearNavSnapshot();
   }
   void reason;
 }

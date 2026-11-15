@@ -5,7 +5,7 @@
 import { api } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
 import { isOwnerPortalUser } from "./roles.js";
-import { mountIaShell, buildAssemblyBreadcrumbs, phHref } from "./ia-nav.js?v=idn2";
+import { mountIaShell, buildAssemblyBreadcrumbs, phHref } from "./ia-nav.js?v=polish7";
 import { readIaContext, syncIaContextFromUrl, writeIaContext } from "./ia-context.js";
 import { ensureActivePhClaim, hydratePhContext, loadMyMemberships } from "./ph-context.js";
 
@@ -68,13 +68,17 @@ export async function bootIaPage(opts) {
     location.href = "/";
   });
 
+  const storedBeforeUrl = readIaContext();
   syncIaContextFromUrl();
   const stored = readIaContext();
 
   const params = new URLSearchParams(location.search);
   let phId = params.get("phId") || stored.phId || user.propertyHorizontalId || null;
   let assemblyId = params.get("assemblyId") || stored.assemblyId || null;
-  let phName = stored.phName || null;
+  let phName = storedBeforeUrl.phName || null;
+  if (params.get("phId") && String(storedBeforeUrl.phId || "") !== String(params.get("phId"))) {
+    phName = null;
+  }
   let assemblyTitle = stored.assemblyTitle || null;
   let assemblyStatus = stored.assemblyStatus || null;
   let crumbs = breadcrumbs;
@@ -122,10 +126,19 @@ export async function bootIaPage(opts) {
   writeIaContext({ phId, phName, assemblyId, assemblyTitle, assemblyStatus });
 
   try {
-    await loadMyMemberships();
+    const memberships = await loadMyMemberships();
+    if (phId) {
+      const row = (memberships || []).find((m) => String(m.propertyHorizontalId) === String(phId));
+      if (row?.name) phName = row.name;
+    }
     if (phId && String(user.propertyHorizontalId || "") !== String(phId)) {
       await ensureActivePhClaim(phId);
       user = (await me()) || user;
+    }
+    if (!assemblyId && pageLabel) {
+      crumbs = [{ label: "Propiedades", href: "/ph.html" }];
+      if (phName && phId) crumbs.push({ label: phName, href: phHref(phId, "resumen") });
+      crumbs.push({ label: pageLabel });
     }
   } catch (err) {
     if (err?.status === 403 || err?.status === 404) {

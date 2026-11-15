@@ -3,9 +3,12 @@ import { me, hasPermission } from "./auth.js";
 import { isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { bootIaPage } from "./ia-page.js?v=idn2";
+import { bootIaPage } from "./ia-page.js?v=polish7";
 import { iconSvg } from "./tabler-icons.js?v=idn2";
-import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus } from "./query-guard.js?v=polish1";
+import { mountIaShell, phHref } from "./ia-nav.js?v=polish7";
+import { startHybridShell } from "./hybrid-router.js?v=polish7";
+import { runWithButton } from "./loading.js";
+import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard } from "./query-guard.js?v=polish7";
 import { assemblyLabel } from "./assembly-labels.js";
 import {
   fillTimeSelect,
@@ -29,13 +32,17 @@ const state = {
   titleTouched: false,
   editingAssemblyId: null,
   ui: "idle",
-  phName: null
+  phName: null,
+  mounted: false
 };
 
 const query = createQueryGuard();
+const bannerQuery = createQueryGuard();
 let lastScheduleOpener = null;
 let scheduleUnbindViewport = null;
 let scheduleUntrap = null;
+let scheduleUnbindKeyboard = null;
+let chromeAbort = null;
 
 function startOfMonth(d) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
@@ -146,6 +153,8 @@ function rangeForView() {
 async function loadEvents() {
   const token = query.next();
   const phId = state.phId;
+  const { from, to, label } = rangeForView();
+  if (qs("#range-label")) qs("#range-label").textContent = label;
   const hadGrid = state.ui === "ready" && qs("#calendar-root") && !qs("#calendar-root .cal-skel");
   if (hadGrid) setCalendarUi("filtering");
   else {
@@ -154,8 +163,6 @@ async function loadEvents() {
     });
   }
   try {
-    const { from, to, label } = rangeForView();
-    if (qs("#range-label")) qs("#range-label").textContent = label;
     await query.testHooks();
     let version = 0;
     try {
@@ -194,29 +201,30 @@ async function loadEvents() {
 async function loadNextBanner() {
   const el = qs("#next-assembly-banner");
   if (!el) return;
+  const token = bannerQuery.next();
+  const phId = state.phId;
   try {
-    const data = await api("/api/calendar/next");
+    const path = phId
+      ? `/api/calendar/next?propertyHorizontalId=${encodeURIComponent(phId)}`
+      : "/api/calendar/next";
+    const data = await api(path);
+    if (!bannerQuery.isCurrent(token) || (phId && String(state.phId) !== String(phId))) return;
     const n = data.next;
+    el.hidden = false;
     if (!n) {
       el.classList.add("empty");
+      el.classList.remove("has-next");
       el.innerHTML = `<p class="next-brief">No hay asambleas próximas en este período.</p>`;
       return;
     }
     el.classList.remove("empty");
-    const live = n.calendarStatus === "LIVE";
-    el.innerHTML = `
-      <p class="next-kicker">${live ? "● EN VIVO" : "Tu próxima Asamblea"}</p>
-      <h2>${escapeHtml(n.title)}</h2>
-      <p class="next-meta">${escapeHtml(n.propertyHorizontalName)} · ${escapeHtml(n.modality)} · ${escapeHtml(formatInTz(n.scheduledAtUtc, n.timeZoneId))}</p>
-      <p><strong>${escapeHtml(n.countdownLabel || "")}</strong></p>
-      <div class="cluster" style="margin-top:0.75rem">
-        ${n.canJoin ? `<a class="btn btn-primary" href="/assembly.html?assemblyId=${n.assemblyId}">${live ? "Entrar ahora" : "Entrar a la asamblea"}</a>` : `<span class="muted">Disponible a las ${escapeHtml(timeShort(n.joinOpensAtUtc, n.timeZoneId))}</span>`}
-        <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${n.assemblyId}">Ver asamblea</a>
-        <button type="button" class="btn btn-ghost" data-open-event="${n.assemblyId}">Detalle</button>
-      </div>`;
-    el.querySelector("[data-open-event]")?.addEventListener("click", () => openEvent(n.assemblyId));
+    el.classList.add("has-next");
+    const when = formatInTz(n.scheduledAtUtc, n.timeZoneId);
+    el.innerHTML = `<p class="next-brief"><strong>Próxima:</strong> ${escapeHtml(n.title)} · ${escapeHtml(when)} · <a href="/dashboard.html?assemblyId=${n.assemblyId}">Ver</a></p>`;
   } catch {
-    el.hidden = true;
+    if (!bannerQuery.isCurrent(token)) return;
+    el.classList.add("empty");
+    el.innerHTML = `<p class="next-brief">No se pudo cargar la próxima asamblea.</p>`;
   }
 }
 
@@ -537,8 +545,10 @@ function openDialog(id) {
     const sheet = el.querySelector(".schedule-sheet") || el;
     scheduleUnbindViewport?.();
     scheduleUntrap?.();
+    scheduleUnbindKeyboard?.();
     scheduleUnbindViewport = bindSheetViewport(sheet);
     scheduleUntrap = trapFocus(sheet);
+    scheduleUnbindKeyboard = wireSheetKeyboard(sheet);
   }
 }
 
@@ -549,8 +559,10 @@ function closeDialog(id) {
   if (id === "schedule-dialog") {
     scheduleUnbindViewport?.();
     scheduleUntrap?.();
+    scheduleUnbindKeyboard?.();
     scheduleUnbindViewport = null;
     scheduleUntrap = null;
+    scheduleUnbindKeyboard = null;
     restoreOpener(lastScheduleOpener);
   }
 }
@@ -588,14 +600,29 @@ function clearFieldErrors() {
       el.hidden = true;
       el.textContent = "";
     }
+    const sel = FIELD_ERROR_INPUTS[id];
+    if (sel) qs(sel)?.setAttribute("aria-invalid", "false");
   });
 }
+
+const FIELD_ERROR_INPUTS = {
+  "err-ph": "#sched-ph",
+  "err-title": "#sched-title",
+  "err-date": "#sched-date",
+  "err-time": "#sched-time",
+  "err-end": "#sched-end-time",
+  "err-location": "#sched-location"
+};
 
 function setFieldError(id, message) {
   const el = qs(`#${id}`);
   if (!el) return;
   el.hidden = !message;
   el.textContent = message || "";
+  const input = qs(FIELD_ERROR_INPUTS[id] || "");
+  if (input) {
+    input.setAttribute("aria-invalid", message ? "true" : "false");
+  }
 }
 
 function selectedPh() {
@@ -617,7 +644,6 @@ function syncModalityUi() {
   const virt = qs("#field-virtual-info");
   if (loc) loc.hidden = m === "VIRTUAL";
   if (virt) virt.hidden = m === "PRESENCIAL";
-  if (m === "VIRTUAL" && qs("#sched-location")) qs("#sched-location").value = "";
 }
 
 function syncDurationUi() {
@@ -940,6 +966,9 @@ function showScheduleSuccess(created, ph, fallbackEndIso) {
 }
 
 function wireChrome() {
+  chromeAbort?.abort();
+  chromeAbort = new AbortController();
+  const { signal } = chromeAbort;
   document.querySelectorAll(".view-toggle [data-view]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       state.view = btn.dataset.view;
@@ -978,7 +1007,7 @@ function wireChrome() {
         closeDialog("discard-dialog");
       }
     }
-  });
+  }, { signal });
   document.querySelectorAll("[data-close]").forEach((b) =>
     b.addEventListener("click", () => {
       const id = b.getAttribute("data-close");
@@ -1031,11 +1060,12 @@ function wireChrome() {
     if (!validateScheduleForm()) return;
     state.scheduleSubmitting = true;
     const btn = qs("#btn-create-assembly");
+    if (btn) btn.disabled = true;
     const editingId = state.editingAssemblyId;
-    const { runWithButton } = await import("./loading.js");
     const ph = selectedPh();
     try {
       await runWithButton(btn, editingId ? "Guardando…" : "Creando…", async () => {
+        await query.testHooks();
         const body = buildSchedulePayload();
         let result;
         if (editingId) {
@@ -1227,9 +1257,15 @@ async function init() {
     location.href = "/";
     return;
   }
-  qs("#user-chip").textContent = state.user.displayName || state.user.email;
+  const chip = qs("#user-chip");
+  if (chip) chip.textContent = state.user.displayName || state.user.email;
   const brandSub = qs("#nav-tenant");
   if (brandSub) brandSub.textContent = state.user.tenantName || "Gobernanza";
+  const avatar = qs("#user-avatar");
+  if (avatar) {
+    const src = state.user.displayName || state.user.email || "AS";
+    avatar.textContent = src.slice(0, 2).toUpperCase();
+  }
 
   const urlPh = new URLSearchParams(location.search).get("phId");
   const boot = await bootIaPage({ current: "calendar", pageLabel: "Calendario" });
@@ -1251,22 +1287,71 @@ async function init() {
   document.querySelectorAll(".view-toggle [data-view]").forEach((b) => {
     b.setAttribute("aria-pressed", String(b.dataset.view === state.view));
   });
+  const { label } = rangeForView();
+  if (qs("#range-label")) qs("#range-label").textContent = label;
   wireChrome();
-  let navAssemblyId = null;
+  if (!ownerPortal) wireNav(null);
+  await Promise.all([loadNextBanner(), loadEvents()]);
+}
+
+async function reloadForPh({ phId, phName, user } = {}) {
+  if (user) state.user = user;
+  state.phId = phId || state.phId;
+  state.phName = phName || state.phName;
+  mountIaShell(
+    {
+      level: state.phId ? "ph" : "global",
+      user: state.user,
+      phId: state.phId,
+      phName: state.phName,
+      current: "calendar"
+    },
+    {
+      breadcrumbs: [
+        { label: "Propiedades", href: "/ph.html" },
+        ...(state.phId && state.phName ? [{ label: state.phName, href: phHref(state.phId, "resumen") }] : []),
+        { label: "Calendario" }
+      ]
+    }
+  );
+  await Promise.all([loadNextBanner(), loadEvents()]);
+}
+
+export async function mount(ctx = {}) {
+  state.mounted = true;
+  window.__asambleasReloadCalendar = reloadForPh;
+  await init();
+  await startHybridShell({
+    mount,
+    unmount,
+    canLeave: async () => true,
+    dispose: unmount
+  });
+  void ctx;
+}
+
+export async function unmount() {
+  state.mounted = false;
+  chromeAbort?.abort();
+  chromeAbort = null;
+  query.next();
+  bannerQuery.next();
+  scheduleUnbindViewport?.();
+  scheduleUntrap?.();
+  scheduleUnbindKeyboard?.();
+  window.__asambleasReloadCalendar = null;
   try {
-    const nextQ = state.phId
-      ? `/api/calendar/next?propertyHorizontalId=${encodeURIComponent(state.phId)}`
-      : "/api/calendar/next";
-    const next = await api(nextQ);
-    navAssemblyId = next?.next?.assemblyId || next?.assemblyId || null;
+    const { setDirtyGuard } = await import("./ph-context.js");
+    setDirtyGuard(null);
   } catch {
     /* ignore */
   }
-  if (!ownerPortal) {
-    wireNav(navAssemblyId);
-  }
-  await loadNextBanner();
-  await loadEvents();
 }
 
-init();
+export async function dispose() {
+  await unmount();
+}
+
+if (!window.__ASAM_SOFT_MOUNTING__ && !window.__ASAM_HYBRID__) {
+  mount().catch((err) => console.error(err));
+}

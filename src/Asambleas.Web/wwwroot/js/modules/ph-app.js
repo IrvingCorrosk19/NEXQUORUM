@@ -1,14 +1,14 @@
 import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
-import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=idn2";
+import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=polish7";
 import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
 import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton, startTopProgress, stopTopProgress } from "./loading.js";
-import { startHybridShell } from "./hybrid-router.js?v=polish1";
-import { createUnitsHub } from "./ph-units-hub.js?v=polish1";
-import { bindSheetViewport, rememberOpener, restoreOpener } from "./query-guard.js?v=polish1";
+import { startHybridShell } from "./hybrid-router.js?v=polish7";
+import { createUnitsHub } from "./ph-units-hub.js?v=polish7";
+import { bindSheetViewport, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks } from "./query-guard.js?v=polish7";
 
 const STEP_LABELS = [
   "Información",
@@ -26,6 +26,8 @@ let currentPhId = null;
 let currentPh = null;
 let createPhBusy = false;
 let createPhOpener = null;
+let createPhUntrap = null;
+let createPhUnbindKeyboard = null;
 let editingOwnerId = null;
 let myMemberships = [];
 let phAssemblies = [];
@@ -420,8 +422,17 @@ function openCreatePhDialog() {
   }
   createPhOpener = rememberOpener();
   const dlg = $("#dlg-create-ph");
+  const inlineErr = $("#create-ph-error");
+  if (inlineErr) {
+    inlineErr.hidden = true;
+    inlineErr.textContent = "";
+  }
   dlg?.showModal();
   bindSheetViewport(dlg);
+  createPhUntrap?.();
+  createPhUnbindKeyboard?.();
+  createPhUntrap = trapFocus(dlg);
+  createPhUnbindKeyboard = wireSheetKeyboard(dlg);
   setTimeout(() => nameInput?.focus(), 0);
 }
 
@@ -460,12 +471,17 @@ function wireUi() {
   $("#btn-create-first")?.addEventListener("click", openCreatePhDialog);
   const closeCreate = () => {
     $("#dlg-create-ph")?.close();
-    restoreOpener(createPhOpener);
-    createPhOpener = null;
   };
   $("#btn-cancel-create").addEventListener("click", closeCreate);
   $("#btn-cancel-create-foot")?.addEventListener("click", closeCreate);
-  $("#dlg-create-ph")?.addEventListener("close", () => restoreOpener(createPhOpener));
+  $("#dlg-create-ph")?.addEventListener("close", () => {
+    createPhUntrap?.();
+    createPhUnbindKeyboard?.();
+    createPhUntrap = null;
+    createPhUnbindKeyboard = null;
+    restoreOpener(createPhOpener);
+    createPhOpener = null;
+  });
   $("#form-create-ph").addEventListener("submit", onCreatePh);
   $("#btn-continue-config")?.addEventListener("click", () => {
     $("#dlg-ph-created").close();
@@ -827,15 +843,18 @@ async function onCreatePh(ev) {
   ev.preventDefault();
   ev.stopPropagation();
   if (createPhBusy) return;
+  createPhBusy = true;
   if (!canCreatePh()) {
     AppFeedback.error("No tienes permiso para crear un PH. Se requiere «Administrar PH».", {
       title: "Creación bloqueada"
     });
+    createPhBusy = false;
     return;
   }
 
   const form = ev.target;
-  const submitBtn = form.querySelector('button[type="submit"]');
+  const submitBtn = form.querySelector('button[type="submit"]') || $("#btn-submit-create-ph");
+  if (submitBtn) submitBtn.disabled = true;
   const data = formData(form);
 
     const inlineErr = $("#create-ph-error");
@@ -844,10 +863,10 @@ async function onCreatePh(ev) {
       inlineErr.textContent = "";
     }
 
-  createPhBusy = true;
   try {
-    const created = await runWithButton(submitBtn, "Creando…", async () =>
-      api("/api/ph", {
+    const created = await runWithButton(submitBtn, "Creando…", async () => {
+      await applyTestHooks();
+      return api("/api/ph", {
         method: "POST",
         body: {
           name: data.name,
@@ -863,8 +882,8 @@ async function onCreatePh(ev) {
           organizationId: null
         },
         dedupeKey: "ph-create"
-      })
-    );
+      });
+    });
 
     $("#dlg-create-ph").close();
     form.reset();
@@ -2988,6 +3007,11 @@ export async function unmount() {
   currentPh = null;
   phFormBinder?.destroy?.();
   phFormBinder = null;
+  createPhUntrap?.();
+  createPhUnbindKeyboard?.();
+  createPhUntrap = null;
+  createPhUnbindKeyboard = null;
+  document.querySelectorAll("body > dialog.app-sheet, body > #dlg-confirm-action, body > #dlg-ph-created").forEach((n) => n.remove());
   window.__asambleasHandlePhUrl = handlePhUrl;
 }
 

@@ -2,6 +2,15 @@
  * Request sequencing plus local verification hooks.
  * window.__ASAM_TEST_DELAY (ms) and window.__ASAM_TEST_FAIL (one-shot) are for QA only.
  */
+export async function applyTestHooks() {
+  const ms = Number(window.__ASAM_TEST_DELAY || 0);
+  if (ms > 0) await new Promise((r) => setTimeout(r, ms));
+  if (window.__ASAM_TEST_FAIL) {
+    window.__ASAM_TEST_FAIL = false;
+    throw new Error("No se pudo completar la consulta. Inténtalo de nuevo.");
+  }
+}
+
 export function createQueryGuard() {
   let seq = 0;
   return {
@@ -11,16 +20,23 @@ export function createQueryGuard() {
     isCurrent(token) {
       return token === seq;
     },
-    async testHooks() {
-      const ms = Number(window.__ASAM_TEST_DELAY || 0);
-      if (ms > 0) await new Promise((r) => setTimeout(r, ms));
-      if (window.__ASAM_TEST_FAIL) {
-        window.__ASAM_TEST_FAIL = false;
-        const err = new Error("No se pudo completar la consulta. Inténtalo de nuevo.");
-        throw err;
-      }
+    testHooks: applyTestHooks
+  };
+}
+
+export function wireSheetKeyboard(container) {
+  if (!container) return () => {};
+  const onFocus = (e) => {
+    const t = e.target;
+    if (!t?.matches?.("input, select, textarea")) return;
+    try {
+      t.scrollIntoView({ block: "nearest", inline: "nearest" });
+    } catch {
+      /* ignore */
     }
   };
+  container.addEventListener("focusin", onFocus);
+  return () => container.removeEventListener("focusin", onFocus);
 }
 
 export function rememberOpener() {

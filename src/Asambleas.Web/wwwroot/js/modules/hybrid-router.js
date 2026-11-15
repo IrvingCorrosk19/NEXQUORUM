@@ -12,15 +12,24 @@ const HYBRID_FLAG = "__ASAM_HYBRID__";
 const SOFT_PAGES = new Set([
   "dashboard.html",
   "ph.html",
+  "calendar.html",
   "agenda.html",
   "checkin.html",
   "voting-studio.html",
   "owner.html"
 ]);
 
+const TABLER_PAGES = new Set(["ph.html", "calendar.html"]);
+
+function canSoftPair(from, to) {
+  if (!SOFT_PAGES.has(from) || !SOFT_PAGES.has(to)) return false;
+  return TABLER_PAGES.has(from) === TABLER_PAGES.has(to);
+}
+
 const MODULE_LOADERS = {
   "dashboard.html": () => import("./dashboard-app.js?v=gov1"),
-  "ph.html": () => import("./ph-app.js?v=polish1"),
+  "ph.html": () => import("./ph-app.js?v=polish7"),
+  "calendar.html": () => import("./calendar-app.js?v=polish7"),
   "agenda.html": () => import("./agenda-app.js?v=agenda-finish1"),
   "checkin.html": () => import("./checkin-app.js"),
   "voting-studio.html": () => import("./voting-studio-app.js"),
@@ -29,7 +38,8 @@ const MODULE_LOADERS = {
 
 const PAGE_STYLES = {
   "dashboard.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2", "/css/gov-ops.css?v=gov3"],
-  "ph.html": ["/lib/tabler/1.7.5/css/tabler.min.css", "/css/loading.css?v=ia2", "/css/feedback.css?v=fb2", "/css/ph.css?v=units-hub4", "/css/ph-roster-import.css?v=pri1", "/css/ph-tabler.css?v=polish1"],
+  "ph.html": ["/lib/tabler/1.7.5/css/tabler.min.css", "/css/loading.css?v=ia2", "/css/feedback.css?v=fb2", "/css/ph.css?v=units-hub4", "/css/ph-roster-import.css?v=pri1", "/css/ph-tabler.css?v=polish7"],
+  "calendar.html": ["/lib/tabler/1.7.5/css/tabler.min.css", "/css/loading.css?v=ia2", "/css/feedback.css?v=fb2", "/css/calendar.css?v=polish7", "/css/ph-tabler.css?v=polish7"],
   "agenda.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2", "/css/gov-ops.css?v=gov3"],
   "checkin.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2", "/css/gov-ops.css?v=gov3"],
   "voting-studio.html": ["/css/voting-studio.css?v=vs1", "/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2", "/css/gov-ops.css?v=gov3"],
@@ -60,7 +70,11 @@ function isSoftTarget(url) {
   try {
     const u = new URL(url, location.origin);
     if (u.origin !== location.origin) return false;
-    return SOFT_PAGES.has(pageName(u.pathname));
+    const page = pageName(u.pathname);
+    const here = pageName(location.pathname);
+    if (!SOFT_PAGES.has(page)) return false;
+    if (here && !canSoftPair(here, page)) return false;
+    return true;
   } catch {
     return false;
   }
@@ -179,11 +193,13 @@ async function mountPage(page, url) {
   }
 }
 
-function beginSoftNavChrome() {
-  document.body.classList.add("is-navigating", "is-soft-navigating");
-  const main = document.querySelector("#main") || document.querySelector("main.app-workspace");
-  main?.setAttribute("aria-busy", "true");
-  main?.classList.add("ia-region-busy");
+function beginSoftNavChrome({ dim = true } = {}) {
+  if (dim) {
+    document.body.classList.add("is-navigating", "is-soft-navigating");
+    const main = document.querySelector("#main") || document.querySelector("main.app-workspace");
+    main?.setAttribute("aria-busy", "true");
+    main?.classList.add("ia-region-busy");
+  }
   startTopProgress();
 }
 
@@ -208,7 +224,8 @@ export async function softNavigate(href, { replace = false, scroll = true } = {}
 
   const page = pageName(abs.pathname);
   navigating = true;
-  beginSoftNavChrome();
+  const keepShell = page === "calendar.html" || currentPage === "calendar.html";
+  beginSoftNavChrome({ dim: !keepShell });
   const t0 = performance.now();
   try {
     const left = await disposeCurrent();
@@ -313,9 +330,8 @@ function onDocumentClick(ev) {
     return;
   }
 
-  // Leaving soft cluster toward a hard page: allow native navigation.
-  if (!SOFT_PAGES.has(targetPage)) return;
-  if (!SOFT_PAGES.has(here)) return;
+  // Leaving soft cluster toward a hard page, or crossing Tabler/IA shells: native navigation.
+  if (!canSoftPair(here, targetPage)) return;
 
   ev.preventDefault();
   softNavigate(url.pathname + url.search + url.hash).catch(() => {
@@ -325,7 +341,7 @@ function onDocumentClick(ev) {
 
 function onPopState() {
   const page = pageName(location.pathname);
-  if (!SOFT_PAGES.has(page)) {
+  if (!SOFT_PAGES.has(page) || !canSoftPair(currentPage || page, page)) {
     location.reload();
     return;
   }

@@ -399,6 +399,9 @@ export async function switchPh(propertyHorizontalId, { targetUrl = null, silent 
     const samePhPage =
       location.pathname.toLowerCase().endsWith("/ph.html") &&
       destUrl.pathname.toLowerCase().endsWith("/ph.html");
+    const sameCalendarPage =
+      location.pathname.toLowerCase().endsWith("/calendar.html") &&
+      destUrl.pathname.toLowerCase().endsWith("/calendar.html");
 
     if (samePhPage && typeof window.__asambleasOpenPh === "function") {
       history.replaceState(null, "", destUrl.pathname + destUrl.search + destUrl.hash);
@@ -406,6 +409,19 @@ export async function switchPh(propertyHorizontalId, { targetUrl = null, silent 
       document.querySelector("main.app-workspace")?.removeAttribute("aria-busy");
       stopTopProgress();
       await window.__asambleasOpenPh(nextId);
+      return { ok: true, navigated: false, phId: nextId };
+    }
+
+    if (sameCalendarPage && typeof window.__asambleasReloadCalendar === "function") {
+      history.replaceState(null, "", destUrl.pathname + destUrl.search + destUrl.hash);
+      document.body.classList.remove("is-ph-switching");
+      document.querySelector("main.app-workspace")?.removeAttribute("aria-busy");
+      stopTopProgress();
+      await window.__asambleasReloadCalendar({
+        phId: nextId,
+        phName: state.phName,
+        user
+      });
       return { ok: true, navigated: false, phId: nextId };
     }
 

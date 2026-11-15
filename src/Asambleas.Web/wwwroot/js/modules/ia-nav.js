@@ -6,6 +6,7 @@ import { hasPermission } from "./auth.js";
 import { isOperator, isOwnerPortalUser } from "./roles.js";
 import { escapeHtml, qs } from "./ui.js";
 import { iconSvg } from "./tabler-icons.js?v=idn2";
+import { persistNavSnapshot } from "./session-shell-cache.js";
 
 /**
  * @typedef {"global"|"ph"|"assembly"} IaLevel
@@ -36,17 +37,18 @@ function isTablerShell() {
   return document.body?.classList.contains("layout-tabler");
 }
 
-function link(href, label, { current = false, id = null, icon = null } = {}) {
+function link(href, label, { current = false, id = null, icon = null, key = null } = {}) {
   const cur = current ? ' aria-current="page"' : "";
   const idAttr = id ? ` id="${id}"` : "";
+  const keyAttr = key ? ` data-ia="${key}"` : "";
   if (isTablerShell()) {
     const active = current ? " active" : "";
     const iconHtml = icon
       ? `<span class="nav-link-icon">${iconSvg(icon, 20)}</span>`
       : "";
-    return `<li class="nav-item"><a class="nav-link${active}" href="${href}"${idAttr}${cur}>${iconHtml}<span class="nav-link-title">${escapeHtml(label)}</span></a></li>`;
+    return `<li class="nav-item"><a class="nav-link${active}" href="${href}"${idAttr}${keyAttr}${cur}>${iconHtml}<span class="nav-link-title">${escapeHtml(label)}</span></a></li>`;
   }
-  return `<a href="${href}"${idAttr}${cur}>${escapeHtml(label)}</a>`;
+  return `<a href="${href}"${idAttr}${keyAttr}${cur}>${escapeHtml(label)}</a>`;
 }
 
 function section(title, itemsHtml) {
@@ -78,26 +80,26 @@ export function buildIaNavHtml(ctx) {
   const calendarHref = phId ? `/calendar.html?${qPh}` : "/calendar.html";
   const historyHref = phId ? `/assemblies-history.html?${qPh}` : "/assemblies-history.html";
   const global = [
-    link("/ph.html", "Propiedades", { current: current === "ph-list" && !phId, icon: "building" }),
-    link(calendarHref, "Calendario", { current: current === "calendar", icon: "calendar" }),
-    link(historyHref, "Histórico", { current: current === "history", icon: "archive" })
+    link("/ph.html", "Propiedades", { current: current === "ph-list" && !phId, icon: "building", key: "ph-list" }),
+    link(calendarHref, "Calendario", { current: current === "calendar", icon: "calendar", key: "calendar" }),
+    link(historyHref, "Histórico", { current: current === "history", icon: "archive", key: "history" })
   ].join("");
 
   let phBlock = "";
   if (phId) {
     const phBase = `/ph.html?${qPh}`;
     const items = [
-      link(`${phBase}#resumen`, "Resumen", { current: current === "ph-overview", icon: "layoutDashboard" }),
-      link(`${phBase}#assemblies`, "Asambleas", { current: current === "ph-assemblies", icon: "microphone" }),
-      link(`${phBase}#units`, "Unidades", { current: current === "ph-units", icon: "layoutGrid" }),
-      link(`${phBase}#owners`, "Propietarios", { current: current === "ph-owners", icon: "users" }),
-      link(`${phBase}#coefficients`, "Coeficientes", { current: current === "ph-coefficients", icon: "percentage" }),
-      link(`${phBase}#import`, "Importar", { current: current === "ph-import", icon: "fileImport" }),
-      link(`${phBase}#readiness`, "Preparación", { current: current === "ph-readiness", icon: "checklist" }),
+      link(`${phBase}#resumen`, "Resumen", { current: current === "ph-overview", icon: "layoutDashboard", key: "ph-overview" }),
+      link(`${phBase}#assemblies`, "Asambleas", { current: current === "ph-assemblies", icon: "microphone", key: "ph-assemblies" }),
+      link(`${phBase}#units`, "Unidades", { current: current === "ph-units", icon: "layoutGrid", key: "ph-units" }),
+      link(`${phBase}#owners`, "Propietarios", { current: current === "ph-owners", icon: "users", key: "ph-owners" }),
+      link(`${phBase}#coefficients`, "Coeficientes", { current: current === "ph-coefficients", icon: "percentage", key: "ph-coefficients" }),
+      link(`${phBase}#import`, "Importar", { current: current === "ph-import", icon: "fileImport", key: "ph-import" }),
+      link(`${phBase}#readiness`, "Preparación", { current: current === "ph-readiness", icon: "checklist", key: "ph-readiness" }),
       hasPermission(ctx.user, "communications:view")
-        ? link(`/communications.html?${qPh}`, "Comunicaciones", { current: current === "comms", icon: "mail" })
+        ? link(`/communications.html?${qPh}`, "Comunicaciones", { current: current === "comms", icon: "mail", key: "comms" })
         : "",
-      link(`${phBase}#info`, "Configuración", { current: current === "ph-config", icon: "settings" })
+      link(`${phBase}#info`, "Configuración", { current: current === "ph-config", icon: "settings", key: "ph-config" })
     ]
       .filter(Boolean)
       .join("");
@@ -227,6 +229,27 @@ export function buildBreadcrumbsHtml(crumbs) {
 /**
  * Mount IA nav into `.app-nav > nav` (or #ia-nav) and optional breadcrumbs into #ia-breadcrumbs.
  */
+function syncNavCurrent(nav, ctx) {
+  const current = ctx.current || "";
+  nav.querySelectorAll("[data-ia]").forEach((a) => {
+    const on = a.getAttribute("data-ia") === current;
+    a.classList.toggle("active", on);
+    if (on) a.setAttribute("aria-current", "page");
+    else a.removeAttribute("aria-current");
+  });
+}
+
+function persistMountedNav(nav, ctx) {
+  if (!nav || nav.querySelector(".ia-nav-skel")) return;
+  persistNavSnapshot({
+    phId: ctx.phId || "",
+    navHtml: nav.innerHTML,
+    displayName: qs("#user-chip")?.textContent || ctx.user?.displayName || ctx.user?.email || "",
+    roleLabel: qs("#ia-role-chip")?.textContent || "",
+    avatar: qs("#user-avatar")?.textContent || ""
+  });
+}
+
 export function mountIaShell(ctx, { breadcrumbs = [] } = {}) {
   const aside = document.querySelector(".app-nav");
   if (aside) {
@@ -238,7 +261,16 @@ export function mountIaShell(ctx, { breadcrumbs = [] } = {}) {
     }
     nav.id = "ia-nav";
     nav.setAttribute("aria-label", "Navegación contextual");
-    nav.innerHTML = buildIaNavHtml(ctx);
+    const phKey = `${ctx.phId || ""}|${ctx.phName || ""}`;
+    const live = nav.querySelector("[data-ia]") && !nav.querySelector(".ia-nav-skel");
+    if (live && nav.dataset.phKey === phKey) {
+      syncNavCurrent(nav, ctx);
+    } else {
+      nav.innerHTML = buildIaNavHtml(ctx);
+      nav.dataset.phKey = phKey;
+      nav.dataset.phId = String(ctx.phId || "");
+    }
+    persistMountedNav(nav, ctx);
   }
 
   const crumbHost = qs("#ia-breadcrumbs");
