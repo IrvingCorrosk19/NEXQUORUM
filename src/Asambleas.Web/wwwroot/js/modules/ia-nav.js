@@ -205,7 +205,7 @@ function buildOwnerNav(ctx) {
     }),
     link("/owner.html#assemblies", "Mis asambleas", {
       current: current === "owner-assemblies",
-      icon: "microphone",
+      icon: "calendar",
       key: "owner-assemblies"
     }),
     link("/owner.html#account", "Mi perfil", {
