@@ -1,6 +1,6 @@
 import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
-import { mountIaShell, phHref } from "./ia-nav.js?v=gov1";
+import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=tbl1";
 import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
 import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
@@ -99,9 +99,29 @@ async function init() {
     return;
   }
 
-  $("#user-chip").textContent = user.displayName || user.email;
-  $("#nav-tenant").textContent = user.tenantCode || "Gobernanza";
-  $("#btn-logout").addEventListener("click", async () => {
+  const chip = $("#user-chip");
+  if (chip) chip.textContent = user.displayName || user.email;
+  const tenant = $("#nav-tenant");
+  if (tenant) tenant.textContent = user.tenantCode || "Gobernanza";
+  const avatar = $("#user-avatar");
+  if (avatar) {
+    const src = user.displayName || user.email || "AS";
+    avatar.textContent = src.slice(0, 2).toUpperCase();
+  }
+  const roleChip = $("#ia-role-chip");
+  const roleLabel = $("#account-role-label");
+  const roleNames = {
+    owner: "Propietario",
+    phadmin: "Admin PH",
+    president: "Presidente",
+    secretary: "Secretario",
+    operator: "Operador"
+  };
+  const roleText = roleNames[roleFamily(user)] || user.displayName || "Cuenta";
+  if (roleChip) roleChip.textContent = roleText;
+  if (roleLabel) roleLabel.textContent = roleText;
+  $("#btn-logout")?.addEventListener("click", async (ev) => {
+    ev.preventDefault();
     await logout();
     location.href = "/";
   });
@@ -515,85 +535,179 @@ async function onSwitchPh(_ev) {
   /* no-op: global switcher */
 }
 
-async function loadList() {
-  clearAlert();
-  const list = await cachedGet("/api/ph", { ttlMs: 5000, cacheKey: "GET:/api/ph" });
-  const root = $("#ph-list");
-  const empty = $("#ph-empty");
-  if (!list.length) {
-    empty.hidden = false;
-    root.innerHTML = "";
-    return;
-  }
-  empty.hidden = true;
-  root.innerHTML = list
-    .map(
-      (p) => `
-      <article class="ph-card" data-id="${p.id}">
-        <h3>${escapeHtml(p.name)}</h3>
-        <div class="meta">
-          <span>${p.unitCount} unidades · ${p.ownerCount} propietarios</span>
-          <span class="badge">${escapeHtml(phLifecycleLabel(p.status))}</span>
-        </div>
-        <div class="cta-row">
-          <button type="button" class="btn btn-primary" data-view="${p.id}">Ver</button>
-          <button type="button" class="btn btn-secondary" data-edit="${p.id}">Editar</button>
-          <button type="button" class="btn btn-secondary" data-more="${p.id}" aria-haspopup="true">•••</button>
-        </div>
-        <div class="ph-more-menu" id="more-${p.id}" hidden>
-          ${
-            p.status === "Inactive"
-              ? `<button type="button" data-reactivate="${p.id}">Reactivar</button>`
-              : `<button type="button" data-archive="${p.id}">Archivar</button>`
-          }
-          ${
-            canAdministerPh(p.id)
-              ? `<button type="button" data-delete="${p.id}">Eliminar…</button>`
-              : ""
-          }
-        </div>
-      </article>`
-    )
-    .join("");
-  root.querySelectorAll("[data-view], [data-edit]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openPh(btn.dataset.view || btn.dataset.edit).then(() => {
-        if (btn.dataset.edit) switchTab("info");
-      });
+function phStatusBadgeClass(status) {
+  if (status === "Active") return "badge bg-green-lt";
+  if (status === "ReadyForAssembly") return "badge bg-blue-lt";
+  if (status === "Inactive") return "badge bg-secondary-lt";
+  return "badge bg-yellow-lt";
+}
+
+function phActionsMenu(p) {
+  const archiveOrRestore =
+    p.status === "Inactive"
+      ? `<button type="button" class="dropdown-item" data-reactivate="${p.id}">Reactivar</button>`
+      : `<button type="button" class="dropdown-item" data-archive="${p.id}">Archivar</button>`;
+  const del = canAdministerPh(p.id)
+    ? `<button type="button" class="dropdown-item text-danger" data-delete="${p.id}">Eliminar…</button>`
+    : "";
+  return `
+    <div class="dropdown">
+      <button type="button" class="btn btn-ghost-secondary btn-icon" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="menu" aria-label="Acciones de ${escapeHtml(p.name)}">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" aria-hidden="true"><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 19m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /></svg>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end">
+        <button type="button" class="dropdown-item" data-edit="${p.id}">Editar</button>
+        ${archiveOrRestore}
+        ${del}
+      </div>
+    </div>`;
+}
+
+function bindPhListActions(root) {
+  root.querySelectorAll(".ph-open-link").forEach((a) => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      openPh(a.dataset.view);
     });
   });
-  root.querySelectorAll("[data-more]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const menu = $(`#more-${btn.dataset.more}`);
-      menu.hidden = !menu.hidden;
+  root.querySelectorAll("[data-edit]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openPh(btn.dataset.edit).then(() => switchTab("info"));
     });
   });
   root.querySelectorAll("[data-archive]").forEach((btn) =>
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
+    btn.addEventListener("click", async () => {
       currentPhId = btn.dataset.archive;
-      await onArchivePh();
-      await loadList();
+      const prev = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Archivando…";
+      try {
+        await onArchivePh();
+        await loadList();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prev;
+      }
     })
   );
   root.querySelectorAll("[data-reactivate]").forEach((btn) =>
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
+    btn.addEventListener("click", async () => {
       currentPhId = btn.dataset.reactivate;
-      await onReactivatePh();
-      await loadList();
+      const prev = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Reactivando…";
+      try {
+        await onReactivatePh();
+        await loadList();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prev;
+      }
     })
   );
   root.querySelectorAll("[data-delete]").forEach((btn) =>
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
+    btn.addEventListener("click", async () => {
       currentPhId = btn.dataset.delete;
-      await onDeletePh();
-      await loadList();
+      const prev = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Eliminando…";
+      try {
+        await onDeletePh();
+        await loadList();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prev;
+      }
     })
   );
+}
+
+async function loadList() {
+  clearAlert();
+  const root = $("#ph-list");
+  const empty = $("#ph-empty");
+  const status = $("#ph-list-status");
+  const errBox = $("#ph-list-error");
+  if (!root) return;
+  if (empty) empty.hidden = true;
+  if (errBox) {
+    errBox.hidden = true;
+    errBox.textContent = "";
+  }
+  if (status) status.hidden = false;
+  root.innerHTML = "";
+  let list = [];
+  try {
+    list = await cachedGet("/api/ph", { ttlMs: 5000, cacheKey: "GET:/api/ph" });
+  } catch (err) {
+    if (status) status.hidden = true;
+    if (errBox) {
+      errBox.hidden = false;
+      errBox.textContent = err?.message || "No se pudieron cargar las propiedades.";
+    }
+    return;
+  }
+  if (status) status.hidden = true;
+  if (!list.length) {
+    if (empty) empty.hidden = false;
+    root.innerHTML = "";
+    return;
+  }
+  if (empty) empty.hidden = true;
+  const rows = list
+    .map((p) => {
+      const href = `/ph.html?phId=${encodeURIComponent(p.id)}`;
+      const badge = `<span class="${phStatusBadgeClass(p.status)}">${escapeHtml(phLifecycleLabel(p.status))}</span>`;
+      const units = Number(p.unitCount ?? 0);
+      const owners = Number(p.ownerCount ?? 0);
+      return `
+        <tr>
+          <td><a class="ph-open-link" href="${href}" data-view="${p.id}">${escapeHtml(p.name)}</a></td>
+          <td class="text-secondary">${units}</td>
+          <td class="text-secondary">${owners}</td>
+          <td>${badge}</td>
+          <td class="w-1">${phActionsMenu(p)}</td>
+        </tr>`;
+    })
+    .join("");
+  const cards = list
+    .map((p) => {
+      const href = `/ph.html?phId=${encodeURIComponent(p.id)}`;
+      const badge = `<span class="${phStatusBadgeClass(p.status)}">${escapeHtml(phLifecycleLabel(p.status))}</span>`;
+      const units = Number(p.unitCount ?? 0);
+      const owners = Number(p.ownerCount ?? 0);
+      return `
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <a class="ph-open-link" href="${href}" data-view="${p.id}">${escapeHtml(p.name)}</a>
+              ${phActionsMenu(p)}
+            </div>
+            <div class="text-secondary small mt-1">${units} unidades · ${owners} propietarios</div>
+            <div class="mt-2">${badge}</div>
+          </div>
+        </div>`;
+    })
+    .join("");
+  root.innerHTML = `
+    <div class="card" id="ph-list-table-wrap">
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table table-nowrap">
+          <thead>
+            <tr>
+              <th>Propiedad</th>
+              <th>Unidades</th>
+              <th>Propietarios</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="ph-stack">${cards}</div>`;
+  bindPhListActions(root);
 }
 
 async function onCreatePh(ev) {

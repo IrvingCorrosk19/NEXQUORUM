@@ -1,0 +1,7 @@
+Tabler (@tabler/core) 1.7.5
+https://github.com/tabler/tabler
+License: MIT (see 1.7.5/LICENSE)
+
+Vendored into wwwroot/lib/tabler for local static serving.
+Do not load a second Bootstrap bundle on pages that include tabler.min.css / tabler.min.js;
+Tabler 1.x already ships Bootstrap 5 styles and scripts.

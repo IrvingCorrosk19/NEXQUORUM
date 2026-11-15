@@ -131,7 +131,7 @@ function renderShell() {
  * Mount into `.app-top .cluster` (before user chip) or replace legacy #ph-switcher.
  */
 export async function mountGlobalPhSwitcher(host = null) {
-  const cluster = host || qs(".app-top .cluster");
+  const cluster = host || qs(".app-top .cluster") || qs("#header-cluster");
   if (!cluster) return null;
 
   // Remove legacy select switcher if present.

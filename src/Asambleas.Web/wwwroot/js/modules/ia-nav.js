@@ -31,14 +31,25 @@ export function roleFamily(user) {
   return "operator";
 }
 
+function isTablerShell() {
+  return document.body?.classList.contains("layout-tabler");
+}
+
 function link(href, label, { current = false, id = null } = {}) {
   const cur = current ? ' aria-current="page"' : "";
   const idAttr = id ? ` id="${id}"` : "";
+  if (isTablerShell()) {
+    const active = current ? " active" : "";
+    return `<li class="nav-item"><a class="nav-link${active}" href="${href}"${idAttr}${cur}><span class="nav-link-title">${escapeHtml(label)}</span></a></li>`;
+  }
   return `<a href="${href}"${idAttr}${cur}>${escapeHtml(label)}</a>`;
 }
 
 function section(title, itemsHtml) {
   if (!itemsHtml) return "";
+  if (isTablerShell()) {
+    return `<div class="nav-section-label">${escapeHtml(title)}</div><ul class="navbar-nav">${itemsHtml}</ul>`;
+  }
   return `
     <div class="ia-nav-section">
       <p class="ia-nav-section__title">${escapeHtml(title)}</p>
@@ -241,7 +252,7 @@ export function mountIaShell(ctx, { breadcrumbs = [] } = {}) {
   }
 
   const topCtx = qs("#ia-context-label");
-  if (topCtx) {
+  if (topCtx && !isTablerShell()) {
     const parts = [ctx.phName, ctx.assemblyTitle].filter(Boolean);
     topCtx.textContent = parts.join(" · ") || "ASAMBLEAS";
   }
@@ -314,7 +325,15 @@ function ensureMobileNav() {
   const shell = document.querySelector(".app-shell");
   const header = document.querySelector(".app-top");
   const nav = document.querySelector(".app-nav");
-  if (!shell || !header || !nav) return;
+  if (!shell || !nav) return;
+  if (isTablerShell()) {
+    const toggle = document.querySelector("#btn-nav-toggle");
+    toggle?.addEventListener("click", () => {
+      /* Tabler/Bootstrap collapse owns the drawer. */
+    }, { once: true });
+    return;
+  }
+  if (!header) return;
 
   if (!document.querySelector(".nav-backdrop")) {
     const backdrop = document.createElement("div");
