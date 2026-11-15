@@ -1,8 +1,6 @@
 namespace Asambleas.Infrastructure.Storage;
 
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.Processing;
+using ImageMagick;
 
 /// <summary>
 /// Normalizes profile photos: EXIF orientation, centered square crop, strip metadata,
@@ -29,27 +27,24 @@ public static class AvatarImageProcessor
     {
         ArgumentNullException.ThrowIfNull(input);
 
-        Image image;
+        MagickImage image;
         try
         {
-            image = await Image.LoadAsync(input, cancellationToken);
+            image = new MagickImage(input);
         }
-        catch (UnknownImageFormatException)
-        {
-            throw new AvatarProcessingException("El archivo no es una imagen válida.");
-        }
-        catch (InvalidImageContentException)
+        catch (MagickException)
         {
             throw new AvatarProcessingException("El archivo no es una imagen válida.");
         }
 
         using (image)
         {
-            image.Mutate(ctx => ctx.AutoOrient());
-            StripMetadata(image);
+            cancellationToken.ThrowIfCancellationRequested();
+            image.AutoOrient();
+            image.Strip();
 
-            var sourceWidth = image.Width;
-            var sourceHeight = image.Height;
+            var sourceWidth = (int)image.Width;
+            var sourceHeight = (int)image.Height;
             if (sourceWidth < MinInputEdge || sourceHeight < MinInputEdge)
             {
                 throw new AvatarProcessingException(
@@ -62,21 +57,18 @@ public static class AvatarImageProcessor
                     $"La imagen no puede superar {MaxInputEdge}×{MaxInputEdge} píxeles.");
             }
 
-            var side = Math.Min(sourceWidth, sourceHeight);
-            var cropX = (sourceWidth - side) / 2;
-            var cropY = (sourceHeight - side) / 2;
-            var outputEdge = Math.Min(side, MaxOutputEdge);
+            var side = (uint)Math.Min(sourceWidth, sourceHeight);
+            image.Crop(side, side, Gravity.Center);
+            image.ResetPage();
 
-            image.Mutate(ctx =>
+            var outputEdge = Math.Min((int)side, MaxOutputEdge);
+            if (image.Width != (uint)outputEdge || image.Height != (uint)outputEdge)
             {
-                ctx.Crop(new Rectangle(cropX, cropY, side, side));
-                if (side != outputEdge)
-                {
-                    ctx.Resize(outputEdge, outputEdge);
-                }
-            });
+                image.Resize((uint)outputEdge, (uint)outputEdge);
+            }
 
-            StripMetadata(image);
+            image.Strip();
+            image.Format = MagickFormat.WebP;
 
             var encoded = await EncodeWebpNearTargetAsync(image, cancellationToken);
             encoded.Position = 0;
@@ -87,37 +79,23 @@ public static class AvatarImageProcessor
                 sourceWidth,
                 sourceHeight,
                 sourceBytes,
-                image.Width,
-                image.Height,
+                (int)image.Width,
+                (int)image.Height,
                 encoded.Length);
         }
     }
 
-    private static void StripMetadata(Image image)
+    private static async Task<MemoryStream> EncodeWebpNearTargetAsync(MagickImage image, CancellationToken cancellationToken)
     {
-        image.Metadata.ExifProfile = null;
-        image.Metadata.IccProfile = null;
-        image.Metadata.IptcProfile = null;
-        image.Metadata.XmpProfile = null;
-        image.Metadata.CicpProfile = null;
-    }
-
-    private static async Task<MemoryStream> EncodeWebpNearTargetAsync(Image image, CancellationToken cancellationToken)
-    {
-        // Prefer quality that lands near 50 KB without exceeding much; drop quality if needed.
-        var qualities = new[] { 82, 72, 62, 52, 42, 32 };
+        var qualities = new[] { 82u, 72u, 62u, 52u, 42u, 32u };
         MemoryStream? best = null;
+
         foreach (var quality in qualities)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            image.Quality = quality;
             var ms = new MemoryStream();
-            var encoder = new WebpEncoder
-            {
-                FileFormat = WebpFileFormatType.Lossy,
-                Quality = quality,
-                Method = WebpEncodingMethod.Default,
-                SkipMetadata = true
-            };
-            await image.SaveAsync(ms, encoder, cancellationToken);
+            await image.WriteAsync(ms, MagickFormat.WebP, cancellationToken);
             if (best is null || ms.Length < best.Length)
             {
                 best?.Dispose();
