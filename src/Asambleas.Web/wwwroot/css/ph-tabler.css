@@ -834,3 +834,319 @@
     display: none !important;
   }
 }
+
+/* Panoramic cover belongs to Resumen only. */
+.layout-tabler #view-detail:not([data-active-panel="resumen"]) > .ph-cover,
+.layout-tabler #view-detail.is-ph-loading .ph-cover,
+.layout-tabler #view-detail.is-ph-loading .wizard-panel {
+  display: none;
+}
+
+.layout-tabler #view-detail.is-ph-loading #ph-module-skeleton {
+  display: block !important;
+}
+
+.ia-nav-skel {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.35rem 0 0.75rem;
+}
+
+.ia-nav-skel span {
+  display: block;
+  height: 2.15rem;
+  border-radius: 0.55rem;
+  background: rgba(250, 248, 244, 0.12);
+}
+
+.layout-tabler .ph-module-skeleton {
+  display: none;
+  min-height: 22rem;
+  padding: 1rem 0 2rem;
+}
+
+.layout-tabler .ph-module-skeleton .skel-block,
+.layout-tabler .units-skeleton .skel-row,
+.layout-tabler .cal-skel-cell {
+  border-radius: 0.55rem;
+  background: linear-gradient(90deg, #efebe3 0%, #f7f4ee 45%, #efebe3 100%);
+  background-size: 200% 100%;
+  animation: ph-skel 1.2s linear infinite;
+}
+
+.layout-tabler .ph-module-skeleton .skel-block {
+  height: 3.1rem;
+  margin-bottom: 0.65rem;
+}
+
+.layout-tabler .ph-module-skeleton .skel-block--lg {
+  height: 8.5rem;
+}
+
+@keyframes ph-skel {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.layout-tabler .query-error {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem 1rem;
+  margin: 0.5rem 0 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(180, 35, 24, 0.28);
+  background: #fff7f6;
+  color: #102b3f;
+}
+
+.layout-tabler .query-error p {
+  margin: 0;
+}
+
+.layout-tabler .units-hub-head--compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.layout-tabler .units-hub-head--compact .section-title {
+  margin: 0.1rem 0 0;
+  font-size: 1.45rem;
+}
+
+.layout-tabler .units-hub-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.layout-tabler .units-coeff-banner {
+  margin: 0 0 0.65rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.88rem;
+}
+
+.layout-tabler .units-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.layout-tabler .units-toolbar .units-search {
+  flex: 1 1 14rem;
+  min-height: 2.5rem;
+}
+
+.layout-tabler .units-result-count {
+  margin-left: auto;
+  font-size: 0.88rem;
+  color: #3e536b;
+}
+
+.layout-tabler .units-table-wrap.is-busy,
+.layout-tabler .calendar-root.is-busy {
+  opacity: 0.62;
+  pointer-events: none;
+}
+
+.layout-tabler .units-skeleton {
+  min-height: 16rem;
+}
+
+.layout-tabler .units-skeleton[hidden],
+.layout-tabler .units-table-wrap[hidden],
+.layout-tabler .units-cards[hidden],
+.layout-tabler .units-empty[hidden],
+.layout-tabler .query-error[hidden] {
+  display: none !important;
+}
+
+.layout-tabler .field-error {
+  margin: 0;
+  color: #9a3412;
+  font-size: 0.88rem;
+}
+
+.layout-tabler .unit-hub__tabs button.is-active {
+  background: #e7f4f3;
+  color: #102b3f;
+}
+
+.app-sheet .unit-hub__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.layout-tabler .unit-actions .btn-outline-secondary {
+  font-weight: 600;
+}
+
+dialog.app-sheet,
+.layout-tabler dialog.app-sheet,
+.layout-tabler .unit-hub-dialog.app-sheet {
+  width: min(36rem, 96vw);
+  max-height: min(92vh, 52rem);
+  padding: 0;
+  border: 1px solid rgba(16, 43, 63, 0.12);
+  border-radius: 1rem;
+  background: #fff;
+  color: #102b3f;
+  box-shadow: 0 24px 64px rgba(16, 43, 63, 0.22);
+}
+
+.layout-tabler .unit-hub-dialog.app-sheet {
+  width: min(52rem, 96vw);
+}
+
+dialog.app-sheet::backdrop,
+.layout-tabler .unit-hub-dialog.app-sheet::backdrop {
+  background: rgba(16, 43, 63, 0.45);
+}
+
+.app-sheet__form,
+.app-sheet .unit-hub {
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 52rem);
+  min-height: 0;
+}
+
+.app-sheet__head,
+.app-sheet__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.05rem 1.2rem;
+  background: #fff;
+  z-index: 2;
+}
+
+.app-sheet__head {
+  border-bottom: 1px solid rgba(16, 43, 63, 0.1);
+}
+
+.app-sheet__head h2 {
+  margin: 0.1rem 0 0;
+  font-family: "DM Sans", "Segoe UI", sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #102b3f;
+}
+
+.app-sheet__foot {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  border-top: 1px solid rgba(16, 43, 63, 0.1);
+  background: #faf8f4;
+  position: sticky;
+  bottom: 0;
+  padding-bottom: max(1.05rem, env(safe-area-inset-bottom, 0px));
+}
+
+.app-sheet__body {
+  padding: 1rem 1.2rem 1.15rem;
+  overflow: auto;
+  display: grid;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-sheet__block {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.app-sheet__block legend {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #007c78;
+  margin-bottom: 0.15rem;
+}
+
+.app-sheet label .req {
+  color: #9a3412;
+  margin-left: 0.15rem;
+}
+
+.app-sheet .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.app-sheet .form-grid label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: #102b3f;
+}
+
+.app-sheet .form-grid input,
+.app-sheet .form-grid select,
+.app-sheet .form-grid textarea {
+  min-height: 2.65rem;
+  border: 1px solid rgba(16, 43, 63, 0.18);
+  border-radius: 0.65rem;
+  padding: 0.5rem 0.75rem;
+  background: #fff;
+  color: #102b3f;
+}
+
+.app-sheet .span-2 {
+  grid-column: 1 / -1;
+}
+
+.layout-tabler .unit-hub__tabs button[hidden] {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  dialog.app-sheet,
+  .layout-tabler dialog.app-sheet,
+  .layout-tabler .unit-hub-dialog.app-sheet {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .app-sheet__form,
+  .app-sheet .unit-hub {
+    max-height: 100dvh;
+    height: 100dvh;
+  }
+
+  .app-sheet .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .layout-tabler .units-hub-actions .btn,
+  .app-sheet__foot .btn {
+    flex: 1 1 8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout-tabler .ph-module-skeleton .skel-block,
+  .layout-tabler .units-skeleton .skel-row,
+  .layout-tabler .cal-skel-cell {
+    animation: none;
+  }
+}

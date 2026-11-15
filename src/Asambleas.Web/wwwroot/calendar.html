@@ -7,12 +7,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=idn2" />
+  <link rel="stylesheet" href="/css/tokens.css?v=polish1" />
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
-  <link rel="stylesheet" href="/css/calendar.css?v=idn3" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=idn2" />
+  <link rel="stylesheet" href="/css/calendar.css?v=polish2" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish1" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 </head>
 <body class="layout-tabler">
@@ -28,7 +28,9 @@
         </h1>
         <p class="nav-tenant visually-hidden" id="nav-tenant">Gobernanza</p>
         <div class="collapse navbar-collapse" id="sidebar-menu">
-          <nav id="ia-nav" aria-label="Navegación contextual"></nav>
+          <nav id="ia-nav" aria-label="Navegación contextual">
+            <div class="ia-nav-skel" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+          </nav>
         </div>
       </div>
     </aside>
@@ -60,9 +62,7 @@
       <div class="container-xl">
       <div id="page-alert" class="alert" hidden role="alert"></div>
       <div id="ia-breadcrumbs"></div>
-      <div id="calendar-loading" class="calendar-loading" hidden role="status">Cargando calendario…</div>
-
-      <section id="next-assembly-banner" class="next-assembly-banner" aria-live="polite"></section>
+      <div id="calendar-status" class="visually-hidden" role="status" aria-live="polite"></div>
 
       <section class="page-hero calendar-hero">
         <div>
@@ -73,6 +73,8 @@
           <button type="button" id="btn-schedule" class="btn btn-primary" hidden>Nueva asamblea</button>
         </div>
       </section>
+
+      <section id="next-assembly-banner" class="next-assembly-banner"></section>
 
       <div class="calendar-controls">
         <div class="view-toggle" role="group" aria-label="Vista de calendario">
@@ -107,7 +109,21 @@
         </div>
       </div>
 
-      <div id="calendar-root" class="calendar-root" aria-live="polite"></div>
+      <div id="calendar-error" class="query-error" hidden>
+        <p id="calendar-error-copy">No se pudo cargar el calendario.</p>
+        <button type="button" class="btn btn-secondary" id="btn-calendar-retry">Reintentar</button>
+      </div>
+      <div id="calendar-root" class="calendar-root">
+        <div class="cal-skel" aria-hidden="true">
+          <div class="cal-skel-grid">
+            <div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div>
+            <div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div>
+            <div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div>
+            <div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div>
+            <div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div><div class="cal-skel-cell"></div>
+          </div>
+        </div>
+      </div>
       </div>
     </main>
     </div>
@@ -137,15 +153,17 @@
       </header>
 
       <div class="schedule-sheet__body">
+        <fieldset class="app-sheet__block">
+          <legend>Propiedad y tipo</legend>
         <div class="field" id="field-ph">
-          <label for="sched-ph">Propiedad horizontal</label>
+          <label for="sched-ph">Propiedad horizontal <span class="req" aria-hidden="true">*</span></label>
           <select id="sched-ph" name="propertyHorizontalId" class="input" required aria-describedby="sched-ph-hint"></select>
           <p id="sched-ph-hint" class="field-hint"></p>
           <p class="field-error" id="err-ph" hidden></p>
         </div>
 
         <div class="field">
-          <label for="sched-title">Nombre de la asamblea</label>
+          <label for="sched-title">Nombre de la asamblea <span class="req" aria-hidden="true">*</span></label>
           <input id="sched-title" name="title" class="input" required maxlength="512" placeholder="Asamblea Ordinaria — Agosto 2026" autocomplete="off" />
           <p class="field-error" id="err-title" hidden></p>
         </div>
@@ -158,15 +176,18 @@
             <label class="seg-option"><input type="radio" name="assemblyKind" value="OTHER" /><span>Otra</span></label>
           </div>
         </fieldset>
+        </fieldset>
 
+        <fieldset class="app-sheet__block">
+          <legend>Fecha y duración</legend>
         <div class="field-row">
           <div class="field">
-            <label for="sched-date">Fecha</label>
+            <label for="sched-date">Fecha <span class="req" aria-hidden="true">*</span></label>
             <input id="sched-date" name="dateLocal" class="input" type="date" required />
             <p class="field-error" id="err-date" hidden></p>
           </div>
           <div class="field">
-            <label for="sched-time">Hora de inicio</label>
+            <label for="sched-time">Hora de inicio <span class="req" aria-hidden="true">*</span></label>
             <select id="sched-time" name="timeLocal" class="input" required></select>
             <p id="sched-tz-hint" class="field-hint">Hora local del PH</p>
             <p class="field-error" id="err-time" hidden></p>
@@ -189,9 +210,12 @@
           <input id="sched-end-time" name="endTimeLocal" class="input" type="time" />
           <p class="field-error" id="err-end" hidden></p>
         </div>
+        </fieldset>
 
-        <fieldset class="field field-seg">
+        <fieldset class="app-sheet__block">
           <legend>Modalidad</legend>
+        <fieldset class="field field-seg">
+          <legend class="visually-hidden">Modalidad</legend>
           <div class="modality-grid" role="radiogroup" aria-label="Modalidad">
             <label class="modality-card"><input type="radio" name="modality" value="VIRTUAL" checked /><span class="modality-card__inner"><strong>Virtual</strong><small>Sala ASAMBLEAS</small></span></label>
             <label class="modality-card"><input type="radio" name="modality" value="PRESENCIAL" /><span class="modality-card__inner"><strong>Presencial</strong><small>Lugar físico</small></span></label>
@@ -207,10 +231,11 @@
         </div>
 
         <div class="field" id="field-location" hidden>
-          <label for="sched-location">Lugar de la asamblea</label>
+          <label for="sched-location">Lugar de la asamblea <span class="req" aria-hidden="true">*</span></label>
           <input id="sched-location" name="locationText" class="input" maxlength="512" placeholder="Salón de eventos — Ocean Residences" />
           <p class="field-error" id="err-location" hidden></p>
         </div>
+        </fieldset>
 
         <div class="field-hint-block" id="lobby-summary">
           Los participantes podrán ingresar <strong>30 minutos</strong> antes.
@@ -237,6 +262,7 @@
         </details>
       </div>
 
+      <p id="sched-form-error" class="field-error" hidden role="alert"></p>
       <footer class="schedule-sheet__foot">
         <button type="button" class="btn btn-secondary" data-close="schedule-dialog">Cancelar</button>
         <button type="submit" class="btn btn-primary" id="btn-create-assembly">Crear asamblea</button>
@@ -328,6 +354,6 @@
   </div>
 
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/calendar-app.js?v=idn2"></script>
+  <script type="module" src="/js/modules/calendar-app.js?v=polish1"></script>
 </body>
 </html>

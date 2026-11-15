@@ -6,8 +6,9 @@ import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton, startTopProgress, stopTopProgress } from "./loading.js";
-import { startHybridShell } from "./hybrid-router.js?v=idn2";
-import { createUnitsHub } from "./ph-units-hub.js?v=tbl3";
+import { startHybridShell } from "./hybrid-router.js?v=polish1";
+import { createUnitsHub } from "./ph-units-hub.js?v=polish1";
+import { bindSheetViewport, rememberOpener, restoreOpener } from "./query-guard.js?v=polish1";
 
 const STEP_LABELS = [
   "Información",
@@ -23,6 +24,8 @@ const STEP_LABELS = [
 let user = null;
 let currentPhId = null;
 let currentPh = null;
+let createPhBusy = false;
+let createPhOpener = null;
 let editingOwnerId = null;
 let myMemberships = [];
 let phAssemblies = [];
@@ -86,8 +89,10 @@ function canScheduleAssembly() {
 function setDetailBusy(busy, copy) {
   const el = $("#ph-detail-status");
   const copyEl = $("#ph-detail-status-copy");
+  const skel = $("#ph-module-skeleton");
   if (copyEl && copy) copyEl.textContent = copy;
   if (el) el.hidden = !busy;
+  if (skel) skel.hidden = !busy;
   const detail = $("#view-detail");
   if (detail) {
     detail.classList.toggle("is-ph-loading", !!busy);
@@ -413,8 +418,11 @@ function openCreatePhDialog() {
     codeInput.dataset.userEdited = "0";
     codeInput.value = "";
   }
-  $("#dlg-create-ph")?.showModal();
-  nameInput?.focus();
+  createPhOpener = rememberOpener();
+  const dlg = $("#dlg-create-ph");
+  dlg?.showModal();
+  bindSheetViewport(dlg);
+  setTimeout(() => nameInput?.focus(), 0);
 }
 
 function wireCreatePhCodeSuggest() {
@@ -450,7 +458,14 @@ function wireUi() {
   wireCreatePhCodeSuggest();
   $("#btn-create-ph").addEventListener("click", openCreatePhDialog);
   $("#btn-create-first")?.addEventListener("click", openCreatePhDialog);
-  $("#btn-cancel-create").addEventListener("click", () => $("#dlg-create-ph").close());
+  const closeCreate = () => {
+    $("#dlg-create-ph")?.close();
+    restoreOpener(createPhOpener);
+    createPhOpener = null;
+  };
+  $("#btn-cancel-create").addEventListener("click", closeCreate);
+  $("#btn-cancel-create-foot")?.addEventListener("click", closeCreate);
+  $("#dlg-create-ph")?.addEventListener("close", () => restoreOpener(createPhOpener));
   $("#form-create-ph").addEventListener("submit", onCreatePh);
   $("#btn-continue-config")?.addEventListener("click", () => {
     $("#dlg-ph-created").close();
@@ -507,7 +522,7 @@ function wireUi() {
   });
 
   $("#btn-new-unit").addEventListener("click", () => {
-    $("#unit-form-wrap").hidden = false;
+    $("#unit-form-wrap").hidden = true;
     $("#bulk-form-wrap").hidden = true;
   });
   $("#btn-bulk-units").addEventListener("click", () => {
@@ -811,6 +826,7 @@ async function loadList() {
 async function onCreatePh(ev) {
   ev.preventDefault();
   ev.stopPropagation();
+  if (createPhBusy) return;
   if (!canCreatePh()) {
     AppFeedback.error("No tienes permiso para crear un PH. Se requiere «Administrar PH».", {
       title: "Creación bloqueada"
@@ -828,6 +844,7 @@ async function onCreatePh(ev) {
       inlineErr.textContent = "";
     }
 
+  createPhBusy = true;
   try {
     const created = await runWithButton(submitBtn, "Creando…", async () =>
       api("/api/ph", {
@@ -873,6 +890,8 @@ async function onCreatePh(ev) {
       inlineErr.textContent = msg;
     }
     AppFeedback.error(msg, { title: "No se creó el PH" });
+  } finally {
+    createPhBusy = false;
   }
 }
 
@@ -881,10 +900,20 @@ let openPhSeq = 0;
 async function openPh(id, preferredTab = null) {
   const seq = ++openPhSeq;
   clearAlert();
+  const previousPh = currentPh;
   currentPhId = id;
   $("#view-list").hidden = true;
   $("#view-detail").hidden = false;
-  setDetailBusy(true, "Cargando propiedad…");
+  unitsHub?.reset?.();
+  const samePh = previousPh && String(previousPh.id) === String(id);
+  const listedName =
+    myMemberships.find((m) => String(m.propertyHorizontalId) === String(id))?.name ||
+    (samePh ? previousPh?.name : null);
+  setDetailBusy(true, listedName ? `Cargando ${listedName}…` : "Cargando propiedad…");
+  const title = $("#ph-title");
+  if (listedName && title) title.textContent = listedName;
+  else if (!samePh && title) title.textContent = "Cargando…";
+  if (!samePh) currentPh = null;
   startTopProgress();
   let ph;
   try {
@@ -1118,6 +1147,9 @@ function switchTab(tab) {
   document.querySelectorAll(".wizard-panel").forEach((p) => {
     p.hidden = p.dataset.panel !== tab;
   });
+  $("#view-detail")?.setAttribute("data-active-panel", tab);
+  const unitsLabel = $("#units-ph-label");
+  if (unitsLabel) unitsLabel.textContent = currentPh?.name || "PH";
   if (tab === "units") loadUnits({ soft: false });
   if (tab === "owners") {
     loadOwners({ soft: true });

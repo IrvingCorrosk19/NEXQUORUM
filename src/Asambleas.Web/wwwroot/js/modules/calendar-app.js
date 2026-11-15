@@ -5,6 +5,7 @@ import { escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { bootIaPage } from "./ia-page.js?v=idn2";
 import { iconSvg } from "./tabler-icons.js?v=idn2";
+import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus } from "./query-guard.js?v=polish1";
 import { assemblyLabel } from "./assembly-labels.js";
 import {
   fillTimeSelect,
@@ -26,8 +27,15 @@ const state = {
   scheduleDirty: false,
   scheduleSubmitting: false,
   titleTouched: false,
-  editingAssemblyId: null
+  editingAssemblyId: null,
+  ui: "idle",
+  phName: null
 };
+
+const query = createQueryGuard();
+let lastScheduleOpener = null;
+let scheduleUnbindViewport = null;
+let scheduleUntrap = null;
 
 function startOfMonth(d) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
@@ -77,15 +85,41 @@ function timeShort(iso, timeZone) {
   }
 }
 
-function setLoading(on, msg) {
-  const el = qs("#calendar-loading");
+function announceCalendar(msg) {
+  const el = qs("#calendar-status");
   if (!el) return;
-  el.hidden = !on;
-  if (msg) el.textContent = msg;
+  el.textContent = "";
+  requestAnimationFrame(() => {
+    el.textContent = msg || "";
+  });
+}
+
+function calendarSkeletonHtml() {
+  const cell = '<div class="cal-skel-cell"></div>';
+  const row = cell.repeat(7);
+  return `<div class="cal-skel" aria-hidden="true"><div class="cal-skel-grid">${row.repeat(5)}</div></div>`;
+}
+
+function setCalendarUi(next, { message, keepGrid = false } = {}) {
+  state.ui = next;
+  const err = qs("#calendar-error");
+  const root = qs("#calendar-root");
+  if (err) err.hidden = next !== "error";
+  if (root) {
+    root.classList.toggle("is-busy", next === "filtering");
+    root.setAttribute("aria-busy", next === "loading" || next === "filtering" ? "true" : "false");
+    if (next === "loading" && !keepGrid) root.innerHTML = calendarSkeletonHtml();
+  }
+  if (next === "loading") announceCalendar(message || "Cargando calendario");
+  if (next === "error") announceCalendar(message || "No se pudo cargar el calendario");
+}
+
+function setLoading(on, msg) {
+  if (on) announceCalendar(msg || "Cargando…");
 }
 
 function showError(message) {
-  showPageError(message);
+  if (message) showPageError(message);
 }
 
 function rangeForView() {
@@ -110,25 +144,34 @@ function rangeForView() {
 }
 
 async function loadEvents() {
-  let version = 0;
-  try {
-    const { getContextVersion } = await import("./ph-context.js");
-    version = getContextVersion();
-  } catch {
-    version = 0;
+  const token = query.next();
+  const phId = state.phId;
+  const hadGrid = state.ui === "ready" && qs("#calendar-root") && !qs("#calendar-root .cal-skel");
+  if (hadGrid) setCalendarUi("filtering");
+  else {
+    setCalendarUi("loading", {
+      message: state.phName ? `Cargando calendario de ${state.phName}` : "Cargando calendario"
+    });
   }
-  setLoading(true, "Cargando calendario…");
-  showError("");
   try {
     const { from, to, label } = rangeForView();
-    qs("#range-label").textContent = label;
+    if (qs("#range-label")) qs("#range-label").textContent = label;
+    await query.testHooks();
+    let version = 0;
+    try {
+      const { getContextVersion } = await import("./ph-context.js");
+      version = getContextVersion();
+    } catch {
+      version = 0;
+    }
     const status = qs("#filter-status")?.value || "";
     const modality = qs("#filter-modality")?.value || "";
     const q = new URLSearchParams({ from, to });
     if (status) q.set("status", status);
     if (modality) q.set("modality", modality);
-    if (state.phId) q.set("propertyHorizontalId", state.phId);
+    if (phId) q.set("propertyHorizontalId", phId);
     const data = await api(`/api/calendar/events?${q}`);
+    if (!query.isCurrent(token) || (phId && state.phId && String(phId) !== String(state.phId))) return;
     try {
       const { isCurrentVersion } = await import("./ph-context.js");
       if (version && !isCurrentVersion(version)) return;
@@ -137,10 +180,14 @@ async function loadEvents() {
     }
     state.events = data.events || [];
     render();
+    setCalendarUi("ready");
   } catch (e) {
-    showError(e.message || "No se pudo cargar el calendario");
-  } finally {
-    setLoading(false);
+    if (!query.isCurrent(token)) return;
+    const copy = qs("#calendar-error-copy");
+    if (copy) copy.textContent = e.message || "No se pudo cargar el calendario.";
+    setCalendarUi("error", { keepGrid: hadGrid });
+    const root = qs("#calendar-root");
+    if (root && hadGrid) root.classList.remove("is-busy");
   }
 }
 
@@ -152,7 +199,7 @@ async function loadNextBanner() {
     const n = data.next;
     if (!n) {
       el.classList.add("empty");
-      el.innerHTML = `<p class="next-kicker">Próxima asamblea</p><h2>No tienes Asambleas programadas próximamente.</h2>`;
+      el.innerHTML = `<p class="next-brief">No hay asambleas próximas en este período.</p>`;
       return;
     }
     el.classList.remove("empty");
@@ -482,11 +529,30 @@ function closeDrawer() {
 }
 
 function openDialog(id) {
-  qs(`#${id}`).hidden = false;
+  const el = qs(`#${id}`);
+  if (!el) return;
+  el.hidden = false;
+  if (id === "schedule-dialog") {
+    lastScheduleOpener = rememberOpener();
+    const sheet = el.querySelector(".schedule-sheet") || el;
+    scheduleUnbindViewport?.();
+    scheduleUntrap?.();
+    scheduleUnbindViewport = bindSheetViewport(sheet);
+    scheduleUntrap = trapFocus(sheet);
+  }
 }
 
 function closeDialog(id) {
-  qs(`#${id}`).hidden = true;
+  const el = qs(`#${id}`);
+  if (!el) return;
+  el.hidden = true;
+  if (id === "schedule-dialog") {
+    scheduleUnbindViewport?.();
+    scheduleUntrap?.();
+    scheduleUnbindViewport = null;
+    scheduleUntrap = null;
+    restoreOpener(lastScheduleOpener);
+  }
 }
 
 function openReschedule(ev) {
@@ -516,7 +582,7 @@ function openCancel(ev) {
 }
 
 function clearFieldErrors() {
-  ["err-ph", "err-title", "err-date", "err-time", "err-end", "err-location"].forEach((id) => {
+  ["err-ph", "err-title", "err-date", "err-time", "err-end", "err-location", "sched-form-error"].forEach((id) => {
     const el = qs(`#${id}`);
     if (el) {
       el.hidden = true;
@@ -921,6 +987,7 @@ function wireChrome() {
     })
   );
   qs("#btn-schedule")?.addEventListener("click", () => openScheduleDialog());
+  qs("#btn-calendar-retry")?.addEventListener("click", () => loadEvents());
 
   qs("#sched-ph")?.addEventListener("change", () => {
     state.scheduleDirty = true;
@@ -968,7 +1035,7 @@ function wireChrome() {
     const { runWithButton } = await import("./loading.js");
     const ph = selectedPh();
     try {
-      await runWithButton(btn, editingId ? "Guardando cambios…" : "Creando asamblea…", async () => {
+      await runWithButton(btn, editingId ? "Guardando…" : "Creando…", async () => {
         const body = buildSchedulePayload();
         let result;
         if (editingId) {
@@ -1008,6 +1075,11 @@ function wireChrome() {
         await loadNextBanner();
       });
     } catch (err) {
+      const formErr = qs("#sched-form-error");
+      if (formErr) {
+        formErr.hidden = false;
+        formErr.textContent = err.message || "No se pudo guardar la asamblea.";
+      }
       showToast({
         title: "No se pudo guardar",
         message: err.message || "No se pudo guardar la asamblea",

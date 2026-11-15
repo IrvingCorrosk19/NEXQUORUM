@@ -3,6 +3,7 @@ import { hasPermission } from "./auth.js";
 import { confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { runWithButton } from "./loading.js";
+import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener } from "./query-guard.js?v=polish1";
 
 /**
  * Premium units hub for /ph.html#units — reuses /api/ph/* endpoints.
@@ -19,6 +20,10 @@ export function createUnitsHub(ctx) {
   let currentDetail = null;
   let currentUnitId = null;
   let busy = false;
+  let loadedPhId = null;
+  let listState = "idle";
+  let lastOpener = null;
+  const query = createQueryGuard();
 
   function esc(s) {
     return String(s ?? "")
@@ -104,7 +109,55 @@ export function createUnitsHub(ctx) {
     $$(".unit-row-menu").forEach((m) => (m.hidden = true));
   }
 
+  function announce(msg) {
+    const el = $("#units-status");
+    if (!el) return;
+    el.textContent = "";
+    requestAnimationFrame(() => {
+      el.textContent = msg || "";
+    });
+  }
+
+  function setUnitsUi(state, { message } = {}) {
+    listState = state;
+    const skel = $("#units-skeleton");
+    const empty = $("#units-empty");
+    const wrap = $(".units-table-wrap");
+    const cards = $("#units-cards");
+    const err = $("#units-error");
+    const count = $("#units-result-count");
+    if (skel) skel.hidden = state !== "loading";
+    if (err) err.hidden = state !== "error";
+    if (empty) empty.hidden = state !== "empty";
+    if (wrap) {
+      wrap.hidden = state === "loading" || state === "empty" || state === "error";
+      wrap.classList.toggle("is-busy", state === "filtering");
+    }
+    if (cards) {
+      cards.hidden = state === "loading" || state === "empty" || state === "error";
+      cards.classList.toggle("is-busy", state === "filtering");
+    }
+    if (count && state !== "ready" && state !== "filtering") {
+      count.textContent = "";
+    }
+    if (state === "loading") announce(message || "Cargando unidades");
+    if (state === "error") announce(message || "No se pudieron cargar las unidades");
+  }
+
+  function reset() {
+    cache = [];
+    ownerByUnit = new Map();
+    loadedPhId = null;
+    query.next();
+    const tbody = $("#units-table tbody");
+    if (tbody) tbody.innerHTML = "";
+    const cards = $("#units-cards");
+    if (cards) cards.innerHTML = "";
+    setUnitsUi("loading", { message: "Cargando unidades" });
+  }
+
   function renderList() {
+    if (listState === "error") return;
     const units = applyFilter(cache);
     const tbody = $("#units-table tbody");
     const cards = $("#units-cards");
@@ -113,13 +166,18 @@ export function createUnitsHub(ctx) {
     const count = $("#units-result-count");
     if (count) count.textContent = `${units.length} resultado${units.length === 1 ? "" : "s"}`;
 
-    const noData = !cache.length;
-    if (empty) empty.hidden = !noData;
-    if (wrap) wrap.hidden = noData;
-    if (cards) cards.hidden = noData;
+    if (!cache.length) {
+      setUnitsUi("empty");
+      announce("No hay unidades en esta propiedad");
+      return;
+    }
+    setUnitsUi("ready");
+    if (empty) empty.hidden = true;
+    if (wrap) wrap.hidden = false;
+    if (cards) cards.hidden = false;
 
     if (!tbody) return;
-    if (!units.length && !noData) {
+    if (!units.length) {
       tbody.innerHTML = `<tr><td colspan="7" class="muted" style="text-align:center;padding:1.25rem">Ninguna unidad coincide con los filtros.</td></tr>`;
       if (cards) cards.innerHTML = `<p class="muted" style="text-align:center">Ninguna unidad coincide con los filtros.</p>`;
       return;
@@ -150,7 +208,7 @@ export function createUnitsHub(ctx) {
           <td><span class="unit-status ${u.isActive ? "is-on" : "is-off"}">${u.isActive ? "Activa" : "Inactiva"}</span></td>
           <td class="unit-actions-cell" onclick="event.stopPropagation()">
             <div class="unit-actions">
-              <button type="button" class="btn btn-primary btn-sm" data-manage-unit="${u.id}">Gestionar</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-manage-unit="${u.id}">Gestionar</button>
               <button type="button" class="btn btn-ghost btn-icon" data-unit-menu="${u.id}" aria-label="Más acciones" aria-haspopup="menu">•••</button>
               <div class="unit-row-menu" data-menu-for="${u.id}" hidden role="menu">
                 <button type="button" role="menuitem" data-act="details" data-unit="${u.id}">Ver detalles</button>
@@ -188,7 +246,7 @@ export function createUnitsHub(ctx) {
               }
             </div>
             <p class="muted">${fmtCoef(u.coefficientPercent)} % · ${owners.length} propietario${owners.length === 1 ? "" : "s"}</p>
-            <button type="button" class="btn btn-primary" data-manage-unit="${u.id}">Gestionar</button>
+            <button type="button" class="btn btn-outline-secondary" data-manage-unit="${u.id}">Gestionar</button>
           </article>`;
         })
         .join("");
@@ -300,15 +358,32 @@ export function createUnitsHub(ctx) {
     });
   }
 
+  function syncModalTabs() {
+    const saved = modalMode !== "create" && !!currentUnitId;
+    $$("#dlg-unit-hub [data-unit-tab]").forEach((b) => {
+      if (b.dataset.unitTab === "info") {
+        b.hidden = false;
+        return;
+      }
+      b.hidden = !saved;
+    });
+  }
+
   async function openUnitModal(unitId, mode = "view", tab = "info") {
     const dlg = $("#dlg-unit-hub");
     if (!dlg) return;
     if (dlg.parentElement !== document.body) {
       document.body.appendChild(dlg);
     }
+    lastOpener = rememberOpener();
+    const bulk = $("#bulk-form-wrap");
+    const legacy = $("#unit-form-wrap");
+    if (bulk) bulk.hidden = true;
+    if (legacy) legacy.hidden = true;
     modalMode = mode;
     currentUnitId = unitId || null;
     setTab(tab);
+    syncModalTabs();
 
     if (mode === "create" || !unitId) {
       currentDetail = null;
@@ -316,6 +391,8 @@ export function createUnitsHub(ctx) {
       $("#unit-hub-eyebrow").textContent = "Crear";
       renderCreateForm();
       try { dlg.showModal(); } catch (_) { dlg.setAttribute("open", ""); }
+      bindSheetViewport(dlg);
+      setTimeout(() => $("#form-unit-hub input[name='code']")?.focus(), 0);
       return;
     }
 
@@ -325,6 +402,7 @@ export function createUnitsHub(ctx) {
       $("#unit-hub-eyebrow").textContent = currentDetail.isActive ? "Activa" : "Inactiva";
       renderModalBody();
       try { dlg.showModal(); } catch (_) { dlg.setAttribute("open", ""); }
+      bindSheetViewport(dlg);
     } catch (err) {
       AppFeedback.fromError(err);
     }
@@ -335,6 +413,8 @@ export function createUnitsHub(ctx) {
     if (dlg?.open) dlg.close();
     currentUnitId = null;
     currentDetail = null;
+    restoreOpener(lastOpener);
+    lastOpener = null;
   }
 
   function suggestNextUnitCode() {
@@ -353,12 +433,12 @@ export function createUnitsHub(ctx) {
     body.innerHTML = `
       <form id="form-unit-hub" class="unit-hub-form">
         <div class="form-grid">
-          <label>Código <input name="code" required maxlength="64" value="${esc(suggested)}" aria-describedby="unit-code-hint" /></label>
+          <label><span>Código <span class="req" aria-hidden="true">*</span></span> <input name="code" required maxlength="64" value="${esc(suggested)}" aria-describedby="unit-code-hint" /></label>
           <p id="unit-code-hint" class="muted" style="grid-column:1/-1;margin:0">Se sugiere automáticamente; puedes editarlo antes de crear.</p>
           <label>Torre <input name="tower" maxlength="64" /></label>
           <label>Piso <input name="floor" type="number" /></label>
           <label>Tipo <input name="unitType" maxlength="64" /></label>
-          <label>Coeficiente % <input name="coefficientPercent" type="number" step="1" min="0" max="100" required /></label>
+          <label><span>Coeficiente % <span class="req" aria-hidden="true">*</span></span> <input name="coefficientPercent" type="number" step="1" min="0" max="100" required /></label>
           <label class="check"><input type="checkbox" name="isActive" checked /> Unidad activa</label>
         </div>
         <p id="unit-hub-inline-error" class="field-error" hidden role="alert"></p>
@@ -498,7 +578,7 @@ export function createUnitsHub(ctx) {
     };
     busy = true;
     try {
-      await runWithButton(btn, "Guardando…", async () => {
+      await runWithButton(btn, currentUnitId ? "Guardando…" : "Creando…", async () => {
         if (!currentUnitId) {
           const created = await api(`/api/ph/${ctx.currentPhId}/units`, { method: "POST", body });
           notify.success("La unidad fue creada correctamente.", { title: "Unidad creada" });
@@ -740,27 +820,39 @@ export function createUnitsHub(ctx) {
   }
 
   async function loadUnits({ soft = false, force = false } = {}) {
-    if (!ctx.currentPhId) return;
-    const skel = $("#units-skeleton");
-    if (skel) skel.hidden = false;
+    const phId = ctx.currentPhId;
+    if (!phId) return;
+    const token = query.next();
     const search = ($("#unit-search")?.value || "").trim();
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (filter === "active") params.set("isActive", "true");
     if (filter === "inactive") params.set("isActive", "false");
     const q = params.toString() ? `?${params}` : "";
+    const initial = loadedPhId !== phId || !cache.length;
+    if (loadedPhId !== phId) {
+      cache = [];
+      loadedPhId = phId;
+    }
+    if (initial) setUnitsUi("loading", { message: "Cargando unidades" });
+    else setUnitsUi("filtering");
     try {
-      if (!force && soft && !search && filter === "all" && ctx.isPhTabFresh?.("units")) {
+      if (!force && soft && !search && filter === "all" && ctx.isPhTabFresh?.("units") && cache.length) {
+        if (!query.isCurrent(token) || ctx.currentPhId !== phId) return;
         renderList();
         return;
       }
-      cache = await api(`/api/ph/${ctx.currentPhId}/units${q}`, { dedupeKey: `ph-units:${ctx.currentPhId}:${q}` });
+      await query.testHooks();
+      const rows = await api(`/api/ph/${phId}/units${q}`, { dedupeKey: `ph-units:${phId}:${q}` });
+      if (!query.isCurrent(token) || ctx.currentPhId !== phId) return;
+      cache = rows || [];
       if (!search && filter === "all") ctx.markPhTabFresh?.("units");
       await loadOwnerHints(cache);
+      if (!query.isCurrent(token) || ctx.currentPhId !== phId) return;
       renderList();
+      announce(`${cache.length} unidad${cache.length === 1 ? "" : "es"}`);
       await refreshCoeffBanner();
 
-      // keep owner-unit select in sync if present
       const select = $("#owner-unit-select");
       if (select) {
         const current = select.value;
@@ -769,8 +861,11 @@ export function createUnitsHub(ctx) {
           cache.map((u) => `<option value="${u.id}">${esc(u.code)}</option>`).join("");
         select.value = current;
       }
-    } finally {
-      if (skel) skel.hidden = true;
+    } catch (err) {
+      if (!query.isCurrent(token) || ctx.currentPhId !== phId) return;
+      const copy = $("#units-error-copy");
+      if (copy) copy.textContent = err?.message || "No se pudieron cargar las unidades.";
+      setUnitsUi("error");
     }
   }
 
@@ -811,7 +906,9 @@ export function createUnitsHub(ctx) {
     }
     $("#btn-new-unit")?.addEventListener("click", () => openUnitModal(null, "create"));
     $("#btn-empty-new-unit")?.addEventListener("click", () => openUnitModal(null, "create"));
+    $("#btn-units-retry")?.addEventListener("click", () => loadUnits({ force: true }));
     $("#unit-hub-close")?.addEventListener("click", closeUnitModal);
+    $("#dlg-unit-hub")?.addEventListener("close", () => restoreOpener(lastOpener));
     $("#dlg-unit-hub")?.addEventListener("click", (e) => {
       if (e.target === e.currentTarget) closeUnitModal();
     });
@@ -870,5 +967,5 @@ export function createUnitsHub(ctx) {
     });
   }
 
-  return { wire, loadUnits, openUnitModal, refreshCoeffBanner, showUnit: (id) => openUnitModal(id, "view") };
+  return { wire, loadUnits, reset, openUnitModal, refreshCoeffBanner, showUnit: (id) => openUnitModal(id, "view") };
 }
