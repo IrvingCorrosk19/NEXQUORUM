@@ -80,9 +80,10 @@ const OAUTH_MESSAGES = {
 
 const oauthError = loginParams.get("oauth_error");
 const oauthDetail = loginParams.get("oauth_detail");
+const oauthMapped = oauthError
+  ? OAUTH_MESSAGES[oauthError] || oauthDetail || OAUTH_MESSAGES.failed
+  : "";
 if (oauthError) {
-  const mapped = OAUTH_MESSAGES[oauthError] || oauthDetail || OAUTH_MESSAGES.failed;
-  AppFeedback.banner.login(mapped, "error");
   const clean = new URL(location.href);
   clean.searchParams.delete("oauth_error");
   clean.searchParams.delete("oauth_detail");
@@ -113,12 +114,37 @@ function setFieldError(id, message) {
   }
 }
 
+function clearFormAlerts() {
+  document.querySelectorAll(".login-form-alert").forEach((el) => {
+    el.hidden = true;
+    el.textContent = "";
+  });
+}
+
+function activeFormAlert() {
+  if (forgotForm && !forgotForm.hidden) return document.querySelector("#forgot-form-error");
+  if (mesaPanel && !mesaPanel.hidden) return document.querySelector("#mesa-form-error");
+  if (otpVerifyForm && !otpVerifyForm.hidden) return document.querySelector("#otp-verify-error");
+  return document.querySelector("#otp-request-error") || document.querySelector("#login-error");
+}
+
+function showError(message) {
+  clearFormAlerts();
+  const el = activeFormAlert();
+  if (!el) return;
+  AppFeedback.banner.show(el, message, "error");
+}
+
 function showLoginMethod(method) {
   const isOtp = method !== "mesa";
   if (otpPanel) otpPanel.hidden = !isOtp;
   if (mesaPanel) mesaPanel.hidden = isOtp;
   document.querySelector("#tab-otp")?.setAttribute("aria-selected", String(isOtp));
   document.querySelector("#tab-mesa")?.setAttribute("aria-selected", String(!isOtp));
+  clearFormAlerts();
+  setFieldError("otp-email-error", "");
+  setFieldError("email-error", "");
+  setFieldError("password-error", "");
   if (isOtp) otpEmail?.focus();
   else emailInput?.focus();
 }
@@ -142,7 +168,8 @@ document.querySelector("#btn-forgot-password")?.addEventListener("click", () => 
     forgotEmail.value = otpEmail?.value || emailInput.value;
   }
   forgotEmail?.focus();
-  AppFeedback.banner.clear("#login-error");
+  clearFormAlerts();
+  setFieldError("forgot-email-error", "");
 });
 
 document.querySelector("#btn-forgot-cancel")?.addEventListener("click", () => {
@@ -155,11 +182,12 @@ document.querySelector("#btn-forgot-cancel")?.addEventListener("click", () => {
 forgotForm?.addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const email = String(forgotEmail?.value || "").trim();
-  if (!email) {
-    AppFeedback.warning("Indica el correo de tu cuenta.", { title: "Correo requerido" });
+  if (!email || !email.includes("@")) {
+    setFieldError("forgot-email-error", "Escribe un correo válido.");
     forgotEmail?.focus();
     return;
   }
+  setFieldError("forgot-email-error", "");
   try {
     const result = await AppFeedback.runWithButton(forgotSubmit, "Enviando…", async () =>
       api("/api/auth/forgot-password", { method: "POST", body: { email } })
@@ -172,13 +200,9 @@ forgotForm?.addEventListener("submit", async (ev) => {
     showLoginMethod("mesa");
     revealConfiguredProviders();
   } catch (err) {
-    AppFeedback.fromError(err, "No pudimos procesar la solicitud. Inténtalo de nuevo en unos minutos.");
+    showError(err?.payload?.detail || err?.message || "No pudimos procesar la solicitud. Inténtalo de nuevo en unos minutos.");
   }
 });
-
-function showError(message) {
-  AppFeedback.banner.login(message, "error");
-}
 
 function safeReturnUrl() {
   const raw = new URLSearchParams(location.search).get("returnUrl");
@@ -357,10 +381,7 @@ otpRequestForm?.addEventListener("submit", async (ev) => {
       return;
     }
     if (result?.accepted === false || result?.errorCode === "SEND_FAILED") {
-      AppFeedback.error(
-        result?.detail || "No pudimos enviar el código en este momento. Intenta nuevamente.",
-        { title: "Envío no disponible" }
-      );
+      showError(result?.detail || "No pudimos enviar el código en este momento. Intenta nuevamente.");
       return;
     }
     // Soft ack: request received without confirming mailbox delivery (unknown email / rate limit).
@@ -371,7 +392,7 @@ otpRequestForm?.addEventListener("submit", async (ev) => {
     );
     showVerifyStep(email, result?.resendAvailableAtUtc);
   } catch (err) {
-    AppFeedback.fromError(err, "No pudimos enviar el código. Inténtalo de nuevo en unos minutos.");
+    showError(err?.payload?.detail || err?.message || "No pudimos enviar el código. Inténtalo de nuevo en unos minutos.");
   }
 });
 
@@ -450,12 +471,13 @@ otpResend?.addEventListener("click", async () => {
 
 document.querySelector("#otp-change-email")?.addEventListener("click", () => {
   showRequestStep();
-  AppFeedback.banner.clear("#login-error");
+  clearFormAlerts();
 });
 
 document.querySelector("#btn-oauth-google")?.addEventListener("click", () => startOAuth("Google"));
 document.querySelector("#btn-oauth-microsoft")?.addEventListener("click", () => startOAuth("Microsoft"));
 revealConfiguredProviders();
+if (oauthMapped) showError(oauthMapped);
 
 // Prefill email from query (?email=) for convocation deep-links.
 const prefill = loginParams.get("email");

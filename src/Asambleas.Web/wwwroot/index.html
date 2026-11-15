@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="/css/components.css?v=gov1" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <link rel="stylesheet" href="/css/loading.css?v=px1" />
-  <link rel="stylesheet" href="/css/gov-ops.css?v=gov3" />
+  <link rel="stylesheet" href="/css/gov-ops.css?v=gov4" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
 </head>
@@ -29,7 +29,7 @@
         </p>
       </header>
 
-      <div id="login-error" class="alert" hidden role="alert"></div>
+      <div id="login-error" class="alert login-form-alert" hidden role="alert"></div>
 
       <div id="oauth-providers" class="oauth-providers" hidden>
         <button type="button" class="btn btn-oauth btn-oauth-google" id="btn-oauth-google" data-provider="Google" hidden>
@@ -50,6 +50,7 @@
 
       <div id="panel-otp" role="tabpanel" aria-labelledby="tab-otp">
         <form id="otp-request-form" method="post" action="/index.html" autocomplete="on" novalidate>
+          <div class="alert login-form-alert" id="otp-request-error" hidden role="alert"></div>
           <div class="field">
             <label for="otp-email">Correo</label>
             <input id="otp-email" type="email" autocomplete="username" inputmode="email" required
@@ -63,6 +64,7 @@
         </form>
 
         <form id="otp-verify-form" hidden method="post" action="/index.html" autocomplete="one-time-code" novalidate>
+          <div class="alert login-form-alert" id="otp-verify-error" hidden role="alert"></div>
           <p class="lede" style="margin:0 0 .75rem;font-size:1rem">
             Enviamos un código de 6 dígitos a <strong id="otp-email-display"></strong>. Vence en 10 minutos.
           </p>
@@ -84,6 +86,7 @@
 
       <div id="panel-mesa" role="tabpanel" aria-labelledby="tab-mesa" hidden>
         <form id="login-form" method="post" action="/index.html" autocomplete="on" novalidate>
+          <div class="alert login-form-alert" id="mesa-form-error" hidden role="alert"></div>
           <div class="field">
             <label for="email">Correo</label>
             <input id="email" type="email" autocomplete="username" inputmode="email" />
@@ -115,7 +118,8 @@
         </form>
       </div>
 
-      <form id="forgot-form" class="form-grid" hidden>
+      <form id="forgot-form" hidden novalidate>
+        <div class="alert login-form-alert" id="forgot-form-error" hidden role="alert"></div>
         <p class="lede" style="margin:0 0 .75rem;font-size:.95rem">
           Te enviaremos un enlace para definir una contraseña nueva. Nunca enviamos la contraseña por correo.
         </p>
@@ -132,6 +136,6 @@
     </section>
   </main>
 
-  <script type="module" src="/js/modules/login-app.js?v=gov1"></script>
+  <script type="module" src="/js/modules/login-app.js?v=gov2"></script>
 </body>
 </html>
