@@ -552,10 +552,15 @@ function renderUnits() {
   el.innerHTML = units.map((u) => renderUnitCard(u)).join("");
 }
 
-function avatarCacheBust(url) {
+function avatarCanonicalUrl(url) {
   if (!url) return "";
-  const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}v=${Date.now()}`;
+  return String(url).split("?")[0];
+}
+
+function avatarCacheBust(url) {
+  const clean = avatarCanonicalUrl(url);
+  if (!clean) return "";
+  return `${clean}?v=${Date.now()}`;
 }
 
 function applyAvatarElement(el, { url, label }) {
@@ -578,7 +583,8 @@ function applyAvatarElement(el, { url, label }) {
 function syncAvatars() {
   const user = state.user || {};
   const name = state.profile?.displayName || user.displayName || user.email || "Propietario";
-  const url = user.avatarUrl || null;
+  const raw = user.avatarDisplayUrl || user.avatarUrl || null;
+  const url = raw ? avatarCacheBust(raw) : null;
   applyAvatarElement(qs("#user-avatar"), { url, label: name });
   applyAvatarElement(qs("#profile-avatar"), { url, label: name });
 }
@@ -597,7 +603,8 @@ function renderProfileHero() {
 
 function securityBodyHtml() {
   const user = state.user || {};
-  const hasLocal = user.hasLocalPassword !== false && !user.isPasswordless;
+  // Server HasPasswordAsync is the only signal for the local-password CTA.
+  const hasLocal = user.hasLocalPassword === true;
   if (hasLocal) {
     return `<p class="owner-meta">Tu cuenta usa contraseña local. Cámbiala aquí o usa «¿Olvidaste tu contraseña?» en la pantalla de acceso.</p>
       <div class="owner-security-actions">
@@ -605,7 +612,7 @@ function securityBodyHtml() {
         <a class="owner-link" href="/">Ir al acceso</a>
       </div>`;
   }
-  if (user.isPasswordless) {
+  if (user.isPasswordless === true) {
     return `<p class="owner-meta">Esta cuenta inicia sesión sin contraseña local (acceso por correo). Para definir una contraseña, usa «¿Olvidaste tu contraseña?» en la pantalla de acceso.</p>
       <div class="owner-security-actions">
         <a class="btn btn-outline-owner" href="/">Ir al acceso</a>
@@ -1212,15 +1219,26 @@ async function submitPhotoChange(e) {
   if (save) save.disabled = true;
   try {
     const res = await api("/api/auth/me/avatar", { method: "POST", body: fd });
-    const nextUrl = avatarCacheBust(res?.avatarUrl || res?.AvatarUrl);
+    const stored = avatarCanonicalUrl(res?.avatarUrl || res?.AvatarUrl || "");
+    const nextUrl = avatarCacheBust(stored);
     if (state.user) {
-      state.user = { ...state.user, avatarUrl: nextUrl };
-      rememberMe(state.user);
+      state.user = { ...state.user, avatarUrl: stored, avatarDisplayUrl: nextUrl };
+      rememberMe({ ...state.user, avatarUrl: stored });
     }
-    syncAvatars();
+    applyAvatarElement(qs("#user-avatar"), {
+      url: nextUrl,
+      label: state.user?.displayName || state.user?.email || "Propietario"
+    });
+    applyAvatarElement(qs("#profile-avatar"), {
+      url: nextUrl,
+      label: state.user?.displayName || state.user?.email || "Propietario"
+    });
     closeOwnerModal("photo");
   } catch (err) {
-    if (state.user) state.user = { ...state.user, avatarUrl: previousUrl };
+    if (state.user) {
+      state.user = { ...state.user, avatarUrl: previousUrl };
+      rememberMe({ ...state.user, avatarUrl: avatarCanonicalUrl(previousUrl) || null });
+    }
     syncAvatars();
     setFieldError("#owner-photo-error", err?.message || "No pudimos guardar la foto.");
   } finally {

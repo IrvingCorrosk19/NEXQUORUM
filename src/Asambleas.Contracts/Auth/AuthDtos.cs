@@ -29,7 +29,15 @@ public sealed record ChangePasswordRequest(string CurrentPassword, string NewPas
 
 public sealed record ChangePasswordResponse(bool Succeeded, string Detail);
 
-public sealed record AvatarUploadResponse(string AvatarUrl);
+public sealed record AvatarUploadResponse(
+    string AvatarUrl,
+    int Width = 0,
+    int Height = 0,
+    long Bytes = 0,
+    int SourceWidth = 0,
+    int SourceHeight = 0,
+    long SourceBytes = 0,
+    string ContentType = "image/webp");
 
 public sealed record LogoutResponse(bool Success);
 

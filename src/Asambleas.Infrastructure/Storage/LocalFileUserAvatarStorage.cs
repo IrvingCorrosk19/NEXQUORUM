@@ -26,16 +26,19 @@ public sealed class LocalFileUserAvatarStorage : IUserAvatarStorage
         string? previousRelativeUrl,
         CancellationToken cancellationToken = default)
     {
-        var ext = contentType.ToLowerInvariant() switch
+        // Optimized avatars are always stored as WebP thumbnails.
+        if (!string.Equals(contentType, "image/webp", StringComparison.OrdinalIgnoreCase))
         {
-            "image/jpeg" or "image/jpg" => ".jpg",
-            "image/png" => ".png",
-            "image/webp" => ".webp",
-            _ => throw new InvalidOperationException("UNSUPPORTED_IMAGE_TYPE")
-        };
+            throw new InvalidOperationException("UNSUPPORTED_IMAGE_TYPE");
+        }
 
-        var fileName = $"{userId:N}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}{ext}";
+        var fileName = $"{userId:N}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}.webp";
         var path = Path.Combine(_root, fileName);
+        if (content.CanSeek)
+        {
+            content.Position = 0;
+        }
+
         await using (var fs = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous))
         {
             await content.CopyToAsync(fs, cancellationToken);

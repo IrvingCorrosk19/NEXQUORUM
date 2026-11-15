@@ -8,6 +8,7 @@ using Asambleas.Contracts.Auth;
 using Asambleas.Domain.Enums;
 using Asambleas.Infrastructure.Identity;
 using Asambleas.Infrastructure.Seed;
+using Asambleas.Infrastructure.Storage;
 using Asambleas.Web.Middleware;
 using Asambleas.Web.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -171,9 +172,11 @@ public sealed class AuthController : ControllerBase
 
         // Always derive from RolePermissionMap — never trust stale cookie/DB permission claims.
         var permissions = RolePermissionMap.GetPermissions(roles).ToList();
+        // Credential CTA must follow Identity password hash, not a stale passwordless claim.
         var hasLocalPassword = await _userManager.HasPasswordAsync(user);
-        var isPasswordless = (await _userManager.GetClaimsAsync(user))
+        var hasPasswordlessClaim = (await _userManager.GetClaimsAsync(user))
             .Any(c => c.Type == "asambleas:auth" && c.Value == "passwordless");
+        var isPasswordless = !hasLocalPassword && hasPasswordlessClaim;
 
         return Ok(new CurrentUserDto(
             user.Id,
@@ -257,23 +260,67 @@ public sealed class AuthController : ControllerBase
             return Unauthorized();
         }
 
-        var validationError = AvatarImageValidator.Validate(file!, out var contentType);
+        var validationError = AvatarImageValidator.Validate(file!, out _);
         if (validationError is not null)
         {
             return BadRequest(CreateProblem(validationError));
         }
 
-        await using var stream = file!.OpenReadStream();
-        var url = await avatarStorage.SaveAsync(user.Id, stream, contentType, user.AvatarUrl, cancellationToken);
-        user.AvatarUrl = url;
-        var update = await _userManager.UpdateAsync(user);
-        if (!update.Succeeded)
+        var previousUrl = user.AvatarUrl;
+        AvatarImageProcessor.Result processed;
+        try
         {
-            avatarStorage.DeleteIfExists(url);
-            return BadRequest(CreateProblem("No pudimos guardar la foto. Inténtalo de nuevo."));
+            await using var stream = file!.OpenReadStream();
+            processed = await AvatarImageProcessor.ProcessAsync(
+                stream,
+                file.Length,
+                cancellationToken);
+        }
+        catch (AvatarProcessingException ex)
+        {
+            return BadRequest(CreateProblem(ex.Message));
+        }
+        catch (Exception)
+        {
+            return BadRequest(CreateProblem("No pudimos procesar la imagen. Inténtalo con otro archivo."));
         }
 
-        return Ok(new AvatarUploadResponse(url));
+        await using (processed.Content)
+        {
+            string url;
+            try
+            {
+                url = await avatarStorage.SaveAsync(
+                    user.Id,
+                    processed.Content,
+                    processed.ContentType,
+                    previousUrl,
+                    cancellationToken);
+            }
+            catch (Exception)
+            {
+                return BadRequest(CreateProblem("No pudimos guardar la foto. Inténtalo de nuevo."));
+            }
+
+            user.AvatarUrl = url;
+            var update = await _userManager.UpdateAsync(user);
+            if (!update.Succeeded)
+            {
+                avatarStorage.DeleteIfExists(url);
+                user.AvatarUrl = previousUrl;
+                return BadRequest(CreateProblem("No pudimos guardar la foto. Inténtalo de nuevo."));
+            }
+
+            return Ok(new AvatarUploadResponse(
+                url,
+                processed.OutputWidth,
+                processed.OutputHeight,
+                processed.OutputBytes,
+                processed.SourceWidth,
+                processed.SourceHeight,
+                processed.SourceBytes,
+                processed.ContentType));
+        }
     }
 
     private static bool PasswordMeetsPolicy(string password)
