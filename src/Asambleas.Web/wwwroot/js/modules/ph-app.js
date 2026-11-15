@@ -7,8 +7,8 @@ import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton, startTopProgress, stopTopProgress } from "./loading.js";
 import { startHybridShell } from "./hybrid-router.js?v=polish7";
-import { createUnitsHub } from "./ph-units-hub.js?v=polish7";
-import { bindSheetViewport, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks } from "./query-guard.js?v=polish7";
+import { createUnitsHub } from "./ph-units-hub.js?v=polish8";
+import { bindSheetViewport, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks } from "./query-guard.js?v=polish8";
 
 const STEP_LABELS = [
   "Información",
@@ -433,7 +433,7 @@ function openCreatePhDialog() {
   createPhUnbindKeyboard?.();
   createPhUntrap = trapFocus(dlg);
   createPhUnbindKeyboard = wireSheetKeyboard(dlg);
-  setTimeout(() => nameInput?.focus(), 0);
+  requestAnimationFrame(() => requestAnimationFrame(() => nameInput?.focus()));
 }
 
 function wireCreatePhCodeSuggest() {

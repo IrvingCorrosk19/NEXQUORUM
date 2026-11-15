@@ -24,13 +24,26 @@ export function createQueryGuard() {
   };
 }
 
+function scrollFieldIntoSheet(el) {
+  const sheet = el.closest(".schedule-sheet__body, .app-sheet__body, .unit-hub__body");
+  if (sheet) {
+    const er = el.getBoundingClientRect();
+    const sr = sheet.getBoundingClientRect();
+    const pad = 12;
+    if (er.bottom > sr.bottom - pad) sheet.scrollTop += er.bottom - sr.bottom + pad;
+    if (er.top < sr.top + pad) sheet.scrollTop -= sr.top - er.top + pad;
+    return;
+  }
+  el.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
 export function wireSheetKeyboard(container) {
   if (!container) return () => {};
   const onFocus = (e) => {
     const t = e.target;
     if (!t?.matches?.("input, select, textarea")) return;
     try {
-      t.scrollIntoView({ block: "nearest", inline: "nearest" });
+      scrollFieldIntoSheet(t);
     } catch {
       /* ignore */
     }

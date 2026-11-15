@@ -3,7 +3,7 @@ import { hasPermission } from "./auth.js";
 import { confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { runWithButton } from "./loading.js";
-import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks } from "./query-guard.js?v=polish7";
+import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks } from "./query-guard.js?v=polish8";
 
 /**
  * Premium units hub for /ph.html#units — reuses /api/ph/* endpoints.
@@ -402,7 +402,7 @@ export function createUnitsHub(ctx) {
       unitUnbindKeyboard?.();
       unitUntrap = trapFocus(dlg);
       unitUnbindKeyboard = wireSheetKeyboard(dlg);
-      setTimeout(() => $("#form-unit-hub input[name='code']")?.focus(), 0);
+      requestAnimationFrame(() => requestAnimationFrame(() => $("#form-unit-hub input[name='code']")?.focus()));
       return;
     }
 
@@ -445,7 +445,7 @@ export function createUnitsHub(ctx) {
     body.innerHTML = `
       <form id="form-unit-hub" class="unit-hub-form">
         <div class="form-grid">
-          <label><span>Código <span class="req" aria-hidden="true">*</span></span> <input name="code" required maxlength="64" value="${esc(suggested)}" aria-describedby="unit-code-hint" /></label>
+          <label><span>Código <span class="req" aria-hidden="true">*</span></span> <input name="code" required maxlength="64" value="${esc(suggested)}" autofocus aria-describedby="unit-code-hint" /></label>
           <p id="unit-code-hint" class="muted" style="grid-column:1/-1;margin:0">Se sugiere automáticamente; puedes editarlo antes de crear.</p>
           <label>Torre <input name="tower" maxlength="64" /></label>
           <label>Piso <input name="floor" type="number" /></label>

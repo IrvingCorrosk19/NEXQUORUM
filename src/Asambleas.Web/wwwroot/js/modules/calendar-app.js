@@ -8,7 +8,7 @@ import { iconSvg } from "./tabler-icons.js?v=idn2";
 import { mountIaShell, phHref } from "./ia-nav.js?v=polish7";
 import { startHybridShell } from "./hybrid-router.js?v=polish7";
 import { runWithButton } from "./loading.js";
-import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard } from "./query-guard.js?v=polish7";
+import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard } from "./query-guard.js?v=polish8";
 import { assemblyLabel } from "./assembly-labels.js";
 import {
   fillTimeSelect,
