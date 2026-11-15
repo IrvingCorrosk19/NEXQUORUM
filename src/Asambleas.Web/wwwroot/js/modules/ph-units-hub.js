@@ -838,23 +838,26 @@ export function createUnitsHub(ctx) {
       if (!e.target.closest(".unit-actions")) closeMenus();
     });
 
-    // PH admin menu
+    // PH admin menu (Tabler/Bootstrap dropdown owns open/close on .layout-tabler).
     const manageBtn = $("#btn-manage-ph");
     const menu = $("#ph-admin-menu");
-    manageBtn?.addEventListener("click", () => {
-      if (!menu) return;
-      menu.hidden = !menu.hidden;
-      manageBtn.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
-    });
-    document.addEventListener("click", (e) => {
-      if (!e.target.closest(".ph-admin-menu-wrap") && menu) {
-        menu.hidden = true;
-        manageBtn?.setAttribute("aria-expanded", "false");
-      }
-    });
+    const tablerShell = document.body.classList.contains("layout-tabler");
+    if (!tablerShell) {
+      manageBtn?.addEventListener("click", () => {
+        if (!menu) return;
+        menu.hidden = !menu.hidden;
+        manageBtn.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
+      });
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest(".ph-admin-menu-wrap") && menu) {
+          menu.hidden = true;
+          manageBtn?.setAttribute("aria-expanded", "false");
+        }
+      });
+    }
     $$("[data-ph-admin]").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        menu.hidden = true;
+        if (!tablerShell && menu) menu.hidden = true;
         const act = btn.dataset.phAdmin;
         if (act === "edit") ctx.switchTab?.("info");
         else if (act === "coefficients") ctx.switchTab?.("coefficients");

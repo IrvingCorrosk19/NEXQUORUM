@@ -82,9 +82,12 @@ export function buildIaNavHtml(ctx) {
     const phBase = `/ph.html?${qPh}`;
     const items = [
       link(`${phBase}#resumen`, "Resumen", { current: current === "ph-overview" }),
-      link(`${phBase}#owners`, "Propietarios", { current: current === "ph-owners" }),
-      link(`${phBase}#units`, "Unidades", { current: current === "ph-units" }),
       link(`${phBase}#assemblies`, "Asambleas", { current: current === "ph-assemblies" }),
+      link(`${phBase}#units`, "Unidades", { current: current === "ph-units" }),
+      link(`${phBase}#owners`, "Propietarios", { current: current === "ph-owners" }),
+      isTablerShell() ? link(`${phBase}#coefficients`, "Coeficientes", { current: current === "ph-coefficients" }) : "",
+      isTablerShell() ? link(`${phBase}#import`, "Importar", { current: current === "ph-import" }) : "",
+      isTablerShell() ? link(`${phBase}#readiness`, "Preparación", { current: current === "ph-readiness" }) : "",
       hasPermission(ctx.user, "communications:view")
         ? link(`/communications.html?${qPh}`, "Comunicaciones", { current: current === "comms" })
         : "",
@@ -288,9 +291,9 @@ export function mountIaShell(ctx, { breadcrumbs = [] } = {}) {
     a.dataset.progressBound = "1";
     a.addEventListener("click", (ev) => {
       if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || a.target === "_blank") return;
+      closeMobileNav();
       const href = a.getAttribute("href") || "";
       if (!href || href.startsWith("#") || href.startsWith("mailto:")) return;
-      closeMobileNav();
       import("./loading.js").then(({ startTopProgress }) => startTopProgress()).catch(() => {});
     });
   });
@@ -307,6 +310,18 @@ function closeMobileNav() {
     btn.setAttribute("aria-label", "Abrir menú de navegación");
   }
   document.body.style.removeProperty("overflow");
+  if (isTablerShell()) {
+    const menu = document.querySelector("#sidebar-menu");
+    if (menu?.classList.contains("show")) {
+      const Collapse = window.bootstrap?.Collapse || window.tabler?.Collapse;
+      if (Collapse) {
+        Collapse.getOrCreateInstance(menu, { toggle: false }).hide();
+      } else {
+        menu.classList.remove("show");
+        btn?.classList.add("collapsed");
+      }
+    }
+  }
 }
 
 function openMobileNav() {

@@ -1,13 +1,13 @@
 import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
-import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=tbl1";
+import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=idn1";
 import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
 import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
-import { runWithButton } from "./loading.js";
-import { startHybridShell } from "./hybrid-router.js?v=gov1";
-import { createUnitsHub } from "./ph-units-hub.js?v=cancel-label1";
+import { runWithButton, startTopProgress, stopTopProgress } from "./loading.js";
+import { startHybridShell } from "./hybrid-router.js?v=idn1";
+import { createUnitsHub } from "./ph-units-hub.js?v=tbl3";
 
 const STEP_LABELS = [
   "Información",
@@ -35,6 +35,7 @@ const PH_TAB_TTL_MS = 8000;
 let unitSearchTimer = 0;
 let ownerSearchTimer = 0;
 let unitsHub = null;
+let applyingRoute = false;
 
 function phTabKey(kind) {
   return `${currentPhId || ""}:${kind}`;
@@ -76,6 +77,84 @@ function canAdministerPh(phId = currentPhId) {
 
 function canAdministerCurrentPh() {
   return canAdministerPh(currentPhId);
+}
+
+function canScheduleAssembly() {
+  return hasPermission(user, "assembly:schedule") || hasPermission(user, "assembly:manage");
+}
+
+function setDetailBusy(busy, copy) {
+  const el = $("#ph-detail-status");
+  const copyEl = $("#ph-detail-status-copy");
+  if (copyEl && copy) copyEl.textContent = copy;
+  if (el) el.hidden = !busy;
+  const detail = $("#view-detail");
+  if (detail) {
+    if (busy) detail.setAttribute("aria-busy", "true");
+    else detail.removeAttribute("aria-busy");
+  }
+}
+
+function syncAsmFilterButtons() {
+  document.querySelectorAll("#asm-filters button").forEach((b) => {
+    const on = (b.dataset.filter || "upcoming") === asmFilter;
+    b.setAttribute("aria-pressed", String(on));
+    b.classList.toggle("active", on);
+    b.classList.toggle("btn-primary", on);
+    b.classList.toggle("btn-outline-secondary", !on);
+  });
+}
+
+function applyNewAssemblyGate() {
+  const btn = $("#btn-new-assembly");
+  if (btn) btn.hidden = !canScheduleAssembly();
+}
+
+const PH_COVER_FALLBACK = "/img/brand/architecture-cover.jpg";
+const PH_BUILDING_ICON = `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="22" height="22" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/><path d="M10 9h.01"/><path d="M14 9h.01"/><path d="M10 13h.01"/><path d="M14 13h.01"/></svg>`;
+const PH_KPI_ICONS = {
+  units: PH_BUILDING_ICON,
+  owners: `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" aria-hidden="true"><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0"/><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"/></svg>`,
+  users: `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" aria-hidden="true"><path d="M9 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0"/><path d="M3 21v-2a4 4 0 0 1 4 -4h4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0 -3 -3.85"/></svg>`,
+  coeff: `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" aria-hidden="true"><path d="M17 17l-10 -10"/><path d="M7 10a3 3 0 1 0 0 -6a3 3 0 0 0 0 6z"/><path d="M17 20a3 3 0 1 0 0 -6a3 3 0 0 0 0 6z"/></svg>`
+};
+
+function phCoverSrc(ph) {
+  return ph?.coverImageUrl || ph?.imageUrl || ph?.photoUrl || ph?.heroImageUrl || PH_COVER_FALLBACK;
+}
+
+function applyPhCover(ph) {
+  const hero = $("#ph-hero");
+  if (!hero) return;
+  const src = String(phCoverSrc(ph)).replace(/"/g, "");
+  hero.style.setProperty("--ph-cover", `url("${src}")`);
+}
+
+function phStatCard(label, value, kind = "units") {
+  return `<div class="col-6 col-md-3">
+    <div class="card card-sm ph-kpi">
+      <div class="card-body">
+        <span class="ph-kpi__icon" data-kpi="${escapeHtml(kind)}" aria-hidden="true">${PH_KPI_ICONS[kind] || PH_BUILDING_ICON}</span>
+        <div class="ph-kpi__value">${escapeHtml(String(value))}</div>
+        <div class="ph-kpi__label">${escapeHtml(label)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function asmStatusBadgeClass(bucket) {
+  if (bucket === "live") return "badge bg-green-lt";
+  if (bucket === "upcoming") return "badge bg-blue-lt";
+  if (bucket === "cancelled") return "badge bg-red-lt";
+  return "badge bg-secondary-lt";
+}
+
+function asmEmptyHtml({ title, subtitle, action = "" }) {
+  return `<div class="empty">
+    <p class="empty-title">${escapeHtml(title)}</p>
+    <p class="empty-subtitle text-secondary">${escapeHtml(subtitle)}</p>
+    ${action ? `<div class="empty-action">${action}</div>` : ""}
+  </div>`;
 }
 
 function clearAlert() {
@@ -190,8 +269,14 @@ function applyHashTab() {
     import: "import",
     readiness: "readiness"
   };
-  if (map[hash]) switchTab(map[hash]);
-  else if (currentPh && !isOnboardingMode(currentPh)) switchTab("resumen");
+  applyingRoute = true;
+  try {
+    if (map[hash]) switchTab(map[hash]);
+    else if (currentPh && !isOnboardingMode(currentPh)) switchTab("resumen");
+  } finally {
+    applyingRoute = false;
+    stopTopProgress();
+  }
 }
 
 /** Wizard only for empty Draft PHs. Operational chrome otherwise. */
@@ -222,7 +307,9 @@ function applyPhMode(ph) {
     const step = Math.min(Math.max(Number(ph.onboardingStep) || 1, 1), STEP_LABELS.length);
     progress.textContent = `Paso ${step} de ${STEP_LABELS.length}`;
   }
-  if (moduleTabs) moduleTabs.hidden = onboarding;
+  if (moduleTabs) {
+    moduleTabs.hidden = onboarding || document.body.classList.contains("layout-tabler");
+  }
 
   const inactive = ph.status === "Inactive";
   const showActivate = !inactive && ph.status !== "Active";
@@ -398,9 +485,7 @@ function wireUi() {
   document.querySelectorAll("#asm-filters button").forEach((btn) => {
     btn.addEventListener("click", () => {
       asmFilter = btn.dataset.filter || "upcoming";
-      document.querySelectorAll("#asm-filters button").forEach((b) => {
-        b.setAttribute("aria-pressed", String(b === btn));
-      });
+      syncAsmFilterButtons();
       renderAssembliesList();
     });
   });
@@ -658,15 +743,23 @@ async function loadList() {
     .map((p) => {
       const href = `/ph.html?phId=${encodeURIComponent(p.id)}`;
       const badge = `<span class="${phStatusBadgeClass(p.status)}">${escapeHtml(phLifecycleLabel(p.status))}</span>`;
-      const units = Number(p.unitCount ?? 0);
-      const owners = Number(p.ownerCount ?? 0);
       return `
         <tr>
-          <td><a class="ph-open-link" href="${href}" data-view="${p.id}">${escapeHtml(p.name)}</a></td>
-          <td class="text-secondary">${units}</td>
-          <td class="text-secondary">${owners}</td>
-          <td>${badge}</td>
-          <td class="w-1">${phActionsMenu(p)}</td>
+          <td>
+            <div class="ph-row">
+              <span class="ph-row__icon" aria-hidden="true">${PH_BUILDING_ICON}</span>
+              <div>
+                <a class="ph-open-link ph-name-link" href="${href}" data-view="${p.id}">${escapeHtml(p.name)}</a>
+                <div class="ph-row__meta">${badge}</div>
+              </div>
+            </div>
+          </td>
+          <td class="w-1">
+            <div class="ph-row__actions">
+              <a class="btn btn-primary btn-sm ph-open-link" href="${href}" data-view="${p.id}">Abrir PH</a>
+              ${phActionsMenu(p)}
+            </div>
+          </td>
         </tr>`;
     })
     .join("");
@@ -674,17 +767,18 @@ async function loadList() {
     .map((p) => {
       const href = `/ph.html?phId=${encodeURIComponent(p.id)}`;
       const badge = `<span class="${phStatusBadgeClass(p.status)}">${escapeHtml(phLifecycleLabel(p.status))}</span>`;
-      const units = Number(p.unitCount ?? 0);
-      const owners = Number(p.ownerCount ?? 0);
       return `
         <div class="card">
           <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start gap-2">
-              <a class="ph-open-link" href="${href}" data-view="${p.id}">${escapeHtml(p.name)}</a>
+            <div class="ph-row">
+              <span class="ph-row__icon" aria-hidden="true">${PH_BUILDING_ICON}</span>
+              <div class="flex-fill">
+                <a class="ph-open-link ph-name-link" href="${href}" data-view="${p.id}">${escapeHtml(p.name)}</a>
+                <div class="ph-row__meta">${badge}</div>
+              </div>
               ${phActionsMenu(p)}
             </div>
-            <div class="text-secondary small mt-1">${units} unidades · ${owners} propietarios</div>
-            <div class="mt-2">${badge}</div>
+            <a class="btn btn-primary w-100 mt-3 ph-open-link" href="${href}" data-view="${p.id}">Abrir PH</a>
           </div>
         </div>`;
     })
@@ -693,12 +787,9 @@ async function loadList() {
     <div class="card" id="ph-list-table-wrap">
       <div class="table-responsive">
         <table class="table table-vcenter card-table table-nowrap">
-          <thead>
+          <thead class="visually-hidden">
             <tr>
               <th>Propiedad</th>
-              <th>Unidades</th>
-              <th>Propietarios</th>
-              <th>Estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -784,11 +875,25 @@ async function openPh(id, preferredTab = null) {
   const seq = ++openPhSeq;
   clearAlert();
   currentPhId = id;
-  const ph = await api(`/api/ph/${id}`);
-  if (seq !== openPhSeq) return;
-  currentPh = ph;
   $("#view-list").hidden = true;
   $("#view-detail").hidden = false;
+  setDetailBusy(true, "Cargando propiedad…");
+  startTopProgress();
+  let ph;
+  try {
+    ph = await api(`/api/ph/${id}`);
+  } catch (err) {
+    if (seq === openPhSeq) {
+      setDetailBusy(false);
+      stopTopProgress();
+    }
+    throw err;
+  }
+  if (seq !== openPhSeq) {
+    stopTopProgress();
+    return;
+  }
+  currentPh = ph;
   // Keep deep-link URL in sync so sidebar Unidades stays on the premium hub path.
   try {
     const u = new URL(location.href);
@@ -800,14 +905,14 @@ async function openPh(id, preferredTab = null) {
   } catch { /* ignore */ }
 
   $("#ph-title").textContent = ph.name;
+  applyPhCover(ph);
   const eyebrow = document.querySelector("#ph-hero .command-eyebrow");
-  if (eyebrow) eyebrow.textContent = `PH activo · ${ph.name}`;
-  const statusBadge = escapeHtml(phLifecycleLabel(ph.status));
+  if (eyebrow) eyebrow.textContent = "Propiedad horizontal";
   const prepHint =
     ph.status === "ReadyForAssembly"
-      ? `<span class="badge badge-live">Preparación · Lista para convocar</span>`
+      ? `<span class="badge bg-blue-lt">Lista para convocar</span>`
       : "";
-  $("#ph-meta").innerHTML = `<span>${escapeHtml(ph.code)}</span><span class="badge">${statusBadge}</span>${prepHint}`;
+  $("#ph-meta").innerHTML = `<span class="${phStatusBadgeClass(ph.status)}">${escapeHtml(phLifecycleLabel(ph.status))}</span>${prepHint}`;
 
   applyPhMode(ph);
 
@@ -839,14 +944,17 @@ async function openPh(id, preferredTab = null) {
       /* ignore */
     }
   }
-  if (seq !== openPhSeq) return;
+  if (seq !== openPhSeq) {
+    stopTopProgress();
+    return;
+  }
 
-  $("#ph-stat-strip").innerHTML = `
-    <div class="ia-stat"><div class="ia-stat__value">${unitCount ?? 0}</div><div class="ia-stat__label">Unidades</div></div>
-    <div class="ia-stat"><div class="ia-stat__value">${ownerCount ?? 0}</div><div class="ia-stat__label">Propietarios</div></div>
-    <div class="ia-stat"><div class="ia-stat__value">${activeUserCount ?? 0}</div><div class="ia-stat__label">Usuarios activos</div></div>
-    <div class="ia-stat"><div class="ia-stat__value">${coefficientsComplete ? "100%" : `${Number(coefficientTotalPercent ?? 0).toFixed(0)}%`}</div><div class="ia-stat__label">Coeficientes</div></div>
-  `;
+  $("#ph-stat-strip").innerHTML = [
+    phStatCard("Unidades", unitCount ?? 0, "units"),
+    phStatCard("Propietarios", ownerCount ?? 0, "owners"),
+    phStatCard("Usuarios activos", activeUserCount ?? 0, "users"),
+    phStatCard("Coeficientes", coefficientsComplete ? "100%" : `${Number(coefficientTotalPercent ?? 0).toFixed(0)}%`, "coeff")
+  ].join("");
 
   const nextHost = $("#ph-next-assembly");
   if (nextHost) {
@@ -859,14 +967,13 @@ async function openPh(id, preferredTab = null) {
   if (newAsm) {
     newAsm.href = `/calendar.html?phId=${encodeURIComponent(id)}`;
   }
+  applyNewAssemblyGate();
 
   const asmTitle = $("#ph-assemblies-title");
-  if (asmTitle) {
-    asmTitle.textContent = `Asambleas — ${ph.name || "PH"}`;
-  }
+  if (asmTitle) asmTitle.textContent = "Asambleas";
   const asmLede = $("#ph-assemblies-lede");
   if (asmLede) {
-    asmLede.textContent = `Solo se muestran las asambleas de ${ph.name || "este PH"}.`;
+    asmLede.textContent = "Administra las reuniones, convocatorias y resultados del PH.";
   }
 
   mountIaShell(
@@ -901,7 +1008,10 @@ async function openPh(id, preferredTab = null) {
   } catch {
     /* ignore */
   }
-  if (seq !== openPhSeq) return;
+  if (seq !== openPhSeq) {
+    stopTopProgress();
+    return;
+  }
 
   window.__asambleasOpenPh = (phId) => openPh(phId, (location.hash || "").replace("#", "") || null);
 
@@ -937,6 +1047,10 @@ async function openPh(id, preferredTab = null) {
   if (nextBtn && upcoming) {
     nextBtn.href = `/dashboard.html?assemblyId=${encodeURIComponent(upcoming.assemblyId)}`;
     nextBtn.textContent = "Ver asamblea";
+  }
+  if (seq === openPhSeq) {
+    setDetailBusy(false);
+    stopTopProgress();
   }
 }
 
@@ -1005,7 +1119,10 @@ function switchTab(tab) {
   if (tab === "coefficients") loadCoefficients({ soft: true });
   if (tab === "readiness") loadReadiness({ soft: true });
   if (tab === "assemblies") loadAssemblies({ soft: true });
-  if (tab === "resumen") renderAttentionAndPrep(currentPh);
+  if (tab === "resumen") {
+    renderAttentionAndPrep(currentPh);
+    loadAssemblies({ soft: true });
+  }
   if (tab === "import") {
     /* import wizard is on-demand */
   }
@@ -1016,9 +1133,9 @@ function switchTab(tab) {
     assemblies: "ph-assemblies",
     units: "ph-units",
     owners: "ph-owners",
-    coefficients: "ph-config",
-    import: "ph-config",
-    readiness: "ph-overview"
+    coefficients: "ph-coefficients",
+    import: "ph-import",
+    readiness: "ph-readiness"
   };
   if (currentPh) {
     mountIaShell(
@@ -1045,11 +1162,13 @@ function switchTab(tab) {
     if (currentPhId) u.searchParams.set("phId", String(currentPhId));
     const next = `${u.pathname}?${u.searchParams.toString()}#${desiredHash}`;
     if (location.pathname + location.search + location.hash !== next) {
-      history.replaceState({ hybrid: true, page: "ph.html" }, document.title, next);
+      const write = applyingRoute ? history.replaceState.bind(history) : history.pushState.bind(history);
+      write({ hybrid: true, page: "ph.html" }, document.title, next);
     }
   } catch {
     if (location.hash.replace("#", "") !== desiredHash) {
-      history.replaceState({}, "", `${location.pathname}${location.search}#${desiredHash}`);
+      const write = applyingRoute ? history.replaceState.bind(history) : history.pushState.bind(history);
+      write({ hybrid: true, page: "ph.html" }, document.title, `${location.pathname}${location.search}#${desiredHash}`);
     }
   }
 }
@@ -1088,9 +1207,13 @@ async function renderAttentionAndPrep(ph) {
   if (issues.length) {
     attention.hidden = false;
     attention.innerHTML = `
-      <p class="section-title" style="margin:0 0 0.5rem">Atención</p>
-      <ul style="margin:0 0 0.75rem;padding-left:1.1rem">${issues.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>
-      <button type="button" class="btn btn-secondary" id="btn-review-pending">Revisar pendientes</button>`;
+      <div class="card">
+        <div class="card-body">
+          <h3 class="card-title">Atención</h3>
+          <ul class="mb-3">${issues.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>
+          <button type="button" class="btn btn-secondary" id="btn-review-pending">Revisar pendientes</button>
+        </div>
+      </div>`;
     $("#btn-review-pending")?.addEventListener("click", () => switchTab("owners"));
   } else {
     attention.hidden = true;
@@ -1099,13 +1222,17 @@ async function renderAttentionAndPrep(ph) {
 
   prep.hidden = false;
   prep.innerHTML = `
-    <p class="section-title" style="margin:0 0 0.5rem">Preparación del PH</p>
-    <ul style="margin:0;padding-left:1.1rem;line-height:1.7">
-      <li>${(ph.unitCount ?? 0) > 0 ? "✓" : "○"} Unidades</li>
-      <li>${(ph.ownerCount ?? 0) > 0 ? "✓" : "○"} Propietarios</li>
-      <li>${ph.coefficientsComplete ? "✓" : "⚠"} Coeficientes</li>
-      <li>${ph.status === "Active" || ph.status === "ReadyForAssembly" ? "✓" : "○"} Activación</li>
-    </ul>`;
+    <div class="card">
+      <div class="card-body">
+        <h3 class="card-title">Preparación del PH</h3>
+        <ul class="mb-0">
+          <li>${(ph.unitCount ?? 0) > 0 ? "✓" : "○"} Unidades</li>
+          <li>${(ph.ownerCount ?? 0) > 0 ? "✓" : "○"} Propietarios</li>
+          <li>${ph.coefficientsComplete ? "✓" : "⚠"} Coeficientes</li>
+          <li>${ph.status === "Active" || ph.status === "ReadyForAssembly" ? "✓" : "○"} Activación</li>
+        </ul>
+      </div>
+    </div>`;
 }
 
 let assembliesLoadInflight = null;
@@ -1115,7 +1242,10 @@ async function loadAssemblies({ soft = false } = {}) {
   if (!currentPhId) {
     const host = $("#ph-assemblies-list");
     if (host) {
-      host.innerHTML = `<div class="ia-empty-state"><p>Selecciona un PH para ver sus asambleas.</p></div>`;
+      host.innerHTML = asmEmptyHtml({
+        title: "Selecciona un PH",
+        subtitle: "Elige una propiedad para ver sus asambleas."
+      });
     }
     phAssemblies = [];
     assembliesLoadInflight = null;
@@ -1132,7 +1262,7 @@ async function loadAssemblies({ soft = false } = {}) {
   if (assembliesLoadInflight && assembliesLoadPh === requestPh) {
     return assembliesLoadInflight;
   }
-  host.innerHTML = `<div class="skeleton ia-region-busy" style="height:4rem" aria-busy="true">Cargando asambleas…</div>`;
+  host.innerHTML = `<div class="card" aria-busy="true"><div class="card-body"><div class="progress progress-sm"><div class="progress-bar progress-bar-indeterminate"></div></div><p class="text-secondary mt-2 mb-0">Cargando asambleas…</p></div></div>`;
   // Assign synchronously before any await so concurrent tab/hash callers join the same promise.
   assembliesLoadPh = requestPh;
   let resolveGate;
@@ -1165,10 +1295,12 @@ async function loadAssemblies({ soft = false } = {}) {
     } catch (err) {
       if (String(currentPhId) !== requestPh) return;
       host.innerHTML = `
-        <div class="ia-empty-state ia-inline-error" role="alert">
-          <p>${escapeHtml(err.message || "No se pudieron cargar las asambleas.")}</p>
-          <p class="muted">Comprueba tu conexión e inténtalo de nuevo. El listado pertenece al PH activo.</p>
-          <button type="button" class="btn btn-secondary" data-retry-assemblies>Reintentar</button>
+        <div class="empty" role="alert">
+          <p class="empty-title">No se pudieron cargar las asambleas</p>
+          <p class="empty-subtitle text-secondary">${escapeHtml(err.message || "Comprueba tu conexión e inténtalo de nuevo.")}</p>
+          <div class="empty-action">
+            <button type="button" class="btn btn-secondary" data-retry-assemblies>Reintentar</button>
+          </div>
         </div>`;
       host.querySelector("[data-retry-assemblies]")?.addEventListener("click", () => {
         assembliesLoadInflight = null;
@@ -1196,22 +1328,26 @@ function renderPhCommand(ph, id) {
     (ph.nextAssemblyTitle || ph.nextAssemblyAtUtc
       ? { title: ph.nextAssemblyTitle, scheduledAtUtc: ph.nextAssemblyAtUtc, status: "Scheduled" }
       : null);
+  const canSchedule = canScheduleAssembly();
 
   if (live?.assemblyId) {
     const primary = resolvePrimaryAction(live, { assemblyId: live.assemblyId });
     host.dataset.kind = "live";
     host.innerHTML = `
-      <p class="ops-command__kicker">Asamblea en curso</p>
-      <h2>${escapeHtml(live.title || "Asamblea")}</h2>
-      <div class="ops-command__meta">
-        <span>${escapeHtml(ph.name || "PH")}</span>
-        <span class="ia-badge-status is-live">${escapeHtml(statusLabelEs(live.status))}</span>
-      </div>
-      <div class="ops-command__actions">
-        <a class="btn btn-primary" href="${primary.href || `/lobby.html?assemblyId=${encodeURIComponent(live.assemblyId)}`}">${escapeHtml(
-          primary.label || "Entrar a la sala"
-        )}</a>
-        <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${encodeURIComponent(live.assemblyId)}">Ver detalle</a>
+      <div class="card">
+        <div class="card-body">
+          <div class="subheader">Asamblea en curso</div>
+          <h2 class="mb-2">${escapeHtml(live.title || "Asamblea")}</h2>
+          <p class="text-secondary mb-3">
+            <span class="badge bg-green-lt">${escapeHtml(statusLabelEs(live.status))}</span>
+          </p>
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-primary" href="${primary.href || `/lobby.html?assemblyId=${encodeURIComponent(live.assemblyId)}`}">${escapeHtml(
+              primary.label || "Entrar a la sala"
+            )}</a>
+            <a class="btn" href="/dashboard.html?assemblyId=${encodeURIComponent(live.assemblyId)}">Ver detalle</a>
+          </div>
+        </div>
       </div>`;
     return;
   }
@@ -1221,39 +1357,59 @@ function renderPhCommand(ph, id) {
     const aid = upcoming.assemblyId;
     host.dataset.kind = "next";
     host.innerHTML = `
-      <p class="ops-command__kicker">Próxima asamblea</p>
-      <h2>${escapeHtml(upcoming.title || "Asamblea")}</h2>
-      <div class="ops-command__meta">
-        <span>${escapeHtml(ph.name || "PH")}</span>
-        <span>${escapeHtml(when)}</span>
-        <span class="ia-badge-status is-ready">${escapeHtml(statusLabelEs(upcoming.status || "Scheduled"))}</span>
-      </div>
-      <div class="ops-command__actions">
-        <a class="btn btn-primary" id="btn-view-next-assembly" href="${
-          aid
-            ? `/dashboard.html?assemblyId=${encodeURIComponent(aid)}`
-            : `/calendar.html?phId=${encodeURIComponent(id)}`
-        }">Ver detalle</a>
+      <div class="card">
+        <div class="card-body">
+          <div class="subheader">Próxima asamblea</div>
+          <h2 class="mb-2">${escapeHtml(upcoming.title || "Asamblea")}</h2>
+          <p class="text-secondary mb-3">
+            ${escapeHtml(when)}
+            <span class="badge bg-blue-lt ms-1">${escapeHtml(statusLabelEs(upcoming.status || "Scheduled"))}</span>
+          </p>
+          <a class="btn btn-primary" id="btn-view-next-assembly" href="${
+            aid
+              ? `/dashboard.html?assemblyId=${encodeURIComponent(aid)}`
+              : `/calendar.html?phId=${encodeURIComponent(id)}`
+          }">${aid ? "Ver asamblea" : "Ver en calendario"}</a>
+        </div>
       </div>`;
     return;
   }
 
   host.dataset.kind = "empty";
   host.innerHTML = `
-    <p class="ops-command__kicker">Panel</p>
-    <h2>No hay asambleas programadas</h2>
-    <p>Cuando exista una reunión, aquí verás el estado y la acción disponible para tu rol.</p>
-    <div class="ops-command__actions">
-      <a class="btn btn-primary" href="/calendar.html?phId=${encodeURIComponent(id)}">+ Nueva asamblea</a>
+    <div class="card">
+      <div class="card-body">
+        <div class="subheader">Próxima asamblea</div>
+        <h2 class="mb-2">No hay asambleas programadas</h2>
+        <p class="text-secondary mb-3">Cuando exista una reunión, aquí verás el estado y la acción disponible para tu rol.</p>
+        ${
+          canSchedule
+            ? `<a class="btn btn-primary" href="/calendar.html?phId=${encodeURIComponent(id)}">Nueva asamblea</a>`
+            : ""
+        }
+      </div>
     </div>`;
 }
 
 function renderAssembliesList() {
   const host = $("#ph-assemblies-list");
   if (!host) return;
+  const filterLabels = {
+    upcoming: "Próximas",
+    live: "En curso",
+    done: "Finalizadas",
+    cancelled: "Canceladas",
+    all: "Todas"
+  };
+  const newAsmAction = canScheduleAssembly()
+    ? `<a class="btn btn-primary" href="/calendar.html?phId=${encodeURIComponent(currentPhId || "")}">Nueva asamblea</a>`
+    : "";
 
   if (!currentPhId) {
-    host.innerHTML = `<div class="ia-empty-state"><p>Selecciona un PH para ver sus asambleas.</p></div>`;
+    host.innerHTML = asmEmptyHtml({
+      title: "Selecciona un PH",
+      subtitle: "Elige una propiedad para ver sus asambleas."
+    });
     return;
   }
 
@@ -1267,19 +1423,22 @@ function renderAssembliesList() {
   }
 
   if (!phAssemblies.length) {
-    host.innerHTML = `
-      <div class="ia-empty-state">
-        <p>Este PH todavía no tiene asambleas. Puedes crear la primera cuando estés listo.</p>
-        <a class="btn btn-primary" href="/calendar.html?phId=${encodeURIComponent(currentPhId)}">+ Nueva asamblea</a>
-      </div>`;
+    host.innerHTML = asmEmptyHtml({
+      title: "Este PH no tiene asambleas",
+      subtitle: "Cuando programes la primera reunión, aparecerá aquí.",
+      action: newAsmAction
+    });
     return;
   }
 
   if (!rows.length) {
-    host.innerHTML = `
-      <div class="ia-empty-state">
-        <p>${q ? "No hay asambleas que coincidan con la búsqueda." : "No hay asambleas en este filtro."}</p>
-      </div>`;
+    const filterName = filterLabels[asmFilter] || asmFilter;
+    host.innerHTML = asmEmptyHtml({
+      title: q ? "Sin coincidencias" : `No hay asambleas en «${filterName}»`,
+      subtitle: q
+        ? `Ninguna asamblea coincide con «${q}».`
+        : `Ninguna asamblea coincide con el filtro «${filterName}». Prueba otro estado o «Todas».`
+    });
     return;
   }
 
@@ -1344,27 +1503,30 @@ function renderAssembliesList() {
         </div>
       </details>`;
 
-    const statusClass =
-      bucket === "live" ? " is-live" : bucket === "upcoming" ? " is-ready" : bucket === "cancelled" ? " is-cancelled" : "";
+    const badgeClass = asmStatusBadgeClass(bucket);
     return {
       table: `
         <tr data-assembly-id="${escapeHtml(String(e.assemblyId))}" data-ph-id="${escapeHtml(String(e.propertyHorizontalId || currentPhId))}">
           <td><strong>${escapeHtml(e.title)}</strong></td>
-          <td>${escapeHtml(when)}</td>
-          <td><span class="ia-badge-status${statusClass}">${escapeHtml(statusLabelEs(e.status))}</span></td>
-          <td><a class="btn btn-primary btn-sm" href="${primaryHref}">${escapeHtml(primaryLabel)}</a></td>
+          <td class="text-secondary">${escapeHtml(when)}</td>
+          <td><span class="${badgeClass}">${escapeHtml(statusLabelEs(e.status))}</span></td>
+          <td class="w-1"><a class="btn btn-primary btn-sm" href="${primaryHref}">${escapeHtml(primaryLabel)}</a></td>
         </tr>`,
       stack: `
-      <div class="ops-stack-row ia-asm-row" data-assembly-id="${escapeHtml(String(e.assemblyId))}" data-ph-id="${escapeHtml(String(e.propertyHorizontalId || currentPhId))}" data-status="${escapeHtml(String(e.status || ""))}">
-        <div>
-          <strong>${escapeHtml(e.title)}</strong>
-          <p class="ia-asm-row__meta">${escapeHtml(when)} · ${escapeHtml(e.modality || "—")}${e.assemblyKind ? ` · ${escapeHtml(e.assemblyKind)}` : ""}${compact ? "" : ` · Convocados ${e.participantCount ?? 0}`}</p>
-        </div>
-        <div><span class="ia-badge-status${statusClass}">${escapeHtml(statusLabelEs(e.status))}</span></div>
-        <div class="ia-asm-row__actions">
-          <a class="btn btn-${compact ? "secondary" : "primary"} btn-sm" href="${primaryHref}">${escapeHtml(primaryLabel)}</a>
-          ${secondary}
-          ${moreMenu}
+      <div class="card" data-assembly-id="${escapeHtml(String(e.assemblyId))}" data-ph-id="${escapeHtml(String(e.propertyHorizontalId || currentPhId))}" data-status="${escapeHtml(String(e.status || ""))}">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div>
+              <strong>${escapeHtml(e.title)}</strong>
+              <p class="text-secondary mb-0">${escapeHtml(when)} · ${escapeHtml(e.modality || "—")}${e.assemblyKind ? ` · ${escapeHtml(e.assemblyKind)}` : ""}${compact ? "" : ` · Convocados ${e.participantCount ?? 0}`}</p>
+            </div>
+            <span class="${badgeClass}">${escapeHtml(statusLabelEs(e.status))}</span>
+          </div>
+          <div class="mt-3 d-flex flex-wrap gap-2">
+            <a class="btn btn-${compact ? "secondary" : "primary"} btn-sm" href="${primaryHref}">${escapeHtml(primaryLabel)}</a>
+            ${secondary}
+            ${moreMenu}
+          </div>
         </div>
       </div>`
     };
@@ -1372,13 +1534,15 @@ function renderAssembliesList() {
 
   const parts = sorted.map((e) => fmtRow(e, { compact: asmFilter === "done" }));
   host.innerHTML = `
-    <div class="ops-table-wrap">
-      <table class="ops-table">
-        <thead><tr><th>Asamblea</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead>
-        <tbody>${parts.map((p) => p.table).join("")}</tbody>
-      </table>
+    <div class="card asm-table-wrap">
+      <div class="table-responsive">
+        <table class="table card-table table-vcenter">
+          <thead><tr><th>Asamblea</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
+          <tbody>${parts.map((p) => p.table).join("")}</tbody>
+        </table>
+      </div>
     </div>
-    <div class="ops-stack">${parts.map((p) => p.stack).join("")}</div>`;
+    <div class="asm-stack">${parts.map((p) => p.stack).join("")}</div>`;
 }
 
 async function confirmAction(title, body, okLabel = "Confirmar") {
@@ -2740,6 +2904,16 @@ async function handlePhUrl(urlLike) {
   const phId = u.searchParams.get("phId");
   const tab = (u.hash || "").replace(/^#/, "") || null;
   if (phId) {
+    if (String(currentPhId) === String(phId) && currentPh && !$("#view-detail")?.hidden) {
+      applyingRoute = true;
+      try {
+        switchTab(tab || "resumen");
+      } finally {
+        applyingRoute = false;
+        stopTopProgress();
+      }
+      return;
+    }
     await openPh(phId, tab || "resumen");
     return;
   }
@@ -2748,7 +2922,11 @@ async function handlePhUrl(urlLike) {
   $("#view-detail").hidden = true;
   $("#view-list").hidden = false;
   mountPhListShell();
-  await loadList();
+  try {
+    await loadList();
+  } finally {
+    stopTopProgress();
+  }
 }
 
 export async function mount(ctx = {}) {
