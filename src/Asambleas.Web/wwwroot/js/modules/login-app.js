@@ -27,6 +27,7 @@ const otpSuggest = document.querySelector("#otp-suggest");
 
 let defaultAssemblyId = null;
 let oauthBusy = false;
+let mesaBusy = false;
 let pendingEmail = "";
 let resendTimer = null;
 let resendAvailableAt = 0;
@@ -69,7 +70,7 @@ const OAUTH_MESSAGES = {
   EMAIL_NOT_VERIFIED: "El correo del proveedor no está verificado.",
   NO_ASSOCIATION: "Esta cuenta todavía no está asociada con una propiedad o invitación.",
   ACCOUNT_EXISTS:
-    "Ya existe una cuenta con este correo. Usa «Recibir código» o inicia sesión con tu contraseña de mesa.",
+    "Ya existe una cuenta con este correo. Usa «Código por correo» o inicia sesión con tu contraseña de mesa.",
   EMAIL_MISMATCH: "El correo del proveedor no coincide con tu sesión actual.",
   LOGIN_ALREADY_LINKED: "Esta cuenta externa ya está vinculada a otro usuario.",
   USER_DISABLED: "Tu cuenta está desactivada. Contacta al administrador de tu propiedad.",
@@ -98,6 +99,15 @@ const otpPanel = document.querySelector("#panel-otp");
 const mesaPanel = document.querySelector("#panel-mesa");
 const methodTabs = document.querySelector("#login-method-tabs");
 
+function revealControl(el) {
+  if (!el || typeof el.scrollIntoView !== "function") return;
+  try {
+    el.scrollIntoView({ block: "center", inline: "nearest" });
+  } catch {
+    /* ignore */
+  }
+}
+
 function setFieldError(id, message) {
   const el = document.querySelector(`#${id}`);
   const input = document.querySelector(`#${id.replace(/-error$/, "")}`);
@@ -107,10 +117,12 @@ function setFieldError(id, message) {
     el.textContent = message;
     input?.setAttribute("aria-invalid", "true");
     input?.setAttribute("aria-describedby", id);
+    revealControl(el);
   } else {
     el.hidden = true;
     el.textContent = "";
     input?.removeAttribute("aria-invalid");
+    input?.removeAttribute("aria-describedby");
   }
 }
 
@@ -133,6 +145,7 @@ function showError(message) {
   const el = activeFormAlert();
   if (!el) return;
   AppFeedback.banner.show(el, message, "error");
+  if (message) revealControl(el);
 }
 
 function showLoginMethod(method) {
@@ -158,14 +171,31 @@ methodTabs?.addEventListener("click", (ev) => {
   else showLoginMethod("otp");
 });
 
+methodTabs?.addEventListener("keydown", (ev) => {
+  if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft" && ev.key !== "Home" && ev.key !== "End") return;
+  const tabs = [...methodTabs.querySelectorAll("[role='tab']")];
+  if (!tabs.length) return;
+  ev.preventDefault();
+  const current = tabs.findIndex((t) => t.getAttribute("aria-selected") === "true");
+  let next = current < 0 ? 0 : current;
+  if (ev.key === "ArrowRight") next = (current + 1) % tabs.length;
+  if (ev.key === "ArrowLeft") next = (current - 1 + tabs.length) % tabs.length;
+  if (ev.key === "Home") next = 0;
+  if (ev.key === "End") next = tabs.length - 1;
+  tabs[next].focus();
+  tabs[next].click();
+});
+
 document.querySelector("#btn-forgot-password")?.addEventListener("click", () => {
   if (otpPanel) otpPanel.hidden = true;
   if (mesaPanel) mesaPanel.hidden = true;
   if (methodTabs) methodTabs.hidden = true;
   document.querySelector("#oauth-providers")?.setAttribute("hidden", "");
   if (forgotForm) forgotForm.hidden = false;
-  if (forgotEmail && (otpEmail?.value || emailInput?.value)) {
-    forgotEmail.value = otpEmail?.value || emailInput.value;
+  if (forgotEmail) {
+    const mesaEmail = emailInput?.value?.trim() || "";
+    const codeEmail = otpEmail?.value?.trim() || "";
+    forgotEmail.value = (!mesaPanel?.hidden && mesaEmail) || codeEmail || mesaEmail;
   }
   forgotEmail?.focus();
   clearFormAlerts();
@@ -319,6 +349,10 @@ function updateSuggest() {
 
 otpEmail?.addEventListener("input", updateSuggest);
 
+document.querySelectorAll(".login-card input").forEach((input) => {
+  input.addEventListener("focus", () => revealControl(input));
+});
+
 function showVerifyStep(email, resendAtIso) {
   pendingEmail = email;
   if (otpRequestForm) otpRequestForm.hidden = true;
@@ -366,7 +400,7 @@ otpRequestForm?.addEventListener("submit", async (ev) => {
   }
   setFieldError("otp-email-error", "");
   try {
-    const result = await AppFeedback.runWithButton(otpRequestSubmit, "Enviando…", async () =>
+    const result = await AppFeedback.runWithButton(otpRequestSubmit, "Enviando código…", async () =>
       api("/api/auth/email-otp/request", {
         method: "POST",
         body: { email, returnUrl: safeReturnUrl() }
@@ -498,6 +532,7 @@ try {
 loginForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   event.stopPropagation();
+  if (mesaBusy) return;
   showError("");
 
   const email = emailInput?.value?.trim() || "";
@@ -505,22 +540,20 @@ loginForm?.addEventListener("submit", async (event) => {
   if (!email || !email.includes("@")) {
     setFieldError("email-error", "Escribe un correo válido.");
     emailInput?.focus();
-    setButtonLoading(submitBtn, false);
-    hideGlobalLoader();
     return;
   }
   setFieldError("email-error", "");
   if (!password) {
     setFieldError("password-error", "Escribe tu contraseña.");
     passwordInput?.focus();
-    setButtonLoading(submitBtn, false);
-    hideGlobalLoader();
     return;
   }
   setFieldError("password-error", "");
+  mesaBusy = true;
+  if (submitBtn) submitBtn.disabled = true;
   if (passwordInput) passwordInput.value = "";
 
-  setButtonLoading(submitBtn, true, "Iniciando sesión");
+  setButtonLoading(submitBtn, true, "Iniciando sesión…");
   showGlobalLoader("Verificando acceso…", { hint: "Autenticación segura" });
 
   try {
@@ -530,6 +563,8 @@ loginForm?.addEventListener("submit", async (event) => {
   } catch {
     hideGlobalLoader();
     setButtonLoading(submitBtn, false);
+    mesaBusy = false;
+    if (emailInput) emailInput.value = email;
     showError("No pudimos iniciar sesión. Verifica tus credenciales.");
   }
 });

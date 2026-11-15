@@ -3,5 +3,11 @@ Source: Unsplash — https://unsplash.com/photos/white-high-rise-building-2d4lAQ
 Photo ID: photo-1460317442991-0ec209397118
 Photographer: Danist Soh (https://unsplash.com/@danist07)
 License: Unsplash License (https://unsplash.com/license)
-Free to use for commercial and non-commercial purposes. No permission required.
 Used as a generic residential architecture brand fallback, not as a photograph of a specific PH.
+
+login-cover.jpg
+Source: Pexels — https://www.pexels.com/photo/modern-coastal-apartment-building-at-sunset-38714454/
+Photographer: Angelica Furstrand (https://www.pexels.com/@angelica-furstrand-2153376462/)
+License: Pexels License (https://www.pexels.com/license/)
+Free to use for commercial and non-commercial purposes. Attribution is not required.
+Used as a generic architectural product photograph (contemporary residential tower, tropical vegetation, balconies, late-afternoon light), not as a photograph of a specific PH.

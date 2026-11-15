@@ -7,141 +7,164 @@
   <title>ASAMBLEAS — Acceso</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=idn2" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=acc4" />
   <link rel="stylesheet" href="/css/base.css?v=gov1" />
   <link rel="stylesheet" href="/css/components.css?v=gov1" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <link rel="stylesheet" href="/css/loading.css?v=px1" />
   <link rel="stylesheet" href="/css/gov-ops.css?v=gov4" />
-  <link rel="stylesheet" href="/css/login-identity.css?v=idn2" />
+  <link rel="stylesheet" href="/css/login-identity.css?v=acc4" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
 </head>
 <body class="login-identity">
   <a class="skip-link" href="#otp-email">Saltar al acceso</a>
   <div class="login-split">
-    <aside class="login-split__visual" aria-hidden="true"></aside>
+    <aside class="login-visual">
+      <img
+        class="login-visual__photo"
+        src="/img/brand/login-cover.jpg?v=acc4"
+        alt=""
+        width="1312"
+        height="2100"
+        fetchpriority="high"
+        decoding="async"
+      />
+      <div class="login-visual__shade" aria-hidden="true"></div>
+      <div class="login-visual__content">
+        <p class="login-visual__brand">Asambleas</p>
+        <div class="login-visual__copy">
+          <h1 id="product-title">Convoca, reúne y vota en un solo lugar.</h1>
+          <p>Gestiona tus asambleas de PH, desde la convocatoria hasta el acta.</p>
+        </div>
+      </div>
+    </aside>
+
     <div class="login-split__form">
-  <main class="login-shell">
-    <section class="login-card panel" aria-labelledby="welcome">
-      <header class="login-brand">
-        <p class="login-brand__mark">ASAMBLEAS</p>
-        <h1 id="welcome">Acceso</h1>
-        <p class="lede" id="login-main-msg">
-          Recibe un código en tu correo para entrar. El acceso con contraseña queda reservado a mesa y administración.
-        </p>
-      </header>
+      <main class="login-shell">
+        <section class="login-card" aria-labelledby="welcome">
+          <header class="login-brand">
+            <h2 id="welcome">Ingresa a Asambleas</h2>
+            <p class="lede" id="login-main-msg">Elige cómo quieres entrar.</p>
+          </header>
 
-      <div id="login-error" class="alert login-form-alert" hidden role="alert"></div>
+          <div id="login-error" class="alert login-form-alert" hidden role="alert"></div>
 
-      <div id="oauth-providers" class="oauth-providers" hidden>
-        <button type="button" class="btn btn-oauth btn-oauth-google" id="btn-oauth-google" data-provider="Google" hidden>
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.6h5.1c-.2 1.2-1.5 3.5-5.1 3.5-3.1 0-5.6-2.5-5.6-5.6S8.9 6.1 12 6.1c1.7 0 2.9.7 3.6 1.4l2.5-2.4C16.7 3.7 14.5 2.7 12 2.7 6.9 2.7 2.7 6.9 2.7 12S6.9 21.3 12 21.3c5.5 0 9.1-3.9 9.1-9.3 0-.6-.1-1.1-.2-1.8H12z"/><path fill="#34A853" d="M3.9 14.5l3 2.2C7.8 19.1 9.7 20.4 12 20.4c1.9 0 3.5-.6 4.7-1.7l-3.1-2.4c-.8.5-1.8.8-2.9.8-2.2 0-4.1-1.5-4.8-3.5z"/><path fill="#4A90E2" d="M21.1 12c0-.6-.1-1.1-.2-1.8H12v3.6h5.1c-.2 1.1-.8 2.1-1.7 2.7l3.1 2.4C20.3 17.3 21.1 14.9 21.1 12z"/><path fill="#FBBC05" d="M6.9 13.6c-.2-.5-.3-1.1-.3-1.6s.1-1.1.3-1.6l-3-2.3C3.3 9.3 3 10.6 3 12s.3 2.7.9 3.9l3-2.3z"/></svg>
-          Continuar con Google
-        </button>
-        <button type="button" class="btn btn-oauth btn-oauth-microsoft" id="btn-oauth-microsoft" data-provider="Microsoft" hidden>
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#F25022" d="M3 3h8.5v8.5H3z"/><path fill="#7FBA00" d="M12.5 3H21v8.5h-8.5z"/><path fill="#00A4EF" d="M3 12.5h8.5V21H3z"/><path fill="#FFB900" d="M12.5 12.5H21V21h-8.5z"/></svg>
-          Continuar con Microsoft
-        </button>
-        <div class="oauth-divider" role="separator" aria-label="o"><span>o</span></div>
-      </div>
+          <div id="oauth-providers" class="oauth-providers" hidden>
+            <button type="button" class="btn btn-oauth btn-oauth-google" id="btn-oauth-google" data-provider="Google" hidden>
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.6h5.1c-.2 1.2-1.5 3.5-5.1 3.5-3.1 0-5.6-2.5-5.6-5.6S8.9 6.1 12 6.1c1.7 0 2.9.7 3.6 1.4l2.5-2.4C16.7 3.7 14.5 2.7 12 2.7 6.9 2.7 2.7 6.9 2.7 12S6.9 21.3 12 21.3c5.5 0 9.1-3.9 9.1-9.3 0-.6-.1-1.1-.2-1.8H12z"/><path fill="#34A853" d="M3.9 14.5l3 2.2C7.8 19.1 9.7 20.4 12 20.4c1.9 0 3.5-.6 4.7-1.7l-3.1-2.4c-.8.5-1.8.8-2.9.8-2.2 0-4.1-1.5-4.8-3.5z"/><path fill="#4A90E2" d="M21.1 12c0-.6-.1-1.1-.2-1.8H12v3.6h5.1c-.2 1.1-.8 2.1-1.7 2.7l3.1 2.4C20.3 17.3 21.1 14.9 21.1 12z"/><path fill="#FBBC05" d="M6.9 13.6c-.2-.5-.3-1.1-.3-1.6s.1-1.1.3-1.6l-3-2.3C3.3 9.3 3 10.6 3 12s.3 2.7.9 3.9l3-2.3z"/></svg>
+              Continuar con Google
+            </button>
+            <button type="button" class="btn btn-oauth btn-oauth-microsoft" id="btn-oauth-microsoft" data-provider="Microsoft" hidden>
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#F25022" d="M3 3h8.5v8.5H3z"/><path fill="#7FBA00" d="M12.5 3H21v8.5h-8.5z"/><path fill="#00A4EF" d="M3 12.5h8.5V21H3z"/><path fill="#FFB900" d="M12.5 12.5H21V21h-8.5z"/></svg>
+              Continuar con Microsoft
+            </button>
+            <div class="oauth-divider" role="separator" aria-label="o"><span>o</span></div>
+          </div>
 
-      <div class="login-methods" role="tablist" aria-label="Método de acceso" id="login-method-tabs">
-        <button type="button" role="tab" id="tab-otp" aria-controls="panel-otp" aria-selected="true">Código por correo</button>
-        <button type="button" role="tab" id="tab-mesa" aria-controls="panel-mesa" aria-selected="false">Mesa y administración</button>
-      </div>
+          <div class="login-methods" role="tablist" aria-label="Método de acceso" id="login-method-tabs">
+            <button type="button" role="tab" id="tab-otp" aria-controls="panel-otp" aria-selected="true">
+              <svg xmlns="http://www.w3.org/2000/svg" class="login-method-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m3 7 9 6 9-6"/></svg>
+              <span>Código por correo</span>
+            </button>
+            <button type="button" role="tab" id="tab-mesa" aria-controls="panel-mesa" aria-selected="false">
+              <svg xmlns="http://www.w3.org/2000/svg" class="login-method-icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h1"/><path d="M9 12h1"/><path d="M9 15h1"/><path d="M14 9h1"/><path d="M14 12h1"/><path d="M14 15h1"/></svg>
+              <span>Mesa y administración</span>
+            </button>
+          </div>
 
-      <div id="panel-otp" role="tabpanel" aria-labelledby="tab-otp">
-        <form id="otp-request-form" method="post" action="/index.html" autocomplete="on" novalidate>
-          <div class="alert login-form-alert" id="otp-request-error" hidden role="alert"></div>
-          <div class="field">
-            <label for="otp-email">Correo</label>
-            <input id="otp-email" type="email" autocomplete="username" inputmode="email" required
-              placeholder="tu@correo.com" />
-            <p class="field-error" id="otp-email-error" hidden></p>
-          </div>
-          <p id="otp-suggest" class="lede" hidden style="margin:.75rem 0 0;font-size:.95rem"></p>
-          <div class="login-actions">
-            <button type="submit" class="btn btn-primary btn-lg" id="otp-request-submit">Recibir código</button>
-          </div>
-        </form>
+          <div id="panel-otp" role="tabpanel" aria-labelledby="tab-otp">
+            <form id="otp-request-form" method="post" action="/index.html" autocomplete="on" novalidate>
+              <div class="alert login-form-alert" id="otp-request-error" hidden role="alert"></div>
+              <div class="field">
+                <label for="otp-email">Correo</label>
+                <input id="otp-email" type="email" autocomplete="username" inputmode="email" required
+                  placeholder="tu@correo.com" />
+                <p class="field-error" id="otp-email-error" hidden></p>
+              </div>
+              <p id="otp-suggest" class="lede login-suggest" hidden></p>
+              <div class="login-actions">
+                <button type="submit" class="btn btn-primary btn-lg" id="otp-request-submit">Enviar código</button>
+              </div>
+            </form>
 
-        <form id="otp-verify-form" hidden method="post" action="/index.html" autocomplete="one-time-code" novalidate>
-          <div class="alert login-form-alert" id="otp-verify-error" hidden role="alert"></div>
-          <p class="lede" style="margin:0 0 .75rem;font-size:1rem">
-            Enviamos un código de 6 dígitos a <strong id="otp-email-display"></strong>. Vence en 10 minutos.
-          </p>
-          <div class="field">
-            <label for="otp-code">Código</label>
-            <input id="otp-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6"
-              autocomplete="one-time-code" required
-              style="font-size:1.75rem;letter-spacing:.35em;text-align:center;font-weight:700" />
-            <p class="field-error" id="otp-code-error" hidden></p>
+            <form id="otp-verify-form" hidden method="post" action="/index.html" autocomplete="one-time-code" novalidate>
+              <div class="alert login-form-alert" id="otp-verify-error" hidden role="alert"></div>
+              <p class="lede login-verify-copy">
+                Enviamos un código de 6 dígitos a <strong id="otp-email-display"></strong>. Vence en 10 minutos.
+              </p>
+              <div class="field">
+                <label for="otp-code">Código</label>
+                <input id="otp-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                  autocomplete="one-time-code" required />
+                <p class="field-error" id="otp-code-error" hidden></p>
+              </div>
+              <div class="login-actions">
+                <button type="submit" class="btn btn-primary btn-lg" id="otp-verify-submit">Entrar</button>
+                <button type="button" class="btn btn-ghost" id="otp-resend" disabled>Reenviar código</button>
+                <button type="button" class="btn btn-ghost" id="otp-change-email">Cambiar correo</button>
+              </div>
+              <p id="otp-resend-hint" class="lede login-resend-hint"></p>
+            </form>
           </div>
-          <div class="login-actions">
-            <button type="submit" class="btn btn-primary btn-lg" id="otp-verify-submit">Entrar</button>
-            <button type="button" class="btn btn-ghost" id="otp-resend" disabled>Reenviar código</button>
-            <button type="button" class="btn btn-ghost" id="otp-change-email">Cambiar correo</button>
-          </div>
-          <p id="otp-resend-hint" class="lede" style="margin:.75rem 0 0;font-size:.9rem"></p>
-        </form>
-      </div>
 
-      <div id="panel-mesa" role="tabpanel" aria-labelledby="tab-mesa" hidden>
-        <form id="login-form" method="post" action="/index.html" autocomplete="on" novalidate>
-          <div class="alert login-form-alert" id="mesa-form-error" hidden role="alert"></div>
-          <div class="field">
-            <label for="email">Correo</label>
-            <input id="email" type="email" autocomplete="username" inputmode="email" />
-            <p class="field-error" id="email-error" hidden></p>
+          <div id="panel-mesa" role="tabpanel" aria-labelledby="tab-mesa" hidden>
+            <form id="login-form" method="post" action="/index.html" autocomplete="on" novalidate>
+              <div class="alert login-form-alert" id="mesa-form-error" hidden role="alert"></div>
+              <div class="field">
+                <label for="email">Correo</label>
+                <input id="email" type="email" autocomplete="username" inputmode="email" />
+                <p class="field-error" id="email-error" hidden></p>
+              </div>
+              <div class="field">
+                <div class="field-head">
+                  <label for="password">Contraseña</label>
+                  <button type="button" class="field-link" id="btn-forgot-password">¿Olvidaste tu contraseña?</button>
+                </div>
+                <span class="password-field">
+                  <input id="password" type="password" autocomplete="current-password" />
+                  <button type="button" class="password-toggle" data-toggle-password="password" aria-label="Mostrar contraseña" aria-pressed="false" title="Mostrar contraseña">
+                    <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
+                      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.8 21.8 0 0 1 5.06-5.94"/>
+                      <path d="M9.9 4.24A10.94 10.94 0 0 1 12 5c7 0 11 7 11 7a21.8 21.8 0 0 1-2.16 3.19"/>
+                      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
+                </span>
+                <p class="field-error" id="password-error" hidden></p>
+              </div>
+              <div class="login-actions">
+                <button type="submit" class="btn btn-primary btn-lg" id="login-submit">Iniciar sesión</button>
+              </div>
+            </form>
           </div>
-          <div class="field">
-            <label for="password">Contraseña</label>
-            <span class="password-field">
-              <input id="password" type="password" autocomplete="current-password" />
-              <button type="button" class="password-toggle" data-toggle-password="password" aria-label="Mostrar contraseña" aria-pressed="false" title="Mostrar contraseña">
-                <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-                <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
-                  <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.8 21.8 0 0 1 5.06-5.94"/>
-                  <path d="M9.9 4.24A10.94 10.94 0 0 1 12 5c7 0 11 7 11 7a21.8 21.8 0 0 1-2.16 3.19"/>
-                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              </button>
-            </span>
-            <p class="field-error" id="password-error" hidden></p>
-          </div>
-          <div class="login-actions">
-            <button type="submit" class="btn btn-primary btn-lg" id="login-submit">Entrar con contraseña</button>
-            <button type="button" class="btn btn-ghost" id="btn-forgot-password">¿Olvidaste tu contraseña?</button>
-          </div>
-        </form>
-      </div>
 
-      <form id="forgot-form" hidden novalidate>
-        <div class="alert login-form-alert" id="forgot-form-error" hidden role="alert"></div>
-        <p class="lede" style="margin:0 0 .75rem;font-size:.95rem">
-          Te enviaremos un enlace para definir una contraseña nueva. Nunca enviamos la contraseña por correo.
-        </p>
-        <div class="field">
-          <label for="forgot-email">Correo</label>
-          <input id="forgot-email" type="email" autocomplete="username" inputmode="email" required />
-          <p class="field-error" id="forgot-email-error" hidden></p>
-        </div>
-        <div class="login-actions">
-          <button type="submit" class="btn btn-primary" id="forgot-submit">Enviar enlace</button>
-          <button type="button" class="btn btn-ghost" id="btn-forgot-cancel">Volver al acceso</button>
-        </div>
-      </form>
-    </section>
-  </main>
+          <form id="forgot-form" hidden novalidate>
+            <div class="alert login-form-alert" id="forgot-form-error" hidden role="alert"></div>
+            <p class="lede login-verify-copy">
+              Te enviaremos un enlace para definir una contraseña nueva. Nunca enviamos la contraseña por correo.
+            </p>
+            <div class="field">
+              <label for="forgot-email">Correo</label>
+              <input id="forgot-email" type="email" autocomplete="username" inputmode="email" required />
+              <p class="field-error" id="forgot-email-error" hidden></p>
+            </div>
+            <div class="login-actions">
+              <button type="submit" class="btn btn-primary btn-lg" id="forgot-submit">Enviar enlace</button>
+              <button type="button" class="btn btn-ghost" id="btn-forgot-cancel">Volver al acceso</button>
+            </div>
+          </form>
+        </section>
+      </main>
     </div>
   </div>
 
-  <script type="module" src="/js/modules/login-app.js?v=idn2"></script>
+  <script type="module" src="/js/modules/login-app.js?v=acc4"></script>
 </body>
 </html>

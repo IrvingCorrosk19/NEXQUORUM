@@ -1,9 +1,12 @@
-/* ASAMBLEAS — Acceso with ocean/teal identity and split visual. */
+/* ASAMBLEAS — public access: product presentation + login. */
 
+html:has(.login-identity),
 .login-identity {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #faf8f4;
+  margin: 0;
+  overflow-x: clip;
+  background: #faf8f4 !important;
   color: #102b3f;
   font-family: "DM Sans", "Segoe UI", sans-serif;
 }
@@ -13,106 +16,409 @@
   min-height: 100dvh;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
-.login-split__visual {
-  display: none;
+.login-visual {
   position: relative;
-  background:
-    linear-gradient(180deg, rgba(16, 43, 63, 0.28), rgba(16, 43, 63, 0.62)),
-    var(--login-visual, url("/img/brand/architecture-cover.jpg")) center / cover no-repeat;
+  isolation: isolate;
+  height: 11.25rem;
+  min-height: 11.25rem;
+  max-height: 11.25rem;
+  overflow: hidden;
+  color: #faf8f4;
 }
 
-.login-split__visual::after {
+.login-visual::after {
   content: "";
   position: absolute;
-  left: 1.5rem;
-  bottom: 1.5rem;
-  width: 2.75rem;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
   height: 3px;
-  border-radius: 99px;
   background: #ff806b;
+  pointer-events: none;
+}
+
+.login-visual__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 80% 58%;
+  z-index: 0;
+}
+
+.login-visual__shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(16, 43, 63, 0.18) 0%, rgba(16, 43, 63, 0.08) 38%, rgba(16, 43, 63, 0.78) 100%);
+}
+
+.login-visual__content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 0;
+  height: 100%;
+  padding: 0.85rem 1rem 0.8rem;
+}
+
+.login-visual__brand {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #faf8f4;
+}
+
+.login-visual__copy h1,
+.login-identity #product-title {
+  margin: 0 0 0.28rem;
+  max-width: 16ch;
+  font-family: "DM Sans", "Segoe UI", sans-serif;
+  font-size: clamp(1.2rem, 4.4vw, 1.45rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  color: #faf8f4 !important;
+  text-shadow: 0 1px 12px rgba(16, 43, 63, 0.4);
+}
+
+.login-visual__copy p {
+  margin: 0;
+  max-width: 42ch;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: rgba(250, 248, 244, 0.94);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .login-split__form {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: clamp(1rem, 4vw, 2.5rem);
+  padding: 1.25rem 1.1rem 2rem;
   background: #faf8f4;
 }
 
 .login-identity .login-shell {
   min-height: auto;
+  width: 100%;
+  max-width: 25rem;
   padding: 0;
   background: transparent;
   display: block;
+  place-items: unset;
+  justify-items: stretch;
 }
 
 .login-identity .login-card {
-  width: min(28rem, 100%);
-  background: #ffffff;
-  border: 1px solid rgba(16, 43, 63, 0.1);
-  box-shadow: 0 16px 40px rgba(16, 43, 63, 0.08);
+  width: 100%;
+  max-width: 25rem;
+  margin: 0 auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
 }
 
-.login-identity .login-brand__mark {
-  color: #007c78;
+.login-identity .login-brand {
+  margin: 0 0 1.35rem;
 }
 
-.login-identity .login-brand h1 {
+.login-identity .login-brand h2,
+.login-identity .login-brand #welcome {
+  margin: 0 0 0.4rem;
+  font-size: 1.55rem;
   font-weight: 700;
   letter-spacing: -0.03em;
   color: #102b3f;
 }
 
+.login-identity .login-brand .lede,
+.login-identity #login-main-msg {
+  margin: 0;
+  color: #3e536b;
+  font-size: 0.95rem;
+}
+
 .login-identity .login-methods {
-  background: #f4f1ea;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin: 0 0 1.35rem;
+  padding: 0;
+  background: transparent;
 }
 
 .login-identity .login-methods [role="tab"] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  min-height: 4.25rem;
+  padding: 0.55rem 0.4rem;
+  border: 1px solid rgba(16, 43, 63, 0.16);
+  border-radius: 0.75rem;
+  background: #ffffff;
   color: #3e536b;
   font-weight: 650;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .login-identity .login-methods [role="tab"][aria-selected="true"] {
-  background: #007c78;
-  color: #ffffff;
+  background: rgba(0, 124, 120, 0.1);
+  color: #102b3f;
   border-color: #007c78;
-  font-weight: 700;
+  box-shadow: none;
+  font-weight: 750;
+}
+
+.login-identity .login-methods [role="tab"]:focus-visible {
+  outline: 2px solid #007c78;
+  outline-offset: 2px;
+}
+
+.login-method-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}
+
+.login-identity .login-card .field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.login-identity .login-card .field + .field {
+  margin-top: 1rem;
+}
+
+.login-identity .login-card .field label,
+.login-identity .field-head label {
+  font-size: 0.86rem;
+  font-weight: 650;
+  color: #102b3f;
+}
+
+.login-identity .field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.login-identity .field-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #007c78;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.login-identity .field-link:focus-visible {
+  outline: 2px solid #007c78;
+  outline-offset: 2px;
+  border-radius: 0.2rem;
 }
 
 .login-identity .login-card .field input,
 .login-identity .login-card .password-field input {
-  background: #ffffff;
-  color: #102b3f;
+  color-scheme: light;
+  width: 100%;
+  min-height: 3rem;
+  background: #ffffff !important;
+  color: #102b3f !important;
+  caret-color: #102b3f;
   border: 1px solid rgba(16, 43, 63, 0.18);
-  min-height: 2.75rem;
+  border-radius: 0.7rem;
+  box-shadow: none;
 }
 
-.login-identity .login-card .btn-primary {
+.login-identity .login-card .field input::placeholder {
+  color: #5c6f89;
+  opacity: 1;
+}
+
+.login-identity .login-card .field input:focus-visible,
+.login-identity .login-card .password-field input:focus-visible {
+  outline: none;
+  border-color: #007c78;
+  box-shadow: 0 0 0 3px rgba(0, 124, 120, 0.22);
+  background: #ffffff !important;
+  color: #102b3f !important;
+}
+
+.login-identity .login-card .field input:-webkit-autofill,
+.login-identity .login-card .field input:-webkit-autofill:hover,
+.login-identity .login-card .field input:-webkit-autofill:focus,
+.login-identity .login-card .password-field input:-webkit-autofill,
+.login-identity .login-card .password-field input:-webkit-autofill:hover,
+.login-identity .login-card .password-field input:-webkit-autofill:focus,
+.login-identity .login-card .field input:autofill,
+.login-identity .login-card .field input:autofill:focus {
+  -webkit-text-fill-color: #102b3f !important;
+  caret-color: #102b3f;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  background-color: #ffffff !important;
+  color: #102b3f !important;
+  transition: background-color 99999s ease-out;
+}
+
+.login-identity #otp-code {
+  font-size: 1.55rem;
+  letter-spacing: 0.32em;
+  text-align: center;
+  font-weight: 700;
+}
+
+.login-identity .login-card .btn-primary,
+.login-identity .login-card .btn-lg {
+  width: 100%;
+  min-height: 3rem;
   background: #007c78;
   border-color: #007c78;
   color: #ffffff;
-  font-weight: 650;
-  width: 100%;
+  font-weight: 700;
+  border-radius: 0.7rem;
 }
 
-.login-identity .login-card .btn-primary:hover {
+.login-identity .login-card .btn-primary:hover:not(:disabled) {
   background: #006864;
   border-color: #006864;
 }
 
+.login-identity .login-card .btn-primary:focus-visible {
+  outline: 2px solid #102b3f;
+  outline-offset: 2px;
+}
+
+.login-identity .login-actions {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+}
+
 .login-identity .login-form-alert {
+  margin: 0 0 1rem;
+}
+
+.login-identity .login-suggest,
+.login-identity .login-verify-copy,
+.login-identity .login-resend-hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.92rem;
+  color: #3e536b;
+}
+
+.login-identity .login-verify-copy {
   margin: 0 0 0.9rem;
 }
 
-@media (min-width: 960px) {
-  .login-split {
-    grid-template-columns: minmax(18rem, 1.05fr) minmax(26rem, 1fr);
+.login-identity .btn-ghost {
+  color: #007c78;
+}
+
+.login-identity .oauth-providers:not([hidden]) {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0 0 1.2rem;
+}
+
+.login-identity .btn-oauth {
+  min-height: 2.75rem;
+  background: #ffffff;
+  color: #102b3f;
+}
+
+@media (max-width: 359px) {
+  .login-visual {
+    height: 10.5rem;
+    min-height: 10.5rem;
+    max-height: 10.5rem;
   }
 
-  .login-split__visual {
-    display: block;
+  .login-identity .login-methods [role="tab"] {
+    min-height: 4.5rem;
+    font-size: 0.74rem;
+    padding: 0.45rem 0.22rem;
+  }
+
+  .login-identity .field-head {
+    flex-wrap: wrap;
+  }
+
+  .login-visual__copy p {
+    white-space: normal;
+  }
+}
+
+@media (min-width: 900px) {
+  .login-split {
+    grid-template-columns: minmax(0, 1.38fr) minmax(22rem, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .login-visual {
+    height: auto;
+    min-height: 100%;
+    max-height: none;
+  }
+
+  .login-visual__photo {
+    object-position: 58% 55%;
+  }
+
+  .login-visual__shade {
+    background:
+      linear-gradient(180deg, rgba(16, 43, 63, 0.12) 0%, rgba(16, 43, 63, 0.04) 46%, rgba(16, 43, 63, 0.84) 100%);
+  }
+
+  .login-visual__content {
+    padding: 1.75rem 2rem 2.1rem;
+  }
+
+  .login-visual__copy h1,
+  .login-identity #product-title {
+    max-width: 12.5ch;
+    font-size: clamp(2.15rem, 3.3vw, 3.05rem);
+  }
+
+  .login-visual__copy p {
+    font-size: 1.05rem;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  .login-split__form {
+    align-items: center;
+    overflow: auto;
+    padding: clamp(1.5rem, 4vw, 3rem) clamp(1.25rem, 3vw, 2.75rem);
   }
 }
