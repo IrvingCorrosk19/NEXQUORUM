@@ -12,8 +12,8 @@
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
   <link rel="stylesheet" href="/css/ph.css?v=units-hub4" />
-  <link rel="stylesheet" href="/css/ph-roster-import.css?v=pri1" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish7" />
+  <link rel="stylesheet" href="/css/ph-roster-import.css?v=polish9" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish11" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
 </head>
@@ -136,7 +136,8 @@
             <div class="ph-admin-menu-wrap dropdown">
               <button type="button" id="btn-manage-ph" class="btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Administrar PH</button>
               <div id="ph-admin-menu" class="dropdown-menu dropdown-menu-end" role="menu">
-                <button type="button" class="dropdown-item" role="menuitem" data-ph-admin="edit">Editar información</button>
+                <button type="button" class="dropdown-item" role="menuitem" data-ph-admin="edit">Configuración</button>
+                <button type="button" class="dropdown-item" role="menuitem" data-ph-admin="edit-info">Editar información</button>
                 <button type="button" class="dropdown-item" role="menuitem" data-ph-admin="coefficients">Administrar coeficientes</button>
                 <button type="button" class="dropdown-item" role="menuitem" data-ph-admin="activate">Activar PH</button>
                 <button type="button" class="dropdown-item" role="menuitem" data-ph-admin="ready">Marcar listo para asamblea</button>
@@ -178,7 +179,7 @@
 
         <section class="wizard-panel" data-panel="assemblies" hidden>
           <div class="page-header d-print-none">
-            <h2 class="page-title" id="ph-assemblies-title">Asambleas</h2>
+            <h2 class="page-title" id="ph-assemblies-title" tabindex="-1">Asambleas</h2>
             <p class="text-secondary m-0" id="ph-assemblies-lede">Administra las reuniones, convocatorias y resultados del PH.</p>
           </div>
           <div class="asm-toolbar" id="asm-toolbar">
@@ -203,7 +204,7 @@
         </section>
 
         <section class="panel wizard-panel" data-panel="info" hidden>
-          <h2 class="section-title">Configuración del PH</h2>
+          <h2 class="section-title" id="ph-config-title" tabindex="-1">Configuración del PH</h2>
           <form id="form-ph" class="ux-form-sections">
             <input type="hidden" name="concurrencyStamp" id="ph-concurrency" />
             <div class="ux-form-section">
@@ -258,7 +259,7 @@
           <div class="units-hub-head units-hub-head--compact">
             <div>
               <p class="command-eyebrow" id="units-ph-label">PH</p>
-              <h2 class="section-title" id="units-title">Unidades</h2>
+              <h2 class="section-title" id="units-title" tabindex="-1">Unidades</h2>
             </div>
             <div class="units-hub-actions">
               <button type="button" id="btn-new-unit" class="btn btn-primary">Nueva unidad</button>
@@ -365,20 +366,25 @@
 <section class="panel wizard-panel" data-panel="owners" hidden>
           <div class="cluster" style="justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem">
             <div>
-              <h2 class="section-title" style="margin:0">Propietarios</h2>
+              <h2 class="section-title" id="owners-title" tabindex="-1" style="margin:0">Propietarios</h2>
               <p class="muted" style="margin:0.35rem 0 0">Gestiona propietarios, unidades asociadas y acceso a la plataforma.</p>
             </div>
             <button type="button" id="btn-new-owner" class="btn btn-primary">+ Nuevo propietario</button>
           </div>
-          <div class="cta-row owners-toolbar">
-            <input id="owner-search" placeholder="Buscar propietario…" aria-label="Buscar propietario" />
-            <button type="button" id="btn-owner-filters" class="btn btn-secondary" aria-expanded="false" aria-controls="owner-filters-popover">Filtros</button>
-            <button type="button" id="btn-goto-import" class="btn btn-ghost">Importar propietarios y unidades</button>
-            <button type="button" id="btn-export-owners" class="btn btn-ghost">Exportar</button>
-            <button type="button" id="btn-bulk-invite" class="btn btn-secondary">Invitar seleccionados</button>
-            <button type="button" id="btn-validate-owners" class="btn btn-ghost" hidden>Validar</button>
+          <div class="owners-toolbar">
+            <div class="owners-toolbar__find">
+              <input id="owner-search" placeholder="Buscar propietario…" aria-label="Buscar propietario" />
+              <button type="button" id="btn-owner-filters" class="btn btn-secondary" aria-expanded="false" aria-controls="owner-filters-popover">Filtros</button>
+            </div>
+            <div class="owners-toolbar__actions">
+              <button type="button" id="btn-goto-import" class="btn btn-ghost">Importar</button>
+              <button type="button" id="btn-export-owners" class="btn btn-ghost">Exportar</button>
+              <button type="button" id="btn-bulk-invite" class="btn btn-secondary">Invitar seleccionados</button>
+              <button type="button" id="btn-validate-owners" class="btn btn-ghost" hidden>Validar</button>
+            </div>
           </div>
           <div id="owner-filter-chips" class="filter-chips" hidden></div>
+          <p id="owner-action-status" class="muted owners-action-status" hidden role="status"></p>
           <div id="owner-access-filters" class="access-filter-row" role="group" aria-label="Filtrar por acceso">
             <button type="button" class="btn btn-ghost is-active" data-access-filter="" aria-pressed="true">Todos</button>
             <button type="button" class="btn btn-ghost" data-access-filter="NotInvited" aria-pressed="false">Sin invitar</button>
@@ -437,62 +443,16 @@
               <button type="button" class="btn btn-secondary" id="btn-empty-import">Importar propietarios y unidades</button>
             </div>
           </div>
-          <div id="owner-form-wrap" class="panel" hidden>
-            <h3 id="owner-form-title" style="margin-top:0">Nuevo propietario</h3>
-            <form id="form-owner" class="form-grid" style="margin:1rem 0">
-              <input type="hidden" name="ownerId" value="" />
-              <input type="hidden" name="concurrencyStamp" value="" />
-              <label>Nombre <input name="firstName" /></label>
-              <label>Apellido <input name="lastName" /></label>
-              <label>Tipo ID
-                <select name="identificationType" id="owner-id-type">
-                  <option value="">— seleccionar —</option>
-                  <option value="Cédula" selected>Cédula</option>
-                  <option value="Pasaporte">Pasaporte</option>
-                  <option value="RUC">RUC</option>
-                  <option value="Otro">Otro</option>
-                </select>
-              </label>
-              <label>Identificación <input name="identification" /></label>
-              <label>Email <input name="email" type="email" required /></label>
-              <label>Teléfono <input name="phone" /></label>
-              <div id="owner-linked-units-summary" class="owner-linked-summary" style="grid-column:1/-1" hidden></div>
-              <label><span id="owner-unit-select-label">Unidad</span>
-                <select name="unitId" id="owner-unit-select"><option value="">— asociar después —</option></select>
-              </label>
-              <label>Participación % <input name="sharePercent" id="owner-share-percent" type="number" min="1" max="100" step="1" value="100" /></label>
-              <p id="owner-share-hint" class="muted" style="grid-column:1/-1;margin:0" hidden></p>
-              <div class="cta-row ux-sticky-actions" style="grid-column:1/-1" data-dirty="true">
-                <button type="button" class="btn btn-secondary" id="btn-cancel-owner">Cancelar</button>
-                <button type="submit" class="btn btn-primary" id="btn-save-owner">Guardar cambios</button>
-              </div>
-            </form>
-          </div>
-          <div class="table-wrap"><table class="data-table" id="owners-table"><thead><tr><th><input type="checkbox" id="owners-check-all" aria-label="Seleccionar todos" /></th><th>Propietario</th><th>Unidades</th><th>Coeficiente</th><th>Acceso</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap" id="owners-table-wrap"><table class="data-table" id="owners-table"><thead><tr><th><input type="checkbox" id="owners-check-all" aria-label="Seleccionar todos" /></th><th>Propietario</th><th>Unidades</th><th>Coeficiente</th><th>Acceso</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
         </section>
 
-        <aside id="owner-drawer" class="ux-drawer" hidden aria-hidden="true">
-          <div class="ux-drawer__backdrop" data-close-owner-drawer></div>
-          <div class="ux-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="owner-drawer-title">
-            <header class="ux-drawer__header">
-              <div>
-                <h2 id="owner-drawer-title">—</h2>
-                <p id="owner-drawer-sub" class="muted" style="margin:0.25rem 0 0"></p>
-              </div>
-              <button type="button" class="btn btn-ghost" data-close-owner-drawer aria-label="Cerrar">✕</button>
-            </header>
-            <div id="owner-drawer-body" class="ux-drawer__body"></div>
-            <footer class="ux-drawer__footer" id="owner-drawer-footer"></footer>
-          </div>
-        </aside>
-
         <section class="panel wizard-panel" data-panel="coefficients" hidden>
-          <h2 class="section-title">Coeficientes</h2>
+          <h2 class="section-title" id="coeff-title" tabindex="-1">Coeficientes</h2>
           <div id="coeff-panel"></div>
         </section>
 
         <section class="panel wizard-panel" data-panel="import" hidden>
-          <h2 class="section-title" id="import-ph-title">Importar propietarios y unidades</h2>
+          <h2 class="section-title" id="import-ph-title" tabindex="-1">Importar propietarios y unidades</h2>
           <p class="lede" id="import-ph-lede">Cargue unidades, propietarios y relaciones desde Excel. Los datos quedan editables como si se hubieran creado manualmente.</p>
           <div class="cta-row">
             <button type="button" id="btn-open-roster-import" class="btn btn-primary">Importar propietarios y unidades</button>
@@ -517,12 +477,71 @@
         </section>
 
         <section class="panel wizard-panel" data-panel="readiness" hidden>
-          <h2 class="section-title">Preparación del PH</h2>
+          <h2 class="section-title" id="readiness-title" tabindex="-1">Preparación del PH</h2>
           <div id="readiness-panel" class="readiness-list"></div>
         </section>
       </section>
 
-      
+      <dialog id="dlg-asm-summary" class="app-sheet event-sheet" aria-labelledby="asm-summary-title">
+        <div class="app-sheet__form">
+          <header class="app-sheet__head">
+            <div>
+              <p class="command-eyebrow" id="asm-summary-status">Asamblea</p>
+              <h2 id="asm-summary-title" tabindex="-1">Asamblea</h2>
+            </div>
+            <button type="button" class="btn btn-ghost app-sheet__close" id="asm-summary-close" aria-label="Cerrar">✕</button>
+          </header>
+          <div class="app-sheet__body" id="asm-summary-body"></div>
+          <footer class="app-sheet__foot" id="asm-summary-foot"></footer>
+        </div>
+      </dialog>
+
+      <dialog id="dlg-owner" class="app-sheet owner-sheet" aria-labelledby="owner-sheet-title">
+        <div class="app-sheet__form">
+          <header class="app-sheet__head">
+            <div>
+              <p class="command-eyebrow" id="owner-sheet-status">Propietario</p>
+              <h2 id="owner-sheet-title" tabindex="-1">Propietario</h2>
+            </div>
+            <button type="button" class="btn btn-ghost app-sheet__close" id="owner-sheet-close" aria-label="Cerrar">✕</button>
+          </header>
+          <div class="app-sheet__body owner-sheet__body" id="owner-sheet-view"></div>
+          <form id="form-owner" class="app-sheet__body owner-sheet__body owner-form-sections" hidden>
+            <input type="hidden" name="ownerId" value="" />
+            <input type="hidden" name="concurrencyStamp" value="" />
+            <p id="owner-form-title" class="visually-hidden">Nuevo propietario</p>
+            <fieldset class="form-grid">
+              <legend>Información</legend>
+              <label>Nombre <input name="firstName" autocomplete="given-name" /></label>
+              <label>Apellido <input name="lastName" autocomplete="family-name" /></label>
+              <label>Tipo ID
+                <select name="identificationType" id="owner-id-type">
+                  <option value="">— seleccionar —</option>
+                  <option value="Cédula" selected>Cédula</option>
+                  <option value="Pasaporte">Pasaporte</option>
+                  <option value="RUC">RUC</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </label>
+              <label>Identificación <input name="identification" autocomplete="off" /></label>
+              <label>Email <input name="email" type="email" required autocomplete="email" /></label>
+              <label>Teléfono <input name="phone" autocomplete="tel" /></label>
+            </fieldset>
+            <fieldset class="form-grid">
+              <legend>Unidades vinculadas</legend>
+              <div id="owner-linked-units-summary" class="owner-linked-summary" style="grid-column:1/-1" hidden></div>
+              <label><span id="owner-unit-select-label">Unidad</span>
+                <select name="unitId" id="owner-unit-select"><option value="">— asociar después —</option></select>
+              </label>
+              <label>Participación % <input name="sharePercent" id="owner-share-percent" type="number" min="1" max="100" step="1" value="100" /></label>
+              <p id="owner-share-hint" class="muted" style="grid-column:1/-1;margin:0" hidden></p>
+            </fieldset>
+            <p id="owner-form-error" class="field-error" hidden role="alert"></p>
+          </form>
+          <footer class="app-sheet__foot" id="owner-sheet-foot"></footer>
+        </div>
+      </dialog>
+
       <dialog id="dlg-unit-hub" class="unit-hub-dialog app-sheet" aria-labelledby="unit-hub-title">
         <div class="unit-hub">
           <header class="unit-hub__head">
@@ -611,6 +630,6 @@
     </div>
   </div>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/ph-app.js?v=polish8"></script>
+  <script type="module" src="/js/modules/ph-app.js?v=polish11"></script>
 </body>
 </html>

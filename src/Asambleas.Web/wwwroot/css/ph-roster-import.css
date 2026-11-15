@@ -25,6 +25,36 @@
 .ph-roster-import-body {
   overflow: auto;
   flex: 1;
+  min-height: 0;
+}
+.ph-roster-import-foot {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+.pri-alert {
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.65rem;
+  background: #fff7f5;
+  border: 1px solid rgba(185, 28, 28, 0.25);
+  color: #9a3412;
+  margin-bottom: 0.85rem;
+}
+@media (max-width: 767px) {
+  .ph-roster-import-dialog.app-sheet,
+  .ph-roster-import-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+  }
+  .ph-roster-import-form {
+    max-height: 100dvh;
+    height: 100dvh;
+  }
 }
 .ph-roster-import-steps {
   display: flex;

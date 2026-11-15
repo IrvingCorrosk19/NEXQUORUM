@@ -353,11 +353,19 @@ html:has(.login-identity),
   color: #102b3f;
 }
 
+@media (max-width: 390px) {
+  .login-visual {
+    height: 8.25rem;
+    min-height: 8.25rem;
+    max-height: 8.25rem;
+  }
+}
+
 @media (max-width: 359px) {
   .login-visual {
-    height: 10.5rem;
-    min-height: 10.5rem;
-    max-height: 10.5rem;
+    height: 7.25rem;
+    min-height: 7.25rem;
+    max-height: 7.25rem;
   }
 
   .login-identity .login-methods [role="tab"] {
@@ -372,6 +380,22 @@ html:has(.login-identity),
 
   .login-visual__copy p {
     white-space: normal;
+  }
+}
+
+@media (max-width: 320px) {
+  .login-visual {
+    height: 6.25rem;
+    min-height: 6.25rem;
+    max-height: 6.25rem;
+  }
+
+  .login-visual__copy p {
+    display: none;
+  }
+
+  .login-split__form {
+    padding-top: 0.75rem;
   }
 }
 

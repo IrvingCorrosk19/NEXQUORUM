@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=idn2" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish11" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 </head>
 <body class="layout-tabler">
@@ -27,7 +27,10 @@
         </h1>
         <p class="nav-tenant visually-hidden" id="nav-tenant">Gobernanza</p>
         <div class="collapse navbar-collapse" id="sidebar-menu">
-          <nav id="ia-nav" aria-label="Navegación contextual"></nav>
+          <nav id="ia-nav" aria-label="Navegación contextual">
+            <div class="ia-nav-skel" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+          </nav>
+          <script src="/js/shell-paint.js?v=polish7"></script>
         </div>
       </div>
     </aside>
@@ -63,7 +66,7 @@
             <div class="brand-hero__inner">
               <div>
                 <p class="brand-hero__kicker">Gobernanza</p>
-                <h1 class="brand-hero__title">Histórico</h1>
+                <h1 class="brand-hero__title" tabindex="-1">Histórico</h1>
               </div>
             </div>
           </section>
@@ -83,6 +86,19 @@
     </div>
   </div>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/assemblies-history-app.js?v=idn2"></script>
+      <dialog id="dlg-history-summary" class="app-sheet event-sheet" aria-labelledby="history-summary-title">
+        <div class="app-sheet__form">
+          <header class="app-sheet__head">
+            <div>
+              <p class="command-eyebrow" id="history-summary-status">Asamblea</p>
+              <h2 id="history-summary-title" tabindex="-1">Asamblea</h2>
+            </div>
+            <button type="button" class="btn btn-ghost app-sheet__close" id="history-summary-close" aria-label="Cerrar">✕</button>
+          </header>
+          <div class="app-sheet__body" id="history-summary-body"></div>
+          <footer class="app-sheet__foot" id="history-summary-foot"></footer>
+        </div>
+      </dialog>
+  <script type="module" src="/js/modules/assemblies-history-app.js?v=polish9"></script>
 </body>
 </html>

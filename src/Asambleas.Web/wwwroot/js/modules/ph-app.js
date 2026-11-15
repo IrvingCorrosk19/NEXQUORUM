@@ -7,8 +7,8 @@ import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton, startTopProgress, stopTopProgress } from "./loading.js";
 import { startHybridShell } from "./hybrid-router.js?v=polish7";
-import { createUnitsHub } from "./ph-units-hub.js?v=polish8";
-import { bindSheetViewport, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks } from "./query-guard.js?v=polish8";
+import { createUnitsHub } from "./ph-units-hub.js?v=polish9";
+import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks, lockPageScroll, scrollFieldIntoSheet } from "./query-guard.js?v=polish11";
 
 const STEP_LABELS = [
   "Información",
@@ -29,6 +29,22 @@ let createPhOpener = null;
 let createPhUntrap = null;
 let createPhUnbindKeyboard = null;
 let editingOwnerId = null;
+const ownerSheetGuard = createQueryGuard();
+const asmSummaryGuard = createQueryGuard();
+let asmSummaryOpener = null;
+let asmSummaryUntrap = null;
+let asmSummaryUnbind = null;
+let asmListY = 0;
+const ownerSheet = {
+  mode: "view",
+  returnTo: "list",
+  ownerId: null,
+  opener: null,
+  untrap: null,
+  unbind: null,
+  listY: 0,
+  tableY: 0
+};
 let myMemberships = [];
 let phAssemblies = [];
 let asmFilter = "upcoming";
@@ -428,6 +444,7 @@ function openCreatePhDialog() {
     inlineErr.textContent = "";
   }
   dlg?.showModal();
+  lockPageScroll(true);
   bindSheetViewport(dlg);
   createPhUntrap?.();
   createPhUnbindKeyboard?.();
@@ -479,6 +496,7 @@ function wireUi() {
     createPhUnbindKeyboard?.();
     createPhUntrap = null;
     createPhUnbindKeyboard = null;
+    lockPageScroll(false);
     restoreOpener(createPhOpener);
     createPhOpener = null;
   });
@@ -563,11 +581,24 @@ function wireUi() {
 
   $("#btn-new-owner").addEventListener("click", () => startOwnerCreate());
   $("#btn-empty-add-owner")?.addEventListener("click", () => startOwnerCreate());
-  $("#btn-cancel-owner")?.addEventListener("click", () => {
-    editingOwnerId = null;
-    $("#form-owner").reset();
-    renderOwnerLinkedUnitsSummary([]);
-    $("#owner-form-wrap").hidden = true;
+  $("#btn-cancel-owner")?.addEventListener("click", () => cancelOwnerSheet());
+  $("#owner-sheet-close")?.addEventListener("click", () => closeOwnerSheet({ restore: true }));
+  $("#dlg-owner")?.addEventListener("close", () => {
+    ownerSheet.untrap?.();
+    ownerSheet.unbind?.();
+    ownerSheet.untrap = null;
+    ownerSheet.unbind = null;
+    lockPageScroll(false);
+    if (ownerSheet.opener) restoreOpener(ownerSheet.opener);
+    ownerSheet.opener = null;
+  });
+  $("#dlg-owner")?.addEventListener("cancel", (ev) => {
+    ev.preventDefault();
+    if (ownerSheet.mode === "edit" && ownerSheet.returnTo === "view" && ownerSheet.ownerId) {
+      void showOwner(ownerSheet.ownerId, { keepOpen: true });
+      return;
+    }
+    closeOwnerSheet({ restore: true });
   });
   $("#btn-goto-import")?.addEventListener("click", () => {
     switchTab("import");
@@ -581,6 +612,17 @@ function wireUi() {
   $("#btn-units-goto-import")?.addEventListener("click", () => {
     switchTab("import");
     openRosterImport();
+  });
+  $("#asm-summary-close")?.addEventListener("click", closeAssemblySummary);
+  $("#dlg-asm-summary")?.addEventListener("close", () => {
+    asmSummaryUntrap?.();
+    asmSummaryUnbind?.();
+    asmSummaryUntrap = null;
+    asmSummaryUnbind = null;
+    lockPageScroll(false);
+    restoreOpener(asmSummaryOpener);
+    asmSummaryOpener = null;
+    window.scrollTo(0, asmListY || 0);
   });
   $("#form-owner").addEventListener("submit", onSaveOwner);
   $("#owner-unit-select")?.addEventListener("change", () => syncOwnerShareForSelectedUnit());
@@ -620,7 +662,7 @@ function wireUi() {
   });
   $("#filter-access")?.addEventListener("change", syncAccessFilterUi);
   document.querySelectorAll("[data-close-owner-drawer]").forEach((el) => {
-    el.addEventListener("click", closeOwnerDrawer);
+    el.addEventListener("click", () => closeOwnerSheet({ restore: true }));
   });
   $("#btn-export-owners")?.addEventListener("click", exportOwners);
   $("#btn-validate-owners")?.addEventListener("click", validateOwnersBulk);
@@ -788,7 +830,9 @@ async function loadList() {
               <span class="ph-row__icon" aria-hidden="true">${PH_BUILDING_ICON}</span>
               <div>
                 <a class="ph-open-link ph-name-link" href="${href}" data-view="${p.id}">${escapeHtml(p.name)}</a>
-                <div class="ph-row__meta">${badge}</div>
+                <div class="ph-row__meta">${badge}
+                  <span class="ph-row__counts">${Number(p.unitCount ?? 0)} unid. · ${Number(p.ownerCount ?? 0)} prop.</span>
+                </div>
               </div>
             </div>
           </td>
@@ -812,7 +856,9 @@ async function loadList() {
               <span class="ph-row__icon" aria-hidden="true">${PH_BUILDING_ICON}</span>
               <div class="flex-fill">
                 <a class="ph-open-link ph-name-link" href="${href}" data-view="${p.id}">${escapeHtml(p.name)}</a>
-                <div class="ph-row__meta">${badge}</div>
+                <div class="ph-row__meta">${badge}
+                  <span class="ph-row__counts">${Number(p.unitCount ?? 0)} unid. · ${Number(p.ownerCount ?? 0)} prop.</span>
+                </div>
               </div>
               ${phActionsMenu(p)}
             </div>
@@ -1229,6 +1275,29 @@ function switchTab(tab) {
       write({ hybrid: true, page: "ph.html" }, document.title, `${location.pathname}${location.search}#${desiredHash}`);
     }
   }
+  focusPhPanelTitle(tab);
+}
+
+function focusPhPanelTitle(tab) {
+  if ($("#dlg-owner")?.open || $("#dlg-unit-hub")?.open || $("#dlg-create-ph")?.open) return;
+  const map = {
+    resumen: "#ph-title",
+    info: "#ph-config-title",
+    assemblies: "#ph-assemblies-title",
+    units: "#units-title",
+    owners: "#owners-title",
+    coefficients: "#coeff-title",
+    import: "#import-ph-title",
+    readiness: "#readiness-title"
+  };
+  const el = $(map[tab] || "");
+  if (!el) return;
+  if (!el.hasAttribute("tabindex")) el.tabIndex = -1;
+  try {
+    el.focus({ preventScroll: false });
+  } catch {
+    /* ignore */
+  }
 }
 
 function tabLabel(tab) {
@@ -1545,7 +1614,7 @@ function renderAssembliesList() {
       <details class="ia-row-menu">
         <summary class="btn btn-ghost btn-sm" aria-label="Más acciones">•••</summary>
         <div class="ia-row-menu__panel" role="menu">
-          <a role="menuitem" href="/dashboard.html?assemblyId=${id}&mode=historical">Ver resumen</a>
+          <button type="button" role="menuitem" data-asm-summary="${id}">Ver resumen</button>
           <a role="menuitem" href="/minutes.html?assemblyId=${id}">Acta</a>
           <a role="menuitem" href="/expediente.html?assemblyId=${id}">Expediente</a>
         </div>
@@ -1554,7 +1623,7 @@ function renderAssembliesList() {
       <details class="ia-row-menu">
         <summary class="btn btn-ghost btn-sm" aria-label="Más acciones">•••</summary>
         <div class="ia-row-menu__panel" role="menu">
-          <a role="menuitem" href="/dashboard.html?assemblyId=${id}">Ver resumen</a>
+          <button type="button" role="menuitem" data-asm-summary="${id}">Ver resumen</button>
           <a role="menuitem" href="/calendar.html?assemblyId=${id}">Reprogramar</a>
           <a role="menuitem" href="/convocation.html?assemblyId=${id}">Convocatoria</a>
           <a role="menuitem" href="/minutes.html?assemblyId=${id}">Acta</a>
@@ -1568,7 +1637,10 @@ function renderAssembliesList() {
           <td><strong>${escapeHtml(e.title)}</strong></td>
           <td class="text-secondary">${escapeHtml(when)}</td>
           <td><span class="${badgeClass}">${escapeHtml(statusLabelEs(e.status))}</span></td>
-          <td class="w-1"><a class="btn btn-primary btn-sm" href="${primaryHref}">${escapeHtml(primaryLabel)}</a></td>
+          <td class="w-1">
+            <button type="button" class="btn btn-ghost btn-sm" data-asm-summary="${id}">Consultar</button>
+            <a class="btn btn-primary btn-sm" href="${primaryHref}">${escapeHtml(primaryLabel)}</a>
+          </td>
         </tr>`,
       stack: `
       <div class="card" data-assembly-id="${escapeHtml(String(e.assemblyId))}" data-ph-id="${escapeHtml(String(e.propertyHorizontalId || currentPhId))}" data-status="${escapeHtml(String(e.status || ""))}">
@@ -1581,6 +1653,7 @@ function renderAssembliesList() {
             <span class="${badgeClass}">${escapeHtml(statusLabelEs(e.status))}</span>
           </div>
           <div class="mt-3 d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-ghost btn-sm" data-asm-summary="${id}">Consultar</button>
             <a class="btn btn-${compact ? "secondary" : "primary"} btn-sm" href="${primaryHref}">${escapeHtml(primaryLabel)}</a>
             ${secondary}
             ${moreMenu}
@@ -1601,6 +1674,79 @@ function renderAssembliesList() {
       </div>
     </div>
     <div class="asm-stack">${parts.map((p) => p.stack).join("")}</div>`;
+  host.querySelectorAll("[data-asm-summary]").forEach((btn) => {
+    btn.addEventListener("click", () => openAssemblySummary(btn.dataset.asmSummary, btn));
+  });
+}
+
+function closeAssemblySummary() {
+  const dlg = $("#dlg-asm-summary");
+  if (dlg?.open) dlg.close();
+}
+
+async function openAssemblySummary(assemblyId, opener) {
+  const dlg = $("#dlg-asm-summary");
+  if (!dlg) return;
+  const token = asmSummaryGuard.next();
+  asmListY = window.scrollY || 0;
+  asmSummaryOpener = opener || rememberOpener();
+  if (dlg.parentElement !== document.body) document.body.appendChild(dlg);
+  $("#asm-summary-status").textContent = "Cargando";
+  $("#asm-summary-title").textContent = "Asamblea";
+  $("#asm-summary-body").innerHTML = `<p class="muted" style="margin:0">Cargando resumen…</p>`;
+  $("#asm-summary-foot").innerHTML = `<button type="button" class="btn btn-secondary" data-asm-summary-close>Cerrar</button>`;
+  $("#asm-summary-foot [data-asm-summary-close]")?.addEventListener("click", closeAssemblySummary);
+  lockPageScroll(true);
+  if (!dlg.open) {
+    try { dlg.showModal(); } catch { dlg.setAttribute("open", ""); }
+  }
+  bindSheetViewport(dlg);
+  asmSummaryUntrap?.();
+  asmSummaryUnbind?.();
+  asmSummaryUntrap = trapFocus(dlg);
+  asmSummaryUnbind = wireSheetKeyboard(dlg);
+  requestAnimationFrame(() => $("#asm-summary-title")?.focus?.({ preventScroll: true }));
+  const cached = phAssemblies.find((e) => String(e.assemblyId) === String(assemblyId));
+  let ev = cached;
+  try {
+    await applyTestHooks();
+    ev = await api(`/api/assemblies/${assemblyId}`);
+  } catch (err) {
+    if (!asmSummaryGuard.isCurrent(token)) return;
+    if (cached) ev = cached;
+    else {
+      $("#asm-summary-status").textContent = "No disponible";
+      $("#asm-summary-title").textContent = "Asamblea no encontrada";
+      $("#asm-summary-body").innerHTML = `<p style="margin:0">Esta asamblea ya no está en el PH o no se pudo cargar.</p>`;
+      $("#asm-summary-foot").innerHTML = `<button type="button" class="btn btn-primary" data-asm-summary-close>Volver a la lista</button>`;
+      $("#asm-summary-foot [data-asm-summary-close]")?.addEventListener("click", closeAssemblySummary);
+      return;
+    }
+  }
+  if (!asmSummaryGuard.isCurrent(token)) return;
+  const id = encodeURIComponent(ev.id || ev.assemblyId || assemblyId);
+  const when = ev.scheduledAtUtc
+    ? new Date(ev.scheduledAtUtc).toLocaleString("es-PA", { dateStyle: "medium", timeStyle: "short" })
+    : "—";
+  const status = statusLabelEs(ev.status || ev.calendarStatus || "");
+  $("#asm-summary-title").textContent = ev.title || "Asamblea";
+  $("#asm-summary-status").textContent = status || "Asamblea";
+  $("#asm-summary-body").innerHTML = `
+    <div class="sheet-kv"><span>Fecha</span><span>${escapeHtml(when)}</span></div>
+    <div class="sheet-kv"><span>Modalidad</span><span>${escapeHtml(ev.modality || "—")}</span></div>
+    <div class="sheet-kv"><span>Estado</span><span>${escapeHtml(status)}</span></div>
+    <div class="sheet-kv"><span>Convocados</span><span>${escapeHtml(String(ev.participantCount ?? "—"))}</span></div>`;
+  const bucket = assemblyListBucket(ev.status);
+  const operate =
+    bucket === "live"
+      ? `<a class="btn btn-primary" href="/assembly.html?assemblyId=${id}">Entrar a la sala</a>`
+      : bucket === "done"
+        ? `<a class="btn btn-primary" href="/minutes.html?assemblyId=${id}">Ver acta</a>`
+        : `<a class="btn btn-primary" href="/dashboard.html?assemblyId=${id}">Abrir asamblea</a>`;
+  $("#asm-summary-foot").innerHTML = `
+    <button type="button" class="btn btn-secondary" data-asm-summary-close>Cerrar</button>
+    ${operate}`;
+  $("#asm-summary-foot [data-asm-summary-close]")?.addEventListener("click", closeAssemblySummary);
 }
 
 async function confirmAction(title, body, okLabel = "Confirmar") {
@@ -1947,7 +2093,7 @@ async function loadOwners({ soft = false } = {}) {
   });
   if (!hasFilters) markPhTabFresh("owners");
   const empty = $("#owners-empty");
-  const tableWrap = $("#owners-table")?.closest(".table-wrap");
+  const tableWrap = $("#owners-table-wrap") || $("#owners-table")?.closest(".table-wrap");
   if (!owners.length && !hasFilters) {
     empty.hidden = false;
     if (tableWrap) tableWrap.hidden = true;
@@ -2115,8 +2261,15 @@ async function bulkInvite() {
       body: { ownerIds: ids }
     });
     const ok = !result.failed;
+    const status = $("#owner-action-status");
+    if (status) {
+      status.hidden = false;
+      status.textContent = ok
+        ? `Invitaciones enviadas: ${result.sent}.`
+        : `Enviadas: ${result.sent}. Fallidas: ${result.failed}. Sin email: ${result.withoutEmail}.`;
+    }
     if (ok) {
-      AppFeedback.success(
+    AppFeedback.success(
         `Enviadas: ${result.sent}. Ya activas: ${result.alreadyActive}. Procesadas: ${result.processed}.`,
         { title: "Invitaciones enviadas" }
       );
@@ -2128,6 +2281,11 @@ async function bulkInvite() {
     }
     await loadOwners();
   } catch (err) {
+    const status = $("#owner-action-status");
+    if (status) {
+      status.hidden = false;
+      status.textContent = err.message || "No pudimos enviar las invitaciones.";
+    }
     AppFeedback.fromError(err, "No pudimos enviar las invitaciones.");
   } finally {
     if (btn) {
@@ -2161,8 +2319,121 @@ function renderOwnerLinkedUnitsSummary(activeLinks) {
   if (labelEl) labelEl.textContent = "Vincular otra unidad (opcional)";
 }
 
-async function startOwnerCreate() {
+function rememberOwnerListPosition() {
+  ownerSheet.listY = window.scrollY || 0;
+  const wrap = $("#owners-table-wrap");
+  ownerSheet.tableY = wrap?.scrollTop || 0;
+}
+
+function restoreOwnerListPosition() {
+  const wrap = $("#owners-table-wrap");
+  if (wrap) wrap.scrollTop = ownerSheet.tableY || 0;
+  window.scrollTo(0, ownerSheet.listY || 0);
+}
+
+function ownerSheetEls() {
+  return {
+    dlg: $("#dlg-owner"),
+    view: $("#owner-sheet-view"),
+    form: $("#form-owner"),
+    foot: $("#owner-sheet-foot"),
+    title: $("#owner-sheet-title"),
+    status: $("#owner-sheet-status")
+  };
+}
+
+function setOwnerSheetMode(mode) {
+  ownerSheet.mode = mode;
+  const { view, form } = ownerSheetEls();
+  if (view) view.hidden = mode !== "view";
+  if (form) form.hidden = mode === "view";
+}
+
+function openOwnerSheetShell({ title, status, opener }) {
+  const { dlg } = ownerSheetEls();
+  if (!dlg) return;
+  if (dlg.parentElement !== document.body) document.body.appendChild(dlg);
+  if (opener !== false) ownerSheet.opener = rememberOpener();
+  rememberOwnerListPosition();
+  const titleEl = $("#owner-sheet-title");
+  const statusEl = $("#owner-sheet-status");
+  if (titleEl) titleEl.textContent = title || "Propietario";
+  if (statusEl) statusEl.textContent = status || "Propietario";
+  lockPageScroll(true);
+  if (!dlg.open) {
+    try {
+      dlg.showModal();
+    } catch {
+      dlg.setAttribute("open", "");
+    }
+  }
+  bindSheetViewport(dlg);
+  ownerSheet.untrap?.();
+  ownerSheet.unbind?.();
+  ownerSheet.untrap = trapFocus(dlg);
+  ownerSheet.unbind = wireSheetKeyboard(dlg);
+  requestAnimationFrame(() => titleEl?.focus?.({ preventScroll: true }));
+}
+
+function closeOwnerSheet({ restore = true } = {}) {
+  const { dlg, form } = ownerSheetEls();
   editingOwnerId = null;
+  ownerSheet.mode = "view";
+  ownerSheet.returnTo = "list";
+  ownerSheet.ownerId = null;
+  form?.reset();
+  if (dlg?.open) dlg.close();
+  else {
+    lockPageScroll(false);
+    if (restore) restoreOpener(ownerSheet.opener);
+    ownerSheet.opener = null;
+  }
+  restoreOwnerListPosition();
+  // Focus restore / layout can nudge scroll on narrow viewports — re-apply after paint.
+  requestAnimationFrame(() => restoreOwnerListPosition());
+}
+
+function cancelOwnerSheet() {
+  if (ownerSheet.mode !== "view" && ownerSheet.returnTo === "view" && ownerSheet.ownerId) {
+    void showOwner(ownerSheet.ownerId, { keepOpen: true });
+    return;
+  }
+  closeOwnerSheet({ restore: true });
+}
+
+function setOwnerSheetLoading(message) {
+  setOwnerSheetMode("view");
+  const { view, foot, title, status } = ownerSheetEls();
+  if (status) status.textContent = "Cargando";
+  if (title) title.textContent = message || "Cargando…";
+  if (view) view.innerHTML = `<p class="muted" style="margin:0">${escapeHtml(message || "Cargando ficha…")}</p>`;
+  if (foot) {
+    foot.innerHTML = `<button type="button" class="btn btn-secondary" data-owner-sheet-close>Cerrar</button>`;
+    foot.querySelector("[data-owner-sheet-close]")?.addEventListener("click", () => closeOwnerSheet({ restore: true }));
+  }
+}
+
+function setOwnerSheetMissing() {
+  setOwnerSheetMode("view");
+  const { view, foot, title, status } = ownerSheetEls();
+  if (status) status.textContent = "No disponible";
+  if (title) title.textContent = "Propietario no encontrado";
+  if (view) {
+    view.innerHTML = `<p style="margin:0">Este propietario ya no está en el PH o no se pudo cargar. Cierra la ficha para volver a la lista.</p>`;
+  }
+  if (foot) {
+    foot.innerHTML = `<button type="button" class="btn btn-primary" data-owner-sheet-close>Volver a la lista</button>`;
+    foot.querySelector("[data-owner-sheet-close]")?.addEventListener("click", () => closeOwnerSheet({ restore: true }));
+  }
+}
+
+async function startOwnerCreate() {
+  const token = ownerSheetGuard.next();
+  ownerSheet.returnTo = "list";
+  ownerSheet.ownerId = null;
+  editingOwnerId = null;
+  openOwnerSheetShell({ title: "Nuevo propietario", status: "Crear" });
+  setOwnerSheetMode("edit");
   const form = $("#form-owner");
   form.reset();
   form.ownerId.value = "";
@@ -2174,13 +2445,21 @@ async function startOwnerCreate() {
     hint.hidden = true;
     hint.textContent = "";
   }
+  const formErr = $("#owner-form-error");
+  if (formErr) {
+    formErr.hidden = true;
+    formErr.textContent = "";
+  }
   renderOwnerLinkedUnitsSummary([]);
   await ensureOwnerUnitSelectOptions({ emptyLabel: "— asociar después —" });
-  $("#btn-save-owner").textContent = "Guardar propietario";
+  if (!ownerSheetGuard.isCurrent(token)) return;
   const title = $("#owner-form-title");
   if (title) title.textContent = "Nuevo propietario";
-  $("#owner-form-wrap").hidden = false;
-  form.firstName.focus();
+  $("#owner-sheet-foot").innerHTML = `
+    <button type="button" class="btn btn-secondary" id="btn-cancel-owner">Cancelar</button>
+    <button type="submit" form="form-owner" class="btn btn-primary" id="btn-save-owner">Guardar propietario</button>`;
+  $("#btn-cancel-owner")?.addEventListener("click", () => cancelOwnerSheet());
+  form.firstName?.focus();
 }
 
 async function syncOwnerShareForSelectedUnit() {
@@ -2249,11 +2528,31 @@ function ensureIdentificationTypeOption(value) {
   }
 }
 
-async function startOwnerEdit(ownerId) {
-  // Close detail drawer first — it is modal and otherwise intercepts form clicks.
-  closeOwnerDrawer();
-  const o = await api(`/api/ph/${currentPhId}/owners/${ownerId}`);
+async function startOwnerEdit(ownerId, { fromView = false } = {}) {
+  const token = ownerSheetGuard.next();
+  ownerSheet.returnTo = fromView ? "view" : "list";
+  ownerSheet.ownerId = ownerId;
   editingOwnerId = ownerId;
+  const keepOpen = fromView && $("#dlg-owner")?.open;
+  if (!keepOpen) {
+    openOwnerSheetShell({ title: "Editar propietario", status: "Editar" });
+  } else {
+    $("#owner-sheet-status").textContent = "Editar";
+    $("#owner-sheet-title").textContent = "Editar propietario";
+  }
+  setOwnerSheetLoading("Cargando formulario…");
+  let o;
+  try {
+    await applyTestHooks();
+    o = await api(`/api/ph/${currentPhId}/owners/${ownerId}`);
+  } catch (err) {
+    if (!ownerSheetGuard.isCurrent(token)) return;
+    setOwnerSheetMissing();
+    AppFeedback.fromError(err, "No pudimos abrir el formulario de este propietario.");
+    return;
+  }
+  if (!ownerSheetGuard.isCurrent(token) || String(currentPhId) !== String(o.propertyHorizontalId || currentPhId)) return;
+  setOwnerSheetMode("edit");
   const form = $("#form-owner");
   form.ownerId.value = o.id;
   form.concurrencyStamp.value = o.concurrencyStamp || "";
@@ -2264,6 +2563,11 @@ async function startOwnerEdit(ownerId) {
   form.identification.value = o.identification || "";
   form.email.value = o.email || "";
   form.phone.value = o.phone || "";
+  const formErr = $("#owner-form-error");
+  if (formErr) {
+    formErr.hidden = true;
+    formErr.textContent = "";
+  }
   const activeLinks = (o.units || []).filter((u) => u.isActive);
   const linkedIds = activeLinks.map((u) => u.unitId);
   renderOwnerLinkedUnitsSummary(activeLinks);
@@ -2271,11 +2575,16 @@ async function startOwnerEdit(ownerId) {
     excludeUnitIds: linkedIds,
     emptyLabel: activeLinks.length ? "— no vincular otra —" : "— asociar después —"
   });
+  if (!ownerSheetGuard.isCurrent(token)) return;
   form.unitId.value = "";
-  $("#btn-save-owner").textContent = "Guardar cambios";
   const title = $("#owner-form-title");
   if (title) title.textContent = "Editar propietario";
-  $("#owner-form-wrap").hidden = false;
+  $("#owner-sheet-status").textContent = "Editar";
+  $("#owner-sheet-title").textContent = o.displayName || "Editar propietario";
+  $("#owner-sheet-foot").innerHTML = `
+    <button type="button" class="btn btn-secondary" id="btn-cancel-owner">Cancelar</button>
+    <button type="submit" form="form-owner" class="btn btn-primary" id="btn-save-owner">Guardar cambios</button>`;
+  $("#btn-cancel-owner")?.addEventListener("click", () => cancelOwnerSheet());
   form.firstName?.focus();
 }
 
@@ -2320,14 +2629,19 @@ async function onSaveOwner(ev) {
   AppFeedback.field.clearForm(ev.target);
   if (!data.email?.trim()) {
     AppFeedback.field.error(emailInput, "El correo electrónico es obligatorio.");
+    emailInput?.focus?.({ preventScroll: true });
+    if (emailInput) scrollFieldIntoSheet(emailInput);
     return;
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.email).trim())) {
     AppFeedback.field.error(emailInput, "Ingresa un correo electrónico válido.");
+    emailInput?.focus?.({ preventScroll: true });
+    if (emailInput) scrollFieldIntoSheet(emailInput);
     return;
   }
   try {
     await runWithButton(btn, editingOwnerId ? "Guardando…" : "Creando…", async () => {
+      await applyTestHooks();
       if (editingOwnerId) {
         await api(`/api/ph/${currentPhId}/owners/${editingOwnerId}`, {
           method: "PUT",
@@ -2372,10 +2686,17 @@ async function onSaveOwner(ev) {
           title: "Propietario creado"
         });
       }
-      editingOwnerId = null;
+      const savedId = editingOwnerId;
       ev.target.reset();
-      $("#owner-form-wrap").hidden = true;
       await loadOwners();
+      restoreOwnerListPosition();
+      if (savedId) {
+        // Keep the same dialog open on the updated ficha (row also refreshed).
+        ownerSheet.returnTo = "list";
+        await showOwner(savedId, { keepOpen: true });
+      } else {
+        closeOwnerSheet({ restore: true });
+      }
     });
   } catch (err) {
     const msg = err?.message || String(err);
@@ -2393,7 +2714,15 @@ async function onSaveOwner(ev) {
       await syncOwnerShareForSelectedUnit();
       return;
     }
+    const formErr = $("#owner-form-error");
+    if (formErr) {
+      formErr.hidden = false;
+      formErr.textContent = msg;
+    }
     AppFeedback.fromError(err, msg);
+    const firstInvalid = ev.target.querySelector("[aria-invalid='true'], .is-invalid, input:invalid");
+    firstInvalid?.focus?.({ preventScroll: true });
+    if (firstInvalid) scrollFieldIntoSheet(firstInvalid);
   }
 }
 
@@ -2417,6 +2746,10 @@ function renderOwnerFilterChips() {
     const text = el.options?.[el.selectedIndex]?.text || el.value;
     chips.push(`<span class="filter-chip">${escapeHtml(label)}: ${escapeHtml(text)} <button type="button" data-clear-filter="${id}" aria-label="Quitar filtro">×</button></span>`);
   };
+  const search = $("#owner-search")?.value.trim();
+  if (search) {
+    chips.push(`<span class="filter-chip">Búsqueda: ${escapeHtml(search)} <button type="button" data-clear-search aria-label="Quitar búsqueda">×</button></span>`);
+  }
   add("Torre", "filter-tower");
   add("Estado", "filter-status");
   add("Correo", "filter-email");
@@ -2424,6 +2757,12 @@ function renderOwnerFilterChips() {
   add("Invitación", "filter-invited");
   host.hidden = chips.length === 0;
   host.innerHTML = chips.join("");
+  host.querySelector("[data-clear-search]")?.addEventListener("click", () => {
+    const el = $("#owner-search");
+    if (el) el.value = "";
+    renderOwnerFilterChips();
+    loadOwners();
+  });
   host.querySelectorAll("[data-clear-filter]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const el = $(`#${btn.dataset.clearFilter}`);
@@ -2436,17 +2775,7 @@ function renderOwnerFilterChips() {
 }
 
 function closeOwnerDrawer() {
-  const drawer = $("#owner-drawer");
-  if (!drawer) return;
-  drawer.hidden = true;
-  drawer.setAttribute("aria-hidden", "true");
-}
-
-function openOwnerDrawer() {
-  const drawer = $("#owner-drawer");
-  if (!drawer) return;
-  drawer.hidden = false;
-  drawer.setAttribute("aria-hidden", "false");
+  closeOwnerSheet({ restore: true });
 }
 
 async function manageOwnerUnits(ownerId) {
@@ -2455,7 +2784,25 @@ async function manageOwnerUnits(ownerId) {
 
 async function showOwner(ownerId, opts = {}) {
   const manageUnits = opts.manageUnits === true;
-  const o = await api(`/api/ph/${currentPhId}/owners/${ownerId}`);
+  const token = ownerSheetGuard.next();
+  ownerSheet.returnTo = "list";
+  ownerSheet.ownerId = ownerId;
+  editingOwnerId = null;
+  if (!opts.keepOpen) {
+    openOwnerSheetShell({ title: "Propietario", status: "Cargando" });
+  }
+  setOwnerSheetLoading("Cargando ficha…");
+  let o;
+  try {
+    await applyTestHooks();
+    o = await api(`/api/ph/${currentPhId}/owners/${ownerId}`);
+  } catch (err) {
+    if (!ownerSheetGuard.isCurrent(token)) return;
+    setOwnerSheetMissing();
+    AppFeedback.fromError(err, "No pudimos abrir este propietario.");
+    return;
+  }
+  if (!ownerSheetGuard.isCurrent(token)) return;
   const inactive = o.status === "Inactive";
   const access = o.platformAccessStatus || "NotInvited";
   const canInvite = access !== "Active";
@@ -2470,9 +2817,9 @@ async function showOwner(ownerId, opts = {}) {
     : [];
   const linkableUnits = (allUnits || []).filter((u) => !linkedIds.map(String).includes(String(u.id)));
 
-  $("#owner-drawer-title").textContent = o.displayName || "Propietario";
-  $("#owner-drawer-sub").textContent = manageUnits
-    ? "Administrar unidades"
+  $("#owner-sheet-title").textContent = o.displayName || "Propietario";
+  $("#owner-sheet-status").textContent = manageUnits
+    ? "Unidades"
     : ownerLifecycleLabel(o.status);
   const linkHeading = activeLinks.length ? "Vincular otra unidad" : "Vincular unidad";
   const linkBtnLabel = activeLinks.length ? "Vincular otra" : "Vincular unidad";
@@ -2503,48 +2850,65 @@ async function showOwner(ownerId, opts = {}) {
         : `<h3 id="owner-link-section">Vincular unidad</h3>
     <p class="muted" style="margin:0.5rem 0 0">No hay unidades disponibles en este PH para vincular.</p>`;
 
-  $("#owner-drawer-body").innerHTML = `
-    <h3>Información</h3>
-    <div class="row"><span>Identificación</span><span>${escapeHtml([o.identificationType, o.identification].filter(Boolean).join(" ") || "—")}</span></div>
-    <div class="row"><span>Email</span><span>${escapeHtml(maskEmail(o.email))}</span></div>
-    <div class="row"><span>Teléfono</span><span>${escapeHtml(o.phone || "—")}</span></div>
-    <h3 id="owner-linked-units">Unidades vinculadas${activeLinks.length ? ` (${activeLinks.length})` : ""}</h3>
-    <ul style="margin:0;padding-left:1.1rem">${(o.units || [])
-      .map(
-        (u) =>
-          `<li>${escapeHtml(u.unitCode)} · ${Math.round(Number(u.unitCoefficientPercent))}% · participación ${Math.round(Number(u.sharePercent))}%
-          ${u.isActive ? `<button type="button" class="btn btn-ghost" data-end-own="${u.ownershipId}">Finalizar</button>` : " · histórico"}</li>`
-      )
-      .join("") || "<li>Sin unidades</li>"}</ul>
-    ${linkFormHtml}
-    <h3>Acceso</h3>
-    <div class="row"><span>Estado</span><span class="badge badge-access">${escapeHtml(platformAccessLabel(access))}</span></div>
-    <div class="row"><span>Invitación expira</span><span>${escapeHtml(expires)}</span></div>
+  setOwnerSheetMode("view");
+  $("#owner-sheet-view").innerHTML = `
+    <div class="owner-sheet__summary" aria-live="polite">
+      <strong>${escapeHtml(o.displayName || "Propietario")}</strong>
+      <p class="owner-sheet__summary-meta">
+        <span>${escapeHtml(maskEmail(o.email))}</span>
+        <span>${escapeHtml(o.phone || "Sin teléfono")}</span>
+        <span>${activeLinks.length} unidad${activeLinks.length === 1 ? "" : "es"} vinculada${activeLinks.length === 1 ? "" : "s"}</span>
+      </p>
+    </div>
+    <section class="owner-sheet__section">
+      <h3>Información</h3>
+      <div class="sheet-kv"><span>Identificación</span><span>${escapeHtml([o.identificationType, o.identification].filter(Boolean).join(" ") || "—")}</span></div>
+      <div class="sheet-kv"><span>Email</span><span>${escapeHtml(maskEmail(o.email))}</span></div>
+      <div class="sheet-kv"><span>Teléfono</span><span>${escapeHtml(o.phone || "—")}</span></div>
+    </section>
+    <section class="owner-sheet__section">
+      <h3 id="owner-linked-units">Unidades vinculadas${activeLinks.length ? ` (${activeLinks.length})` : ""}</h3>
+      <ul class="owner-units-list">${(o.units || [])
+        .map(
+          (u) =>
+            `<li>${escapeHtml(u.unitCode)} · ${Math.round(Number(u.unitCoefficientPercent))}% · participación ${Math.round(Number(u.sharePercent))}%
+            ${u.isActive && canAdministerCurrentPh() ? `<button type="button" class="btn btn-ghost btn-sm" data-end-own="${u.ownershipId}">Finalizar</button>` : u.isActive ? "" : " · histórico"}</li>`
+        )
+        .join("") || "<li>Sin unidades</li>"}</ul>
+      ${linkFormHtml}
+    </section>
+    <section class="owner-sheet__section">
+      <h3>Acceso</h3>
+      <div class="sheet-kv"><span>Estado</span><span class="badge badge-access">${escapeHtml(platformAccessLabel(access))}</span></div>
+      <div class="sheet-kv"><span>Invitación expira</span><span>${escapeHtml(expires)}</span></div>
+    </section>
   `;
-  $("#owner-drawer-footer").innerHTML = `
-    <div class="owner-action-bar">
-      <button type="button" class="btn btn-secondary btn-sm" data-edit-owner="${o.id}">Editar</button>
-      ${canInvite ? `<button type="button" class="btn btn-secondary btn-sm" data-invite-detail="${o.id}">${escapeHtml(inviteLabel)}</button>` : ""}
+  const canEdit = canAdministerCurrentPh();
+  $("#owner-sheet-foot").innerHTML = `
+    <div class="owner-sheet__access">
+      ${canInvite ? `<button type="button" class="btn btn-secondary" data-invite-detail="${o.id}">${escapeHtml(inviteLabel)}</button>` : ""}
       ${
         access === "Active"
-          ? `<button type="button" class="btn btn-secondary btn-sm" data-reset-password-detail="${o.id}">Enviar restablecimiento</button>`
+          ? `<button type="button" class="btn btn-secondary" data-reset-password-detail="${o.id}">Enviar restablecimiento</button>`
           : ""
       }
       ${
         inactive
-          ? `<button type="button" class="btn btn-secondary btn-sm" data-reactivate-owner="${o.id}">Reactivar</button>`
-          : `<button type="button" class="btn btn-secondary btn-sm" data-deactivate-owner="${o.id}">Desactivar</button>`
+          ? `<button type="button" class="btn btn-secondary" data-reactivate-owner="${o.id}">Reactivar</button>`
+          : `<button type="button" class="btn btn-secondary" data-deactivate-owner="${o.id}">Desactivar</button>`
       }
-      <button type="button" class="btn btn-ghost btn-sm owner-action-bar__danger" data-delete-owner="${o.id}">Eliminar…</button>
+      ${canEdit ? `<button type="button" class="btn btn-ghost owner-action-bar__danger" data-delete-owner="${o.id}">Eliminar…</button>` : ""}
+    </div>
+    <div class="owner-sheet__primary">
+      <button type="button" class="btn btn-secondary" data-owner-sheet-close>Cerrar</button>
+      ${canEdit ? `<button type="button" class="btn btn-primary" data-edit-owner="${o.id}">Editar</button>` : ""}
     </div>`;
 
-  const body = $("#owner-drawer-body");
-  const footer = $("#owner-drawer-footer");
+  const body = $("#owner-sheet-view");
+  const footer = $("#owner-sheet-foot");
+  footer.querySelector("[data-owner-sheet-close]")?.addEventListener("click", () => closeOwnerSheet({ restore: true }));
   footer.querySelectorAll("[data-edit-owner]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      closeOwnerDrawer();
-      startOwnerEdit(btn.dataset.editOwner);
-    })
+    btn.addEventListener("click", () => startOwnerEdit(btn.dataset.editOwner, { fromView: true }))
   );
   footer.querySelectorAll("[data-deactivate-owner]").forEach((btn) =>
     btn.addEventListener("click", () => deactivateOwner(btn.dataset.deactivateOwner))
@@ -2654,7 +3018,7 @@ async function showOwner(ownerId, opts = {}) {
     });
   }
 
-  openOwnerDrawer();
+  requestAnimationFrame(() => $("#owner-sheet-title")?.focus?.({ preventScroll: true }));
   if (manageUnits) {
     const scrollTarget =
       activeLinks.length > 0
@@ -2708,7 +3072,7 @@ async function deleteOwner(ownerId) {
     await runWithButton(trigger?.tagName === "BUTTON" ? trigger : null, "Eliminando…", async () => {
       await api(`/api/ph/${currentPhId}/owners/${ownerId}`, { method: "DELETE" });
       notify.success("El propietario fue eliminado del listado.", { title: "Propietario eliminado" });
-      closeOwnerDrawer();
+      closeOwnerSheet({ restore: true });
       await loadOwners();
     });
   } catch (err) {
@@ -2742,8 +3106,14 @@ async function inviteOwner(ownerId, triggerBtn) {
     AppFeedback.success(`La invitación fue enviada a ${result.emailMasked || "el correo registrado"}.${loginHint}`, {
       title: "Invitación enviada"
     });
+    const status = $("#owner-action-status");
+    if (status) {
+      status.hidden = false;
+      status.textContent = "Invitación enviada.";
+    }
     await loadOwners();
-    await showOwner(ownerId);
+    restoreOwnerListPosition();
+    await showOwner(ownerId, { keepOpen: !!$("#dlg-owner")?.open });
   } catch (err) {
     const code = err.code || err.problem?.code || "";
     if (code === "COMMUNICATION_EMAIL_NOT_CONFIGURED" || code === "SMTP_NOT_CONFIGURED") {
@@ -2903,11 +3273,23 @@ async function loadCoefficients({ soft = false } = {}) {
     ? await cachedGet(path, { ttlMs: PH_TAB_TTL_MS, cacheKey: `GET:${path}` })
     : await api(path);
   markPhTabFresh("coefficients");
+  const total = Math.round(Number(c.totalPercent));
+  const expected = Math.round(Number(c.expectedPercent));
+  const complete = !!c.isComplete;
   $("#coeff-panel").innerHTML = `
-    <p><strong>${Math.round(Number(c.totalPercent))}%</strong> / ${Math.round(Number(c.expectedPercent))}%</p>
-    <p>${c.isComplete ? "✓ Coeficientes completos" : `⚠ Delta: ${Math.round(Number(c.deltaPercent))}%`}</p>
-    <p>${escapeHtml(c.message)}</p>
-    <p>${c.activeUnitCount} unidades activas</p>`;
+    <div class="coeff-board">
+      <p class="coeff-board__total"><strong>${total}%</strong> <span>de ${expected}%</span></p>
+      <p class="badge ${complete ? "bg-green-lt" : "bg-yellow-lt"}">${complete ? "Completos" : "Pendiente"}</p>
+      <p class="coeff-board__msg">${escapeHtml(c.message || (complete ? "Los coeficientes cubren el 100%." : "Ajusta unidades hasta completar el 100%."))}</p>
+      <p class="muted">${c.activeUnitCount} unidades activas${c.deltaPercent ? ` · delta ${Math.round(Number(c.deltaPercent))}%` : ""}</p>
+      <div class="cta-row">
+        <button type="button" class="btn btn-primary" id="btn-coeff-units">Revisar unidades</button>
+      </div>
+    </div>`;
+  $("#btn-coeff-units")?.addEventListener("click", () => {
+    switchTab("units");
+    focusPhPanelTitle("units");
+  });
 }
 
 async function loadReadiness({ soft = false } = {}) {
@@ -2920,16 +3302,32 @@ async function loadReadiness({ soft = false } = {}) {
     : await api(path);
   markPhTabFresh("readiness");
   const bannerClass = r.readyForAssembly ? "is-ready" : "is-blocked";
-  const bannerText = r.readyForAssembly ? "READY FOR ASSEMBLY" : "NO LISTO PARA ASAMBLEA";
+  const bannerText = r.readyForAssembly ? "Listo para asamblea" : "No listo para asamblea";
+  const next = !r.generalInfoComplete
+    ? { tab: "info", label: "Completar información" }
+    : !r.unitsComplete
+      ? { tab: "units", label: "Revisar unidades" }
+      : !r.ownersComplete
+        ? { tab: "owners", label: "Revisar propietarios" }
+        : !r.coefficients?.isComplete
+          ? { tab: "coefficients", label: "Revisar coeficientes" }
+          : { tab: "assemblies", label: "Ir a asambleas" };
   $("#readiness-panel").innerHTML = `
     <div class="readiness-banner ${bannerClass}" role="status">${bannerText}</div>
-    <div class="row"><span>Información general</span><span>${r.generalInfoComplete ? "✓" : "○"}</span></div>
-    <div class="row"><span>Unidades</span><span>${r.unitsComplete ? "✓" : "○"} ${r.unitCount}</span></div>
-    <div class="row"><span>Propietarios</span><span>${r.ownersComplete ? "✓" : "○"} ${r.ownerCount}</span></div>
-    <div class="row"><span>Coeficientes</span><span>${r.coefficients?.isComplete ? "✓" : "○"} ${Math.round(Number(r.coefficients?.totalPercent || 0))}%</span></div>
-    <div class="row"><span>Usuarios invitados</span><span>${r.invitedUserCount}</span></div>
-    <div class="row"><span>Configuración asamblea</span><span>${r.assemblyConfigComplete ? "✓" : "○"}</span></div>
-    ${(r.blockingIssues || []).map((i) => `<p class="lede">${escapeHtml(i)}</p>`).join("")}`;
+    <div class="sheet-kv"><span>Información general</span><span>${r.generalInfoComplete ? "✓" : "○"}</span></div>
+    <div class="sheet-kv"><span>Unidades</span><span>${r.unitsComplete ? "✓" : "○"} ${r.unitCount}</span></div>
+    <div class="sheet-kv"><span>Propietarios</span><span>${r.ownersComplete ? "✓" : "○"} ${r.ownerCount}</span></div>
+    <div class="sheet-kv"><span>Coeficientes</span><span>${r.coefficients?.isComplete ? "✓" : "○"} ${Math.round(Number(r.coefficients?.totalPercent || 0))}%</span></div>
+    <div class="sheet-kv"><span>Usuarios invitados</span><span>${r.invitedUserCount}</span></div>
+    <div class="sheet-kv"><span>Configuración asamblea</span><span>${r.assemblyConfigComplete ? "✓" : "○"}</span></div>
+    ${(r.blockingIssues || []).map((i) => `<p class="lede">${escapeHtml(i)}</p>`).join("")}
+    <div class="cta-row" style="margin-top:1rem">
+      <button type="button" class="btn btn-primary" id="btn-readiness-next">${escapeHtml(next.label)}</button>
+    </div>`;
+  $("#btn-readiness-next")?.addEventListener("click", () => {
+    switchTab(next.tab);
+    focusPhPanelTitle(next.tab);
+  });
 }
 
 async function openRosterImport() {
@@ -2937,7 +3335,7 @@ async function openRosterImport() {
     AppFeedback.warning("Seleccione un PH primero.", { title: "PH requerido" });
     return;
   }
-  const { openPhRosterImportWizard } = await import("./ph-roster-import.js");
+    const { openPhRosterImportWizard } = await import("./ph-roster-import.js?v=polish9");
   openPhRosterImportWizard({
     phId: currentPhId,
     phName: currentPh?.name || "",

@@ -187,6 +187,12 @@
   position: fixed; inset: 0; z-index: 1080; background: var(--surface-overlay);
   display: flex; justify-content: flex-end;
 }
+dialog.event-sheet.event-drawer {
+  position: fixed;
+  inset: unset;
+  display: flex;
+  justify-content: stretch;
+}
 .event-drawer-panel {
   width: min(28rem, 100%); height: 100%; background: var(--surface-primary);
   border-left: 1px solid var(--border-default); padding: 1.25rem; overflow: auto;

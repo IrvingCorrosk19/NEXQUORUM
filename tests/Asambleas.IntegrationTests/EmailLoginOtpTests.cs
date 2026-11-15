@@ -54,7 +54,7 @@ public sealed class EmailLoginOtpTests
         var accepted = await req.Content.ReadFromJsonAsync<EmailOtpRequestResponse>();
         accepted!.Accepted.Should().BeTrue();
         accepted.DeliveryConfirmed.Should().BeTrue();
-        accepted.Detail.Should().Contain("Código enviado");
+        accepted.Detail.Should().Contain("Si este correo tiene acceso");
 
         var captured = MockEmailProvider.Snapshot().LastOrDefault(m => m.To.Equals(email, StringComparison.OrdinalIgnoreCase));
         captured.Should().NotBeNull("OTP email should be sent for seeded owner");

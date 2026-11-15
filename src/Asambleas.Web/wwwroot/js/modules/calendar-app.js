@@ -8,7 +8,7 @@ import { iconSvg } from "./tabler-icons.js?v=idn2";
 import { mountIaShell, phHref } from "./ia-nav.js?v=polish7";
 import { startHybridShell } from "./hybrid-router.js?v=polish7";
 import { runWithButton } from "./loading.js";
-import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard } from "./query-guard.js?v=polish8";
+import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, lockPageScroll, applyTestHooks } from "./query-guard.js?v=polish9b";
 import { assemblyLabel } from "./assembly-labels.js";
 import {
   fillTimeSelect,
@@ -38,6 +38,10 @@ const state = {
 
 const query = createQueryGuard();
 const bannerQuery = createQueryGuard();
+const eventQuery = createQueryGuard();
+let eventUntrap = null;
+let eventUnbind = null;
+let eventOpener = null;
 let lastScheduleOpener = null;
 let scheduleUnbindViewport = null;
 let scheduleUntrap = null;
@@ -444,11 +448,35 @@ function render() {
 }
 
 async function openEvent(id) {
+  const token = eventQuery.next();
+  const drawer = qs("#event-drawer");
+  eventOpener = rememberOpener();
+  if (drawer && drawer.parentElement !== document.body) document.body.appendChild(drawer);
+  if (drawer) {
+    qs("#drawer-title").textContent = "Evento";
+    qs("#drawer-status").textContent = "Cargando";
+    qs("#drawer-body").innerHTML = `<p class="muted">Cargando resumen…</p>`;
+    qs("#drawer-actions").innerHTML = `<button type="button" class="btn btn-secondary" id="drawer-close-load">Cerrar</button>`;
+    qs("#drawer-close-load")?.addEventListener("click", closeDrawer);
+    lockPageScroll(true);
+    if (typeof drawer.showModal === "function") {
+      if (!drawer.open) drawer.showModal();
+    } else {
+      drawer.hidden = false;
+    }
+    bindSheetViewport(drawer);
+    eventUntrap?.();
+    eventUnbind?.();
+    eventUntrap = trapFocus(drawer);
+    eventUnbind = wireSheetKeyboard(drawer);
+    qs("#drawer-title")?.focus?.({ preventScroll: true });
+  }
   setLoading(true, "Cargando detalle…");
   try {
+    await applyTestHooks();
     const ev = await api(`/api/calendar/events/${id}`);
+    if (!eventQuery.isCurrent(token)) return;
     state.selected = ev;
-    const drawer = qs("#event-drawer");
     qs("#drawer-status").innerHTML = `<span class="status-pill ${escapeHtml(ev.calendarStatus)}">${escapeHtml(assemblyLabel(ev.calendarStatus))}</span>`;
     qs("#drawer-title").textContent = ev.title;
     qs("#drawer-body").innerHTML = `
@@ -478,8 +506,12 @@ async function openEvent(id) {
     actions.push(`<a class="btn btn-ghost" href="/api/assemblies/${ev.assemblyId}/calendar.ics" download>Descargar .ics</a>`);
     actions.push(`<button type="button" class="btn btn-ghost" id="act-links">Añadir al calendario</button>`);
     qs("#drawer-actions").innerHTML = actions.join("");
-    drawer.hidden = false;
-    drawer.setAttribute("aria-hidden", "false");
+    if (drawer && typeof drawer.showModal === "function") {
+      if (!drawer.open) drawer.showModal();
+    } else if (drawer) {
+      drawer.hidden = false;
+      drawer.setAttribute("aria-hidden", "false");
+    }
     qs("#act-edit")?.addEventListener("click", () => openEditDialog(ev));
     qs("#act-reschedule")?.addEventListener("click", () => openReschedule(ev));
     qs("#act-cancel")?.addEventListener("click", () => openCancel(ev));
@@ -523,16 +555,32 @@ async function openEvent(id) {
       }
     });
   } catch (e) {
+    if (!eventQuery.isCurrent(token)) return;
+    qs("#drawer-status").textContent = "No disponible";
+    qs("#drawer-title").textContent = "Evento no encontrado";
+    qs("#drawer-body").innerHTML = `<p style="margin:0">Este evento ya no está en el calendario o no se pudo cargar. Cierra para volver a la vista.</p>`;
+    qs("#drawer-actions").innerHTML = `<button type="button" class="btn btn-primary" id="drawer-close-missing">Volver al calendario</button>`;
+    qs("#drawer-close-missing")?.addEventListener("click", closeDrawer);
     showToast(e.message || "No se pudo abrir el evento", "error");
   } finally {
-    setLoading(false);
+    if (eventQuery.isCurrent(token)) setLoading(false);
   }
 }
 
 function closeDrawer() {
   const drawer = qs("#event-drawer");
-  drawer.hidden = true;
-  drawer.setAttribute("aria-hidden", "true");
+  eventUntrap?.();
+  eventUnbind?.();
+  eventUntrap = null;
+  eventUnbind = null;
+  if (drawer?.open) drawer.close();
+  else if (drawer) {
+    drawer.hidden = true;
+    drawer.setAttribute("aria-hidden", "true");
+    lockPageScroll(false);
+  }
+  restoreOpener(eventOpener);
+  eventOpener = null;
   state.selected = null;
 }
 
@@ -993,6 +1041,7 @@ function wireChrome() {
   qs("#filter-status")?.addEventListener("change", () => loadEvents());
   qs("#filter-modality")?.addEventListener("change", () => loadEvents());
   qs("#drawer-close")?.addEventListener("click", closeDrawer);
+  qs("#event-drawer")?.addEventListener("close", () => lockPageScroll(false));
   qs("#event-drawer")?.addEventListener("click", (e) => {
     if (e.target.id === "event-drawer") closeDrawer();
   });

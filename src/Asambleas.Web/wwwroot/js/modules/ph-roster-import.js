@@ -2,10 +2,17 @@ import { api, ensureAntiforgery } from "./api.js";
 import { escapeHtml, confirmDialog } from "./ui.js";
 import { AppFeedback } from "./app-feedback.js";
 import { showGlobalLoader, hideGlobalLoader, forceHideGlobalLoader } from "./loading.js";
+import { bindSheetViewport, lockPageScroll, trapFocus, wireSheetKeyboard } from "./query-guard.js?v=polish9b";
 
 /**
  * Multi-sheet owners/units import wizard for PH admin.
  */
+function formatPhImportLabel(name) {
+  const raw = String(name || "").trim();
+  if (!raw) return "este PH";
+  return /^ph(\s|$)/i.test(raw) ? raw : `PH ${raw}`;
+}
+
 export function openPhRosterImportWizard({ phId, phName, onImported }) {
   if (!phId) {
     AppFeedback.warning("Seleccione una propiedad horizontal.", { title: "PH requerido" });
@@ -21,12 +28,12 @@ export function openPhRosterImportWizard({ phId, phName, onImported }) {
   let mode = "CreateOnly";
 
   const dialog = document.createElement("dialog");
-  dialog.className = "ph-roster-import-dialog";
+  dialog.className = "ph-roster-import-dialog app-sheet";
   dialog.setAttribute("aria-labelledby", "pri-title");
   dialog.innerHTML = `
     <form method="dialog" class="ph-roster-import-form" data-pri-form>
       <header class="ph-roster-import-head">
-        <h2 id="pri-title">Importar datos — PH ${escapeHtml(phName || "")}</h2>
+        <h2 id="pri-title">Importar datos — ${escapeHtml(formatPhImportLabel(phName))}</h2>
         <p class="muted">Unidades, propietarios y relaciones. No se envian convocatorias ni se crean contrasenas.</p>
         <ol class="ph-roster-import-steps" aria-label="Pasos">
           <li data-step="1" class="is-active">Preparar</li>
@@ -42,7 +49,11 @@ export function openPhRosterImportWizard({ phId, phName, onImported }) {
       </footer>
     </form>`;
   document.body.appendChild(dialog);
+  lockPageScroll(true);
   dialog.showModal();
+  bindSheetViewport(dialog);
+  const untrap = trapFocus(dialog);
+  const unbindKb = wireSheetKeyboard(dialog);
 
   const body = dialog.querySelector("[data-pri-body]");
   const btnNext = dialog.querySelector('[data-pri="next"]');
@@ -60,8 +71,11 @@ export function openPhRosterImportWizard({ phId, phName, onImported }) {
   });
 
   function close() {
+    untrap?.();
+    unbindKb?.();
     dialog.close();
     dialog.remove();
+    lockPageScroll(false);
   }
 
   function setStepIndicators() {
@@ -84,7 +98,7 @@ export function openPhRosterImportWizard({ phId, phName, onImported }) {
     btnNext.textContent = "Continuar";
     body.innerHTML = `
       <div class="pri-panel">
-        <p><strong>Confirmacion:</strong> Importara datos en <em>${escapeHtml(phName || "este PH")}</em>.</p>
+        <p><strong>Confirmacion:</strong> Importara datos en <em>${escapeHtml(formatPhImportLabel(phName))}</em>.</p>
         <label class="pri-check">
           <input type="checkbox" data-pri="confirm-ph" />
           Confirmo que este es el PH correcto
@@ -187,7 +201,7 @@ export function openPhRosterImportWizard({ phId, phName, onImported }) {
         <div data-pri="table-host"></div>
         <label class="pri-check" style="margin-top:1rem">
           <input type="checkbox" data-pri="confirm-name" />
-          Confirmo importar en PH <strong>${escapeHtml(preview.phName || phName || "")}</strong>
+          Confirmo importar en <strong>${escapeHtml(formatPhImportLabel(preview.phName || phName))}</strong>
         </label>
       </div>`;
     body.querySelectorAll("[data-tab]").forEach((btn) => {
@@ -408,6 +422,13 @@ export function openPhRosterImportWizard({ phId, phName, onImported }) {
       }
     } catch (err) {
       forceHideGlobalLoader();
+      const msg = err?.message || "No se pudo completar este paso.";
+      const existing = body.querySelector("[data-pri-error]");
+      if (existing) existing.remove();
+      body.insertAdjacentHTML(
+        "afterbegin",
+        `<div class="pri-alert" data-pri-error role="alert">${escapeHtml(msg)}</div>`
+      );
       AppFeedback.fromError(err);
     }
   }

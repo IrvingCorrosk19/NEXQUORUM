@@ -353,18 +353,36 @@ document.querySelectorAll(".login-card input").forEach((input) => {
   input.addEventListener("focus", () => revealControl(input));
 });
 
-function showVerifyStep(email, resendAtIso) {
+function showVerifyStep(email, resendAtIso, { deliveryConfirmed = false } = {}) {
   pendingEmail = email;
   if (otpRequestForm) otpRequestForm.hidden = true;
   if (otpVerifyForm) otpVerifyForm.hidden = false;
   const display = document.querySelector("#otp-email-display");
   if (display) display.textContent = email;
+  const copy = document.querySelector("#otp-verify-copy");
+  if (copy) {
+    // Same public wording whether or not the mailbox is eligible (anti-enumeration).
+    copy.innerHTML =
+      `Si este correo tiene acceso, recibirás un código de 6 dígitos en <strong id="otp-email-display">${escapeHtml(email)}</strong>. Si llega, tienes 10 minutos para usarlo.`;
+  }
   if (otpCode) {
     otpCode.value = "";
     otpCode.focus();
   }
-  const at = resendAtIso ? Date.parse(resendAtIso) : Date.now() + 60000;
+  const at = resendAtIso
+    ? Date.parse(resendAtIso)
+    : deliveryConfirmed
+      ? Date.now() + 60000
+      : Date.now() + 60000;
   startResendCountdown(Number.isFinite(at) ? at : Date.now() + 60000);
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 function showRequestStep() {
@@ -406,25 +424,18 @@ otpRequestForm?.addEventListener("submit", async (ev) => {
         body: { email, returnUrl: safeReturnUrl() }
       })
     );
-    if (result?.deliveryConfirmed === true) {
-      AppFeedback.success(
-        result?.detail || "Código enviado. Revisa tu bandeja de entrada y correo no deseado.",
-        { title: "Código enviado" }
-      );
-      showVerifyStep(email, result?.resendAvailableAtUtc);
-      return;
-    }
     if (result?.accepted === false || result?.errorCode === "SEND_FAILED") {
       showError(result?.detail || "No pudimos enviar el código en este momento. Intenta nuevamente.");
       return;
     }
-    // Soft ack: request received without confirming mailbox delivery (unknown email / rate limit).
+    // Same public UX for eligible and non-eligible (anti-enumeration).
     AppFeedback.info(
-      result?.detail ||
-        "Si el correo está registrado o tiene una invitación activa, recibirás un código.",
+      result?.detail || "Si este correo tiene acceso, recibirás un código.",
       { title: "Solicitud recibida" }
     );
-    showVerifyStep(email, result?.resendAvailableAtUtc);
+    showVerifyStep(email, result?.resendAvailableAtUtc, {
+      deliveryConfirmed: result?.deliveryConfirmed === true
+    });
   } catch (err) {
     showError(err?.payload?.detail || err?.message || "No pudimos enviar el código. Inténtalo de nuevo en unos minutos.");
   }
@@ -476,14 +487,6 @@ otpResend?.addEventListener("click", async () => {
         body: { email: pendingEmail, returnUrl: safeReturnUrl() }
       })
     );
-    if (result?.deliveryConfirmed === true) {
-      AppFeedback.success(
-        result?.detail || "Código enviado. Revisa tu bandeja de entrada y correo no deseado.",
-        { title: "Código reenviado" }
-      );
-      startResendCountdown(Date.parse(result?.resendAvailableAtUtc) || Date.now() + 60000);
-      return;
-    }
     if (result?.accepted === false || result?.errorCode === "SEND_FAILED") {
       AppFeedback.error(
         result?.detail || "No pudimos enviar el código en este momento. Intenta nuevamente.",
@@ -493,11 +496,10 @@ otpResend?.addEventListener("click", async () => {
       if (otpResendHint) otpResendHint.textContent = "Puedes intentar reenviar el código ahora.";
       return;
     }
-    AppFeedback.info(
-      result?.detail ||
-        "Si el correo está registrado o tiene una invitación activa, recibirás un código.",
-      { title: "Solicitud recibida" }
-    );
+    AppFeedback.info(result?.detail || "Si este correo tiene acceso, recibirás un código.", {
+      title: "Solicitud recibida"
+    });
+    startResendCountdown(Date.parse(result?.resendAvailableAtUtc) || Date.now() + 60000);
   } catch (err) {
     AppFeedback.fromError(err, "No pudimos reenviar el código.");
   }

@@ -57,6 +57,20 @@ public sealed class DevMockMailboxController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>QA helper: force the next mock email send(s) to fail.</summary>
+    [HttpPost("force-failure")]
+    [AllowAnonymous]
+    public IActionResult ForceFailure([FromQuery] bool enabled = true)
+    {
+        if (!_env.IsDevelopment())
+        {
+            return NotFound();
+        }
+
+        MockEmailProvider.ForceFailure = enabled;
+        return Ok(new { forceFailure = MockEmailProvider.ForceFailure });
+    }
+
     private static string? ExtractActivationToken(string? html, string? text)
     {
         var blob = $"{html}\n{text}";

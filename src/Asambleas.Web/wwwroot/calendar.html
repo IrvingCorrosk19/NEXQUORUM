@@ -11,8 +11,8 @@
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
-  <link rel="stylesheet" href="/css/calendar.css?v=polish8" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish7" />
+  <link rel="stylesheet" href="/css/calendar.css?v=polish9" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish11" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 </head>
 <body class="layout-tabler">
@@ -134,17 +134,19 @@
     </div>
   </div>
 
-  <aside id="event-drawer" class="event-drawer" data-hybrid-portal hidden aria-hidden="true">
-    <div class="event-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
-      <header class="event-drawer-head">
-        <p class="command-eyebrow" id="drawer-status"></p>
-        <h2 id="drawer-title"></h2>
-        <button type="button" id="drawer-close" class="btn btn-ghost" aria-label="Cerrar">✕</button>
+  <dialog id="event-drawer" class="app-sheet event-sheet" data-hybrid-portal aria-labelledby="drawer-title">
+    <div class="app-sheet__form">
+      <header class="app-sheet__head event-drawer-head">
+        <div>
+          <p class="command-eyebrow" id="drawer-status"></p>
+          <h2 id="drawer-title" tabindex="-1">Evento</h2>
+        </div>
+        <button type="button" id="drawer-close" class="btn btn-ghost app-sheet__close" aria-label="Cerrar">✕</button>
       </header>
-      <div id="drawer-body" class="event-drawer-body"></div>
-      <footer id="drawer-actions" class="event-drawer-actions"></footer>
+      <div id="drawer-body" class="app-sheet__body event-drawer-body"></div>
+      <footer id="drawer-actions" class="app-sheet__foot event-drawer-actions"></footer>
     </div>
-  </aside>
+  </dialog>
 
   <div id="schedule-dialog" class="cal-dialog" data-hybrid-portal hidden>
     <form id="schedule-form" class="cal-dialog-panel schedule-sheet" role="dialog" aria-modal="true" aria-labelledby="schedule-title">
@@ -359,6 +361,6 @@
   </div>
 
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/calendar-app.js?v=polish8"></script>
+  <script type="module" src="/js/modules/calendar-app.js?v=polish9"></script>
 </body>
 </html>

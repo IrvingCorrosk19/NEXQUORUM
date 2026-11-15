@@ -3,7 +3,7 @@ import { hasPermission } from "./auth.js";
 import { confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { runWithButton } from "./loading.js";
-import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks } from "./query-guard.js?v=polish8";
+import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks, lockPageScroll } from "./query-guard.js?v=polish9b";
 
 /**
  * Premium units hub for /ph.html#units — reuses /api/ph/* endpoints.
@@ -390,6 +390,8 @@ export function createUnitsHub(ctx) {
     currentUnitId = unitId || null;
     setTab(tab);
     syncModalTabs();
+    lockPageScroll(true);
+    const token = query.next();
 
     if (mode === "create" || !unitId) {
       currentDetail = null;
@@ -406,19 +408,34 @@ export function createUnitsHub(ctx) {
       return;
     }
 
+    $("#unit-hub-title").textContent = "Unidad";
+    $("#unit-hub-eyebrow").textContent = "Cargando";
+    $("#unit-hub-body").innerHTML = `<p class="muted">Cargando ficha de la unidad…</p>`;
+    $("#unit-hub-foot").innerHTML = `<button type="button" class="btn btn-secondary" id="unit-hub-cancel-load">Cerrar</button>`;
+    $("#unit-hub-cancel-load")?.addEventListener("click", () => closeUnitModal());
+    try { dlg.showModal(); } catch (_) { dlg.setAttribute("open", ""); }
+    bindSheetViewport(dlg);
+    unitUntrap?.();
+    unitUnbindKeyboard?.();
+    unitUntrap = trapFocus(dlg);
+    unitUnbindKeyboard = wireSheetKeyboard(dlg);
+    $("#unit-hub-title")?.focus?.({ preventScroll: true });
+
     try {
+      await applyTestHooks();
       currentDetail = await api(`/api/ph/${ctx.currentPhId}/units/${unitId}/ownerships`);
+      if (!query.isCurrent(token)) return;
       $("#unit-hub-title").textContent = `Unidad ${currentDetail.unitCode}`;
       $("#unit-hub-eyebrow").textContent = currentDetail.isActive ? "Activa" : "Inactiva";
       renderModalBody();
-      try { dlg.showModal(); } catch (_) { dlg.setAttribute("open", ""); }
-      bindSheetViewport(dlg);
-      unitUntrap?.();
-      unitUnbindKeyboard?.();
-      unitUntrap = trapFocus(dlg);
-      unitUnbindKeyboard = wireSheetKeyboard(dlg);
     } catch (err) {
-      AppFeedback.fromError(err);
+      if (!query.isCurrent(token)) return;
+      $("#unit-hub-title").textContent = "Unidad no encontrada";
+      $("#unit-hub-eyebrow").textContent = "No disponible";
+      $("#unit-hub-body").innerHTML = `<p>Esta unidad ya no está en el PH o no se pudo cargar. Cierra para volver a la lista.</p>`;
+      $("#unit-hub-foot").innerHTML = `<button type="button" class="btn btn-primary" id="unit-hub-missing-close">Volver a la lista</button>`;
+      $("#unit-hub-missing-close")?.addEventListener("click", () => closeUnitModal());
+      AppFeedback.fromError(err, "No pudimos abrir esta unidad.");
     }
   }
 
@@ -931,6 +948,7 @@ export function createUnitsHub(ctx) {
       unitUnbindKeyboard?.();
       unitUntrap = null;
       unitUnbindKeyboard = null;
+      lockPageScroll(false);
       restoreOpener(lastOpener);
       lastOpener = null;
     });
@@ -981,7 +999,7 @@ export function createUnitsHub(ctx) {
       btn.addEventListener("click", async () => {
         if (!tablerShell && menu) menu.hidden = true;
         const act = btn.dataset.phAdmin;
-        if (act === "edit") ctx.switchTab?.("info");
+        if (act === "edit" || act === "edit-info") ctx.switchTab?.("info");
         else if (act === "coefficients") ctx.switchTab?.("coefficients");
         else if (act === "activate") $("#btn-activate-ph")?.click();
         else if (act === "ready") $("#btn-mark-ready")?.click();

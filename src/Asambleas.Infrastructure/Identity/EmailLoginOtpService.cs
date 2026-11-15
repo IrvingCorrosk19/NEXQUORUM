@@ -28,10 +28,7 @@ public sealed class EmailLoginOtpService
     public const int MaxRequestsPerEmailPerHour = 8;
 
     private static readonly string GenericReceived =
-        "Si el correo está registrado o tiene una invitación activa, recibirás un código.";
-
-    private static readonly string SentConfirmed =
-        "Código enviado. Revisa tu bandeja de entrada y correo no deseado.";
+        "Si este correo tiene acceso, recibirás un código.";
 
     private static readonly string SendFailedUser =
         "No pudimos enviar el código en este momento. Intenta nuevamente.";
@@ -112,18 +109,37 @@ public sealed class EmailLoginOtpService
         var safeReturn = SafeReturnUrl.Normalize(returnUrl);
         var ipHash = HashOpaque(ClientIp());
 
-        await WriteAuditAsync(
-            AuditEventType.EmailOtpRequested,
-            tenantId: null,
-            userId: null,
-            metadata: new { emailDomain = DomainOf(normalized), hasReturnUrl = safeReturn is not null },
-            cancellationToken);
-
         var eligibility = await ResolveEligibilityAsync(normalized, cancellationToken);
         if (eligibility is null)
         {
+            await WriteAuditAsync(
+                AuditEventType.EmailOtpRequested,
+                tenantId: null,
+                userId: null,
+                metadata: new
+                {
+                    emailDomain = DomainOf(normalized),
+                    hasReturnUrl = safeReturn is not null,
+                    outcome = "NOT_ELIGIBLE",
+                    supportHint = "No active assembly access, invitation, or ownership for OTP."
+                },
+                cancellationToken);
             return softReceived;
         }
+
+        await WriteAuditAsync(
+            AuditEventType.EmailOtpRequested,
+            eligibility.TenantId,
+            userId: null,
+            metadata: new
+            {
+                emailDomain = DomainOf(normalized),
+                hasReturnUrl = safeReturn is not null,
+                outcome = "ELIGIBLE",
+                assemblyId = eligibility.AssemblyId,
+                propertyHorizontalId = eligibility.PropertyHorizontalId
+            },
+            cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         var hourAgo = now.AddHours(-1);
@@ -133,6 +149,17 @@ public sealed class EmailLoginOtpService
                 cancellationToken);
         if (recentCount >= MaxRequestsPerEmailPerHour)
         {
+            await WriteAuditAsync(
+                AuditEventType.EmailOtpFailed,
+                eligibility.TenantId,
+                null,
+                metadata: new
+                {
+                    emailDomain = DomainOf(normalized),
+                    outcome = "RATE_LIMITED",
+                    propertyHorizontalId = eligibility.PropertyHorizontalId
+                },
+                cancellationToken);
             return softReceived;
         }
 
@@ -145,9 +172,10 @@ public sealed class EmailLoginOtpService
             && latest.LastSentAtUtc >= latest.CreatedAtUtc
             && latest.LastSentAtUtc.Add(ResendCooldown) > now)
         {
+            // Same public copy as soft-ack (anti-enumeration); resend timing still accurate.
             return new EmailOtpRequestResponse(
                 Accepted: true,
-                Detail: SentConfirmed,
+                Detail: GenericReceived,
                 ResendAvailableAtUtc: latest.LastSentAtUtc.Add(ResendCooldown),
                 SuggestedProvider: suggested,
                 DeliveryConfirmed: true);
@@ -208,9 +236,10 @@ public sealed class EmailLoginOtpService
                 },
                 cancellationToken);
 
+            // Public copy matches soft-ack; DeliveryConfirmed remains true for resend UX.
             return new EmailOtpRequestResponse(
                 Accepted: true,
-                Detail: SentConfirmed,
+                Detail: GenericReceived,
                 ResendAvailableAtUtc: challenge.LastSentAtUtc.Add(ResendCooldown),
                 SuggestedProvider: suggested,
                 DeliveryConfirmed: true);
@@ -500,26 +529,29 @@ public sealed class EmailLoginOtpService
                     .Where(l => l.AssemblyId == fromConvocation.AssemblyId && recipientIds.Contains(l.RecipientId))
                     .ToListAsync(cancellationToken);
 
-                if (links.Count > 0)
+                var hasActiveLink = links.Count == 0
+                    || links.Any(l => l.RevokedAtUtc is null && l.ExpiresAtUtc > now);
+
+                if (hasActiveLink)
                 {
-                    var hasActive = links.Any(l => l.RevokedAtUtc is null && l.ExpiresAtUtc > now);
-                    if (!hasActive)
-                    {
-                        return null;
-                    }
+                    return new Eligibility(
+                        fromConvocation.TenantId,
+                        fromConvocation.PropertyHorizontalId,
+                        fromConvocation.OrgId,
+                        fromConvocation.AssemblyId,
+                        fromConvocation.OwnerId,
+                        string.IsNullOrWhiteSpace(fromConvocation.DisplayName) ? email.Split('@')[0] : fromConvocation.DisplayName,
+                        fromConvocation.PhName,
+                        fromConvocation.Title,
+                        AssemblyCancelled: false,
+                        AssemblyStatus: fromConvocation.Status);
                 }
 
-                return new Eligibility(
-                    fromConvocation.TenantId,
-                    fromConvocation.PropertyHorizontalId,
-                    fromConvocation.OrgId,
-                    fromConvocation.AssemblyId,
-                    fromConvocation.OwnerId,
-                    string.IsNullOrWhiteSpace(fromConvocation.DisplayName) ? email.Split('@')[0] : fromConvocation.DisplayName,
-                    fromConvocation.PhName,
-                    fromConvocation.Title,
-                    AssemblyCancelled: false,
-                    AssemblyStatus: fromConvocation.Status);
+                // Expired/revoked assembly links must not block portal OTP for owners/invites.
+                _logger.LogInformation(
+                    "OTP assembly access expired for domain {Domain} assembly {AssemblyId}; evaluating portal eligibility",
+                    DomainOf(email),
+                    fromConvocation.AssemblyId);
             }
         }
 

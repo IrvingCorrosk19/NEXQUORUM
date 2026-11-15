@@ -443,6 +443,12 @@ public sealed class CommunicationConfigurationService
 
                 if (_environment.IsNonProduction)
                 {
+                    // Ensure Mock/disabled PH channels are flagged as sandbox for OTP.
+                    if (ph.Value.Provider.ProviderType != CommunicationProviderType.Smtp)
+                    {
+                        return (ph.Value.Provider, true, "Mock");
+                    }
+
                     return ph;
                 }
 
@@ -559,13 +565,14 @@ public sealed class CommunicationConfigurationService
         try
         {
             var provider = await ResolveEmailProviderAsync(row, forceMock, cancellationToken);
-            var name = forceMock
-                       || row is null
-                       || row.ProviderType == CommunicationProviderType.Mock
-                       || !row.IsEnabled
-                ? "Mock"
-                : row.ProviderType.ToString();
-            return (provider, forceMock, name);
+            var usedMock = forceMock
+                           || row is null
+                           || row.ProviderType == CommunicationProviderType.Mock
+                           || !row.IsEnabled
+                           || provider.ProviderType == CommunicationProviderType.Mock;
+            var name = usedMock ? "Mock" : row!.ProviderType.ToString();
+            // usedSandbox must be true whenever Mock is selected; otherwise system OTP rejects it.
+            return (provider, usedMock || forceMock, name);
         }
         catch (DomainException)
         {

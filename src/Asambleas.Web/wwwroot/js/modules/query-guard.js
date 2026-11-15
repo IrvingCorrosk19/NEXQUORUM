@@ -24,8 +24,37 @@ export function createQueryGuard() {
   };
 }
 
-function scrollFieldIntoSheet(el) {
-  const sheet = el.closest(".schedule-sheet__body, .app-sheet__body, .unit-hub__body");
+export function lockPageScroll(lock) {
+  const root = document.documentElement;
+  if (lock) {
+    if (root.dataset.scrollLock === "1") return;
+    const y = window.scrollY || window.pageYOffset || 0;
+    root.dataset.scrollLock = "1";
+    root.dataset.scrollY = String(y);
+    root.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    root.style.position = "fixed";
+    root.style.top = `-${y}px`;
+    root.style.left = "0";
+    root.style.right = "0";
+    root.style.width = "100%";
+    return;
+  }
+  const y = Number(root.dataset.scrollY || 0);
+  delete root.dataset.scrollLock;
+  delete root.dataset.scrollY;
+  root.style.overflow = "";
+  document.body.style.overflow = "";
+  root.style.position = "";
+  root.style.top = "";
+  root.style.left = "";
+  root.style.right = "";
+  root.style.width = "";
+  window.scrollTo(0, y);
+}
+
+export function scrollFieldIntoSheet(el) {
+  const sheet = el.closest(".schedule-sheet__body, .app-sheet__body, .unit-hub__body, .owner-sheet__body");
   if (sheet) {
     const er = el.getBoundingClientRect();
     const sr = sheet.getBoundingClientRect();
@@ -59,9 +88,13 @@ export function rememberOpener() {
 
 export function restoreOpener(el) {
   try {
-    el?.focus?.();
+    el?.focus?.({ preventScroll: true });
   } catch {
-    /* ignore */
+    try {
+      el?.focus?.();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
