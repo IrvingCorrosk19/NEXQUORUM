@@ -20,7 +20,16 @@ public sealed record CurrentUserDto(
     Guid? OrganizationId,
     Guid? PropertyHorizontalId,
     IReadOnlyList<string> Roles,
-    IReadOnlyList<string> Permissions);
+    IReadOnlyList<string> Permissions,
+    string? AvatarUrl = null,
+    bool HasLocalPassword = true,
+    bool IsPasswordless = false);
+
+public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+public sealed record ChangePasswordResponse(bool Succeeded, string Detail);
+
+public sealed record AvatarUploadResponse(string AvatarUrl);
 
 public sealed record LogoutResponse(bool Success);
 

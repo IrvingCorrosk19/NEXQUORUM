@@ -212,6 +212,20 @@ try
         app.UseHttpsRedirection();
     }
     app.UseDefaultFiles();
+
+    // Profile avatars live outside wwwroot so they survive container rebuilds when volume-mounted.
+    var avatarStorage = app.Services.GetRequiredService<IUserAvatarStorage>();
+    Directory.CreateDirectory(avatarStorage.RootPath);
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(avatarStorage.RootPath),
+        RequestPath = Asambleas.Infrastructure.Storage.LocalFileUserAvatarStorage.RequestPath,
+        OnPrepareResponse = ctx =>
+        {
+            ctx.Context.Response.Headers.CacheControl = "private, max-age=3600";
+        }
+    });
+
     app.UseStaticFiles(new StaticFileOptions
     {
         OnPrepareResponse = ctx =>

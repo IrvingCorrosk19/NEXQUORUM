@@ -171,6 +171,9 @@ public sealed class AuthController : ControllerBase
 
         // Always derive from RolePermissionMap — never trust stale cookie/DB permission claims.
         var permissions = RolePermissionMap.GetPermissions(roles).ToList();
+        var hasLocalPassword = await _userManager.HasPasswordAsync(user);
+        var isPasswordless = (await _userManager.GetClaimsAsync(user))
+            .Any(c => c.Type == "asambleas:auth" && c.Value == "passwordless");
 
         return Ok(new CurrentUserDto(
             user.Id,
@@ -181,7 +184,105 @@ public sealed class AuthController : ControllerBase
             ParseGuidClaim(AsambleasClaimTypes.OrganizationId) ?? user.OrganizationId,
             ParseGuidClaim(AsambleasClaimTypes.PropertyHorizontalId),
             roles,
-            permissions));
+            permissions,
+            user.AvatarUrl,
+            hasLocalPassword,
+            isPasswordless));
+    }
+
+    [Authorize]
+    [HttpPost("change-password")]
+    [EnableRateLimiting("auth-login")]
+    public async Task<ActionResult<ChangePasswordResponse>> ChangePassword(
+        [FromBody] ChangePasswordRequest request)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!await _userManager.HasPasswordAsync(user))
+        {
+            return BadRequest(CreateProblem(
+                "Esta cuenta no usa contraseña local. Usa el acceso por correo o «¿Olvidaste tu contraseña?» para definir una."));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CurrentPassword) || string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return BadRequest(CreateProblem("Completa la contraseña actual y la nueva."));
+        }
+
+        if (!PasswordMeetsPolicy(request.NewPassword))
+        {
+            return BadRequest(CreateProblem(
+                "La contraseña debe tener al menos 12 caracteres, una mayúscula, una minúscula, un número y un símbolo (ej. ! @ # $)."));
+        }
+
+        var result = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            if (result.Errors.Any(e =>
+                    e.Code.Contains("PasswordMismatch", StringComparison.OrdinalIgnoreCase)
+                    || e.Description.Contains("incorrect", StringComparison.OrdinalIgnoreCase)))
+            {
+                return BadRequest(CreateProblem("La contraseña actual no es correcta."));
+            }
+
+            if (result.Errors.Any(e => e.Code.StartsWith("Password", StringComparison.OrdinalIgnoreCase)))
+            {
+                return BadRequest(CreateProblem(
+                    "La contraseña debe tener al menos 12 caracteres, una mayúscula, una minúscula, un número y un símbolo (ej. ! @ # $)."));
+            }
+
+            return BadRequest(CreateProblem("No pudimos cambiar la contraseña. Inténtalo de nuevo."));
+        }
+
+        await _signInManager.RefreshSignInAsync(user);
+        return Ok(new ChangePasswordResponse(true, "Contraseña actualizada."));
+    }
+
+    [Authorize]
+    [HttpPost("me/avatar")]
+    [RequestSizeLimit(AvatarImageValidator.MaxBytes + 64 * 1024)]
+    [EnableRateLimiting("auth-login")]
+    public async Task<ActionResult<AvatarUploadResponse>> UploadAvatar(
+        IFormFile? file,
+        [FromServices] IUserAvatarStorage avatarStorage,
+        CancellationToken cancellationToken)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        var validationError = AvatarImageValidator.Validate(file!, out var contentType);
+        if (validationError is not null)
+        {
+            return BadRequest(CreateProblem(validationError));
+        }
+
+        await using var stream = file!.OpenReadStream();
+        var url = await avatarStorage.SaveAsync(user.Id, stream, contentType, user.AvatarUrl, cancellationToken);
+        user.AvatarUrl = url;
+        var update = await _userManager.UpdateAsync(user);
+        if (!update.Succeeded)
+        {
+            avatarStorage.DeleteIfExists(url);
+            return BadRequest(CreateProblem("No pudimos guardar la foto. Inténtalo de nuevo."));
+        }
+
+        return Ok(new AvatarUploadResponse(url));
+    }
+
+    private static bool PasswordMeetsPolicy(string password)
+    {
+        var hasUpper = password.Any(char.IsUpper);
+        var hasLower = password.Any(char.IsLower);
+        var hasDigit = password.Any(char.IsDigit);
+        var hasSymbol = password.Any(ch => !char.IsLetterOrDigit(ch));
+        return password.Length >= 12 && hasUpper && hasLower && hasDigit && hasSymbol;
     }
 
     [AllowAnonymous]

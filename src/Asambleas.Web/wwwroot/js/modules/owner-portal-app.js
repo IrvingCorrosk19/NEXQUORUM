@@ -1,12 +1,13 @@
 import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
+import { rememberMe } from "./session-shell-cache.js";
 import { isOperator, isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { mountIaShell } from "./ia-nav.js?v=own8b";
+import { mountIaShell } from "./ia-nav.js?v=own9";
 import { utcIsoToPhLocalParts } from "./schedule-time.js";
-import { startHybridShell } from "./hybrid-router.js?v=own8b";
-import { iconSvg } from "./tabler-icons.js?v=own8b";
+import { startHybridShell } from "./hybrid-router.js?v=own9";
+import { iconSvg } from "./tabler-icons.js?v=own9";
 import {
   bindSheetViewport,
   lockPageScroll,
@@ -551,14 +552,90 @@ function renderUnits() {
   el.innerHTML = units.map((u) => renderUnitCard(u)).join("");
 }
 
+function avatarCacheBust(url) {
+  if (!url) return "";
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}v=${Date.now()}`;
+}
+
+function applyAvatarElement(el, { url, label }) {
+  if (!el) return;
+  const text = initials(label || "PR");
+  const src = url ? String(url) : "";
+  if (src) {
+    el.classList.add("owner-avatar--photo");
+    el.style.backgroundImage = `url("${src.replace(/"/g, "%22")}")`;
+    el.textContent = "";
+    el.setAttribute("aria-label", label || "Foto de perfil");
+  } else {
+    el.classList.remove("owner-avatar--photo");
+    el.style.backgroundImage = "";
+    el.textContent = text;
+    el.removeAttribute("aria-label");
+  }
+}
+
+function syncAvatars() {
+  const user = state.user || {};
+  const name = state.profile?.displayName || user.displayName || user.email || "Propietario";
+  const url = user.avatarUrl || null;
+  applyAvatarElement(qs("#user-avatar"), { url, label: name });
+  applyAvatarElement(qs("#profile-avatar"), { url, label: name });
+}
+
+function renderProfileHero() {
+  const nameEl = qs("#profile-hero-name");
+  const phEl = qs("#profile-hero-ph");
+  const user = state.user;
+  const p = state.profile;
+  const name = p?.displayName || user?.displayName || "Propietario";
+  const ph = activePh();
+  if (nameEl) nameEl.textContent = name;
+  if (phEl) phEl.textContent = ph?.name || user?.tenantCode || "Tu PH";
+  syncAvatars();
+}
+
+function securityBodyHtml() {
+  const user = state.user || {};
+  const hasLocal = user.hasLocalPassword !== false && !user.isPasswordless;
+  if (hasLocal) {
+    return `<p class="owner-meta">Tu cuenta usa contraseña local. Cámbiala aquí o usa «¿Olvidaste tu contraseña?» en la pantalla de acceso.</p>
+      <div class="owner-security-actions">
+        <button type="button" class="btn btn-primary" id="btn-change-password" data-owner-profile-action="password">Cambiar contraseña</button>
+        <a class="owner-link" href="/">Ir al acceso</a>
+      </div>`;
+  }
+  if (user.isPasswordless) {
+    return `<p class="owner-meta">Esta cuenta inicia sesión sin contraseña local (acceso por correo). Para definir una contraseña, usa «¿Olvidaste tu contraseña?» en la pantalla de acceso.</p>
+      <div class="owner-security-actions">
+        <a class="btn btn-outline-owner" href="/">Ir al acceso</a>
+      </div>`;
+  }
+  return `<p class="owner-meta">No hay contraseña local en esta cuenta. Gestiona el acceso desde la pantalla de inicio de sesión.</p>
+    <div class="owner-security-actions">
+      <a class="btn btn-outline-owner" href="/">Ir al acceso</a>
+    </div>`;
+}
+
 function renderAccount() {
   const personal = qs("#profile-personal");
   const properties = qs("#profile-properties");
+  const security = qs("#profile-security-body");
   if (!personal || !properties) return;
 
+  renderProfileHero();
+  document.querySelectorAll("#view-account .owner-card-icon[data-icon]").forEach((el) => {
+    const name = el.getAttribute("data-icon");
+    if (!el.dataset.iconReady) {
+      el.innerHTML = iconSvg(name, 18);
+      el.dataset.iconReady = "1";
+    }
+  });
+
   if (state.sections.profile === "loading" && !state.profile && !state.user) {
-    personal.innerHTML = `<h3>Información personal</h3>${skeletonInline()}`;
-    properties.innerHTML = `<h3>Propiedades relacionadas</h3>${skeletonInline()}`;
+    personal.innerHTML = `<h3><span class="owner-card-icon" data-icon="user" aria-hidden="true"></span> Información personal</h3>${skeletonInline()}`;
+    properties.innerHTML = `<h3><span class="owner-card-icon" data-icon="building" aria-hidden="true"></span> Propiedades relacionadas</h3>${skeletonInline()}`;
+    if (security) security.innerHTML = skeletonInline();
     return;
   }
 
@@ -567,6 +644,7 @@ function renderAccount() {
   if (!p && !user) {
     personal.innerHTML = errorHtml("No pudimos cargar tu perfil", "Intenta nuevamente.", "account");
     properties.innerHTML = "";
+    if (security) security.innerHTML = "";
     return;
   }
 
@@ -576,7 +654,7 @@ function renderAccount() {
   const props = p?.properties || [];
 
   personal.innerHTML = `
-    <h3>Información personal</h3>
+    <h3><span class="owner-card-icon" data-icon="user" aria-hidden="true"></span> Información personal</h3>
     <dl class="owner-dl">
       <dt>Nombre</dt><dd>${escapeHtml(name)}</dd>
       <dt>Correo electrónico</dt><dd>${escapeHtml(email)}</dd>
@@ -584,7 +662,7 @@ function renderAccount() {
     </dl>`;
 
   properties.innerHTML = `
-    <h3>Propiedades relacionadas</h3>
+    <h3><span class="owner-card-icon" data-icon="building" aria-hidden="true"></span> Propiedades relacionadas</h3>
     ${
       props.length
         ? `<ul class="owner-prop-list">${props
@@ -597,6 +675,13 @@ function renderAccount() {
             .join("")}</ul>`
         : `<p class="owner-meta">No hay propiedades asociadas.</p>`
     }`;
+
+  if (security) security.innerHTML = securityBodyHtml();
+
+  document.querySelectorAll("#view-account .owner-card-icon[data-icon]").forEach((el) => {
+    const iconName = el.getAttribute("data-icon");
+    el.innerHTML = iconSvg(iconName, 18);
+  });
 }
 
 function renderChromeContext() {
@@ -761,7 +846,10 @@ function findOpenerControl() {
     if (target) return target;
   }
 
-  return qs(`#${(VIEWS[view] || VIEWS.home).id} h1`);
+  if (modalUi.openerKind === "photo") return qs("#btn-change-photo");
+  if (modalUi.openerKind === "password") return qs("#btn-change-password");
+
+  return qs(`#${(VIEWS[view] || VIEWS.home).id} h1`) || qs("#profile-hero-name");
 }
 
 function restoreFocusAfterClose() {
@@ -987,6 +1075,14 @@ async function syncAssemblyModal({ seed = null } = {}) {
 
 function closeOwnerModal(kind) {
   modalUi.closingByUi = true;
+  if (kind === "photo") {
+    closeDialog(qs("#dlg-owner-photo"));
+    return;
+  }
+  if (kind === "password") {
+    closeDialog(qs("#dlg-owner-password"));
+    return;
+  }
   const unitDlg = qs("#dlg-owner-unit");
   const asmDlg = qs("#dlg-owner-assembly");
   if (kind === "unit" || unitDlg?.open) closeDialog(unitDlg);
@@ -1004,6 +1100,172 @@ function closeOwnerModal(kind) {
     { replace: false, lockMs: 0 }
   );
   // Focus restore runs from the dialog `close` listener to avoid a double clear.
+}
+
+function setFieldError(id, message) {
+  const el = qs(id);
+  if (!el) return;
+  if (message) {
+    el.hidden = false;
+    el.textContent = message;
+  } else {
+    el.hidden = true;
+    el.textContent = "";
+  }
+}
+
+function resetPhotoDialog() {
+  const form = qs("#form-owner-photo");
+  form?.reset();
+  const preview = qs("#owner-photo-preview");
+  if (preview) {
+    preview.style.backgroundImage = "";
+    preview.textContent = initials(state.user?.displayName || state.user?.email || "PR");
+    preview.classList.remove("owner-avatar--photo");
+  }
+  setFieldError("#owner-photo-error", "");
+  const save = qs("#owner-photo-save");
+  if (save) save.disabled = false;
+}
+
+function openPhotoDialog(opener) {
+  rememberOpenContext(opener || qs("#btn-change-photo"), "account");
+  modalUi.openerKind = "photo";
+  resetPhotoDialog();
+  const url = state.user?.avatarUrl;
+  const preview = qs("#owner-photo-preview");
+  if (preview && url) {
+    preview.classList.add("owner-avatar--photo");
+    preview.style.backgroundImage = `url("${String(url).replace(/"/g, "%22")}")`;
+    preview.textContent = "";
+  }
+  openDialogShell(qs("#dlg-owner-photo"), { title: "Cambiar foto", eyebrow: "Tu cuenta" });
+  requestAnimationFrame(() => qs("#owner-photo-file")?.focus?.());
+}
+
+function resetPasswordDialog() {
+  const form = qs("#form-owner-password");
+  form?.reset();
+  setFieldError("#owner-password-error", "");
+  const ok = qs("#owner-password-ok");
+  if (ok) {
+    ok.hidden = true;
+    ok.textContent = "";
+  }
+  document.querySelectorAll("#dlg-owner-password [data-toggle-password]").forEach((btn) => {
+    const id = btn.getAttribute("data-toggle-password");
+    const input = id ? qs(`#${id}`) : null;
+    if (input) input.type = "password";
+    btn.setAttribute("aria-pressed", "false");
+    btn.setAttribute("aria-label", "Mostrar contraseña");
+    btn.textContent = "Ver";
+  });
+  const save = qs("#owner-password-save");
+  if (save) {
+    save.disabled = false;
+    save.hidden = false;
+  }
+}
+
+function openPasswordDialog(opener) {
+  rememberOpenContext(opener || qs("#btn-change-password"), "account");
+  modalUi.openerKind = "password";
+  resetPasswordDialog();
+  openDialogShell(qs("#dlg-owner-password"), { title: "Cambiar contraseña", eyebrow: "Seguridad" });
+  requestAnimationFrame(() => qs("#owner-pw-current")?.focus?.());
+}
+
+function previewSelectedPhoto(file) {
+  const preview = qs("#owner-photo-preview");
+  if (!preview || !file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    preview.classList.add("owner-avatar--photo");
+    preview.style.backgroundImage = `url("${reader.result}")`;
+    preview.textContent = "";
+  };
+  reader.readAsDataURL(file);
+}
+
+async function submitPhotoChange(e) {
+  e.preventDefault();
+  const input = qs("#owner-photo-file");
+  const file = input?.files?.[0];
+  const save = qs("#owner-photo-save");
+  setFieldError("#owner-photo-error", "");
+  if (!file) {
+    setFieldError("#owner-photo-error", "Selecciona una imagen JPG, PNG o WebP.");
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    setFieldError("#owner-photo-error", "La imagen supera 2 MB.");
+    return;
+  }
+  const allowed = ["image/jpeg", "image/png", "image/webp"];
+  if (file.type && !allowed.includes(file.type)) {
+    setFieldError("#owner-photo-error", "Formato no permitido. Usa JPG, PNG o WebP.");
+    return;
+  }
+  const previousUrl = state.user?.avatarUrl || null;
+  const fd = new FormData();
+  fd.append("file", file);
+  if (save) save.disabled = true;
+  try {
+    const res = await api("/api/auth/me/avatar", { method: "POST", body: fd });
+    const nextUrl = avatarCacheBust(res?.avatarUrl || res?.AvatarUrl);
+    if (state.user) {
+      state.user = { ...state.user, avatarUrl: nextUrl };
+      rememberMe(state.user);
+    }
+    syncAvatars();
+    closeOwnerModal("photo");
+  } catch (err) {
+    if (state.user) state.user = { ...state.user, avatarUrl: previousUrl };
+    syncAvatars();
+    setFieldError("#owner-photo-error", err?.message || "No pudimos guardar la foto.");
+  } finally {
+    if (save) save.disabled = false;
+  }
+}
+
+async function submitPasswordChange(e) {
+  e.preventDefault();
+  const current = qs("#owner-pw-current")?.value || "";
+  const next = qs("#owner-pw-new")?.value || "";
+  const confirm = qs("#owner-pw-confirm")?.value || "";
+  const save = qs("#owner-password-save");
+  const ok = qs("#owner-password-ok");
+  setFieldError("#owner-password-error", "");
+  if (ok) {
+    ok.hidden = true;
+    ok.textContent = "";
+  }
+  if (!current || !next || !confirm) {
+    setFieldError("#owner-password-error", "Completa todos los campos.");
+    return;
+  }
+  if (next !== confirm) {
+    setFieldError("#owner-password-error", "La confirmación no coincide con la nueva contraseña.");
+    return;
+  }
+  if (save) save.disabled = true;
+  try {
+    const res = await api("/api/auth/change-password", {
+      method: "POST",
+      body: { currentPassword: current, newPassword: next }
+    });
+    resetPasswordDialog();
+    if (ok) {
+      ok.hidden = false;
+      ok.textContent = res?.detail || "Contraseña actualizada.";
+    }
+    if (save) save.hidden = true;
+    setTimeout(() => closeOwnerModal("password"), 900);
+  } catch (err) {
+    setFieldError("#owner-password-error", err?.message || "No pudimos cambiar la contraseña.");
+  } finally {
+    if (save && !save.hidden) save.disabled = false;
+  }
 }
 
 function applyRoute({ fromHash = true, seed = null } = {}) {
@@ -1210,6 +1472,29 @@ function wireChrome() {
         return;
       }
 
+      const profileAction = e.target.closest?.("[data-owner-profile-action]");
+      if (profileAction) {
+        e.preventDefault();
+        const action = profileAction.getAttribute("data-owner-profile-action");
+        if (action === "photo") openPhotoDialog(profileAction);
+        else if (action === "password") openPasswordDialog(profileAction);
+        return;
+      }
+
+      const togglePw = e.target.closest?.("[data-toggle-password]");
+      if (togglePw) {
+        e.preventDefault();
+        const id = togglePw.getAttribute("data-toggle-password");
+        const input = id ? qs(`#${id}`) : null;
+        if (!input) return;
+        const show = input.type === "password";
+        input.type = show ? "text" : "password";
+        togglePw.setAttribute("aria-pressed", show ? "true" : "false");
+        togglePw.setAttribute("aria-label", show ? "Ocultar contraseña" : "Mostrar contraseña");
+        togglePw.textContent = show ? "Ocultar" : "Ver";
+        return;
+      }
+
       const retry = e.target.closest?.("[data-retry]");
       if (retry) {
         e.preventDefault();
@@ -1286,6 +1571,15 @@ function wireChrome() {
   qs("#dlg-owner-unit")?.addEventListener("close", () => onDialogClose("unit"), { signal });
   qs("#dlg-owner-assembly")?.addEventListener("close", () => onDialogClose("assembly"), { signal });
 
+  const onProfileDialogClose = () => {
+    cleanupModalTrap();
+    lockPageScroll(false);
+    modalUi.closingByUi = false;
+    requestAnimationFrame(() => restoreFocusAfterClose());
+  };
+  qs("#dlg-owner-photo")?.addEventListener("close", onProfileDialogClose, { signal });
+  qs("#dlg-owner-password")?.addEventListener("close", onProfileDialogClose, { signal });
+
   qs("#dlg-owner-unit")?.addEventListener(
     "cancel",
     (ev) => {
@@ -1302,6 +1596,34 @@ function wireChrome() {
     },
     { signal }
   );
+  qs("#dlg-owner-photo")?.addEventListener(
+    "cancel",
+    (ev) => {
+      ev.preventDefault();
+      closeOwnerModal("photo");
+    },
+    { signal }
+  );
+  qs("#dlg-owner-password")?.addEventListener(
+    "cancel",
+    (ev) => {
+      ev.preventDefault();
+      closeOwnerModal("password");
+    },
+    { signal }
+  );
+
+  qs("#owner-photo-file")?.addEventListener(
+    "change",
+    () => {
+      const file = qs("#owner-photo-file")?.files?.[0];
+      setFieldError("#owner-photo-error", "");
+      if (file) previewSelectedPhoto(file);
+    },
+    { signal }
+  );
+  qs("#form-owner-photo")?.addEventListener("submit", (ev) => void submitPhotoChange(ev), { signal });
+  qs("#form-owner-password")?.addEventListener("submit", (ev) => void submitPasswordChange(ev), { signal });
 }
 
 function initials(name) {
@@ -1346,8 +1668,7 @@ async function init() {
   state.user = user;
   const chip = qs("#user-chip");
   if (chip) chip.textContent = user.displayName || user.email || "Propietario";
-  const avatar = qs("#user-avatar");
-  if (avatar) avatar.textContent = initials(user.displayName || user.email || "PR");
+  syncAvatars();
   if (qs("#nav-tenant")) qs("#nav-tenant").textContent = user.tenantCode || "Portal propietario";
   if (qs("#account-role-label")) qs("#account-role-label").textContent = user.displayName || user.email || "Cuenta";
 
@@ -1355,6 +1676,15 @@ async function init() {
   wireChrome();
   applyRoute({ fromHash: true });
   await loadPortalData();
+  try {
+    const fresh = await me({ force: true });
+    state.user = { ...state.user, ...fresh };
+    rememberMe(state.user);
+    syncAvatars();
+    renderAccount();
+  } catch {
+    /* keep warm session */
+  }
 
   try {
     const { ensureJoinSummonPresence } = await import("./join-summon-presence.js");

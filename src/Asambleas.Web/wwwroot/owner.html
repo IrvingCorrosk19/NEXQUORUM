@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
   <link rel="stylesheet" href="/css/ph-tabler.css?v=polish11" />
-  <link rel="stylesheet" href="/css/owner-portal.css?v=own8" />
+  <link rel="stylesheet" href="/css/owner-portal.css?v=own9" />
   <link rel="stylesheet" href="/css/summon-status.css?v=mP1a" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
@@ -130,22 +130,29 @@
           </section>
 
           <section id="view-account" class="owner-view" data-view="account" hidden>
-            <header class="owner-page-head">
-              <h1 tabindex="-1">Mi perfil</h1>
-              <p class="lede">Datos de tu cuenta y seguridad.</p>
+            <header class="owner-profile-hero" id="profile-hero">
+              <div class="owner-profile-hero__avatar-wrap">
+                <span class="owner-profile-avatar" id="profile-avatar" aria-hidden="true">PR</span>
+                <button type="button" class="btn btn-outline-owner btn-sm" id="btn-change-photo" data-owner-profile-action="photo">Cambiar foto</button>
+              </div>
+              <div class="owner-profile-hero__text">
+                <p class="owner-profile-hero__eyebrow">Mi perfil</p>
+                <h1 id="profile-hero-name" tabindex="-1">Propietario</h1>
+                <p class="owner-profile-hero__ph" id="profile-hero-ph">Tu PH</p>
+              </div>
             </header>
             <div id="account-panel" class="owner-stack owner-profile-stack">
               <article class="owner-account-card" id="profile-personal">
-                <h3>Información personal</h3>
+                <h3><span class="owner-card-icon" data-icon="user" aria-hidden="true"></span> Información personal</h3>
                 <div class="owner-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
               </article>
               <article class="owner-account-card" id="profile-properties">
-                <h3>Propiedades relacionadas</h3>
-                <div class="owner-skeleton" aria-hidden="true"><span></span><span></span></div>
+                <h3><span class="owner-card-icon" data-icon="building" aria-hidden="true"></span> Propiedades relacionadas</h3>
+                <div class="owner-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
               </article>
               <article class="owner-account-card" id="profile-security">
-                <h3>Seguridad</h3>
-                <p class="owner-meta mb-0">Si olvidaste tu contraseña, usa «¿Olvidaste tu contraseña?» en la pantalla de acceso. Usa «Cerrar sesión» en el menú de cuenta para terminar la sesión en este dispositivo.</p>
+                <h3><span class="owner-card-icon" data-icon="lock" aria-hidden="true"></span> Seguridad</h3>
+                <div id="profile-security-body" class="owner-skeleton" aria-hidden="true"><span></span><span></span></div>
               </article>
             </div>
           </section>
@@ -188,8 +195,66 @@
     </div>
   </dialog>
 
+  <dialog id="dlg-owner-photo" class="app-sheet owner-portal-sheet" aria-labelledby="owner-photo-title">
+    <form class="app-sheet__form" id="form-owner-photo">
+      <header class="app-sheet__head">
+        <div>
+          <p class="command-eyebrow">Tu cuenta</p>
+          <h2 id="owner-photo-title" tabindex="-1">Cambiar foto</h2>
+        </div>
+        <button type="button" class="btn btn-ghost app-sheet__close" id="owner-photo-close" aria-label="Cerrar" data-close-modal="photo">✕</button>
+      </header>
+      <div class="app-sheet__body" id="owner-photo-body">
+        <div class="owner-photo-preview" id="owner-photo-preview" aria-hidden="true"></div>
+        <label class="form-label" for="owner-photo-file">Imagen (JPG, PNG o WebP · máx. 2 MB)</label>
+        <input type="file" id="owner-photo-file" name="file" accept="image/jpeg,image/png,image/webp" class="form-control" />
+        <p class="field-error" id="owner-photo-error" hidden></p>
+      </div>
+      <footer class="app-sheet__foot">
+        <button type="button" class="btn btn-outline-owner" data-close-modal="photo">Cerrar</button>
+        <button type="submit" class="btn btn-primary" id="owner-photo-save">Guardar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-owner-password" class="app-sheet owner-portal-sheet" aria-labelledby="owner-password-title">
+    <form class="app-sheet__form" id="form-owner-password">
+      <header class="app-sheet__head">
+        <div>
+          <p class="command-eyebrow">Seguridad</p>
+          <h2 id="owner-password-title" tabindex="-1">Cambiar contraseña</h2>
+        </div>
+        <button type="button" class="btn btn-ghost app-sheet__close" id="owner-password-close" aria-label="Cerrar" data-close-modal="password">✕</button>
+      </header>
+      <div class="app-sheet__body" id="owner-password-body">
+        <p class="owner-meta">Mínimo 12 caracteres, con mayúscula, minúscula, número y símbolo (ej. ! @ # $).</p>
+        <label class="form-label" for="owner-pw-current">Contraseña actual</label>
+        <span class="password-field">
+          <input id="owner-pw-current" name="currentPassword" type="password" autocomplete="current-password" class="form-control" required />
+          <button type="button" class="password-toggle" data-toggle-password="owner-pw-current" aria-label="Mostrar contraseña" aria-pressed="false">Ver</button>
+        </span>
+        <label class="form-label mt-2" for="owner-pw-new">Nueva contraseña</label>
+        <span class="password-field">
+          <input id="owner-pw-new" name="newPassword" type="password" autocomplete="new-password" class="form-control" required minlength="12" />
+          <button type="button" class="password-toggle" data-toggle-password="owner-pw-new" aria-label="Mostrar contraseña" aria-pressed="false">Ver</button>
+        </span>
+        <label class="form-label mt-2" for="owner-pw-confirm">Confirmar</label>
+        <span class="password-field">
+          <input id="owner-pw-confirm" name="confirmPassword" type="password" autocomplete="new-password" class="form-control" required minlength="12" />
+          <button type="button" class="password-toggle" data-toggle-password="owner-pw-confirm" aria-label="Mostrar contraseña" aria-pressed="false">Ver</button>
+        </span>
+        <p class="field-error" id="owner-password-error" hidden></p>
+        <p class="owner-meta mt-2 mb-0" id="owner-password-ok" hidden></p>
+      </div>
+      <footer class="app-sheet__foot">
+        <button type="button" class="btn btn-outline-owner" data-close-modal="password">Cerrar</button>
+        <button type="submit" class="btn btn-primary" id="owner-password-save">Guardar</button>
+      </footer>
+    </form>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js" defer></script>
-  <script type="module" src="/js/modules/owner-portal-app.js?v=own8b"></script>
+  <script type="module" src="/js/modules/owner-portal-app.js?v=own9"></script>
 </body>
 </html>

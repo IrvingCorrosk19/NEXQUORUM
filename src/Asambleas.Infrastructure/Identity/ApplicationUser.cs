@@ -11,4 +11,7 @@ public class ApplicationUser : IdentityUser<Guid>
     public string DisplayName { get; set; } = string.Empty;
 
     public string DemoRole { get; set; } = string.Empty;
+
+    /// <summary>Public relative URL for the profile photo (e.g. /uploads/avatars/…).</summary>
+    public string? AvatarUrl { get; set; }
 }

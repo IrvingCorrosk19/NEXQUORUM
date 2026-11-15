@@ -10,6 +10,7 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
     {
         builder.Property(x => x.DisplayName).HasMaxLength(256).IsRequired();
         builder.Property(x => x.DemoRole).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.AvatarUrl).HasMaxLength(512);
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => new { x.TenantId, x.NormalizedUserName });
     }

@@ -71,6 +71,7 @@ public static class DependencyInjection
         services.AddScoped<IMeetingProvider, LiveKitMeetingProvider>();
         services.AddScoped<IParticipantMicrophoneGate, LiveKitParticipantMicrophoneGate>();
         services.AddSingleton<IAssemblyRecordingStorage, LocalFileAssemblyRecordingStorage>();
+        services.AddSingleton<IUserAvatarStorage, LocalFileUserAvatarStorage>();
         services.AddHttpClient("livekit-egress");
         services.AddHttpClient("livekit-room", client => client.Timeout = TimeSpan.FromSeconds(8));
         services.AddScoped<IMeetingRecordingProvider, LiveKitMeetingRecordingProvider>();

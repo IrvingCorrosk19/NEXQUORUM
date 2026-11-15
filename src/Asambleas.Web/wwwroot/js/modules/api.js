@@ -39,7 +39,8 @@ export async function api(path, options = {}) {
     headers.set("Accept", "application/json");
   }
 
-  if (options.body && !headers.has("Content-Type")) {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (options.body && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -65,8 +66,9 @@ export async function api(path, options = {}) {
       headers,
       credentials: "same-origin",
       signal,
-      body:
-        options.body && typeof options.body !== "string"
+      body: isFormData
+        ? options.body
+        : options.body && typeof options.body !== "string"
           ? JSON.stringify(options.body)
           : options.body
     });
@@ -76,9 +78,10 @@ export async function api(path, options = {}) {
     }
 
     const contentType = response.headers.get("content-type") || "";
-    const payload = contentType.includes("application/json")
-      ? await response.json()
-      : await response.text();
+    const payload =
+      contentType.includes("application/json") || contentType.includes("application/problem+json")
+        ? await response.json()
+        : await response.text();
 
     if (!response.ok) {
       let detail =
