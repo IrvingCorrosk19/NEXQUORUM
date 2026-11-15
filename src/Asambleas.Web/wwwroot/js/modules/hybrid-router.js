@@ -4,6 +4,7 @@
  * Room (assembly): controlled hard enter; outbound soft after dispose when possible.
  */
 import { invalidateShellSessionCache } from "./session-shell-cache.js";
+import { startTopProgress, stopTopProgress } from "./loading.js";
 
 const SHELL_ID_KEY = "__ASAM_SHELL_ID__";
 const HYBRID_FLAG = "__ASAM_HYBRID__";
@@ -28,7 +29,7 @@ const MODULE_LOADERS = {
 
 const PAGE_STYLES = {
   "dashboard.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
-  "ph.html": ["/css/ph.css?v=units-hub3", "/css/ia.css?v=phsw2", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia4", "/css/ph-roster-import.css?v=pri1", "/css/feedback.css?v=fb1"],
+  "ph.html": ["/css/ph.css?v=units-hub3", "/css/ia.css?v=phsw3", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia5", "/css/ph-roster-import.css?v=pri1", "/css/feedback.css?v=fb1"],
   "agenda.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
   "checkin.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
   "voting-studio.html": ["/css/voting-studio.css?v=vs1", "/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
@@ -178,6 +179,22 @@ async function mountPage(page, url) {
   }
 }
 
+function beginSoftNavChrome() {
+  document.body.classList.add("is-navigating", "is-soft-navigating");
+  const main = document.querySelector("#main") || document.querySelector("main.app-workspace");
+  main?.setAttribute("aria-busy", "true");
+  main?.classList.add("ia-region-busy");
+  startTopProgress();
+}
+
+function endSoftNavChrome() {
+  document.body.classList.remove("is-navigating", "is-soft-navigating");
+  const main = document.querySelector("#main") || document.querySelector("main.app-workspace");
+  main?.removeAttribute("aria-busy");
+  main?.classList.remove("ia-region-busy");
+  stopTopProgress();
+}
+
 /**
  * Soft-navigate within the admin/owner cluster.
  */
@@ -191,15 +208,21 @@ export async function softNavigate(href, { replace = false, scroll = true } = {}
 
   const page = pageName(abs.pathname);
   navigating = true;
+  beginSoftNavChrome();
   const t0 = performance.now();
   try {
     const left = await disposeCurrent();
     if (left === false) {
-      navigating = false;
       return false;
     }
 
-    const fetched = await fetchMainHtml(abs.pathname + abs.search + abs.hash);
+    // Fetch HTML and module in parallel when switching pages to cut wall time.
+    const fetchPromise = fetchMainHtml(abs.pathname + abs.search + abs.hash);
+    const preloadPromise =
+      page !== currentPage && MODULE_LOADERS[page] ? MODULE_LOADERS[page]().catch(() => null) : Promise.resolve(null);
+
+    const fetched = await fetchPromise;
+    await preloadPromise;
     const main = document.querySelector("#main") || document.querySelector("main.app-workspace");
     if (!main) {
       location.assign(abs.pathname + abs.search + abs.hash);
@@ -223,6 +246,7 @@ export async function softNavigate(href, { replace = false, scroll = true } = {}
     location.assign(abs.pathname + abs.search + abs.hash);
     return false;
   } finally {
+    endSoftNavChrome();
     navigating = false;
   }
 }

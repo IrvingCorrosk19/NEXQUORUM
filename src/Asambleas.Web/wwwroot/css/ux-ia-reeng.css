@@ -10,10 +10,17 @@
   font-weight: 600;
 }
 
+/* Ops: keep module tabs visible for in-page Panel → Asambleas / Unidades / etc.
+   Only the onboarding wizard chrome stays hidden outside onboarding. */
 #view-detail[data-ph-mode="ops"] .wizard-steps,
-#view-detail[data-ph-mode="ops"] .ph-onboarding-progress,
-#view-detail[data-ph-mode="ops"] .ph-module-tabs {
+#view-detail[data-ph-mode="ops"] .ph-onboarding-progress {
   display: none !important;
+}
+
+#view-detail[data-ph-mode="ops"] .ph-module-tabs {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 #view-detail[data-ph-mode="onboarding"] .ph-module-tabs {

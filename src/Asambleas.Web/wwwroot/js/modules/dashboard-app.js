@@ -109,6 +109,17 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
   );
   renderQuickLinks(qs("#secondary-links"), user, assemblyId, assembly);
 
+  const hero = qs(".page-hero.page-hero--compact");
+  if (hero) {
+    let phLine = hero.querySelector(".dashboard-hero-ph");
+    if (!phLine) {
+      phLine = document.createElement("p");
+      phLine.className = "dashboard-hero-ph command-eyebrow";
+      hero.insertBefore(phLine, hero.firstChild);
+    }
+    phLine.innerHTML = `PH activo · <a href="/ph.html?phId=${encodeURIComponent(phId || "")}#assemblies">${escapeHtml(phName)}</a>`;
+  }
+
   qs("#assembly-name").textContent = title;
   const badge = qs("#assembly-status-badge");
   badge.hidden = false;
@@ -118,7 +129,8 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
 
   qs("#assembly-meta").innerHTML = `
     <span>${escapeHtml(formatDateTime(assembly.scheduledAtUtc))}</span>
-    <span>${escapeHtml(assembly.modality || "—")}</span>`;
+    <span>${escapeHtml(assembly.modality || "—")}</span>
+    <span>Estado: ${escapeHtml(statusLabelEs(assembly.status || ""))}</span>`;
 
   const c = counts || assembly.counts || {};
   const prepDone = readiness?.completedChecks ?? 0;

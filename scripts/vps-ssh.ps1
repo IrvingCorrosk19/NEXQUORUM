@@ -3,6 +3,7 @@
 #
 #   ASAMBLEAS_VPS_HOST       default root@164.68.99.83
 #   ASAMBLEAS_VPS_PASSWORD   required
+#   ASAMBLEAS_VPS_PORT       default 2222 (Contabo SSH; 22 often closed)
 #   ASAMBLEAS_VPS_HOSTKEY    default ssh-ed25519 SHA256:fXnxiWr5sqazM3xRId7HtcseAZ0XHcJ2BBIuPsLt2J0
 #
 # Usage:
@@ -32,6 +33,7 @@ function Get-AsambleasVpsConfig {
     $pscp = if ($env:ASAMBLEAS_PSCP) { $env:ASAMBLEAS_PSCP } else { "C:\Program Files\PuTTY\pscp.exe" }
     $hostName = if ($env:ASAMBLEAS_VPS_HOST) { $env:ASAMBLEAS_VPS_HOST } else { "root@164.68.99.83" }
     $password = $env:ASAMBLEAS_VPS_PASSWORD
+    $port = if ($env:ASAMBLEAS_VPS_PORT) { [int]$env:ASAMBLEAS_VPS_PORT } else { 2222 }
     $hostkey = if ($env:ASAMBLEAS_VPS_HOSTKEY) {
         $env:ASAMBLEAS_VPS_HOSTKEY
     } else {
@@ -47,6 +49,7 @@ function Get-AsambleasVpsConfig {
         Pscp     = $pscp
         HostName = $hostName
         Password = $password
+        Port     = $port
         HostKey  = $hostkey
         AppRoot  = "/opt/apps/asambleas"
         PublicUrl = "https://asambleas.164.68.99.83.nip.io"
@@ -59,7 +62,7 @@ function Invoke-AsambleasVps {
         [string]$Command
     )
     $c = Get-AsambleasVpsConfig
-    & $c.Plink -ssh -pw $c.Password -batch -hostkey $c.HostKey $c.HostName $Command
+    & $c.Plink -ssh -P $c.Port -pw $c.Password -batch -hostkey $c.HostKey $c.HostName $Command
     if ($LASTEXITCODE -ne 0) { throw "Remote command failed (exit $LASTEXITCODE)" }
 }
 
@@ -69,7 +72,7 @@ function Copy-AsambleasVps {
         [Parameter(Mandatory = $true)][string]$RemotePath
     )
     $c = Get-AsambleasVpsConfig
-    & $c.Pscp -pw $c.Password -batch -hostkey $c.HostKey $LocalPath "$($c.HostName):$RemotePath"
+    & $c.Pscp -P $c.Port -pw $c.Password -batch -hostkey $c.HostKey $LocalPath "$($c.HostName):$RemotePath"
     if ($LASTEXITCODE -ne 0) { throw "pscp upload failed (exit $LASTEXITCODE)" }
 }
 

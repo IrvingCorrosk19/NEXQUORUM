@@ -1103,10 +1103,101 @@ body.is-fullscreen-ops .app-top {
   font-size: 0.85rem;
 }
 
-body.is-ph-switching main.app-workspace {
-  opacity: 0.72;
+body.is-ph-switching main.app-workspace,
+body.is-soft-navigating main.app-workspace,
+body.is-navigating main.app-workspace {
+  opacity: 0.78;
   pointer-events: none;
   transition: opacity 160ms ease;
+}
+
+main.app-workspace.ia-region-busy {
+  position: relative;
+}
+
+main.app-workspace.ia-region-busy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-base, #0f172a) 8%, transparent),
+    transparent 40%
+  );
+  z-index: 2;
+}
+
+.ia-inline-error {
+  border: 1px solid color-mix(in srgb, var(--danger, #ef4444) 35%, transparent);
+  border-radius: 0.75rem;
+  padding: 1rem 1.1rem;
+  background: color-mix(in srgb, var(--danger, #ef4444) 8%, transparent);
+}
+
+.page-hero .command-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brand-teal-300, #5eead4);
+}
+
+.page-hero .ph-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.page-hero #ph-title,
+.page-hero #assembly-name {
+  font-size: clamp(1.35rem, 2.2vw, 1.85rem);
+  line-height: 1.2;
+  margin: 0;
+}
+
+.page-hero .meta-row {
+  margin-top: 0.45rem;
+  gap: 0.5rem;
+}
+
+.ph-module-tabs {
+  margin: 1rem 0 0.85rem;
+}
+
+.ph-module-tabs button {
+  min-height: 2.5rem;
+}
+
+.ia-asm-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ia-asm-card {
+  outline: none;
+}
+
+.ia-asm-card:focus-within {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-teal-400, #2dd4bf) 55%, transparent);
+}
+
+#global-ph-switcher .ph-switcher-sub {
+  font-weight: 600;
+  color: var(--brand-teal-200, #99f6e4);
+}
+
+.dashboard-hero-ph {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--brand-teal-300, #5eead4);
 }
 
 @media (max-width: 720px) {

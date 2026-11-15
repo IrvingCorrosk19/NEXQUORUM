@@ -49,7 +49,7 @@ document.querySelectorAll("[data-toggle-password]").forEach((btn) => {
 
 const loginParams = new URLSearchParams(location.search);
 if (loginParams.get("activated") === "1") {
-  AppFeedback.success("Tu cuenta quedó activa. Puedes entrar con Google, Microsoft o un código por correo.", {
+  AppFeedback.success("Tu cuenta quedó activa. Puedes entrar con un código por correo o el acceso de mesa.", {
     title: "Cuenta activada"
   });
 }
@@ -187,6 +187,23 @@ function startOAuth(provider) {
   location.assign(url);
 }
 
+function updateLoginLede(providers) {
+  const lede = document.querySelector("#login-main-msg");
+  if (!lede) return;
+  const parts = [];
+  if (providers?.google) parts.push("Google");
+  if (providers?.microsoft) parts.push("Microsoft");
+  if (parts.length === 2) {
+    lede.textContent =
+      "Ingresa con Google, Microsoft o recibe un código en tu correo. No necesitas crear una contraseña.";
+  } else if (parts.length === 1) {
+    lede.textContent = `Ingresa con ${parts[0]} o recibe un código en tu correo. También puedes usar el acceso de mesa y administración.`;
+  } else {
+    lede.textContent =
+      "Recibe un código en tu correo para entrar. El acceso con contraseña queda reservado a mesa y administración.";
+  }
+}
+
 async function revealConfiguredProviders() {
   const box = document.querySelector("#oauth-providers");
   if (!box || forgotForm?.hidden === false) return;
@@ -204,9 +221,11 @@ async function revealConfiguredProviders() {
       any = any || !!cfg?.microsoft;
     }
     box.hidden = !any;
+    updateLoginLede(cfg || {});
     // Keep divider visible when at least one provider exists (HTML already has divider).
   } catch {
     box.hidden = true;
+    updateLoginLede({});
   }
 }
 
@@ -224,7 +243,9 @@ function suggestFromEmail(email) {
 function updateSuggest() {
   if (!otpSuggest) return;
   const s = suggestFromEmail(otpEmail?.value || "");
-  if (!s) {
+  const googleVisible = document.querySelector("#btn-oauth-google") && !document.querySelector("#btn-oauth-google").hidden;
+  const msVisible = document.querySelector("#btn-oauth-microsoft") && !document.querySelector("#btn-oauth-microsoft").hidden;
+  if (!s || (s === "Google" && !googleVisible) || (s === "Microsoft" && !msVisible)) {
     otpSuggest.hidden = true;
     otpSuggest.textContent = "";
     return;

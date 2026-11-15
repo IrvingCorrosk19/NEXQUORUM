@@ -179,6 +179,8 @@ function isOnboardingMode(ph) {
   if (ph.status === "Active" || ph.status === "ReadyForAssembly" || ph.status === "Inactive") {
     return false;
   }
+  // Missing counts must NOT collapse into "empty" — that hid module tabs after create/import races.
+  if (ph.unitCount == null && ph.ownerCount == null) return false;
   const units = Number(ph.unitCount ?? 0);
   const owners = Number(ph.ownerCount ?? 0);
   return ph.status === "Draft" && units === 0 && owners === 0;
@@ -192,12 +194,14 @@ function applyPhMode(ph) {
 
   const wizard = $("#wizard-steps");
   const progress = $("#onboarding-progress");
+  const moduleTabs = $("#ph-module-tabs");
   if (wizard) wizard.hidden = !onboarding;
   if (progress) {
     progress.hidden = !onboarding;
     const step = Math.min(Math.max(Number(ph.onboardingStep) || 1, 1), STEP_LABELS.length);
     progress.textContent = `Paso ${step} de ${STEP_LABELS.length}`;
   }
+  if (moduleTabs) moduleTabs.hidden = onboarding;
 
   const inactive = ph.status === "Inactive";
   const showActivate = !inactive && ph.status !== "Active";
@@ -676,6 +680,8 @@ async function openPh(id, preferredTab = null) {
   } catch { /* ignore */ }
 
   $("#ph-title").textContent = ph.name;
+  const eyebrow = document.querySelector("#ph-hero .command-eyebrow");
+  if (eyebrow) eyebrow.textContent = `PH activo · ${ph.name}`;
   const statusBadge = escapeHtml(phLifecycleLabel(ph.status));
   const prepHint =
     ph.status === "ReadyForAssembly"
@@ -811,7 +817,8 @@ async function openPh(id, preferredTab = null) {
   // Lazy-load only the active tab (switchTab). Avoids 5 parallel GETs on every PH open.
   switchTab(allowed.has(initialTab) ? initialTab : isOnboardingMode(ph) ? "info" : "resumen");
   setupPhFormBinder();
-  await refreshPhDeleteAvailability();
+  // Defer delete-eval so tab content paints before the secondary risk check.
+  void refreshPhDeleteAvailability();
   // Enrich next-assembly CTA when calendar rows are already warm (assemblies tab).
   const nextBtn = $("#btn-view-next-assembly");
   const upcoming = phAssemblies.find((e) => assemblyListBucket(e.status) === "upcoming" || assemblyListBucket(e.status) === "live");
@@ -989,6 +996,9 @@ async function renderAttentionAndPrep(ph) {
     </ul>`;
 }
 
+let assembliesLoadInflight = null;
+let assembliesLoadPh = null;
+
 async function loadAssemblies({ soft = false } = {}) {
   if (!currentPhId) {
     const host = $("#ph-assemblies-list");
@@ -996,6 +1006,8 @@ async function loadAssemblies({ soft = false } = {}) {
       host.innerHTML = `<div class="ia-empty-state"><p>Selecciona un PH para ver sus asambleas.</p></div>`;
     }
     phAssemblies = [];
+    assembliesLoadInflight = null;
+    assembliesLoadPh = null;
     return;
   }
   if (soft && isPhTabFresh("assemblies") && phAssemblies.length) {
@@ -1005,29 +1017,61 @@ async function loadAssemblies({ soft = false } = {}) {
   const host = $("#ph-assemblies-list");
   if (!host) return;
   const requestPh = String(currentPhId);
-  host.innerHTML = `<div class="skeleton" style="height:4rem" aria-busy="true">Cargando asambleas…</div>`;
-  try {
-    const from = new Date();
-    from.setMonth(from.getMonth() - 6);
-    const to = new Date();
-    to.setMonth(to.getMonth() + 12);
-    const data = await api(
-      `/api/calendar/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&propertyHorizontalId=${encodeURIComponent(requestPh)}`,
-      { dedupeKey: `ph-assemblies:${requestPh}` }
-    );
-    // Drop stale responses after a PH switch.
-    if (String(currentPhId) !== requestPh) return;
-    phAssemblies = Array.isArray(data?.events) ? data.events : Array.isArray(data) ? data : [];
-    // Defense in depth: never render another PH's rows even if API misbehaves.
-    phAssemblies = phAssemblies.filter(
-      (e) => String(e.propertyHorizontalId || "") === requestPh
-    );
-    markPhTabFresh("assemblies");
-    renderAssembliesList();
-  } catch (err) {
-    if (String(currentPhId) !== requestPh) return;
-    host.innerHTML = `<div class="empty-state">${escapeHtml(err.message || "No se pudieron cargar las asambleas.")}</div>`;
+  if (assembliesLoadInflight && assembliesLoadPh === requestPh) {
+    return assembliesLoadInflight;
   }
+  host.innerHTML = `<div class="skeleton ia-region-busy" style="height:4rem" aria-busy="true">Cargando asambleas…</div>`;
+  // Assign synchronously before any await so concurrent tab/hash callers join the same promise.
+  assembliesLoadPh = requestPh;
+  let resolveGate;
+  assembliesLoadInflight = new Promise((r) => {
+    resolveGate = r;
+  });
+  const work = (async () => {
+    try {
+      // Stabilize window to minute boundaries so concurrent tab/hash triggers share one request.
+      const from = new Date();
+      from.setMonth(from.getMonth() - 6);
+      from.setSeconds(0, 0);
+      const to = new Date();
+      to.setMonth(to.getMonth() + 12);
+      to.setSeconds(0, 0);
+      const data = await api(
+        `/api/calendar/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&propertyHorizontalId=${encodeURIComponent(requestPh)}`,
+        { dedupeKey: `ph-assemblies:${requestPh}` }
+      );
+      // Drop stale responses after a PH switch.
+      if (String(currentPhId) !== requestPh) return;
+      phAssemblies = Array.isArray(data?.events) ? data.events : Array.isArray(data) ? data : [];
+      // Defense in depth: never render another PH's rows even if API misbehaves.
+      phAssemblies = phAssemblies.filter(
+        (e) => String(e.propertyHorizontalId || "") === requestPh
+      );
+      markPhTabFresh("assemblies");
+      renderAssembliesList();
+    } catch (err) {
+      if (String(currentPhId) !== requestPh) return;
+      host.innerHTML = `
+        <div class="ia-empty-state ia-inline-error" role="alert">
+          <p>${escapeHtml(err.message || "No se pudieron cargar las asambleas.")}</p>
+          <p class="muted">Comprueba tu conexión e inténtalo de nuevo. El listado pertenece al PH activo.</p>
+          <button type="button" class="btn btn-secondary" data-retry-assemblies>Reintentar</button>
+        </div>`;
+      host.querySelector("[data-retry-assemblies]")?.addEventListener("click", () => {
+        assembliesLoadInflight = null;
+        assembliesLoadPh = null;
+        loadAssemblies({ soft: false });
+      });
+    } finally {
+      if (assembliesLoadPh === requestPh) {
+        assembliesLoadInflight = null;
+        assembliesLoadPh = null;
+      }
+    }
+  })();
+  resolveGate(work);
+  assembliesLoadInflight = work;
+  return work;
 }
 
 function renderAssembliesList() {
