@@ -188,27 +188,32 @@ export function buildAssemblyBreadcrumbs(ctx) {
   return crumbs;
 }
 
+function ownerPortalHref(hash) {
+  const onOwner = /\/owner\.html$/i.test(location.pathname || "");
+  return onOwner ? hash : `/owner.html${hash}`;
+}
+
 function buildOwnerNav(ctx) {
   const current = ctx.current || "";
   const homeCurrent =
     current === "owner-home" || current === "asm-room" || current === "asm-overview";
   return section("Mi portal", [
-    link("/owner.html#home", "Inicio", {
+    link(ownerPortalHref("#home"), "Inicio", {
       current: homeCurrent,
       icon: "home",
       key: "owner-home"
     }),
-    link("/owner.html#units", "Mis unidades", {
+    link(ownerPortalHref("#units"), "Mis unidades", {
       current: current === "owner-units",
       icon: "layoutGrid",
       key: "owner-units"
     }),
-    link("/owner.html#assemblies", "Mis asambleas", {
+    link(ownerPortalHref("#assemblies"), "Mis asambleas", {
       current: current === "owner-assemblies",
       icon: "calendar",
       key: "owner-assemblies"
     }),
-    link("/owner.html#account", "Mi perfil", {
+    link(ownerPortalHref("#account"), "Mi perfil", {
       current: current === "owner-account",
       icon: "user",
       key: "owner-account"

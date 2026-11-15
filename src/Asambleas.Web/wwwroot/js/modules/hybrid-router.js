@@ -288,9 +288,21 @@ function onDocumentClick(ev) {
   const targetPage = pageName(url.pathname);
   const here = pageName(location.pathname);
 
-  // Same path+query, hash-only change (PH tabs): keep native hash routing.
-  if (targetPage === here && url.pathname === location.pathname && url.search === location.search) {
-    return;
+  // Same path, hash-only intent: stay in-page and preserve the current search.
+  // Links like /owner.html#assemblies must not soft-remount when the live URL
+  // still has a cache-busting query (?v=…); that remount was closing a modal
+  // opened on the first Ver detalle click after Mis asambleas.
+  if (targetPage === here && url.pathname === location.pathname) {
+    if (!url.search || url.search === location.search) {
+      const nextHash = url.hash || "";
+      if (nextHash !== location.hash) {
+        ev.preventDefault();
+        const next = `${location.pathname}${location.search}${nextHash}`;
+        history.pushState({ hybrid: true, page: here }, document.title, next);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      }
+      return;
+    }
   }
 
   // ph.html → ph.html (add/change phId or hash): stay in-page, do not soft-remount.
@@ -345,9 +357,13 @@ function onPopState() {
     location.reload();
     return;
   }
-  // Keep ph.html history transitions in-page (same reason as click handler above).
-  if (page === "ph.html" && currentPage === "ph.html" && typeof window.__asambleasHandlePhUrl === "function") {
-    Promise.resolve(window.__asambleasHandlePhUrl(new URL(location.href))).catch(() => location.reload());
+  // Same soft page already mounted: never soft-remount on hash/history tweaks.
+  // Remounting owner.html here closed a modal opened on the first Ver detalle click
+  // after Inicio → Mis asambleas (popstate from fragment navigation or hash pushState).
+  if (page === currentPage) {
+    if (page === "ph.html" && typeof window.__asambleasHandlePhUrl === "function") {
+      Promise.resolve(window.__asambleasHandlePhUrl(new URL(location.href))).catch(() => location.reload());
+    }
     return;
   }
   softNavigate(location.pathname + location.search + location.hash, { replace: true }).catch(() => location.reload());

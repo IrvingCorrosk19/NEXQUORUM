@@ -3,10 +3,10 @@ import { hasPermission, logout, me } from "./auth.js";
 import { isOperator, isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { mountIaShell } from "./ia-nav.js?v=own6";
+import { mountIaShell } from "./ia-nav.js?v=own8b";
 import { utcIsoToPhLocalParts } from "./schedule-time.js";
-import { startHybridShell } from "./hybrid-router.js";
-import { iconSvg } from "./tabler-icons.js?v=own6";
+import { startHybridShell } from "./hybrid-router.js?v=own8b";
+import { iconSvg } from "./tabler-icons.js?v=own8b";
 import {
   bindSheetViewport,
   lockPageScroll,
@@ -40,6 +40,9 @@ const state = {
 const modalUi = {
   opener: null,
   openerHref: null,
+  openerUnitCode: null,
+  openerAssemblyId: null,
+  openerKind: null,
   scrollY: 0,
   returnView: "units",
   untrap: null,
@@ -48,7 +51,8 @@ const modalUi = {
   unitToken: 0,
   assemblyToken: 0,
   suppressHashApply: false,
-  routeLockUntil: 0
+  routeLockUntil: 0,
+  chromeAbort: null
 };
 
 function routesEqual(a, b) {
@@ -228,7 +232,9 @@ function canShowConvocation(ev) {
 }
 
 function primaryHomeCta(ev) {
-  if (isLive(ev)) {
+  const status = String(ev?.status || "");
+  // Home CTA: Entrar only for live desk/session; Scheduled keeps convocatoria even inside join window.
+  if (["InProgress", "Paused", "CheckIn"].includes(status)) {
     return {
       kind: "join",
       href: `/assembly.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`,
@@ -469,7 +475,7 @@ function renderHome() {
     return;
   }
 
-  const next = state.next || upcomingEvents()[0] || null;
+  const next = resolveHomeNext();
   nextBody.innerHTML = renderNextFeature(next);
   nextCard?.classList.toggle("owner-card--empty-next", !next);
   homeCols?.classList.toggle("has-next-attention", Boolean(next && isUpcoming(next)));
@@ -631,10 +637,20 @@ function renderChromeContext() {
   }
 }
 
+function resolveHomeNext() {
+  const raw = state.next || upcomingEvents()[0] || null;
+  const st = String(raw?.status || "");
+  if (!raw || ["Completed", "Cancelled", "Draft"].includes(st)) return null;
+  return raw;
+}
+
 function nextAttentionCopy() {
-  const next = state.next || upcomingEvents()[0] || null;
+  const next = resolveHomeNext();
   if (!next) return "Consulta tus unidades y el historial de asambleas.";
-  if (isLive(next)) return "Tienes una asamblea que requiere tu atención ahora.";
+  const status = String(next.status || "");
+  if (["InProgress", "Paused", "CheckIn"].includes(status)) {
+    return "Tienes una asamblea que requiere tu atención ahora.";
+  }
   return "Tienes una asamblea programada. Revisa fecha y convocatoria.";
 }
 
@@ -696,34 +712,86 @@ function closeDialog(dlg) {
 function rememberOpenContext(openerEl, returnView) {
   modalUi.opener = openerEl || rememberOpener();
   modalUi.openerHref = openerEl?.getAttribute?.("href") || null;
-  modalUi.scrollY = window.scrollY || window.pageYOffset || 0;
+  modalUi.openerUnitCode = openerEl?.getAttribute?.("data-unit-code") || null;
+  modalUi.openerAssemblyId = openerEl?.getAttribute?.("data-assembly-id") || null;
+  modalUi.openerKind = openerEl?.getAttribute?.("data-owner-open") || null;
+  const root = document.documentElement;
+  if (root.dataset.scrollLock === "1") {
+    modalUi.scrollY = Number(root.dataset.scrollY || 0);
+  } else {
+    modalUi.scrollY = window.scrollY || window.pageYOffset || 0;
+  }
   if (returnView) modalUi.returnView = returnView;
   else if (!state.route.modal) modalUi.returnView = state.route.view || "units";
 }
 
-function restoreFocusAfterClose() {
-  window.scrollTo(0, modalUi.scrollY || 0);
+function findOpenerControl() {
+  const view = modalUi.returnView || visibleBaseView();
+  const viewRoot = qs(`#${(VIEWS[view] || VIEWS.home).id}`);
   let target = modalUi.opener;
-  if (!target || !document.contains(target)) {
-    if (modalUi.openerHref) {
-      const href = modalUi.openerHref;
-      const viewRoot = qs(`#${(VIEWS[visibleBaseView()] || VIEWS.home).id}`);
-      target =
-        [...(viewRoot?.querySelectorAll("a[href]") || [])].find((a) => a.getAttribute("href") === href) ||
-        [...document.querySelectorAll("a[data-owner-open][href]")].find((a) => a.getAttribute("href") === href) ||
-        null;
+  if (target && document.contains(target)) return target;
+
+  if (modalUi.openerUnitCode && viewRoot) {
+    const code = modalUi.openerUnitCode;
+    target = viewRoot.querySelector(
+      `[data-owner-open="unit"][data-unit-code="${CSS.escape(code)}"]`
+    );
+    if (target) return target;
+  }
+
+  if (modalUi.openerAssemblyId && viewRoot) {
+    const id = modalUi.openerAssemblyId;
+    const kind = modalUi.openerKind === "convocation" ? "convocation" : "assembly";
+    target = viewRoot.querySelector(
+      `[data-owner-open="${kind}"][data-assembly-id="${CSS.escape(id)}"]`
+    );
+    if (target) return target;
+  }
+
+  if (modalUi.openerHref) {
+    const href = modalUi.openerHref;
+    target =
+      [...(viewRoot?.querySelectorAll("a[data-owner-open][href]") || [])].find(
+        (a) => a.getAttribute("href") === href
+      ) ||
+      [...document.querySelectorAll("a[data-owner-open][href]")].find(
+        (a) => a.getAttribute("href") === href
+      ) ||
+      null;
+    if (target) return target;
+  }
+
+  return qs(`#${(VIEWS[view] || VIEWS.home).id} h1`);
+}
+
+function restoreFocusAfterClose() {
+  if (modalUi._restoreFocusTimer) {
+    clearTimeout(modalUi._restoreFocusTimer);
+    modalUi._restoreFocusTimer = null;
+  }
+  const y = modalUi.scrollY || 0;
+  const apply = () => {
+    const target = findOpenerControl();
+    if (target && target.tagName === "H1" && !target.hasAttribute("tabindex")) {
+      target.setAttribute("tabindex", "-1");
     }
-  }
-  if (!target || !document.contains(target)) {
-    const view = visibleBaseView();
-    target = qs(`#${(VIEWS[view] || VIEWS.home).id} h1`);
-  }
-  if (target && !target.hasAttribute("tabindex") && target.tagName === "H1") {
-    target.setAttribute("tabindex", "-1");
-  }
-  restoreOpener(target);
-  modalUi.opener = null;
-  modalUi.openerHref = null;
+    restoreOpener(target);
+    window.scrollTo({ top: y, left: 0, behavior: "instant" in document.documentElement ? "instant" : "auto" });
+  };
+  apply();
+  // Dialog close + scroll unlock settle across frames; keep opener ids until done.
+  requestAnimationFrame(() => {
+    apply();
+    modalUi._restoreFocusTimer = setTimeout(() => {
+      apply();
+      modalUi.opener = null;
+      modalUi.openerHref = null;
+      modalUi.openerUnitCode = null;
+      modalUi.openerAssemblyId = null;
+      modalUi.openerKind = null;
+      modalUi._restoreFocusTimer = null;
+    }, 50);
+  });
 }
 
 function unitDetailHtml(unit) {
@@ -935,7 +1003,7 @@ function closeOwnerModal(kind) {
     { view: fallbackView, unitCode: null, assemblyId: null, modal: null },
     { replace: false, lockMs: 0 }
   );
-  requestAnimationFrame(() => restoreFocusAfterClose());
+  // Focus restore runs from the dialog `close` listener to avoid a double clear.
 }
 
 function applyRoute({ fromHash = true, seed = null } = {}) {
@@ -978,6 +1046,9 @@ function openOwnerTarget(el) {
   } else {
     modalUi.opener = el;
     modalUi.openerHref = el.getAttribute("href");
+    modalUi.openerUnitCode = el.getAttribute("data-unit-code");
+    modalUi.openerAssemblyId = el.getAttribute("data-assembly-id");
+    modalUi.openerKind = el.getAttribute("data-owner-open");
   }
 
   const replacingModal = Boolean(state.route.modal);
@@ -1069,19 +1140,32 @@ function wireBottomNavIcons() {
 }
 
 function wireChrome() {
-  qs("#btn-logout")?.addEventListener("click", async (e) => {
-    e.preventDefault();
-    await logout();
-    location.href = "/";
-  });
+  modalUi.chromeAbort?.abort();
+  const ac = new AbortController();
+  modalUi.chromeAbort = ac;
+  const { signal } = ac;
 
-  qs("#btn-nav-toggle")?.addEventListener("click", () => {
-    const menu = qs("#sidebar-menu");
-    const btn = qs("#btn-nav-toggle");
-    if (!menu || !btn) return;
-    const open = menu.classList.toggle("show");
-    btn.setAttribute("aria-expanded", open ? "true" : "false");
-  });
+  qs("#btn-logout")?.addEventListener(
+    "click",
+    async (e) => {
+      e.preventDefault();
+      await logout();
+      location.href = "/";
+    },
+    { signal }
+  );
+
+  qs("#btn-nav-toggle")?.addEventListener(
+    "click",
+    () => {
+      const menu = qs("#sidebar-menu");
+      const btn = qs("#btn-nav-toggle");
+      if (!menu || !btn) return;
+      const open = menu.classList.toggle("show");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    },
+    { signal }
+  );
 
   const onLocationRoute = () => {
     const next = parseHash();
@@ -1106,46 +1190,58 @@ function wireChrome() {
 
     applyRoute({ fromHash: true });
   };
-  window.addEventListener("hashchange", onLocationRoute);
-  window.addEventListener("popstate", onLocationRoute);
+  window.addEventListener("hashchange", onLocationRoute, { signal });
+  window.addEventListener("popstate", onLocationRoute, { signal });
 
-  document.addEventListener("click", (e) => {
-    const retryAsm = e.target.closest?.("[data-retry-assembly]");
-    if (retryAsm) {
+  document.addEventListener(
+    "click",
+    (e) => {
+      const retryAsm = e.target.closest?.("[data-retry-assembly]");
+      if (retryAsm) {
+        e.preventDefault();
+        void syncAssemblyModal();
+        return;
+      }
+
+      const closeBtn = e.target.closest?.("[data-close-modal]");
+      if (closeBtn) {
+        e.preventDefault();
+        closeOwnerModal(closeBtn.getAttribute("data-close-modal"));
+        return;
+      }
+
+      const retry = e.target.closest?.("[data-retry]");
+      if (retry) {
+        e.preventDefault();
+        loadPortalData();
+        return;
+      }
+
+      const open = e.target.closest?.("[data-owner-open]");
+      if (open) {
+        e.preventDefault();
+        openOwnerTarget(open);
+      }
+    },
+    { signal }
+  );
+
+  qs("#owner-unit-close")?.addEventListener(
+    "click",
+    (e) => {
       e.preventDefault();
-      void syncAssemblyModal();
-      return;
-    }
-
-    const closeBtn = e.target.closest?.("[data-close-modal]");
-    if (closeBtn) {
+      closeOwnerModal("unit");
+    },
+    { signal }
+  );
+  qs("#owner-asm-close")?.addEventListener(
+    "click",
+    (e) => {
       e.preventDefault();
-      closeOwnerModal(closeBtn.getAttribute("data-close-modal"));
-      return;
-    }
-
-    const retry = e.target.closest?.("[data-retry]");
-    if (retry) {
-      e.preventDefault();
-      loadPortalData();
-      return;
-    }
-
-    const open = e.target.closest?.("[data-owner-open]");
-    if (open) {
-      e.preventDefault();
-      openOwnerTarget(open);
-    }
-  });
-
-  qs("#owner-unit-close")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    closeOwnerModal("unit");
-  });
-  qs("#owner-asm-close")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    closeOwnerModal("assembly");
-  });
+      closeOwnerModal("assembly");
+    },
+    { signal }
+  );
 
   const onDialogClose = (kind) => {
     cleanupModalTrap();
@@ -1172,28 +1268,40 @@ function wireChrome() {
   };
 
   document.querySelectorAll("#owner-bottom-nav a[href^='#']").forEach((a) => {
-    a.addEventListener("click", (e) => {
-      e.preventDefault();
-      const view = (a.getAttribute("href") || "#home").replace(/^#/, "") || "home";
-      if (!VIEWS[view]) return;
-      setHash(
-        { view, unitCode: null, assemblyId: null, modal: null },
-        { replace: false, lockMs: 0 }
-      );
-    });
+    a.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        const view = (a.getAttribute("href") || "#home").replace(/^#/, "") || "home";
+        if (!VIEWS[view]) return;
+        setHash(
+          { view, unitCode: null, assemblyId: null, modal: null },
+          { replace: false, lockMs: 0 }
+        );
+      },
+      { signal }
+    );
   });
 
-  qs("#dlg-owner-unit")?.addEventListener("close", () => onDialogClose("unit"));
-  qs("#dlg-owner-assembly")?.addEventListener("close", () => onDialogClose("assembly"));
+  qs("#dlg-owner-unit")?.addEventListener("close", () => onDialogClose("unit"), { signal });
+  qs("#dlg-owner-assembly")?.addEventListener("close", () => onDialogClose("assembly"), { signal });
 
-  qs("#dlg-owner-unit")?.addEventListener("cancel", (ev) => {
-    ev.preventDefault();
-    closeOwnerModal("unit");
-  });
-  qs("#dlg-owner-assembly")?.addEventListener("cancel", (ev) => {
-    ev.preventDefault();
-    closeOwnerModal("assembly");
-  });
+  qs("#dlg-owner-unit")?.addEventListener(
+    "cancel",
+    (ev) => {
+      ev.preventDefault();
+      closeOwnerModal("unit");
+    },
+    { signal }
+  );
+  qs("#dlg-owner-assembly")?.addEventListener(
+    "cancel",
+    (ev) => {
+      ev.preventDefault();
+      closeOwnerModal("assembly");
+    },
+    { signal }
+  );
 }
 
 function initials(name) {
@@ -1276,6 +1384,9 @@ export async function mount(ctx = {}) {
 
 export async function unmount() {
   cleanupModalTrap();
+  modalUi.chromeAbort?.abort();
+  modalUi.chromeAbort = null;
+  lockPageScroll(false);
 }
 
 export async function canLeave() {
