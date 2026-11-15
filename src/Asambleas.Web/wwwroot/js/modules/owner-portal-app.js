@@ -1,6 +1,7 @@
 import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { rememberMe } from "./session-shell-cache.js";
+import { applyAvatarElement, avatarCacheBust, avatarCanonicalUrl } from "./avatar-ui.js?v=own11";
 import { isOperator, isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
@@ -552,34 +553,6 @@ function renderUnits() {
   el.innerHTML = units.map((u) => renderUnitCard(u)).join("");
 }
 
-function avatarCanonicalUrl(url) {
-  if (!url) return "";
-  return String(url).split("?")[0];
-}
-
-function avatarCacheBust(url) {
-  const clean = avatarCanonicalUrl(url);
-  if (!clean) return "";
-  return `${clean}?v=${Date.now()}`;
-}
-
-function applyAvatarElement(el, { url, label }) {
-  if (!el) return;
-  const text = initials(label || "PR");
-  const src = url ? String(url) : "";
-  if (src) {
-    el.classList.add("owner-avatar--photo");
-    el.style.backgroundImage = `url("${src.replace(/"/g, "%22")}")`;
-    el.textContent = "";
-    el.setAttribute("aria-label", label || "Foto de perfil");
-  } else {
-    el.classList.remove("owner-avatar--photo");
-    el.style.backgroundImage = "";
-    el.textContent = text;
-    el.removeAttribute("aria-label");
-  }
-}
-
 function syncAvatars() {
   const user = state.user || {};
   const name = state.profile?.displayName || user.displayName || user.email || "Propietario";
@@ -601,33 +574,44 @@ function renderProfileHero() {
   syncAvatars();
 }
 
-function securityBodyHtml() {
+function renderSecurity() {
+  const body = qs("#profile-security-body");
+  const copy = qs("#profile-security-copy");
+  const btn = qs("#btn-change-password");
+  const link = qs("#profile-security-access");
+  if (body) {
+    body.classList.remove("owner-skeleton");
+    body.removeAttribute("aria-hidden");
+  }
   const user = state.user || {};
-  // Server HasPasswordAsync is the only signal for the local-password CTA.
   const hasLocal = user.hasLocalPassword === true;
-  if (hasLocal) {
-    return `<p class="owner-meta">Tu cuenta usa contraseña local. Cámbiala aquí o usa «¿Olvidaste tu contraseña?» en la pantalla de acceso.</p>
-      <div class="owner-security-actions">
-        <button type="button" class="btn btn-primary" id="btn-change-password" data-owner-profile-action="password">Cambiar contraseña</button>
-        <a class="owner-link" href="/">Ir al acceso</a>
-      </div>`;
+  if (copy) {
+    if (hasLocal) {
+      copy.textContent =
+        "Tu cuenta usa contraseña local. Cámbiala aquí o usa «¿Olvidaste tu contraseña?» en la pantalla de acceso.";
+    } else if (user.isPasswordless === true) {
+      copy.textContent =
+        "Esta cuenta inicia sesión sin contraseña local (acceso por correo). Para definir una contraseña, usa «¿Olvidaste tu contraseña?» en la pantalla de acceso.";
+    } else {
+      copy.textContent =
+        "No hay contraseña local en esta cuenta. Gestiona el acceso desde la pantalla de inicio de sesión.";
+    }
   }
-  if (user.isPasswordless === true) {
-    return `<p class="owner-meta">Esta cuenta inicia sesión sin contraseña local (acceso por correo). Para definir una contraseña, usa «¿Olvidaste tu contraseña?» en la pantalla de acceso.</p>
-      <div class="owner-security-actions">
-        <a class="btn btn-outline-owner" href="/">Ir al acceso</a>
-      </div>`;
+  if (btn) {
+    btn.hidden = !hasLocal;
+    btn.removeAttribute("aria-hidden");
+    btn.setAttribute("aria-haspopup", "dialog");
+    btn.setAttribute("aria-controls", "dlg-owner-password");
   }
-  return `<p class="owner-meta">No hay contraseña local en esta cuenta. Gestiona el acceso desde la pantalla de inicio de sesión.</p>
-    <div class="owner-security-actions">
-      <a class="btn btn-outline-owner" href="/">Ir al acceso</a>
-    </div>`;
+  if (link) {
+    link.className = hasLocal ? "owner-link" : "btn btn-outline-owner";
+    link.textContent = "Ir al acceso";
+  }
 }
 
 function renderAccount() {
   const personal = qs("#profile-personal");
   const properties = qs("#profile-properties");
-  const security = qs("#profile-security-body");
   if (!personal || !properties) return;
 
   renderProfileHero();
@@ -642,7 +626,7 @@ function renderAccount() {
   if (state.sections.profile === "loading" && !state.profile && !state.user) {
     personal.innerHTML = `<h3><span class="owner-card-icon" data-icon="user" aria-hidden="true"></span> Información personal</h3>${skeletonInline()}`;
     properties.innerHTML = `<h3><span class="owner-card-icon" data-icon="building" aria-hidden="true"></span> Propiedades relacionadas</h3>${skeletonInline()}`;
-    if (security) security.innerHTML = skeletonInline();
+    renderSecurity();
     return;
   }
 
@@ -651,7 +635,7 @@ function renderAccount() {
   if (!p && !user) {
     personal.innerHTML = errorHtml("No pudimos cargar tu perfil", "Intenta nuevamente.", "account");
     properties.innerHTML = "";
-    if (security) security.innerHTML = "";
+    renderSecurity();
     return;
   }
 
@@ -683,7 +667,7 @@ function renderAccount() {
         : `<p class="owner-meta">No hay propiedades asociadas.</p>`
     }`;
 
-  if (security) security.innerHTML = securityBodyHtml();
+  renderSecurity();
 
   document.querySelectorAll("#view-account .owner-card-icon[data-icon]").forEach((el) => {
     const iconName = el.getAttribute("data-icon");
@@ -1119,6 +1103,23 @@ function setFieldError(id, message) {
     el.hidden = true;
     el.textContent = "";
   }
+  const fields =
+    id === "#owner-password-error"
+      ? ["#owner-pw-current", "#owner-pw-new", "#owner-pw-confirm"]
+      : id === "#owner-photo-error"
+        ? ["#owner-photo-file"]
+        : [];
+  fields.forEach((sel) => {
+    const field = qs(sel);
+    if (!field) return;
+    if (message) {
+      field.setAttribute("aria-invalid", "true");
+      field.setAttribute("aria-describedby", id.slice(1));
+    } else {
+      field.removeAttribute("aria-invalid");
+      field.removeAttribute("aria-describedby");
+    }
+  });
 }
 
 function resetPhotoDialog() {
@@ -1139,7 +1140,7 @@ function openPhotoDialog(opener) {
   rememberOpenContext(opener || qs("#btn-change-photo"), "account");
   modalUi.openerKind = "photo";
   resetPhotoDialog();
-  const url = state.user?.avatarUrl;
+  const url = avatarCacheBust(state.user?.avatarUrl);
   const preview = qs("#owner-photo-preview");
   if (preview && url) {
     preview.classList.add("owner-avatar--photo");
@@ -1194,6 +1195,18 @@ function previewSelectedPhoto(file) {
   reader.readAsDataURL(file);
 }
 
+async function inspectImageFile(file) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const width = bitmap.width;
+    const height = bitmap.height;
+    bitmap.close?.();
+    return { width, height };
+  } catch {
+    throw new Error("El archivo no es una imagen válida.");
+  }
+}
+
 async function submitPhotoChange(e) {
   e.preventDefault();
   const input = qs("#owner-photo-file");
@@ -1208,12 +1221,28 @@ async function submitPhotoChange(e) {
     setFieldError("#owner-photo-error", "La imagen supera 2 MB.");
     return;
   }
-  const allowed = ["image/jpeg", "image/png", "image/webp"];
+  const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
   if (file.type && !allowed.includes(file.type)) {
     setFieldError("#owner-photo-error", "Formato no permitido. Usa JPG, PNG o WebP.");
     return;
   }
+  let dims;
+  try {
+    dims = await inspectImageFile(file);
+  } catch (err) {
+    setFieldError("#owner-photo-error", err?.message || "El archivo no es una imagen válida.");
+    return;
+  }
+  if (dims.width < 32 || dims.height < 32) {
+    setFieldError("#owner-photo-error", "La imagen debe medir al menos 32×32 píxeles.");
+    return;
+  }
+  if (dims.width > 8192 || dims.height > 8192) {
+    setFieldError("#owner-photo-error", "La imagen no puede superar 8192×8192 píxeles.");
+    return;
+  }
   const previousUrl = state.user?.avatarUrl || null;
+  const previousDisplay = state.user?.avatarDisplayUrl || null;
   const fd = new FormData();
   fd.append("file", file);
   if (save) save.disabled = true;
@@ -1223,20 +1252,15 @@ async function submitPhotoChange(e) {
     const nextUrl = avatarCacheBust(stored);
     if (state.user) {
       state.user = { ...state.user, avatarUrl: stored, avatarDisplayUrl: nextUrl };
-      rememberMe({ ...state.user, avatarUrl: stored });
+      rememberMe({ ...state.user, avatarUrl: stored, avatarDisplayUrl: undefined });
     }
-    applyAvatarElement(qs("#user-avatar"), {
-      url: nextUrl,
-      label: state.user?.displayName || state.user?.email || "Propietario"
-    });
-    applyAvatarElement(qs("#profile-avatar"), {
-      url: nextUrl,
-      label: state.user?.displayName || state.user?.email || "Propietario"
-    });
+    const label = state.user?.displayName || state.user?.email || "Propietario";
+    applyAvatarElement(qs("#user-avatar"), { url: nextUrl, label });
+    applyAvatarElement(qs("#profile-avatar"), { url: nextUrl, label });
     closeOwnerModal("photo");
   } catch (err) {
     if (state.user) {
-      state.user = { ...state.user, avatarUrl: previousUrl };
+      state.user = { ...state.user, avatarUrl: previousUrl, avatarDisplayUrl: previousDisplay };
       rememberMe({ ...state.user, avatarUrl: avatarCanonicalUrl(previousUrl) || null });
     }
     syncAvatars();

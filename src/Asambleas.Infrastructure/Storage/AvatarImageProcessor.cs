@@ -27,10 +27,33 @@ public static class AvatarImageProcessor
     {
         ArgumentNullException.ThrowIfNull(input);
 
+        await using var buffer = await CopyToMemoryAsync(input, cancellationToken);
+        buffer.Position = 0;
+
+        MagickImageInfo info;
+        try
+        {
+            info = new MagickImageInfo(buffer);
+        }
+        catch (MagickException)
+        {
+            throw new AvatarProcessingException("El archivo no es una imagen válida.");
+        }
+
+        if (!IsAllowedFormat(info.Format))
+        {
+            throw new AvatarProcessingException("Usa una imagen JPG, PNG o WebP.");
+        }
+
+        var pingWidth = (int)info.Width;
+        var pingHeight = (int)info.Height;
+        EnsureInputDimensions(pingWidth, pingHeight);
+
+        buffer.Position = 0;
         MagickImage image;
         try
         {
-            image = new MagickImage(input);
+            image = new MagickImage(buffer);
         }
         catch (MagickException)
         {
@@ -45,28 +68,16 @@ public static class AvatarImageProcessor
 
             var sourceWidth = (int)image.Width;
             var sourceHeight = (int)image.Height;
-            if (sourceWidth < MinInputEdge || sourceHeight < MinInputEdge)
-            {
-                throw new AvatarProcessingException(
-                    $"La imagen debe medir al menos {MinInputEdge}×{MinInputEdge} píxeles.");
-            }
+            EnsureInputDimensions(sourceWidth, sourceHeight);
 
-            if (sourceWidth > MaxInputEdge || sourceHeight > MaxInputEdge)
+            var target = (uint)Math.Min(MaxOutputEdge, Math.Min(sourceWidth, sourceHeight));
+            image.Resize(new MagickGeometry(target, target)
             {
-                throw new AvatarProcessingException(
-                    $"La imagen no puede superar {MaxInputEdge}×{MaxInputEdge} píxeles.");
-            }
-
-            var side = (uint)Math.Min(sourceWidth, sourceHeight);
-            image.Crop(side, side, Gravity.Center);
+                IgnoreAspectRatio = false,
+                FillArea = true
+            });
+            image.Crop(target, target, Gravity.Center);
             image.ResetPage();
-
-            var outputEdge = Math.Min((int)side, MaxOutputEdge);
-            if (image.Width != (uint)outputEdge || image.Height != (uint)outputEdge)
-            {
-                image.Resize((uint)outputEdge, (uint)outputEdge);
-            }
-
             image.Strip();
             image.Format = MagickFormat.WebP;
 
@@ -83,6 +94,45 @@ public static class AvatarImageProcessor
                 (int)image.Height,
                 encoded.Length);
         }
+    }
+
+    private static void EnsureInputDimensions(int width, int height)
+    {
+        if (width < MinInputEdge || height < MinInputEdge)
+        {
+            throw new AvatarProcessingException(
+                $"La imagen debe medir al menos {MinInputEdge}×{MinInputEdge} píxeles.");
+        }
+
+        if (width > MaxInputEdge || height > MaxInputEdge)
+        {
+            throw new AvatarProcessingException(
+                $"La imagen no puede superar {MaxInputEdge}×{MaxInputEdge} píxeles.");
+        }
+    }
+
+    private static bool IsAllowedFormat(MagickFormat format) =>
+        format is MagickFormat.Jpeg
+            or MagickFormat.Jpg
+            or MagickFormat.Pjpeg
+            or MagickFormat.Png
+            or MagickFormat.Png8
+            or MagickFormat.Png24
+            or MagickFormat.Png32
+            or MagickFormat.Png48
+            or MagickFormat.Png64
+            or MagickFormat.WebP;
+
+    private static async Task<MemoryStream> CopyToMemoryAsync(Stream input, CancellationToken cancellationToken)
+    {
+        var buffer = new MemoryStream();
+        if (input.CanSeek)
+        {
+            input.Position = 0;
+        }
+
+        await input.CopyToAsync(buffer, cancellationToken);
+        return buffer;
     }
 
     private static async Task<MemoryStream> EncodeWebpNearTargetAsync(MagickImage image, CancellationToken cancellationToken)

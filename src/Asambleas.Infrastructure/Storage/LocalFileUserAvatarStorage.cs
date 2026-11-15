@@ -44,7 +44,8 @@ public sealed class LocalFileUserAvatarStorage : IUserAvatarStorage
             await content.CopyToAsync(fs, cancellationToken);
         }
 
-        DeleteIfExists(previousRelativeUrl);
+        // Keep the previous file until the caller confirms the user record was updated.
+        _ = previousRelativeUrl;
         return $"{RequestPath}/{fileName}";
     }
 

@@ -1465,6 +1465,13 @@ dialog.app-sheet::backdrop,
   }
 }
 
+#user-avatar.owner-avatar--photo,
+.avatar.owner-avatar--photo {
+  background-size: cover;
+  background-position: center;
+  color: transparent;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .layout-tabler .ph-module-skeleton .skel-block,
   .layout-tabler .units-skeleton .skel-row,

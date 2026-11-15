@@ -26,12 +26,6 @@ public static class AvatarImageValidator
             return "La imagen no puede superar 2 MB.";
         }
 
-        var declared = (file.ContentType ?? string.Empty).Trim();
-        if (!AllowedContentTypes.Contains(declared))
-        {
-            return "Usa una imagen JPG, PNG o WebP.";
-        }
-
         using var stream = file.OpenReadStream();
         Span<byte> header = stackalloc byte[12];
         var read = stream.Read(header);
@@ -46,20 +40,28 @@ public static class AvatarImageValidator
             return "El archivo no es una imagen válida.";
         }
 
-        // Declared type must match payload.
-        if (detected == "image/jpeg" && declared is not ("image/jpeg" or "image/jpg"))
+        var declared = (file.ContentType ?? string.Empty).Trim();
+        if (!string.IsNullOrEmpty(declared))
         {
-            return "El contenido no coincide con el tipo declarado.";
-        }
+            if (!AllowedContentTypes.Contains(declared))
+            {
+                return "Usa una imagen JPG, PNG o WebP.";
+            }
 
-        if (detected == "image/png" && !declared.Equals("image/png", StringComparison.OrdinalIgnoreCase))
-        {
-            return "El contenido no coincide con el tipo declarado.";
-        }
+            if (detected == "image/jpeg" && declared is not ("image/jpeg" or "image/jpg"))
+            {
+                return "El contenido no coincide con el tipo declarado.";
+            }
 
-        if (detected == "image/webp" && !declared.Equals("image/webp", StringComparison.OrdinalIgnoreCase))
-        {
-            return "El contenido no coincide con el tipo declarado.";
+            if (detected == "image/png" && !declared.Equals("image/png", StringComparison.OrdinalIgnoreCase))
+            {
+                return "El contenido no coincide con el tipo declarado.";
+            }
+
+            if (detected == "image/webp" && !declared.Equals("image/webp", StringComparison.OrdinalIgnoreCase))
+            {
+                return "El contenido no coincide con el tipo declarado.";
+            }
         }
 
         normalizedContentType = detected;

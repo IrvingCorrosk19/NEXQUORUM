@@ -54,9 +54,15 @@
       var role = document.getElementById("ia-role-chip");
       if (role) role.textContent = snap.roleLabel;
     }
-    if (snap.avatar) {
-      var av = document.getElementById("user-avatar");
-      if (av) av.textContent = snap.avatar;
+    var av = document.getElementById("user-avatar");
+    if (av && snap.avatarUrl) {
+      av.classList.add("owner-avatar--photo");
+      av.style.backgroundImage = "url(\"" + String(snap.avatarUrl).replace(/"/g, "%22") + "?v=" + Date.now() + "\")";
+      av.textContent = "";
+    } else if (av && snap.avatar) {
+      av.classList.remove("owner-avatar--photo");
+      av.style.backgroundImage = "";
+      av.textContent = snap.avatar;
     }
   } catch (err) {
     /* ignore — boot will paint the confirmed shell */

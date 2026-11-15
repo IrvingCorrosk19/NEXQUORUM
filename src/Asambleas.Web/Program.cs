@@ -222,7 +222,7 @@ try
         RequestPath = Asambleas.Infrastructure.Storage.LocalFileUserAvatarStorage.RequestPath,
         OnPrepareResponse = ctx =>
         {
-            ctx.Context.Response.Headers.CacheControl = "private, max-age=3600";
+            ctx.Context.Response.Headers.CacheControl = "private, max-age=0, must-revalidate";
         }
     });
 

@@ -38,7 +38,8 @@ export function persistNavSnapshot(snap) {
         navHtml: snap.navHtml,
         displayName: snap.displayName || "",
         roleLabel: snap.roleLabel || "",
-        avatar: snap.avatar || ""
+        avatar: snap.avatar || "",
+        avatarUrl: snap.avatarUrl || ""
       })
     );
   } catch {

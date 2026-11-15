@@ -1,5 +1,6 @@
 import { api } from "./api.js";
 import { me, hasPermission } from "./auth.js";
+import { applyAvatarElement, avatarCacheBust } from "./avatar-ui.js?v=own11";
 import { isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
@@ -1312,8 +1313,8 @@ async function init() {
   if (brandSub) brandSub.textContent = state.user.tenantName || "Gobernanza";
   const avatar = qs("#user-avatar");
   if (avatar) {
-    const src = state.user.displayName || state.user.email || "AS";
-    avatar.textContent = src.slice(0, 2).toUpperCase();
+    const url = state.user.avatarUrl ? avatarCacheBust(state.user.avatarUrl) : null;
+    applyAvatarElement(avatar, { url, label: state.user.displayName || state.user.email || "AS" });
   }
 
   const urlPh = new URLSearchParams(location.search).get("phId");

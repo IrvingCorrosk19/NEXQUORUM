@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
   <link rel="stylesheet" href="/css/ph-tabler.css?v=polish11" />
-  <link rel="stylesheet" href="/css/owner-portal.css?v=own10" />
+  <link rel="stylesheet" href="/css/owner-portal.css?v=own11" />
   <link rel="stylesheet" href="/css/summon-status.css?v=mP1a" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
@@ -33,7 +33,7 @@
           <nav id="ia-nav" aria-label="Navegación contextual">
             <div class="ia-nav-skel" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
           </nav>
-          <script src="/js/shell-paint.js?v=polish7"></script>
+          <script src="/js/shell-paint.js?v=own11"></script>
         </div>
       </div>
     </aside>
@@ -152,7 +152,13 @@
               </article>
               <article class="owner-account-card" id="profile-security">
                 <h3><span class="owner-card-icon" data-icon="lock" aria-hidden="true"></span> Seguridad</h3>
-                <div id="profile-security-body" class="owner-skeleton" aria-hidden="true"><span></span><span></span></div>
+                <div id="profile-security-body">
+                  <p class="owner-meta" id="profile-security-copy">Tu cuenta usa contraseña local. Cámbiala aquí o usa «¿Olvidaste tu contraseña?» en la pantalla de acceso.</p>
+                  <div class="owner-security-actions" id="profile-security-actions">
+                    <button type="button" class="btn btn-primary" id="btn-change-password" data-owner-profile-action="password" aria-haspopup="dialog" aria-controls="dlg-owner-password">Cambiar contraseña</button>
+                    <a class="owner-link" id="profile-security-access" href="/">Ir al acceso</a>
+                  </div>
+                </div>
               </article>
             </div>
           </section>
@@ -208,7 +214,7 @@
         <div class="owner-photo-preview" id="owner-photo-preview" aria-hidden="true"></div>
         <label class="form-label" for="owner-photo-file">Imagen (JPG, PNG o WebP · máx. 2 MB)</label>
         <input type="file" id="owner-photo-file" name="file" accept="image/jpeg,image/png,image/webp" class="form-control" />
-        <p class="field-error" id="owner-photo-error" hidden></p>
+        <p class="field-error" id="owner-photo-error" hidden role="alert"></p>
       </div>
       <footer class="app-sheet__foot">
         <button type="button" class="btn btn-outline-owner" data-close-modal="photo">Cerrar</button>
@@ -243,8 +249,8 @@
           <input id="owner-pw-confirm" name="confirmPassword" type="password" autocomplete="new-password" class="form-control" required minlength="12" />
           <button type="button" class="password-toggle" data-toggle-password="owner-pw-confirm" aria-label="Mostrar contraseña" aria-pressed="false">Ver</button>
         </span>
-        <p class="field-error" id="owner-password-error" hidden></p>
-        <p class="owner-meta mt-2 mb-0" id="owner-password-ok" hidden></p>
+        <p class="field-error" id="owner-password-error" hidden role="alert"></p>
+        <p class="owner-meta mt-2 mb-0" id="owner-password-ok" hidden role="status"></p>
       </div>
       <footer class="app-sheet__foot">
         <button type="button" class="btn btn-outline-owner" data-close-modal="password">Cerrar</button>
@@ -255,6 +261,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js" defer></script>
-  <script type="module" src="/js/modules/owner-portal-app.js?v=own10"></script>
+  <script type="module" src="/js/modules/owner-portal-app.js?v=own11"></script>
 </body>
 </html>

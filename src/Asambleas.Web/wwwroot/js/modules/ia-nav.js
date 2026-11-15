@@ -263,7 +263,8 @@ function persistMountedNav(nav, ctx) {
     navHtml: nav.innerHTML,
     displayName: qs("#user-chip")?.textContent || ctx.user?.displayName || ctx.user?.email || "",
     roleLabel: qs("#ia-role-chip")?.textContent || "",
-    avatar: qs("#user-avatar")?.textContent || ""
+    avatar: qs("#user-avatar")?.textContent || "",
+    avatarUrl: ctx.user?.avatarUrl || ""
   });
 }
 

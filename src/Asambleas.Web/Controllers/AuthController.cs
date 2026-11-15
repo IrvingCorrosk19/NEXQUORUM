@@ -311,6 +311,11 @@ public sealed class AuthController : ControllerBase
                 return BadRequest(CreateProblem("No pudimos guardar la foto. Inténtalo de nuevo."));
             }
 
+            if (!string.Equals(url, previousUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                avatarStorage.DeleteIfExists(previousUrl);
+            }
+
             return Ok(new AvatarUploadResponse(
                 url,
                 processed.OutputWidth,

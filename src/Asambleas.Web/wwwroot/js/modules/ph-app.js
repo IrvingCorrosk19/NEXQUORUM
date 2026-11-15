@@ -1,5 +1,6 @@
 import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
+import { applyAvatarElement, avatarCacheBust } from "./avatar-ui.js?v=own11";
 import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=polish7";
 import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
 import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
@@ -214,8 +215,8 @@ async function init() {
   if (tenant) tenant.textContent = user.tenantCode || "Gobernanza";
   const avatar = $("#user-avatar");
   if (avatar) {
-    const src = user.displayName || user.email || "AS";
-    avatar.textContent = src.slice(0, 2).toUpperCase();
+    const url = user.avatarUrl ? avatarCacheBust(user.avatarUrl) : null;
+    applyAvatarElement(avatar, { url, label: user.displayName || user.email || "AS" });
   }
   const roleChip = $("#ia-role-chip");
   const roleLabel = $("#account-role-label");
