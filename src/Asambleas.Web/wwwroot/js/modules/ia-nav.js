@@ -190,18 +190,30 @@ export function buildAssemblyBreadcrumbs(ctx) {
 
 function buildOwnerNav(ctx) {
   const current = ctx.current || "";
-  const a = ctx.assemblyId ? `assemblyId=${encodeURIComponent(ctx.assemblyId)}` : "";
+  const homeCurrent =
+    current === "owner-home" || current === "asm-room" || current === "asm-overview";
   return section("Mi portal", [
-    ctx.assemblyId
-      ? link(`/assembly.html?${a}`, "Asamblea actual", {
-          current: current === "asm-room" || current === "asm-overview" || current === "owner-home"
-        })
-      : link("/owner.html#home", "Asamblea actual", { current: current === "owner-home" }),
-    link("/owner.html#assemblies", "Mis asambleas", { current: current === "owner-assemblies" }),
-    link("/owner.html#account", "Mi perfil", { current: current === "owner-account" })
-  ]
-    .filter(Boolean)
-    .join(""));
+    link("/owner.html#home", "Inicio", {
+      current: homeCurrent,
+      icon: "home",
+      key: "owner-home"
+    }),
+    link("/owner.html#units", "Mis unidades", {
+      current: current === "owner-units",
+      icon: "layoutGrid",
+      key: "owner-units"
+    }),
+    link("/owner.html#assemblies", "Mis asambleas", {
+      current: current === "owner-assemblies",
+      icon: "microphone",
+      key: "owner-assemblies"
+    }),
+    link("/owner.html#account", "Mi perfil", {
+      current: current === "owner-account",
+      icon: "user",
+      key: "owner-account"
+    })
+  ].join(""));
 }
 
 /**

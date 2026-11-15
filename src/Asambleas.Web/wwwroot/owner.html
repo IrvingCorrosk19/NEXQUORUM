@@ -6,128 +6,174 @@
   <title>ASAMBLEAS — Portal del propietario</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=own2" />
-  <link rel="stylesheet" href="/css/base.css?v=own2" />
-  <link rel="stylesheet" href="/css/components.css?v=own2" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=own4" />
+  <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
+  <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
-  <link rel="stylesheet" href="/css/ia.css?v=ia2" />
-  <link rel="stylesheet" href="/css/ux-remediation.css?v=mP1a" />
-  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
-  <link rel="stylesheet" href="/css/owner-portal.css?v=own3" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish11" />
+  <link rel="stylesheet" href="/css/owner-portal.css?v=own4c" />
   <link rel="stylesheet" href="/css/summon-status.css?v=mP1a" />
-  <link rel="stylesheet" href="/css/gov-ops.css?v=gov3" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
 </head>
-<body class="owner-portal">
-  <a class="skip-link" href="#main">Saltar al contenido</a>
-  <div class="app-shell">
-    <aside class="app-nav" aria-label="Navegación">
-      <div>
-        <h1 class="brand">ASAMBLEAS</h1>
-        <p class="nav-tenant" id="nav-tenant">Portal propietario</p>
+<body class="layout-tabler owner-portal">
+  <a class="skip-link visually-hidden-focusable" href="#main">Saltar al contenido</a>
+  <div class="page app-shell">
+    <aside class="navbar navbar-vertical navbar-expand-lg app-nav" data-bs-theme="dark" aria-label="Navegación">
+      <div class="container-fluid">
+        <button class="navbar-toggler" type="button" id="btn-nav-toggle" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="Abrir menú de navegación">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <h1 class="navbar-brand navbar-brand-autodark">
+          <a href="/owner.html#home">Asambleas</a>
+        </h1>
+        <p class="nav-tenant visually-hidden" id="nav-tenant">Portal propietario</p>
+        <div class="collapse navbar-collapse" id="sidebar-menu">
+          <nav id="ia-nav" aria-label="Navegación contextual">
+            <div class="ia-nav-skel" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          </nav>
+          <script src="/js/shell-paint.js?v=polish7"></script>
+        </div>
       </div>
-      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
     </aside>
-    <header class="app-top" role="banner">
-      <div class="ia-top-context">
-        <span class="ia-top-context__brand">ASAMBLEAS</span>
-        <span class="ia-top-context__path" id="ia-context-label">Portal del propietario</span>
-      </div>
-      <div class="cluster">
-        <span id="user-chip" class="badge badge-live"></span>
-        <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
-      </div>
-    </header>
-    <main id="main" class="app-workspace page-main owner-main">
-      <div id="page-alert" class="alert" hidden role="alert"></div>
-      <div id="ia-breadcrumbs"></div>
 
-      <section id="view-home" class="owner-view" data-view="home" hidden>
-        <header class="owner-hero">
-          <p class="owner-kicker">Portal del propietario</p>
-          <h1 id="owner-hello">Hola</h1>
-          <p class="lede" id="owner-lede">Tu resumen de asambleas, unidades y cuenta.</p>
-        </header>
-        <div class="owner-grid owner-grid--home">
-          <article class="owner-card owner-card--feature" id="home-next" aria-labelledby="home-next-title">
-            <h2 id="home-next-title" class="owner-card__title">Próxima asamblea</h2>
-            <div id="home-next-body" class="owner-card__body">
-              <div class="owner-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div class="page-wrapper">
+      <header class="navbar navbar-expand-md d-print-none app-top" role="banner">
+        <div class="container-xl">
+          <span id="ia-context-label" class="visually-hidden">Portal del propietario</span>
+          <div class="d-flex align-items-center gap-2 cluster" id="header-cluster">
+            <span class="owner-ph-chip" id="owner-ph-chip" hidden></span>
+          </div>
+          <div class="navbar-nav flex-row order-md-last ms-auto">
+            <div class="nav-item dropdown">
+              <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-label="Menú de cuenta" aria-expanded="false" id="account-menu-trigger">
+                <span class="avatar avatar-sm" id="user-avatar">PR</span>
+                <div class="d-none d-md-block ps-2">
+                  <div id="user-chip">Cuenta</div>
+                  <div class="mt-1 small text-secondary" id="ia-role-chip">Propietario</div>
+                </div>
+              </a>
+              <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                <span class="dropdown-header" id="account-role-label">Cuenta</span>
+                <a class="dropdown-item" href="/owner.html#account">Mi perfil</a>
+                <a class="dropdown-item" href="#" id="btn-logout">Cerrar sesión</a>
+              </div>
             </div>
-          </article>
-          <article class="owner-card" id="home-units" aria-labelledby="home-units-title">
-            <div class="owner-card__head">
-              <h2 id="home-units-title" class="owner-card__title">Mis unidades</h2>
-              <a class="owner-link" href="#units">Ver todas</a>
-            </div>
-            <div id="home-units-body" class="owner-card__body">
-              <div class="owner-skeleton" aria-hidden="true"><span></span><span></span></div>
-            </div>
-          </article>
-          <article class="owner-card" id="home-assemblies" aria-labelledby="home-asm-title">
-            <div class="owner-card__head">
-              <h2 id="home-asm-title" class="owner-card__title">Mis asambleas</h2>
-              <a class="owner-link" href="#assemblies">Ver todas</a>
-            </div>
-            <div id="home-asm-body" class="owner-card__body">
-              <div class="owner-skeleton" aria-hidden="true"><span></span><span></span></div>
-            </div>
-          </article>
-          <article class="owner-card owner-card--actions" aria-labelledby="home-actions-title">
-            <h2 id="home-actions-title" class="owner-card__title">Acciones rápidas</h2>
-            <div class="owner-actions">
-              <a class="btn btn-primary" href="#assemblies">Ver mis asambleas</a>
-              <a class="btn btn-secondary" href="#units">Ver mi unidad</a>
-              <a class="btn btn-ghost" href="#account">Mi cuenta</a>
-            </div>
-          </article>
+          </div>
         </div>
-      </section>
+      </header>
 
-      <section id="view-assemblies" class="owner-view" data-view="assemblies" hidden>
-        <header class="owner-hero owner-hero--compact">
-          <p class="owner-kicker">Participación</p>
-          <h1>Mis asambleas</h1>
-          <p class="lede">Asambleas a las que estás convocado o en las que participas.</p>
-        </header>
-        <div id="assemblies-panel" class="owner-stack">
-          <div class="owner-skeleton owner-skeleton--list" aria-hidden="true"><span></span><span></span><span></span></div>
+      <main id="main" class="app-workspace page-main owner-main" tabindex="-1">
+        <div class="container-xl">
+          <div id="page-alert" class="alert alert-danger" hidden role="alert"></div>
+          <div id="ia-breadcrumbs"></div>
+
+          <section id="view-home" class="owner-view" data-view="home" hidden>
+            <header class="owner-hero owner-hero--compact owner-hero--with-media">
+              <div class="owner-hero__copy">
+                <p class="owner-kicker" id="owner-ph-kicker">Portal del propietario</p>
+                <h1 id="owner-hello">Hola</h1>
+                <p class="lede" id="owner-lede">Tu resumen de asambleas, unidades y cuenta.</p>
+              </div>
+              <div class="owner-hero__media" id="owner-hero-media" hidden>
+                <img id="owner-hero-photo" alt="" />
+              </div>
+            </header>
+            <div class="owner-grid owner-grid--home">
+              <article class="owner-card owner-card--feature owner-card--next" id="home-next" aria-labelledby="home-next-title">
+                <h2 id="home-next-title" class="owner-card__title">Próxima asamblea</h2>
+                <div id="home-next-body" class="owner-card__body">
+                  <div class="owner-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
+                </div>
+              </article>
+              <article class="owner-card" id="home-units" aria-labelledby="home-units-title">
+                <div class="owner-card__head">
+                  <h2 id="home-units-title" class="owner-card__title">Mis unidades</h2>
+                  <a class="owner-link" href="#units">Ver todas</a>
+                </div>
+                <div id="home-units-body" class="owner-card__body">
+                  <div class="owner-skeleton" aria-hidden="true"><span></span><span></span></div>
+                </div>
+              </article>
+              <article class="owner-card" id="home-assemblies" aria-labelledby="home-asm-title">
+                <div class="owner-card__head">
+                  <h2 id="home-asm-title" class="owner-card__title">Resumen de asambleas</h2>
+                  <a class="owner-link" href="#assemblies">Mis asambleas</a>
+                </div>
+                <div id="home-asm-body" class="owner-card__body">
+                  <div class="owner-skeleton" aria-hidden="true"><span></span><span></span></div>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section id="view-assemblies" class="owner-view" data-view="assemblies" hidden>
+            <header class="owner-hero owner-hero--compact">
+              <p class="owner-kicker">Participación</p>
+              <h1>Mis asambleas</h1>
+              <p class="lede">Asambleas a las que estás convocado o en las que participas.</p>
+            </header>
+            <div id="assemblies-panel" class="owner-stack">
+              <div class="owner-skeleton owner-skeleton--list" aria-hidden="true"><span></span><span></span><span></span></div>
+            </div>
+          </section>
+
+          <section id="view-units" class="owner-view" data-view="units" hidden>
+            <header class="owner-hero owner-hero--compact">
+              <p class="owner-kicker">Propiedad</p>
+              <h1>Mis unidades</h1>
+              <p class="lede">Unidades vinculadas a tu cuenta de propietario.</p>
+            </header>
+            <div id="units-panel" class="owner-stack">
+              <div class="owner-skeleton owner-skeleton--list" aria-hidden="true"><span></span><span></span><span></span></div>
+            </div>
+          </section>
+
+          <section id="view-account" class="owner-view" data-view="account" hidden>
+            <header class="owner-hero owner-hero--compact">
+              <p class="owner-kicker">Cuenta</p>
+              <h1>Mi perfil</h1>
+              <p class="lede">Información personal, propiedades relacionadas y seguridad.</p>
+            </header>
+            <div id="account-panel" class="owner-stack">
+              <div class="owner-skeleton owner-skeleton--list" aria-hidden="true"><span></span><span></span><span></span></div>
+            </div>
+          </section>
         </div>
-      </section>
-
-      <section id="view-units" class="owner-view" data-view="units" hidden>
-        <header class="owner-hero owner-hero--compact">
-          <p class="owner-kicker">Propiedad</p>
-          <h1>Mis unidades</h1>
-          <p class="lede">Unidades vinculadas a tu cuenta de propietario.</p>
-        </header>
-        <div id="units-panel" class="owner-stack">
-          <div class="owner-skeleton owner-skeleton--list" aria-hidden="true"><span></span><span></span></div>
-        </div>
-      </section>
-
-      <section id="view-unit-detail" class="owner-view" data-view="unit-detail" hidden>
-        <header class="owner-hero owner-hero--compact">
-          <p class="owner-kicker"><a class="owner-link" href="#units">← Mis unidades</a></p>
-          <h1 id="unit-detail-title">Unidad</h1>
-          <p class="lede" id="unit-detail-lede"></p>
-        </header>
-        <div id="unit-detail-panel" class="owner-stack"></div>
-      </section>
-
-      <section id="view-account" class="owner-view" data-view="account" hidden>
-        <header class="owner-hero owner-hero--compact">
-          <p class="owner-kicker">Perfil</p>
-          <h1>Mi cuenta</h1>
-          <p class="lede">Información personal y propiedades relacionadas.</p>
-        </header>
-        <div id="account-panel" class="owner-stack">
-          <div class="owner-skeleton owner-skeleton--list" aria-hidden="true"><span></span><span></span></div>
-        </div>
-      </section>
-    </main>
+      </main>
+    </div>
   </div>
+
+  <dialog id="dlg-owner-unit" class="app-sheet owner-portal-sheet" aria-labelledby="owner-unit-title">
+    <div class="app-sheet__form">
+      <header class="app-sheet__head">
+        <div>
+          <p class="command-eyebrow" id="owner-unit-status">Unidad</p>
+          <h2 id="owner-unit-title" tabindex="-1">Unidad</h2>
+        </div>
+        <button type="button" class="btn btn-ghost app-sheet__close" id="owner-unit-close" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="app-sheet__body" id="owner-unit-body"></div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-owner-assembly" class="app-sheet owner-portal-sheet event-sheet" aria-labelledby="owner-asm-title">
+    <div class="app-sheet__form">
+      <header class="app-sheet__head">
+        <div>
+          <p class="command-eyebrow" id="owner-asm-status">Asamblea</p>
+          <h2 id="owner-asm-title" tabindex="-1">Asamblea</h2>
+        </div>
+        <button type="button" class="btn btn-ghost app-sheet__close" id="owner-asm-close" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="app-sheet__body" id="owner-asm-body"></div>
+      <footer class="app-sheet__foot" id="owner-asm-foot"></footer>
+    </div>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/js/modules/owner-portal-app.js?v=tabs2"></script>
+  <script src="/lib/tabler/1.7.5/js/tabler.min.js" defer></script>
+  <script type="module" src="/js/modules/owner-portal-app.js?v=own4c"></script>
 </body>
 </html>

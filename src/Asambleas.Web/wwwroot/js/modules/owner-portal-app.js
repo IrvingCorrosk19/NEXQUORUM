@@ -3,26 +3,44 @@ import { hasPermission, logout, me } from "./auth.js";
 import { isOperator, isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { mountIaShell } from "./ia-nav.js?v=gov1";
+import { mountIaShell } from "./ia-nav.js?v=own4";
 import { utcIsoToPhLocalParts } from "./schedule-time.js";
 import { startHybridShell } from "./hybrid-router.js";
+import {
+  bindSheetViewport,
+  lockPageScroll,
+  rememberOpener,
+  restoreOpener,
+  trapFocus,
+  wireSheetKeyboard
+} from "./query-guard.js?v=polish11";
 
 const VIEWS = {
   home: { id: "view-home", nav: "owner-home", label: "Inicio", crumb: "Inicio" },
   assemblies: { id: "view-assemblies", nav: "owner-assemblies", label: "Mis asambleas", crumb: "Mis asambleas" },
   units: { id: "view-units", nav: "owner-units", label: "Mis unidades", crumb: "Mis unidades" },
-  "unit-detail": { id: "view-unit-detail", nav: "owner-units", label: "Unidad", crumb: "Detalle de unidad" },
-  account: { id: "view-account", nav: "owner-account", label: "Mi cuenta", crumb: "Mi cuenta" }
+  account: { id: "view-account", nav: "owner-account", label: "Mi perfil", crumb: "Mi perfil" }
 };
 
 const state = {
   user: null,
   profile: null,
+  phDetail: null,
   events: [],
   next: null,
-  route: { view: "home", unitCode: null },
+  route: { view: "home", unitCode: null, assemblyId: null, modal: null },
   loading: false,
-  loadError: null
+  loadError: null,
+  sectionError: null
+};
+
+const modalUi = {
+  opener: null,
+  scrollY: 0,
+  returnView: "units",
+  untrap: null,
+  unbind: null,
+  closingByUi: false
 };
 
 function showError(message) {
@@ -32,49 +50,96 @@ function showError(message) {
 function parseHash() {
   const raw = (location.hash || "").replace(/^#/, "").trim();
   if (!raw || raw === "home" || raw === "inicio") {
-    return { view: "home", unitCode: null };
+    return { view: "home", unitCode: null, assemblyId: null, modal: null };
   }
   if (raw === "assemblies" || raw === "asambleas") {
-    return { view: "assemblies", unitCode: null };
+    return { view: "assemblies", unitCode: null, assemblyId: null, modal: null };
   }
   if (raw === "units" || raw === "unidades") {
-    return { view: "units", unitCode: null };
+    return { view: "units", unitCode: null, assemblyId: null, modal: null };
   }
-  if (raw === "account" || raw === "cuenta") {
-    return { view: "account", unitCode: null };
+  if (raw === "account" || raw === "cuenta" || raw === "perfil") {
+    return { view: "account", unitCode: null, assemblyId: null, modal: null };
   }
   const unitMatch = raw.match(/^units\/([^/]+)$/i) || raw.match(/^unidades\/([^/]+)$/i);
   if (unitMatch) {
-    return { view: "unit-detail", unitCode: decodeURIComponent(unitMatch[1]) };
+    return {
+      view: "units",
+      unitCode: decodeURIComponent(unitMatch[1]),
+      assemblyId: null,
+      modal: "unit"
+    };
   }
-  return { view: "home", unitCode: null };
+  const convMatch =
+    raw.match(/^assemblies\/([^/]+)\/convocatoria$/i) ||
+    raw.match(/^asambleas\/([^/]+)\/convocatoria$/i);
+  if (convMatch) {
+    return {
+      view: "assemblies",
+      unitCode: null,
+      assemblyId: decodeURIComponent(convMatch[1]),
+      modal: "convocation"
+    };
+  }
+  const asmMatch = raw.match(/^assemblies\/([^/]+)$/i) || raw.match(/^asambleas\/([^/]+)$/i);
+  if (asmMatch) {
+    return {
+      view: "assemblies",
+      unitCode: null,
+      assemblyId: decodeURIComponent(asmMatch[1]),
+      modal: "assembly"
+    };
+  }
+  return { view: "home", unitCode: null, assemblyId: null, modal: null };
 }
 
-function setHash(view, unitCode = null) {
-  let next = "home";
-  if (view === "assemblies") next = "assemblies";
-  else if (view === "units") next = "units";
-  else if (view === "account") next = "account";
-  else if (view === "unit-detail" && unitCode) next = `units/${encodeURIComponent(unitCode)}`;
-  const desired = `#${next}`;
-  if (location.hash !== desired) {
-    location.hash = desired;
-  } else {
-    applyRoute();
+function desiredHash(route) {
+  if (route.modal === "unit" && route.unitCode) {
+    return `#units/${encodeURIComponent(route.unitCode)}`;
   }
+  if (route.modal === "convocation" && route.assemblyId) {
+    return `#assemblies/${encodeURIComponent(route.assemblyId)}/convocatoria`;
+  }
+  if (route.modal === "assembly" && route.assemblyId) {
+    return `#assemblies/${encodeURIComponent(route.assemblyId)}`;
+  }
+  if (route.view === "assemblies") return "#assemblies";
+  if (route.view === "units") return "#units";
+  if (route.view === "account") return "#account";
+  return "#home";
+}
+
+function setHash(partial, { replace = false } = {}) {
+  const next = { ...state.route, ...partial };
+  const desired = desiredHash(next);
+  if (location.hash === desired) {
+    state.route = next;
+    applyRoute({ fromHash: false });
+    return;
+  }
+  if (replace) {
+    history.replaceState(null, "", desired);
+    state.route = next;
+    applyRoute({ fromHash: false });
+    return;
+  }
+  location.hash = desired;
 }
 
 function modalityLabel(m) {
-  const v = String(m || "").toUpperCase();
+  const v = String(m || "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toUpperCase();
   if (v === "VIRTUAL") return "Virtual";
   if (v === "PRESENCIAL") return "Presencial";
-  if (v === "HIBRIDA" || v === "HÍBRIDA") return "Híbrida";
+  if (v === "HIBRIDA" || v === "HYBRID" || v === "HYBRIDA") return "Híbrida";
   return m || "—";
 }
 
 function statusBadge(ev) {
-  const status = String(ev.status || "");
-  const cal = String(ev.calendarStatus || "");
+  const status = String(ev?.status || "");
+  const cal = String(ev?.calendarStatus || "");
   if (cal === "LIVE" || status === "InProgress" || status === "Paused") {
     return { label: "En vivo", cls: "owner-badge--live" };
   }
@@ -87,10 +152,17 @@ function statusBadge(ev) {
   if (status === "Cancelled") {
     return { label: "Cancelada", cls: "owner-badge--cancel" };
   }
-  if (String(ev.convocationStatus || "").toLowerCase() === "sent") {
+  if (String(ev?.convocationStatus || "").toLowerCase() === "sent") {
     return { label: "Convocado", cls: "owner-badge--neutral" };
   }
   return { label: "Programada", cls: "owner-badge--soon" };
+}
+
+function formatPercent(value) {
+  if (value == null || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return escapeHtml(String(value));
+  return `${n}%`;
 }
 
 function formatEventWhen(ev) {
@@ -113,38 +185,43 @@ function formatEventWhen(ev) {
       hour12: true,
       timeZone: "UTC"
     }).format(ampm);
-    return `${day} · ${time}`;
+    return { day, time, label: `${day} · ${time} (Panamá)` };
   } catch {
-    return formatDateTime(ev.scheduledAtUtc);
+    return { day: "—", time: "—", label: formatDateTime(ev.scheduledAtUtc) };
   }
 }
 
-function assemblyHref(ev) {
-  const id = encodeURIComponent(ev.assemblyId || ev.id);
-  if (ev.canJoin || ["InProgress", "Paused", "CheckIn", "Scheduled"].includes(String(ev.status))) {
-    return `/assembly.html?assemblyId=${id}`;
-  }
-  return `/owner.html#assemblies`;
+function isLive(ev) {
+  const status = String(ev?.status || "");
+  return ev?.canJoin || ["InProgress", "Paused", "CheckIn"].includes(status);
 }
 
-function primaryCta(ev) {
-  if (ev.canJoin || ["InProgress", "Paused"].includes(String(ev.status))) {
-    return { href: `/assembly.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`, label: "Entrar ahora", primary: true };
-  }
-  if (String(ev.status) === "CheckIn" || String(ev.status) === "Scheduled") {
-    return { href: `/assembly.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`, label: "Entrar a la asamblea", primary: true };
-  }
-  if (String(ev.convocationStatus || "").toLowerCase() === "sent") {
-    return { href: `/calendar.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`, label: "Ver convocatoria", primary: false };
-  }
-  return { href: `/calendar.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`, label: "Ver detalle", primary: false };
+function isUpcoming(ev) {
+  return ["Scheduled", "CheckIn", "InProgress", "Paused"].includes(String(ev?.status || ""));
 }
 
-function emptyHtml(title, body) {
-  return `<div class="owner-empty">
-    <div class="owner-empty__icon" aria-hidden="true">◇</div>
+function primaryHomeCta(ev) {
+  if (isLive(ev) && (ev.canJoin || ["InProgress", "Paused", "CheckIn"].includes(String(ev.status)))) {
+    return {
+      kind: "join",
+      href: `/assembly.html?assemblyId=${encodeURIComponent(ev.assemblyId || ev.id)}`,
+      label: "Entrar a la asamblea",
+      primary: true
+    };
+  }
+  return {
+    kind: "convocation",
+    href: `#assemblies/${encodeURIComponent(ev.assemblyId || ev.id)}/convocatoria`,
+    label: "Ver convocatoria",
+    primary: true
+  };
+}
+
+function emptyHtml(title, body, actionHtml = "") {
+  return `<div class="owner-empty owner-empty--compact">
     <h3>${escapeHtml(title)}</h3>
     <p>${escapeHtml(body)}</p>
+    ${actionHtml}
   </div>`;
 }
 
@@ -160,26 +237,61 @@ function skeletonList() {
   return `<div class="owner-skeleton owner-skeleton--list" aria-hidden="true"><span></span><span></span><span></span></div>`;
 }
 
+function skeletonInline() {
+  return `<div class="owner-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>`;
+}
+
+function visibleBaseView() {
+  if (state.route.modal === "unit") {
+    return modalUi.returnView === "home" ? "home" : "units";
+  }
+  if (state.route.modal === "assembly" || state.route.modal === "convocation") {
+    return modalUi.returnView === "home" ? "home" : "assemblies";
+  }
+  return state.route.view || "home";
+}
+
+function activeNavKey() {
+  if (state.route.modal === "unit") return "owner-units";
+  if (state.route.modal === "assembly" || state.route.modal === "convocation") return "owner-assemblies";
+  return (VIEWS[state.route.view] || VIEWS.home).nav;
+}
+
 function remountNav() {
-  const meta = VIEWS[state.route.view] || VIEWS.home;
+  const base = visibleBaseView();
+  const meta = VIEWS[base] || VIEWS.home;
+  const crumb =
+    state.route.modal === "unit"
+      ? "Detalle de unidad"
+      : state.route.modal === "convocation"
+        ? "Convocatoria"
+        : state.route.modal === "assembly"
+          ? "Detalle de asamblea"
+          : meta.crumb;
   mountIaShell(
-    { level: "global", user: state.user, current: meta.nav },
-    { breadcrumbs: [{ label: "Mi portal", href: "/owner.html#home" }, { label: meta.crumb }] }
+    { level: "global", user: state.user, current: activeNavKey() },
+    { breadcrumbs: [{ label: "Mi portal", href: "/owner.html#home" }, { label: crumb }] }
   );
   const label = qs("#ia-context-label");
-  if (label) label.textContent = meta.label;
+  if (label) label.textContent = crumb;
 }
 
 function showView(view) {
+  const target = VIEWS[view] || VIEWS.home;
   Object.values(VIEWS).forEach((v) => {
     const el = qs(`#${v.id}`);
-    if (el) el.hidden = v.id !== (VIEWS[view] || VIEWS.home).id;
+    if (el) el.hidden = v.id !== target.id;
   });
+}
+
+function activePh() {
+  const props = state.profile?.properties || [];
+  return props.find((p) => p.isCurrent) || props[0] || null;
 }
 
 function upcomingEvents() {
   return state.events
-    .filter((e) => ["Scheduled", "CheckIn", "InProgress", "Paused"].includes(String(e.status)))
+    .filter((e) => isUpcoming(e))
     .sort((a, b) => new Date(a.scheduledAtUtc) - new Date(b.scheduledAtUtc));
 }
 
@@ -190,57 +302,132 @@ function recentCompleted() {
     .slice(0, 3);
 }
 
-function renderAssemblyCard(ev, { compact = false } = {}) {
-  const badge = statusBadge(ev);
-  const cta = primaryCta(ev);
-  const countdown =
-    ev.countdownLabel && !compact
-      ? `<p class="owner-meta"><strong>${escapeHtml(ev.countdownLabel)}</strong></p>`
-      : "";
-  return `<article class="owner-asm-card">
-    <div class="owner-asm-card__top">
-      <h3>${escapeHtml(ev.title || "Asamblea")}</h3>
-      <div class="owner-badges">
-        <span class="owner-badge ${badge.cls}">${escapeHtml(badge.label)}</span>
-        <span class="owner-badge owner-badge--neutral">${escapeHtml(modalityLabel(ev.modality))}</span>
-      </div>
-    </div>
-    <p class="owner-meta">${escapeHtml(ev.propertyHorizontalName || "—")}</p>
-    <p class="owner-meta">${escapeHtml(formatEventWhen(ev))}</p>
-    ${countdown}
-    <div class="owner-asm-card__actions">
-      <a class="btn ${cta.primary ? "btn-primary" : "btn-secondary"}" href="${cta.href}">${escapeHtml(cta.label)}</a>
-      ${
-        cta.label !== "Ver detalle"
-          ? `<a class="btn btn-ghost" href="${assemblyHref(ev)}">Ver detalle</a>`
-          : ""
-      }
-    </div>
-  </article>`;
+function sortedAssemblies() {
+  const live = [];
+  const upcoming = [];
+  const past = [];
+  for (const e of state.events) {
+    const st = String(e.status);
+    if (["InProgress", "Paused", "CheckIn"].includes(st)) live.push(e);
+    else if (st === "Scheduled") upcoming.push(e);
+    else past.push(e);
+  }
+  const byDateAsc = (a, b) => new Date(a.scheduledAtUtc) - new Date(b.scheduledAtUtc);
+  const byDateDesc = (a, b) => new Date(b.scheduledAtUtc) - new Date(a.scheduledAtUtc);
+  return [...live.sort(byDateAsc), ...upcoming.sort(byDateAsc), ...past.sort(byDateDesc)];
 }
 
-function renderUnitCard(u) {
+function findEvent(id) {
+  return state.events.find((e) => String(e.assemblyId || e.id) === String(id)) || null;
+}
+
+function findUnit(code) {
+  return (state.profile?.units || []).find((u) => String(u.unitCode || u.code) === String(code)) || null;
+}
+
+function renderUnitCard(u, { compact = false } = {}) {
   const code = u.unitCode || u.code || "—";
   const active = u.isActive !== false;
-  return `<article class="owner-unit-card">
+  return `<article class="owner-unit-card${compact ? " owner-unit-card--compact" : ""}">
     <div class="owner-unit-card__top">
       <h3>Unidad ${escapeHtml(code)}</h3>
       <span class="owner-badge ${active ? "owner-badge--ok" : "owner-badge--done"}">${active ? "Activa" : "Inactiva"}</span>
     </div>
     <p class="owner-meta">${escapeHtml(u.propertyHorizontalName || "—")}</p>
-    <p class="owner-meta">Participación: <strong>${Number(u.sharePercent || 0).toFixed(2)}%</strong>
-      · Coeficiente: <strong>${Number(u.unitCoefficientPercent || 0).toFixed(4)}%</strong></p>
+    <div class="owner-stat-pair">
+      <div class="owner-stat">
+        <span class="owner-stat__label">Participación</span>
+        <span class="owner-stat__value">${formatPercent(u.sharePercent)}</span>
+      </div>
+      <div class="owner-stat">
+        <span class="owner-stat__label">Coeficiente</span>
+        <span class="owner-stat__value">${formatPercent(u.unitCoefficientPercent)}</span>
+      </div>
+    </div>
     <div class="owner-unit-card__actions">
-      <a class="btn btn-secondary" href="#units/${encodeURIComponent(code)}">Ver detalle</a>
+      <a class="btn btn-secondary" href="#units/${encodeURIComponent(code)}" data-owner-open="unit" data-unit-code="${escapeHtml(code)}">Ver detalle</a>
     </div>
   </article>`;
+}
+
+function renderAssemblyRow(ev) {
+  const badge = statusBadge(ev);
+  const when = formatEventWhen(ev);
+  const id = encodeURIComponent(ev.assemblyId || ev.id);
+  const join =
+    isLive(ev) && (ev.canJoin || ["InProgress", "Paused", "CheckIn"].includes(String(ev.status)))
+      ? `<a class="btn btn-primary" href="/assembly.html?assemblyId=${id}">Entrar a la asamblea</a>`
+      : "";
+  return `<article class="owner-asm-row" data-assembly-id="${escapeHtml(String(ev.assemblyId || ev.id))}">
+    <div class="owner-asm-row__when" aria-label="${escapeHtml(when.label)}">
+      <span class="owner-asm-row__day">${escapeHtml(when.day)}</span>
+      <span class="owner-asm-row__time">${escapeHtml(when.time)}</span>
+      <span class="owner-asm-row__tz">Panamá</span>
+    </div>
+    <div class="owner-asm-row__main">
+      <h3>${escapeHtml(ev.title || "Asamblea")}</h3>
+      <p class="owner-meta">${escapeHtml(ev.propertyHorizontalName || "—")}</p>
+      <div class="owner-badges">
+        <span class="owner-badge ${badge.cls}">${escapeHtml(badge.label)}</span>
+        <span class="owner-badge owner-badge--neutral">${escapeHtml(modalityLabel(ev.modality))}</span>
+      </div>
+    </div>
+    <div class="owner-asm-row__actions">
+      ${join}
+      <a class="btn btn-secondary" href="#assemblies/${id}" data-owner-open="assembly" data-assembly-id="${escapeHtml(String(ev.assemblyId || ev.id))}">Ver detalle</a>
+      <a class="btn btn-ghost" href="#assemblies/${id}/convocatoria" data-owner-open="convocation" data-assembly-id="${escapeHtml(String(ev.assemblyId || ev.id))}">Ver convocatoria</a>
+    </div>
+  </article>`;
+}
+
+function renderNextFeature(next) {
+  if (!next) {
+    return emptyHtml(
+      "No hay asambleas próximas",
+      "Cuando haya una convocatoria o una asamblea en curso, aparecerá aquí.",
+      `<a class="owner-link" href="#assemblies">Ir a Mis asambleas</a>`
+    );
+  }
+  const badge = statusBadge(next);
+  const when = formatEventWhen(next);
+  const cta = primaryHomeCta(next);
+  return `<div class="owner-next">
+    <div class="owner-next__head">
+      <h3>${escapeHtml(next.title || "Asamblea")}</h3>
+      <span class="owner-badge ${badge.cls}">${escapeHtml(badge.label)}</span>
+    </div>
+    <dl class="owner-dl owner-dl--inline">
+      <div><dt>Fecha</dt><dd>${escapeHtml(when.day)}</dd></div>
+      <div><dt>Hora (Panamá)</dt><dd>${escapeHtml(when.time)}</dd></div>
+      <div><dt>Modalidad</dt><dd>${escapeHtml(modalityLabel(next.modality))}</dd></div>
+      <div><dt>Estado</dt><dd>${escapeHtml(badge.label)}</dd></div>
+    </dl>
+    <p class="owner-meta">${escapeHtml(next.propertyHorizontalName || "")}</p>
+    <div class="owner-next__actions">
+      <a class="btn ${cta.primary ? "btn-primary" : "btn-secondary"}" href="${cta.href}" ${
+        cta.kind === "convocation"
+          ? `data-owner-open="convocation" data-assembly-id="${escapeHtml(String(next.assemblyId || next.id))}"`
+          : ""
+      }>${escapeHtml(cta.label)}</a>
+      <a class="btn btn-ghost" href="#assemblies/${encodeURIComponent(next.assemblyId || next.id)}" data-owner-open="assembly" data-assembly-id="${escapeHtml(String(next.assemblyId || next.id))}">Ver detalle</a>
+    </div>
+  </div>`;
 }
 
 function renderHome() {
   const nextBody = qs("#home-next-body");
   const unitsBody = qs("#home-units-body");
   const asmBody = qs("#home-asm-body");
+  const nextCard = qs("#home-next");
   if (!nextBody || !unitsBody || !asmBody) return;
+
+  if (state.loading && !state.profile && !state.events.length) {
+    nextBody.innerHTML = skeletonInline();
+    unitsBody.innerHTML = skeletonInline();
+    asmBody.innerHTML = skeletonInline();
+    nextCard?.classList.remove("owner-card--empty-next");
+    return;
+  }
 
   if (state.loadError) {
     nextBody.innerHTML = errorHtml("No pudimos cargar tu portal", "Intenta nuevamente.", "all");
@@ -250,14 +437,8 @@ function renderHome() {
   }
 
   const next = state.next || upcomingEvents()[0] || null;
-  if (!next) {
-    nextBody.innerHTML = emptyHtml(
-      "Aún no tienes asambleas próximas",
-      "Cuando seas convocado a una nueva asamblea aparecerá aquí."
-    );
-  } else {
-    nextBody.innerHTML = renderAssemblyCard(next);
-  }
+  nextBody.innerHTML = renderNextFeature(next);
+  nextCard?.classList.toggle("owner-card--empty-next", !next);
 
   const units = state.profile?.units || [];
   if (!units.length) {
@@ -266,61 +447,51 @@ function renderHome() {
       "Cuando tu administración vincule una unidad a tu cuenta, la verás aquí."
     );
   } else {
-    unitsBody.innerHTML = units.slice(0, 2).map(renderUnitCard).join("");
+    unitsBody.innerHTML = units.slice(0, 3).map((u) => renderUnitCard(u, { compact: true })).join("");
   }
 
   const up = upcomingEvents();
   const done = recentCompleted();
-  const summary = [
-    `<div class="owner-summary-row"><span>Próximas</span><span>${up.length}</span></div>`,
-    `<div class="owner-summary-row"><span>Convocadas / en curso</span><span>${up.filter((e) => e.canJoin || String(e.convocationStatus || "").toLowerCase() === "sent" || ["InProgress", "Paused", "CheckIn"].includes(String(e.status))).length}</span></div>`,
-    `<div class="owner-summary-row"><span>Finalizadas recientes</span><span>${done.length}</span></div>`
-  ].join("");
-  asmBody.innerHTML = summary + (up[0] ? `<div style="margin-top:0.85rem">${renderAssemblyCard(up[0], { compact: true })}</div>` : "");
+  asmBody.innerHTML = `
+    <div class="owner-summary-row"><span>Próximas / en curso</span><span>${up.length}</span></div>
+    <div class="owner-summary-row"><span>Finalizadas recientes</span><span>${done.length}</span></div>
+    <div class="owner-summary-row"><span>Total visibles</span><span>${state.events.length}</span></div>
+    ${
+      up[0]
+        ? `<p class="owner-meta mt-2 mb-0">Siguiente: <strong>${escapeHtml(up[0].title || "Asamblea")}</strong> · ${escapeHtml(formatEventWhen(up[0]).label)}</p>`
+        : `<p class="owner-meta mt-2 mb-0"><a class="owner-link" href="#assemblies">Ver historial en Mis asambleas</a></p>`
+    }`;
 }
 
 function renderAssemblies() {
   const el = qs("#assemblies-panel");
   if (!el) return;
-  if (state.loading) {
+  if (state.loading && !state.events.length) {
     el.innerHTML = skeletonList();
     return;
   }
-  if (state.loadError) {
+  if (state.loadError || state.sectionError === "assemblies") {
     el.innerHTML = errorHtml("No pudimos cargar tus asambleas", "Intenta nuevamente.", "assemblies");
     return;
   }
   if (!state.events.length) {
     el.innerHTML = emptyHtml(
-      "Aún no tienes asambleas próximas",
-      "Cuando seas convocado a una nueva asamblea aparecerá aquí."
+      "Aún no tienes asambleas",
+      "Cuando seas convocado a una asamblea aparecerá aquí."
     );
     return;
   }
-  const live = state.events.filter((e) => ["InProgress", "Paused", "CheckIn"].includes(String(e.status)));
-  const upcoming = state.events.filter((e) => String(e.status) === "Scheduled");
-  const past = state.events.filter((e) => ["Completed", "Cancelled"].includes(String(e.status)));
-  const blocks = [];
-  if (live.length) {
-    blocks.push(`<h2 class="section-title">En curso</h2>${live.map((e) => renderAssemblyCard(e)).join("")}`);
-  }
-  if (upcoming.length) {
-    blocks.push(`<h2 class="section-title">Próximas</h2>${upcoming.map((e) => renderAssemblyCard(e)).join("")}`);
-  }
-  if (past.length) {
-    blocks.push(`<h2 class="section-title">Recientes</h2>${past.map((e) => renderAssemblyCard(e)).join("")}`);
-  }
-  el.innerHTML = blocks.join("") || emptyHtml("Sin asambleas", "No hay asambleas para mostrar.");
+  el.innerHTML = `<div class="owner-asm-list">${sortedAssemblies().map(renderAssemblyRow).join("")}</div>`;
 }
 
 function renderUnits() {
   const el = qs("#units-panel");
   if (!el) return;
-  if (state.loading) {
+  if (state.loading && !state.profile) {
     el.innerHTML = skeletonList();
     return;
   }
-  if (state.loadError) {
+  if (state.loadError || state.sectionError === "units") {
     el.innerHTML = errorHtml("No pudimos cargar tus unidades", "Intenta nuevamente.", "units");
     return;
   }
@@ -332,54 +503,20 @@ function renderUnits() {
     );
     return;
   }
-  el.innerHTML = units.map(renderUnitCard).join("");
-}
-
-function renderUnitDetail() {
-  const code = state.route.unitCode;
-  const units = state.profile?.units || [];
-  const unit = units.find((u) => String(u.unitCode || u.code) === String(code));
-  const title = qs("#unit-detail-title");
-  const lede = qs("#unit-detail-lede");
-  const panel = qs("#unit-detail-panel");
-  if (title) title.textContent = unit ? `Unidad ${unit.unitCode || unit.code}` : "Unidad";
-  if (lede) lede.textContent = unit?.propertyHorizontalName || "";
-  if (!panel) return;
-  if (!unit) {
-    panel.innerHTML = emptyHtml(
-      "No encontramos esta unidad",
-      "Es posible que no esté vinculada a tu cuenta o que el enlace no sea válido."
-    );
-    return;
-  }
-  const active = unit.isActive !== false;
-  panel.innerHTML = `<article class="owner-account-card">
-    <div class="owner-badges"><span class="owner-badge ${active ? "owner-badge--ok" : "owner-badge--done"}">${active ? "Activa" : "Inactiva"}</span></div>
-    <dl class="owner-dl">
-      <dt>Unidad</dt><dd>${escapeHtml(unit.unitCode || unit.code)}</dd>
-      <dt>Propiedad</dt><dd>${escapeHtml(unit.propertyHorizontalName || "—")}</dd>
-      ${unit.tower ? `<dt>Torre</dt><dd>${escapeHtml(unit.tower)}</dd>` : ""}
-      <dt>Participación</dt><dd>${Number(unit.sharePercent || 0).toFixed(2)}%</dd>
-      <dt>Coeficiente</dt><dd>${Number(unit.unitCoefficientPercent || 0).toFixed(4)}%</dd>
-    </dl>
-    <div class="owner-unit-card__actions" style="margin-top:0.85rem">
-      <a class="btn btn-secondary" href="#units">Volver a mis unidades</a>
-      <a class="btn btn-ghost" href="#assemblies">Ver mis asambleas</a>
-    </div>
-  </article>`;
+  el.innerHTML = units.map((u) => renderUnitCard(u)).join("");
 }
 
 function renderAccount() {
   const el = qs("#account-panel");
   if (!el) return;
-  if (state.loading) {
+  if (state.loading && !state.profile) {
     el.innerHTML = skeletonList();
     return;
   }
   const p = state.profile;
   const user = state.user;
   if (!p && !user) {
-    el.innerHTML = errorHtml("No pudimos cargar tu cuenta", "Intenta nuevamente.", "account");
+    el.innerHTML = errorHtml("No pudimos cargar tu perfil", "Intenta nuevamente.", "account");
     return;
   }
   const name = p?.displayName || user?.displayName || "Propietario";
@@ -399,47 +536,318 @@ function renderAccount() {
       <h3>Propiedades relacionadas</h3>
       ${
         props.length
-          ? `<ul class="stack" style="margin:0;padding-left:1.1rem">${props
-              .map((x) => `<li><strong>${escapeHtml(x.name)}</strong>${x.code ? ` · ${escapeHtml(x.code)}` : ""}</li>`)
+          ? `<ul class="owner-prop-list">${props
+              .map(
+                (x) =>
+                  `<li><span class="owner-prop-list__name">${escapeHtml(x.name)}</span>${
+                    x.code ? `<span class="owner-prop-list__code">${escapeHtml(x.code)}</span>` : ""
+                  }${x.isCurrent ? `<span class="owner-badge owner-badge--ok">Actual</span>` : ""}</li>`
+              )
               .join("")}</ul>`
           : `<p class="owner-meta">No hay propiedades asociadas.</p>`
       }
     </article>
     <article class="owner-account-card">
       <h3>Seguridad</h3>
-      <p class="owner-meta">Si olvidaste tu contraseña, usa «¿Olvidaste tu contraseña?» en la pantalla de acceso. El cierre de sesión termina tu sesión actual en este dispositivo.</p>
-      <div class="owner-unit-card__actions">
-        <button type="button" class="btn btn-secondary" id="btn-account-logout">Cerrar sesión</button>
-      </div>
+      <p class="owner-meta mb-0">Si olvidaste tu contraseña, usa «¿Olvidaste tu contraseña?» en la pantalla de acceso. Usa «Cerrar sesión» en el menú de cuenta para terminar la sesión en este dispositivo.</p>
     </article>`;
-  qs("#btn-account-logout")?.addEventListener("click", async () => {
-    await logout();
-    location.href = "/";
-  });
+}
+
+function renderChromeContext() {
+  const ph = activePh();
+  const chip = qs("#owner-ph-chip");
+  const kicker = qs("#owner-ph-kicker");
+  if (chip) {
+    if (ph?.name) {
+      chip.hidden = false;
+      chip.textContent = ph.name;
+    } else {
+      chip.hidden = true;
+    }
+  }
+  if (kicker) kicker.textContent = ph?.name || "Portal del propietario";
+
+  const media = qs("#owner-hero-media");
+  const img = qs("#owner-hero-photo");
+  const photo =
+    state.phDetail?.coverImageUrl ||
+    state.phDetail?.imageUrl ||
+    state.phDetail?.photoUrl ||
+    state.phDetail?.heroImageUrl ||
+    null;
+  if (media && img) {
+    if (photo) {
+      img.src = photo;
+      img.alt = ph?.name ? `Foto de ${ph.name}` : "Foto del PH";
+      media.hidden = false;
+    } else {
+      media.hidden = true;
+      img.removeAttribute("src");
+    }
+  }
 }
 
 function renderAll() {
+  renderChromeContext();
   renderHome();
   renderAssemblies();
   renderUnits();
-  if (state.route.view === "unit-detail") renderUnitDetail();
   renderAccount();
 }
 
-function applyRoute() {
-  state.route = parseHash();
-  showView(state.route.view);
+function cleanupModalTrap() {
+  modalUi.untrap?.();
+  modalUi.unbind?.();
+  modalUi.untrap = null;
+  modalUi.unbind = null;
+}
+
+function openDialogShell(dlg, { title, eyebrow }) {
+  if (!dlg) return;
+  if (dlg.parentElement !== document.body) document.body.appendChild(dlg);
+  const titleEl = dlg.querySelector("h2");
+  const eye = dlg.querySelector(".command-eyebrow");
+  if (titleEl) titleEl.textContent = title || "";
+  if (eye) eye.textContent = eyebrow || "";
+  lockPageScroll(true);
+  if (!dlg.open) {
+    try {
+      dlg.showModal();
+    } catch {
+      dlg.setAttribute("open", "");
+    }
+  }
+  bindSheetViewport(dlg);
+  cleanupModalTrap();
+  modalUi.untrap = trapFocus(dlg);
+  modalUi.unbind = wireSheetKeyboard(dlg);
+  requestAnimationFrame(() => titleEl?.focus?.({ preventScroll: true }));
+}
+
+function closeDialog(dlg) {
+  if (!dlg) return;
+  modalUi.closingByUi = true;
+  if (dlg.open) dlg.close();
+  else {
+    dlg.removeAttribute("open");
+    lockPageScroll(false);
+    restoreOpener(modalUi.opener);
+    modalUi.opener = null;
+    window.scrollTo(0, modalUi.scrollY || 0);
+  }
+}
+
+function rememberOpenContext(openerEl, returnView) {
+  modalUi.opener = openerEl || rememberOpener();
+  modalUi.scrollY = window.scrollY || window.pageYOffset || 0;
+  if (returnView) modalUi.returnView = returnView;
+  else if (!state.route.modal) modalUi.returnView = state.route.view || "units";
+}
+
+function unitDetailHtml(unit) {
+  if (!unit) {
+    return emptyHtml(
+      "No encontramos esta unidad",
+      "Es posible que no esté vinculada a tu cuenta o que el enlace no sea válido."
+    ) + `<div class="mt-3"><button type="button" class="btn btn-secondary" data-close-modal="unit">Volver</button></div>`;
+  }
+  const active = unit.isActive !== false;
+  return `<dl class="owner-dl">
+      <dt>Código</dt><dd>${escapeHtml(unit.unitCode || unit.code || "—")}</dd>
+      <dt>Propiedad horizontal</dt><dd>${escapeHtml(unit.propertyHorizontalName || "—")}</dd>
+      ${unit.tower ? `<dt>Torre</dt><dd>${escapeHtml(unit.tower)}</dd>` : ""}
+      <dt>Estado</dt><dd><span class="owner-badge ${active ? "owner-badge--ok" : "owner-badge--done"}">${active ? "Activa" : "Inactiva"}</span></dd>
+      <dt>Participación</dt><dd>${formatPercent(unit.sharePercent)}</dd>
+      <dt>Coeficiente</dt><dd>${formatPercent(unit.unitCoefficientPercent)}</dd>
+    </dl>`;
+}
+
+function assemblyDetailHtml(ev, { mode = "detail" } = {}) {
+  if (!ev) {
+    return emptyHtml(
+      mode === "convocation" ? "Convocatoria no disponible" : "Detalle no disponible",
+      "No tenemos información autorizada para este registro, o ya no está visible en tu portal."
+    ) + `<div class="mt-3"><button type="button" class="btn btn-secondary" data-close-modal="assembly">Volver a Mis asambleas</button></div>`;
+  }
+  const badge = statusBadge(ev);
+  const when = formatEventWhen(ev);
+  const id = encodeURIComponent(ev.assemblyId || ev.id);
+  if (mode === "convocation") {
+    const sent = String(ev.convocationStatus || "").toLowerCase() === "sent";
+    return `<div class="owner-convocation">
+      <p class="owner-meta">Contenido autorizado de la convocatoria</p>
+      <dl class="owner-dl">
+        <dt>Asamblea</dt><dd>${escapeHtml(ev.title || "Asamblea")}</dd>
+        <dt>Fecha</dt><dd>${escapeHtml(when.day)}</dd>
+        <dt>Hora (Panamá)</dt><dd>${escapeHtml(when.time)}</dd>
+        <dt>Modalidad</dt><dd>${escapeHtml(modalityLabel(ev.modality))}</dd>
+        <dt>Estado</dt><dd>${escapeHtml(badge.label)}</dd>
+        <dt>PH</dt><dd>${escapeHtml(ev.propertyHorizontalName || "—")}</dd>
+        <dt>Ubicación</dt><dd>${escapeHtml(ev.locationText || (String(ev.modality || "").toUpperCase() === "VIRTUAL" ? "Virtual" : "Por confirmar"))}</dd>
+        <dt>Convocatoria</dt><dd>${escapeHtml(sent ? "Enviada" : ev.convocationStatus || "Pendiente o no publicada")}</dd>
+      </dl>
+      ${
+        !sent
+          ? `<div class="owner-empty owner-empty--compact mt-2"><p>Aún no hay un documento de convocatoria publicado para ti. Conservamos el resumen autorizado con la información disponible.</p></div>`
+          : ""
+      }
+    </div>`;
+  }
+  return `<dl class="owner-dl">
+      <dt>Título</dt><dd>${escapeHtml(ev.title || "Asamblea")}</dd>
+      <dt>Fecha</dt><dd>${escapeHtml(when.day)}</dd>
+      <dt>Hora (Panamá)</dt><dd>${escapeHtml(when.time)}</dd>
+      <dt>Modalidad</dt><dd>${escapeHtml(modalityLabel(ev.modality))}</dd>
+      <dt>Estado</dt><dd><span class="owner-badge ${badge.cls}">${escapeHtml(badge.label)}</span></dd>
+      <dt>PH</dt><dd>${escapeHtml(ev.propertyHorizontalName || "—")}</dd>
+      ${ev.locationText ? `<dt>Ubicación</dt><dd>${escapeHtml(ev.locationText)}</dd>` : ""}
+    </dl>
+    <div class="owner-asm-row__actions mt-3">
+      ${
+        isLive(ev) && (ev.canJoin || ["InProgress", "Paused", "CheckIn"].includes(String(ev.status)))
+          ? `<a class="btn btn-primary" href="/assembly.html?assemblyId=${id}">Entrar a la asamblea</a>`
+          : ""
+      }
+      <a class="btn btn-secondary" href="#assemblies/${id}/convocatoria" data-owner-open="convocation" data-assembly-id="${escapeHtml(String(ev.assemblyId || ev.id))}">Ver convocatoria</a>
+    </div>`;
+}
+
+async function syncUnitModal() {
+  const dlg = qs("#dlg-owner-unit");
+  const body = qs("#owner-unit-body");
+  if (!dlg || !body) return;
+  if (state.route.modal !== "unit" || !state.route.unitCode) {
+    if (dlg.open) closeDialog(dlg);
+    return;
+  }
+  const code = state.route.unitCode;
+  openDialogShell(dlg, { title: `Unidad ${code}`, eyebrow: "Detalle de unidad" });
+  if (!state.profile && state.loading) {
+    body.innerHTML = skeletonInline();
+    return;
+  }
+  body.innerHTML = unitDetailHtml(findUnit(code));
+}
+
+async function syncAssemblyModal() {
+  const dlg = qs("#dlg-owner-assembly");
+  const body = qs("#owner-asm-body");
+  const foot = qs("#owner-asm-foot");
+  if (!dlg || !body) return;
+  const mode = state.route.modal;
+  if (mode !== "assembly" && mode !== "convocation") {
+    if (dlg.open) closeDialog(dlg);
+    return;
+  }
+  const id = state.route.assemblyId;
+  const isConv = mode === "convocation";
+  openDialogShell(dlg, {
+    title: isConv ? "Convocatoria" : "Detalle de asamblea",
+    eyebrow: isConv ? "Documento autorizado" : "Asamblea"
+  });
+  body.innerHTML = skeletonInline();
+  if (foot) foot.innerHTML = `<button type="button" class="btn btn-secondary" data-close-modal="assembly">Volver a Mis asambleas</button>`;
+
+  let ev = findEvent(id);
+  try {
+    const fetched = await api(`/api/calendar/events/${encodeURIComponent(id)}`);
+    if (fetched) {
+      ev = fetched;
+      const idx = state.events.findIndex((e) => String(e.assemblyId || e.id) === String(id));
+      if (idx >= 0) state.events[idx] = { ...state.events[idx], ...fetched };
+      else state.events.push(fetched);
+    }
+  } catch (err) {
+    if (!ev) {
+      body.innerHTML =
+        emptyHtml(
+          isConv ? "Convocatoria no disponible" : "Detalle no disponible",
+          err?.message || "No pudimos cargar este registro."
+        ) +
+        `<div class="mt-3"><button type="button" class="btn btn-secondary" data-retry-assembly="${escapeHtml(id)}">Reintentar</button>
+         <button type="button" class="btn btn-ghost" data-close-modal="assembly">Volver</button></div>`;
+      return;
+    }
+  }
+
+  if (state.route.modal !== mode || state.route.assemblyId !== id) return;
+  qs("#owner-asm-title").textContent = isConv
+    ? `Convocatoria · ${ev?.title || "Asamblea"}`
+    : ev?.title || "Asamblea";
+  body.innerHTML = assemblyDetailHtml(ev, { mode: isConv ? "convocation" : "detail" });
+}
+
+function closeOwnerModal(kind) {
+  modalUi.closingByUi = true;
+  const unitDlg = qs("#dlg-owner-unit");
+  const asmDlg = qs("#dlg-owner-assembly");
+  if (kind === "unit" || unitDlg?.open) closeDialog(unitDlg);
+  if (kind === "assembly" || asmDlg?.open) closeDialog(asmDlg);
+  const fallbackView =
+    kind === "unit"
+      ? modalUi.returnView === "home"
+        ? "home"
+        : "units"
+      : modalUi.returnView === "home"
+        ? "home"
+        : "assemblies";
+  setHash({ view: fallbackView, unitCode: null, assemblyId: null, modal: null });
+  requestAnimationFrame(() => {
+    window.scrollTo(0, modalUi.scrollY || 0);
+    restoreOpener(modalUi.opener);
+  });
+}
+
+function applyRoute({ fromHash = true } = {}) {
+  if (fromHash) {
+    const next = parseHash();
+    if (next.modal && !state.route.modal) {
+      rememberOpenContext(document.activeElement, state.route.view || next.view);
+    }
+    state.route = next;
+  }
+  showView(visibleBaseView());
   remountNav();
-  if (state.route.view === "unit-detail") renderUnitDetail();
-  const main = qs("#main");
-  if (main) main.focus?.();
+  // Open modal shell on the same tick as the click (before async fetches).
+  if (state.route.modal === "unit") {
+    const dlg = qs("#dlg-owner-unit");
+    const body = qs("#owner-unit-body");
+    if (dlg && body && !dlg.open) {
+      body.innerHTML = skeletonInline();
+      openDialogShell(dlg, {
+        title: `Unidad ${state.route.unitCode || ""}`,
+        eyebrow: "Detalle de unidad"
+      });
+    }
+  } else if (state.route.modal === "assembly" || state.route.modal === "convocation") {
+    const dlg = qs("#dlg-owner-assembly");
+    const body = qs("#owner-asm-body");
+    if (dlg && body && !dlg.open) {
+      body.innerHTML = skeletonInline();
+      openDialogShell(dlg, {
+        title: state.route.modal === "convocation" ? "Convocatoria" : "Detalle de asamblea",
+        eyebrow: state.route.modal === "convocation" ? "Documento autorizado" : "Asamblea"
+      });
+    }
+  }
+  void syncUnitModal();
+  void syncAssemblyModal();
 }
 
 async function loadPortalData() {
   state.loading = true;
   state.loadError = null;
+  state.sectionError = null;
   renderAll();
   try {
+    const profile = await api("/api/ph/me/owner-profile").catch(() => null);
+    state.profile = profile;
+
+    const ph = activePh();
+    if (ph?.propertyHorizontalId) {
+      state.phDetail = await api(`/api/ph/${encodeURIComponent(ph.propertyHorizontalId)}`).catch(() => null);
+    }
+
     const from = new Date();
     from.setUTCMonth(from.getUTCMonth() - 2);
     const to = new Date();
@@ -448,41 +856,29 @@ async function loadPortalData() {
       from: from.toISOString(),
       to: to.toISOString()
     });
+    if (ph?.propertyHorizontalId) {
+      q.set("propertyHorizontalId", ph.propertyHorizontalId);
+    }
 
-    const [profile, nextRes, eventsRes, assembliesFallback] = await Promise.all([
-      api("/api/ph/me/owner-profile").catch(() => null),
+    const [nextRes, eventsRes] = await Promise.all([
       api("/api/calendar/next").catch(() => null),
-      api(`/api/calendar/events?${q}`).catch(() => null),
-      api("/api/assemblies").catch(() => [])
+      api(`/api/calendar/events?${q}`).catch((err) => {
+        state.sectionError = "assemblies";
+        throw err;
+      })
     ]);
 
-    state.profile = profile;
     state.next = nextRes?.next || null;
+    state.events = eventsRes?.events || [];
 
-    let events = eventsRes?.events || [];
-    if (!events.length && Array.isArray(assembliesFallback) && assembliesFallback.length) {
-      events = assembliesFallback.map((a) => ({
-        assemblyId: a.id,
-        propertyHorizontalName: a.propertyHorizontalName || "",
-        title: a.title,
-        modality: a.modality,
-        status: a.status,
-        calendarStatus: a.status === "InProgress" ? "LIVE" : "",
-        scheduledAtUtc: a.scheduledAtUtc,
-        timeZoneId: a.timeZoneId || "America/Panama",
-        canJoin: ["InProgress", "Paused", "CheckIn"].includes(String(a.status)),
-        convocationStatus: a.convocationStatus || null,
-        countdownLabel: a.status === "InProgress" ? "EN VIVO" : ""
-      }));
-    }
-    state.events = events;
-
-    const name = profile?.displayName || state.user.displayName || "Propietario";
+    const name = profile?.displayName || state.user?.displayName || "Propietario";
     const hello = qs("#owner-hello");
     if (hello) hello.textContent = `Hola, ${name}`;
     const lede = qs("#owner-lede");
-    if (lede && profile?.properties?.[0]?.name) {
-      lede.textContent = `Resumen para ${profile.properties[0].name}.`;
+    if (lede) {
+      lede.textContent = ph?.name
+        ? `Resumen para ${ph.name}.`
+        : "Tu resumen de asambleas, unidades y cuenta.";
     }
   } catch (err) {
     state.loadError = err?.message || "Error de carga";
@@ -490,24 +886,130 @@ async function loadPortalData() {
   } finally {
     state.loading = false;
     renderAll();
+    applyRoute({ fromHash: false });
   }
 }
 
 function wireChrome() {
-  qs("#btn-logout")?.addEventListener("click", async () => {
+  qs("#btn-logout")?.addEventListener("click", async (e) => {
+    e.preventDefault();
     await logout();
     location.href = "/";
   });
 
-  window.addEventListener("hashchange", () => applyRoute());
+  qs("#btn-nav-toggle")?.addEventListener("click", () => {
+    const menu = qs("#sidebar-menu");
+    const btn = qs("#btn-nav-toggle");
+    if (!menu || !btn) return;
+    const open = menu.classList.toggle("show");
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+
+  window.addEventListener("hashchange", () => applyRoute({ fromHash: true }));
 
   document.addEventListener("click", (e) => {
+    const retryAsm = e.target.closest?.("[data-retry-assembly]");
+    if (retryAsm) {
+      e.preventDefault();
+      void syncAssemblyModal();
+      return;
+    }
+
+    const closeBtn = e.target.closest?.("[data-close-modal]");
+    if (closeBtn) {
+      e.preventDefault();
+      closeOwnerModal(closeBtn.getAttribute("data-close-modal"));
+      return;
+    }
+
     const retry = e.target.closest?.("[data-retry]");
     if (retry) {
       e.preventDefault();
       loadPortalData();
+      return;
+    }
+
+    const open = e.target.closest?.("[data-owner-open]");
+    if (open) {
+      const kind = open.getAttribute("data-owner-open");
+      rememberOpenContext(
+        open,
+        kind === "unit"
+          ? state.route.view === "home"
+            ? "home"
+            : "units"
+          : state.route.view === "home"
+            ? "home"
+            : "assemblies"
+      );
+      // Hash navigation opens the modal immediately in applyRoute.
     }
   });
+
+  qs("#owner-unit-close")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    closeOwnerModal("unit");
+  });
+  qs("#owner-asm-close")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    closeOwnerModal("assembly");
+  });
+
+  qs("#dlg-owner-unit")?.addEventListener("close", () => {
+    cleanupModalTrap();
+    lockPageScroll(false);
+    window.scrollTo(0, modalUi.scrollY || 0);
+    restoreOpener(modalUi.opener);
+    if (!modalUi.closingByUi && state.route.modal === "unit") {
+      setHash(
+        {
+          view: modalUi.returnView === "home" ? "home" : "units",
+          unitCode: null,
+          modal: null
+        },
+        { replace: true }
+      );
+    }
+    modalUi.closingByUi = false;
+    requestAnimationFrame(() => window.scrollTo(0, modalUi.scrollY || 0));
+  });
+
+  qs("#dlg-owner-assembly")?.addEventListener("close", () => {
+    cleanupModalTrap();
+    lockPageScroll(false);
+    window.scrollTo(0, modalUi.scrollY || 0);
+    restoreOpener(modalUi.opener);
+    if (!modalUi.closingByUi && (state.route.modal === "assembly" || state.route.modal === "convocation")) {
+      setHash(
+        {
+          view: modalUi.returnView === "home" ? "home" : "assemblies",
+          assemblyId: null,
+          modal: null
+        },
+        { replace: true }
+      );
+    }
+    modalUi.closingByUi = false;
+    requestAnimationFrame(() => window.scrollTo(0, modalUi.scrollY || 0));
+  });
+
+  qs("#dlg-owner-unit")?.addEventListener("cancel", (ev) => {
+    ev.preventDefault();
+    closeOwnerModal("unit");
+  });
+  qs("#dlg-owner-assembly")?.addEventListener("cancel", (ev) => {
+    ev.preventDefault();
+    closeOwnerModal("assembly");
+  });
+}
+
+function initials(name) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "PR";
+  return ((parts[0][0] || "") + (parts[1]?.[0] || parts[0][1] || "")).toUpperCase();
 }
 
 async function init() {
@@ -522,7 +1024,6 @@ async function init() {
   if (isOperator(user) || hasPermission(user, "ph:manage") || hasPermission(user, "assembly:manage")) {
     const dest = "/dashboard.html";
     if (window.__ASAM_HYBRID__) {
-      // Keep the hybrid shell; hard location.assign would destroy shell ID.
       queueMicrotask(() => {
         import("./hybrid-router.js")
           .then((m) => m.softNavigate(dest))
@@ -542,11 +1043,15 @@ async function init() {
   }
 
   state.user = user;
-  qs("#user-chip").textContent = user.displayName || user.email || "Propietario";
+  const chip = qs("#user-chip");
+  if (chip) chip.textContent = user.displayName || user.email || "Propietario";
+  const avatar = qs("#user-avatar");
+  if (avatar) avatar.textContent = initials(user.displayName || user.email || "PR");
   if (qs("#nav-tenant")) qs("#nav-tenant").textContent = user.tenantCode || "Portal propietario";
+  if (qs("#account-role-label")) qs("#account-role-label").textContent = user.displayName || user.email || "Cuenta";
 
   wireChrome();
-  applyRoute();
+  applyRoute({ fromHash: true });
   await loadPortalData();
 
   try {
@@ -576,7 +1081,7 @@ export async function mount(ctx = {}) {
 }
 
 export async function unmount() {
-  /* page-level listeners are wiped with #main swap; abort in-flight via hybrid */
+  cleanupModalTrap();
 }
 
 export async function canLeave() {
