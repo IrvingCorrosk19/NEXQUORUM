@@ -5,6 +5,7 @@
 import { hasPermission } from "./auth.js";
 import { isOperator, isOwnerPortalUser } from "./roles.js";
 import { escapeHtml, qs } from "./ui.js";
+import { iconSvg } from "./tabler-icons.js?v=idn2";
 
 /**
  * @typedef {"global"|"ph"|"assembly"} IaLevel
@@ -35,12 +36,15 @@ function isTablerShell() {
   return document.body?.classList.contains("layout-tabler");
 }
 
-function link(href, label, { current = false, id = null } = {}) {
+function link(href, label, { current = false, id = null, icon = null } = {}) {
   const cur = current ? ' aria-current="page"' : "";
   const idAttr = id ? ` id="${id}"` : "";
   if (isTablerShell()) {
     const active = current ? " active" : "";
-    return `<li class="nav-item"><a class="nav-link${active}" href="${href}"${idAttr}${cur}><span class="nav-link-title">${escapeHtml(label)}</span></a></li>`;
+    const iconHtml = icon
+      ? `<span class="nav-link-icon">${iconSvg(icon, 20)}</span>`
+      : "";
+    return `<li class="nav-item"><a class="nav-link${active}" href="${href}"${idAttr}${cur}>${iconHtml}<span class="nav-link-title">${escapeHtml(label)}</span></a></li>`;
   }
   return `<a href="${href}"${idAttr}${cur}>${escapeHtml(label)}</a>`;
 }
@@ -48,7 +52,7 @@ function link(href, label, { current = false, id = null } = {}) {
 function section(title, itemsHtml) {
   if (!itemsHtml) return "";
   if (isTablerShell()) {
-    return `<div class="nav-section-label">${escapeHtml(title)}</div><ul class="navbar-nav">${itemsHtml}</ul>`;
+    return `<div class="nav-section"><p class="nav-section-label">${escapeHtml(title)}</p><ul class="navbar-nav nav-section__links">${itemsHtml}</ul></div>`;
   }
   return `
     <div class="ia-nav-section">
@@ -71,27 +75,29 @@ export function buildIaNavHtml(ctx) {
   const qPh = phId ? `phId=${encodeURIComponent(phId)}` : "";
   const current = ctx.current || "";
 
+  const calendarHref = phId ? `/calendar.html?${qPh}` : "/calendar.html";
+  const historyHref = phId ? `/assemblies-history.html?${qPh}` : "/assemblies-history.html";
   const global = [
-    link("/ph.html", "Propiedades", { current: current === "ph-list" && !phId }),
-    link("/calendar.html", "Calendario", { current: current === "calendar" }),
-    link("/assemblies-history.html", "Histórico", { current: current === "history" })
+    link("/ph.html", "Propiedades", { current: current === "ph-list" && !phId, icon: "building" }),
+    link(calendarHref, "Calendario", { current: current === "calendar", icon: "calendar" }),
+    link(historyHref, "Histórico", { current: current === "history", icon: "archive" })
   ].join("");
 
   let phBlock = "";
   if (phId) {
     const phBase = `/ph.html?${qPh}`;
     const items = [
-      link(`${phBase}#resumen`, "Resumen", { current: current === "ph-overview" }),
-      link(`${phBase}#assemblies`, "Asambleas", { current: current === "ph-assemblies" }),
-      link(`${phBase}#units`, "Unidades", { current: current === "ph-units" }),
-      link(`${phBase}#owners`, "Propietarios", { current: current === "ph-owners" }),
-      isTablerShell() ? link(`${phBase}#coefficients`, "Coeficientes", { current: current === "ph-coefficients" }) : "",
-      isTablerShell() ? link(`${phBase}#import`, "Importar", { current: current === "ph-import" }) : "",
-      isTablerShell() ? link(`${phBase}#readiness`, "Preparación", { current: current === "ph-readiness" }) : "",
+      link(`${phBase}#resumen`, "Resumen", { current: current === "ph-overview", icon: "layoutDashboard" }),
+      link(`${phBase}#assemblies`, "Asambleas", { current: current === "ph-assemblies", icon: "microphone" }),
+      link(`${phBase}#units`, "Unidades", { current: current === "ph-units", icon: "layoutGrid" }),
+      link(`${phBase}#owners`, "Propietarios", { current: current === "ph-owners", icon: "users" }),
+      link(`${phBase}#coefficients`, "Coeficientes", { current: current === "ph-coefficients", icon: "percentage" }),
+      link(`${phBase}#import`, "Importar", { current: current === "ph-import", icon: "fileImport" }),
+      link(`${phBase}#readiness`, "Preparación", { current: current === "ph-readiness", icon: "checklist" }),
       hasPermission(ctx.user, "communications:view")
-        ? link(`/communications.html?${qPh}`, "Comunicaciones", { current: current === "comms" })
+        ? link(`/communications.html?${qPh}`, "Comunicaciones", { current: current === "comms", icon: "mail" })
         : "",
-      link(`${phBase}#info`, "Configuración", { current: current === "ph-config" })
+      link(`${phBase}#info`, "Configuración", { current: current === "ph-config", icon: "settings" })
     ]
       .filter(Boolean)
       .join("");

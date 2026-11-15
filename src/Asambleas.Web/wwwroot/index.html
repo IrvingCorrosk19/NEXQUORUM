@@ -8,17 +8,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=gov1" />
+  <link rel="stylesheet" href="/css/tokens.css?v=idn2" />
   <link rel="stylesheet" href="/css/base.css?v=gov1" />
   <link rel="stylesheet" href="/css/components.css?v=gov1" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <link rel="stylesheet" href="/css/loading.css?v=px1" />
   <link rel="stylesheet" href="/css/gov-ops.css?v=gov4" />
+  <link rel="stylesheet" href="/css/login-identity.css?v=idn2" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
 </head>
-<body>
+<body class="login-identity">
   <a class="skip-link" href="#otp-email">Saltar al acceso</a>
+  <div class="login-split">
+    <aside class="login-split__visual" aria-hidden="true"></aside>
+    <div class="login-split__form">
   <main class="login-shell">
     <section class="login-card panel" aria-labelledby="welcome">
       <header class="login-brand">
@@ -135,7 +139,9 @@
       </form>
     </section>
   </main>
+    </div>
+  </div>
 
-  <script type="module" src="/js/modules/login-app.js?v=gov2"></script>
+  <script type="module" src="/js/modules/login-app.js?v=idn2"></script>
 </body>
 </html>

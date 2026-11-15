@@ -1,9 +1,10 @@
 import { api } from "./api.js";
-import { logout, me, hasPermission } from "./auth.js";
+import { me, hasPermission } from "./auth.js";
 import { isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { bootIaPage } from "./ia-page.js?v=tabs2";
+import { bootIaPage } from "./ia-page.js?v=idn2";
+import { iconSvg } from "./tabler-icons.js?v=idn2";
 import { assemblyLabel } from "./assembly-labels.js";
 import {
   fillTimeSelect,
@@ -335,8 +336,10 @@ function renderAgenda() {
 
 function emptyState() {
   const canSchedule = canScheduleAssemblies(state.user);
-  return `<div class="calendar-empty">
-    <p>No tienes Asambleas programadas próximamente.</p>
+  return `<div class="calendar-empty empty">
+    <div class="empty-icon">${iconSvg("calendar", 28)}</div>
+    <p class="empty-title">No hay asambleas programadas</p>
+    <p class="empty-subtitle text-secondary">Cuando programes una sesión, aparecerá en este calendario.</p>
     ${canSchedule ? `<button type="button" class="btn btn-primary" id="empty-schedule">Nueva asamblea</button>` : ""}
   </div>`;
 }
@@ -918,7 +921,6 @@ function wireChrome() {
     })
   );
   qs("#btn-schedule")?.addEventListener("click", () => openScheduleDialog());
-  qs("#btn-logout")?.addEventListener("click", () => logout());
 
   qs("#sched-ph")?.addEventListener("change", () => {
     state.scheduleDirty = true;

@@ -80,8 +80,24 @@
 }
 
 .layout-tabler .navbar-vertical .nav-link {
-  color: rgba(250, 248, 244, 0.78);
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #e8eef4;
   border-radius: 0.45rem;
+}
+
+.layout-tabler .navbar-vertical .nav-link .nav-link-icon {
+  display: inline-flex;
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: inherit;
+}
+
+.layout-tabler .navbar-vertical .nav-link .nav-link-icon .icon {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .layout-tabler .navbar-vertical .nav-link .nav-link-title {
@@ -96,8 +112,8 @@
 
 .layout-tabler .navbar-vertical .nav-link.active,
 .layout-tabler .navbar-vertical .nav-link[aria-current="page"] {
-  color: #fff;
-  background: rgba(0, 124, 120, 0.38);
+  color: #ffffff;
+  background: #007c78;
   font-weight: 700;
   box-shadow: inset 3px 0 0 var(--brand-coral, #ff806b);
 }
@@ -108,13 +124,33 @@
   font-weight: 700;
 }
 
+.layout-tabler #ia-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-top: 0.4rem;
+}
+
+.layout-tabler .nav-section {
+  margin: 0;
+}
+
+.layout-tabler .nav-section + .nav-section {
+  margin-top: 0.15rem;
+}
+
+.layout-tabler .nav-section__links {
+  gap: 0.08rem;
+}
+
 .layout-tabler .nav-section-label {
-  padding: 0.85rem 0.75rem 0.25rem;
+  margin: 0;
+  padding: 0.2rem 0.75rem 0.12rem;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 128, 107, 0.92);
+  color: #ff9a8a;
 }
 
 .layout-tabler .app-top {
@@ -427,9 +463,119 @@
   gap: 0.4rem;
 }
 
-.layout-tabler .ph-cover .badge {
-  font-weight: 650;
+.layout-tabler .ph-cover .badge,
+.layout-tabler .ph-cover .badge.bg-green-lt,
+.layout-tabler .ph-cover .badge.bg-blue-lt,
+.layout-tabler .ph-cover .badge.bg-yellow-lt,
+.layout-tabler .ph-cover .badge.bg-secondary-lt,
+.layout-tabler .ph-cover .badge.bg-red-lt {
+  background: #faf8f4 !important;
+  color: #102b3f !important;
+  border: 0;
+  font-weight: 700;
+  box-shadow: 0 1px 10px rgba(16, 43, 63, 0.28);
+}
+
+.layout-tabler #view-detail.is-ph-loading .ph-cover,
+.layout-tabler #view-detail.is-ph-loading .wizard-panel,
+.layout-tabler #view-detail.is-ph-loading .wizard-steps,
+.layout-tabler #view-detail.is-ph-loading .ph-module-tabs,
+.layout-tabler #view-detail.is-ph-loading #ph-hero-actions,
+.layout-tabler #view-detail.is-ph-loading .ph-onboarding-progress {
+  display: none !important;
+}
+
+.layout-tabler #view-detail.is-ph-loading #ph-detail-status {
+  display: block !important;
+}
+
+.layout-tabler .empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0 auto 0.75rem;
+  border-radius: 0.65rem;
+  background: rgba(0, 124, 120, 0.12);
+  color: #007c78;
+}
+
+.layout-tabler .history-card .empty-icon,
+.layout-tabler .history-item__icon {
+  background: rgba(16, 43, 63, 0.08);
   color: #102b3f;
+}
+
+.layout-tabler .history-item__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  flex: 0 0 2.4rem;
+  border-radius: 0.55rem;
+}
+
+.layout-tabler .history-card {
+  border: 1px solid rgba(16, 43, 63, 0.08);
+  box-shadow: none;
+}
+
+.layout-tabler .history-list {
+  max-width: 44rem;
+}
+
+.layout-tabler .cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.layout-tabler .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.layout-tabler .command-eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-coral, #ff806b);
+}
+
+.layout-tabler .lede,
+.layout-tabler .muted,
+.layout-tabler .field-hint {
+  color: var(--text-secondary, #3e536b);
+}
+
+.layout-tabler .field-error {
+  margin: 0.35rem 0 0;
+  color: var(--status-danger, #b91c1c);
+  font-size: 0.85rem;
+}
+
+.layout-tabler .cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.layout-tabler .btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-primary, #102b3f);
 }
 
 .layout-tabler .ph-cover #btn-manage-ph {

@@ -1,0 +1,118 @@
+/* ASAMBLEAS — Acceso with ocean/teal identity and split visual. */
+
+.login-identity {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #faf8f4;
+  color: #102b3f;
+  font-family: "DM Sans", "Segoe UI", sans-serif;
+}
+
+.login-split {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.login-split__visual {
+  display: none;
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(16, 43, 63, 0.28), rgba(16, 43, 63, 0.62)),
+    var(--login-visual, url("/img/brand/architecture-cover.jpg")) center / cover no-repeat;
+}
+
+.login-split__visual::after {
+  content: "";
+  position: absolute;
+  left: 1.5rem;
+  bottom: 1.5rem;
+  width: 2.75rem;
+  height: 3px;
+  border-radius: 99px;
+  background: #ff806b;
+}
+
+.login-split__form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 4vw, 2.5rem);
+  background: #faf8f4;
+}
+
+.login-identity .login-shell {
+  min-height: auto;
+  padding: 0;
+  background: transparent;
+  display: block;
+}
+
+.login-identity .login-card {
+  width: min(28rem, 100%);
+  background: #ffffff;
+  border: 1px solid rgba(16, 43, 63, 0.1);
+  box-shadow: 0 16px 40px rgba(16, 43, 63, 0.08);
+}
+
+.login-identity .login-brand__mark {
+  color: #007c78;
+}
+
+.login-identity .login-brand h1 {
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #102b3f;
+}
+
+.login-identity .login-methods {
+  background: #f4f1ea;
+}
+
+.login-identity .login-methods [role="tab"] {
+  color: #3e536b;
+  font-weight: 650;
+}
+
+.login-identity .login-methods [role="tab"][aria-selected="true"] {
+  background: #007c78;
+  color: #ffffff;
+  border-color: #007c78;
+  font-weight: 700;
+}
+
+.login-identity .login-card .field input,
+.login-identity .login-card .password-field input {
+  background: #ffffff;
+  color: #102b3f;
+  border: 1px solid rgba(16, 43, 63, 0.18);
+  min-height: 2.75rem;
+}
+
+.login-identity .login-card .btn-primary {
+  background: #007c78;
+  border-color: #007c78;
+  color: #ffffff;
+  font-weight: 650;
+  width: 100%;
+}
+
+.login-identity .login-card .btn-primary:hover {
+  background: #006864;
+  border-color: #006864;
+}
+
+.login-identity .login-form-alert {
+  margin: 0 0 0.9rem;
+}
+
+@media (min-width: 960px) {
+  .login-split {
+    grid-template-columns: minmax(18rem, 1.05fr) minmax(26rem, 1fr);
+  }
+
+  .login-split__visual {
+    display: block;
+  }
+}

@@ -1,12 +1,12 @@
 import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
-import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=idn1";
+import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=idn2";
 import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
 import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton, startTopProgress, stopTopProgress } from "./loading.js";
-import { startHybridShell } from "./hybrid-router.js?v=idn1";
+import { startHybridShell } from "./hybrid-router.js?v=idn2";
 import { createUnitsHub } from "./ph-units-hub.js?v=tbl3";
 
 const STEP_LABELS = [
@@ -90,8 +90,15 @@ function setDetailBusy(busy, copy) {
   if (el) el.hidden = !busy;
   const detail = $("#view-detail");
   if (detail) {
-    if (busy) detail.setAttribute("aria-busy", "true");
-    else detail.removeAttribute("aria-busy");
+    detail.classList.toggle("is-ph-loading", !!busy);
+    if (busy) {
+      detail.setAttribute("aria-busy", "true");
+      document.querySelectorAll("#view-detail .wizard-panel").forEach((p) => {
+        p.hidden = true;
+      });
+    } else {
+      detail.removeAttribute("aria-busy");
+    }
   }
 }
 

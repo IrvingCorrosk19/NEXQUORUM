@@ -5,7 +5,7 @@
 import { api } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
 import { isOwnerPortalUser } from "./roles.js";
-import { mountIaShell, buildAssemblyBreadcrumbs, phHref } from "./ia-nav.js?v=gov1";
+import { mountIaShell, buildAssemblyBreadcrumbs, phHref } from "./ia-nav.js?v=idn2";
 import { readIaContext, syncIaContextFromUrl, writeIaContext } from "./ia-context.js";
 import { ensureActivePhClaim, hydratePhContext, loadMyMemberships } from "./ph-context.js";
 
@@ -62,7 +62,8 @@ export async function bootIaPage(opts) {
   const tenant = $("#nav-tenant");
   if (tenant) tenant.textContent = user.tenantCode || "Gobernanza";
 
-  $("#btn-logout")?.addEventListener("click", async () => {
+  $("#btn-logout")?.addEventListener("click", async (ev) => {
+    ev.preventDefault();
     await logout();
     location.href = "/";
   });

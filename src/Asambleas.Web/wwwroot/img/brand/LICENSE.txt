@@ -1,6 +1,7 @@
 architecture-cover.jpg
-Source: Unsplash — https://unsplash.com/photos/white-concrete-building-1487958449943-2429e8be8625
-Photographer: Joel Filipe (https://unsplash.com/@joelfilip)
+Source: Unsplash — https://unsplash.com/photos/white-high-rise-building-2d4lAQAlbDA
+Photo ID: photo-1460317442991-0ec209397118
+Photographer: Danist Soh (https://unsplash.com/@danist07)
 License: Unsplash License (https://unsplash.com/license)
 Free to use for commercial and non-commercial purposes. No permission required.
-Used as a generic architectural brand fallback, not as a photograph of a specific PH.
+Used as a generic residential architecture brand fallback, not as a photograph of a specific PH.

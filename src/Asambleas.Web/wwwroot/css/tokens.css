@@ -174,7 +174,7 @@
   --bg-atmosphere: var(--surface-base);
 
   --connection-banner-bg: #ffffff;
-  --asset-version: idn1;
+  --asset-version: idn2;
 }
 
 @media (prefers-reduced-motion: reduce) {
