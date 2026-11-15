@@ -408,7 +408,7 @@ export function renderVotePanel(
           ${escapeHtml(t("voting.confirmVote"))}
         </button>
       </div>
-      <div id="vote-status" class="muted" aria-live="polite"></div>
+      <div id="vote-status" class="vote-status-line muted" aria-live="polite"></div>
     `;
   } else if (!operatorView && session.status === "Open") {
     body += `<p class="vote-eligibility-msg" role="status">${escapeHtml(t("voting.notEligible"))}</p>`;
@@ -474,6 +474,7 @@ export function renderVotePanel(
       confirmBtn.setAttribute("aria-busy", "true");
     }
     if (statusEl) {
+      statusEl.className = "vote-status-line is-sending";
       statusEl.textContent = t("voting.registering");
     }
 
@@ -506,9 +507,10 @@ export function renderVotePanel(
           confirmBtn.removeAttribute("aria-busy");
         }
         if (statusEl) {
+          statusEl.className = "vote-status-line is-error";
           statusEl.innerHTML = `
             <div class="inline-alert" role="status" aria-live="assertive">
-              <p><strong>${escapeHtml(t("voting.verifying"))}</strong></p>
+              <p><strong>${escapeHtml(t("voting.failureTitle") || "No se pudo confirmar")}</strong></p>
               <p class="muted">${escapeHtml(t("voting.failureBody"))}</p>
             </div>`;
         }
@@ -556,9 +558,10 @@ export function renderVotePanel(
         confirmBtn.removeAttribute("aria-busy");
       }
       if (statusEl) {
+        statusEl.className = "vote-status-line is-error";
         statusEl.innerHTML = `
           <div class="inline-alert inline-alert-error" role="alert">
-            <p><strong>${escapeHtml(t("voting.castFailed"))}</strong></p>
+            <p><strong>${escapeHtml(t("voting.failureTitle") || t("voting.castFailed") || "No se pudo confirmar")}</strong></p>
           </div>`;
       }
     }

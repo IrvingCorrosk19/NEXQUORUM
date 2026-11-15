@@ -279,9 +279,76 @@ export function mountIaShell(ctx, { breadcrumbs = [] } = {}) {
       if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || a.target === "_blank") return;
       const href = a.getAttribute("href") || "";
       if (!href || href.startsWith("#") || href.startsWith("mailto:")) return;
+      closeMobileNav();
       import("./loading.js").then(({ startTopProgress }) => startTopProgress()).catch(() => {});
     });
   });
+
+  ensureMobileNav();
+}
+
+function closeMobileNav() {
+  const shell = document.querySelector(".app-shell");
+  const btn = document.querySelector("#btn-nav-toggle");
+  shell?.classList.remove("is-nav-open");
+  if (btn) {
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-label", "Abrir menú de navegación");
+  }
+  document.body.style.removeProperty("overflow");
+}
+
+function openMobileNav() {
+  const shell = document.querySelector(".app-shell");
+  const btn = document.querySelector("#btn-nav-toggle");
+  shell?.classList.add("is-nav-open");
+  if (btn) {
+    btn.setAttribute("aria-expanded", "true");
+    btn.setAttribute("aria-label", "Cerrar menú de navegación");
+  }
+  document.body.style.overflow = "hidden";
+  document.querySelector(".app-nav a, .app-nav button")?.focus();
+}
+
+function ensureMobileNav() {
+  const shell = document.querySelector(".app-shell");
+  const header = document.querySelector(".app-top");
+  const nav = document.querySelector(".app-nav");
+  if (!shell || !header || !nav) return;
+
+  if (!document.querySelector(".nav-backdrop")) {
+    const backdrop = document.createElement("div");
+    backdrop.className = "nav-backdrop";
+    backdrop.addEventListener("click", closeMobileNav);
+    shell.appendChild(backdrop);
+  }
+
+  let btn = header.querySelector("#btn-nav-toggle");
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "btn-nav-toggle";
+    btn.className = "btn-nav-toggle";
+    btn.setAttribute("aria-controls", "ia-nav");
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-label", "Abrir menú de navegación");
+    btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`;
+    header.insertBefore(btn, header.firstChild);
+    btn.addEventListener("click", () => {
+      if (shell.classList.contains("is-nav-open")) closeMobileNav();
+      else openMobileNav();
+    });
+  }
+
+  if (!document.body.dataset.navEscBound) {
+    document.body.dataset.navEscBound = "1";
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Escape") return;
+      if (!document.querySelector(".app-shell.is-nav-open")) return;
+      closeMobileNav();
+      document.querySelector("#btn-nav-toggle")?.focus();
+    });
+  }
 }
 
 export function phHref(phId, hash = "") {

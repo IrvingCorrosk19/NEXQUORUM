@@ -1,58 +1,58 @@
-/* ASAMBLEAS Design System V3 — Executive Governance SaaS (dark premium) */
+/* ASAMBLEAS Design System V4 — Light operational governance */
 :root {
   /* Surfaces */
-  --surface-base: #070b14;
-  --surface-primary: #0b1220;
-  --surface-secondary: #121a2b;
-  --surface-elevated: #162033;
-  --surface-overlay: rgba(8, 12, 22, 0.72);
-  --surface-glass: color-mix(in srgb, #1a2740 78%, transparent);
-  --surface-inverse: #e8eef8;
-  --surface-inverse-soft: #c5d0e0;
+  --surface-base: #eef1f6;
+  --surface-primary: #ffffff;
+  --surface-secondary: #f6f8fb;
+  --surface-elevated: #ffffff;
+  --surface-overlay: rgba(11, 36, 64, 0.46);
+  --surface-glass: color-mix(in srgb, #ffffff 88%, transparent);
+  --surface-inverse: #0b2440;
+  --surface-inverse-soft: #1e3a5f;
 
   /* Text */
-  --text-primary: #e8eef8;
-  --text-secondary: #b6c2d6;
-  --text-muted: #9aa8bd;
-  --text-on-inverse: #0b1220;
-  --text-on-brand: #061018;
+  --text-primary: #0b2440;
+  --text-secondary: #3e536b;
+  --text-muted: #5c6f89;
+  --text-on-inverse: #f4f7fb;
+  --text-on-brand: #ffffff;
 
   /* Borders */
-  --border-subtle: rgba(148, 175, 210, 0.12);
-  --border-default: rgba(148, 175, 210, 0.18);
-  --border-strong: rgba(148, 175, 210, 0.34);
-  --border-focus: #2dd4bf;
+  --border-subtle: rgba(11, 36, 64, 0.08);
+  --border-default: rgba(11, 36, 64, 0.14);
+  --border-strong: rgba(11, 36, 64, 0.28);
+  --border-focus: #0f766e;
 
   /* Brand */
-  --brand-navy-950: #070b14;
-  --brand-navy-900: #0b1220;
-  --brand-navy-800: #121a2b;
-  --brand-navy-700: #1a2740;
-  --brand-teal-900: #0f766e;
-  --brand-teal-700: #14b8a6;
-  --brand-teal-500: #2dd4bf;
-  --brand-teal-300: #5eead4;
-  --brand-teal-100: rgba(45, 212, 191, 0.14);
+  --brand-navy-950: #071525;
+  --brand-navy-900: #0b2440;
+  --brand-navy-800: #16345a;
+  --brand-navy-700: #1e3a5f;
+  --brand-teal-900: #115e59;
+  --brand-teal-700: #0f766e;
+  --brand-teal-500: #0f766e;
+  --brand-teal-300: #0d9488;
+  --brand-teal-100: rgba(15, 118, 110, 0.12);
   --brand-gold-700: #b45309;
-  --brand-gold-500: #d4a017;
-  --brand-gold-300: #f0d78c;
-  --brand-cyan: #22d3ee;
+  --brand-gold-500: #d97706;
+  --brand-gold-300: #f59e0b;
+  --brand-cyan: #0e7490;
 
-  /* Status */
-  --status-success: #34d399;
-  --status-success-bg: rgba(52, 211, 153, 0.14);
-  --status-warning: #fbbf24;
-  --status-warning-bg: rgba(251, 191, 36, 0.14);
-  --status-danger: #f87171;
-  --status-danger-bg: rgba(248, 113, 113, 0.14);
-  --status-info: #38bdf8;
-  --status-info-bg: rgba(56, 189, 248, 0.14);
+  /* Status — color + text required in UI */
+  --status-success: #047857;
+  --status-success-bg: rgba(4, 120, 87, 0.1);
+  --status-warning: #b45309;
+  --status-warning-bg: rgba(180, 83, 9, 0.1);
+  --status-danger: #b91c1c;
+  --status-danger-bg: rgba(185, 28, 28, 0.1);
+  --status-info: #1d4ed8;
+  --status-info-bg: rgba(29, 78, 216, 0.1);
 
   /* Assembly semantics */
-  --assembly-live: #34d399;
-  --assembly-quorum: #2dd4bf;
-  --assembly-voting: #d4a017;
-  --assembly-stage: #0b1220;
+  --assembly-live: #047857;
+  --assembly-quorum: #0f766e;
+  --assembly-voting: #b45309;
+  --assembly-stage: #ffffff;
 
   --choice-favor: var(--status-success);
   --choice-against: var(--status-danger);
@@ -62,13 +62,13 @@
   --text: var(--text-primary);
   --surface: var(--surface-elevated);
   --bg: var(--surface-base);
-  --accent: var(--brand-teal-500);
+  --accent: var(--brand-teal-700);
   --border: var(--border-default);
   --color-text: var(--text-primary);
   --color-muted: var(--text-muted);
-  --color-accent: var(--brand-teal-500);
+  --color-accent: var(--brand-teal-700);
   --color-ink: var(--text-primary);
-  --color-ink-soft: #c5d0e0;
+  --color-ink-soft: #3e536b;
   --color-slate: var(--text-secondary);
   --color-slate-muted: var(--text-muted);
   --color-surface: var(--surface-primary);
@@ -89,8 +89,8 @@
   --color-border: var(--border-default);
   --color-border-strong: var(--border-strong);
 
-  /* Typography */
-  --font-display: "Source Serif 4", "Source Serif Pro", Georgia, serif;
+  /* Typography — one readable UI family */
+  --font-display: "DM Sans", "Segoe UI", sans-serif;
   --font-body: "DM Sans", "Segoe UI", sans-serif;
   --font-metric: "DM Sans", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
 
@@ -129,14 +129,14 @@
   --radius-md: 0.65rem;
   --radius-lg: 1rem;
   --radius-xl: 1.35rem;
-  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.22);
-  --shadow-md: 0 12px 36px rgba(0, 0, 0, 0.32);
-  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 1px 2px rgba(11, 36, 64, 0.06);
+  --shadow-md: 0 8px 24px rgba(11, 36, 64, 0.08);
+  --shadow-lg: 0 18px 40px rgba(11, 36, 64, 0.12);
   --shadow-soft: var(--shadow-md);
   --shadow-elevated: var(--shadow-lg);
-  --shadow-focus: 0 0 0 3px rgba(45, 212, 191, 0.35);
-  --glow-teal: 0 0 28px rgba(45, 212, 191, 0.22);
-  --glow-gold: 0 0 28px rgba(212, 160, 23, 0.2);
+  --shadow-focus: 0 0 0 3px rgba(15, 118, 110, 0.28);
+  --glow-teal: 0 0 0 3px rgba(15, 118, 110, 0.16);
+  --glow-gold: 0 0 0 3px rgba(180, 83, 9, 0.16);
 
   /* Controls / layout */
   --control-height: 2.85rem;
@@ -144,8 +144,8 @@
   --content-max: 76rem;
   --content-narrow: 42rem;
   --sidebar-width: 22.5rem;
-  --nav-width: 15.5rem;
-  --header-height: 3.85rem;
+  --nav-width: 15rem;
+  --header-height: 3.65rem;
   --mobile-action-h: 4.25rem;
 
   /* Motion */
@@ -167,14 +167,10 @@
   --z-toast: 13050;
   --touch-min: 2.75rem; /* 44px */
 
-  --bg-atmosphere:
-    radial-gradient(1100px 700px at 8% -8%, rgba(45, 212, 191, 0.14), transparent 55%),
-    radial-gradient(900px 560px at 92% 0%, rgba(212, 160, 23, 0.1), transparent 50%),
-    radial-gradient(700px 500px at 50% 110%, rgba(34, 211, 238, 0.06), transparent 45%),
-    linear-gradient(165deg, #070b14 0%, #0b1220 42%, #101828 100%);
+  --bg-atmosphere: var(--surface-base);
 
-  --connection-banner-bg: rgba(7, 11, 20, 0.92);
-  --asset-version: px1;
+  --connection-banner-bg: #ffffff;
+  --asset-version: gov1;
 }
 
 @media (prefers-reduced-motion: reduce) {

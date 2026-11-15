@@ -19,8 +19,8 @@ const SOFT_PAGES = new Set([
 ]);
 
 const MODULE_LOADERS = {
-  "dashboard.html": () => import("./dashboard-app.js"),
-  "ph.html": () => import("./ph-app.js?v=cancel-label1"),
+  "dashboard.html": () => import("./dashboard-app.js?v=gov1"),
+  "ph.html": () => import("./ph-app.js?v=gov2"),
   "agenda.html": () => import("./agenda-app.js?v=agenda-finish1"),
   "checkin.html": () => import("./checkin-app.js"),
   "voting-studio.html": () => import("./voting-studio-app.js"),
@@ -28,12 +28,12 @@ const MODULE_LOADERS = {
 };
 
 const PAGE_STYLES = {
-  "dashboard.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
-  "ph.html": ["/css/ph.css?v=units-hub3", "/css/ia.css?v=phsw3", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia5", "/css/ph-roster-import.css?v=pri1", "/css/feedback.css?v=fb1"],
-  "agenda.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
-  "checkin.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
-  "voting-studio.html": ["/css/voting-studio.css?v=vs1", "/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"],
-  "owner.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2"]
+  "dashboard.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2", "/css/gov-ops.css?v=gov3"],
+  "ph.html": ["/css/ph.css?v=units-hub3", "/css/ia.css?v=phsw3", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia5", "/css/ph-roster-import.css?v=pri1", "/css/feedback.css?v=fb1", "/css/gov-ops.css?v=gov3"],
+  "agenda.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2", "/css/gov-ops.css?v=gov3"],
+  "checkin.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2", "/css/gov-ops.css?v=gov3"],
+  "voting-studio.html": ["/css/voting-studio.css?v=vs1", "/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2", "/css/gov-ops.css?v=gov3"],
+  "owner.html": ["/css/ia.css?v=hist1", "/css/ux-remediation.css?v=ux1", "/css/ux-ia-reeng.css?v=ia2", "/css/gov-ops.css?v=gov3"]
 };
 
 let currentModule = null;

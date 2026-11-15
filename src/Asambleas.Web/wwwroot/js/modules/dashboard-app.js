@@ -13,7 +13,7 @@ import { showPageError } from "./app-feedback.js";
 import { getDashboard, getReadiness } from "./room-state.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
 import { api } from "./api.js";
-import { mountIaShell, buildAssemblyBreadcrumbs } from "./ia-nav.js?v=tabs2";
+import { mountIaShell, buildAssemblyBreadcrumbs } from "./ia-nav.js?v=gov1";
 import { resolvePrimaryAction, statusLabelEs } from "./ia-actions.js";
 import {
   renderReadinessCompact,
@@ -22,7 +22,7 @@ import {
 } from "./readiness-workflow.js?v=closed-agenda1";
 import { writeIaContext } from "./ia-context.js";
 import { historicalOverviewUrl, isTerminalStatus, renderHistoricalBanner } from "./assembly-lifecycle.js";
-import { startHybridShell, softNavigate } from "./hybrid-router.js";
+import { startHybridShell, softNavigate } from "./hybrid-router.js?v=gov1";
 
 let assemblyId = assemblyIdFromUrl();
 
@@ -109,8 +109,9 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
   );
   renderQuickLinks(qs("#secondary-links"), user, assemblyId, assembly);
 
-  const hero = qs(".page-hero.page-hero--compact");
+  const hero = qs("#assembly-ops-hero") || qs(".page-hero.page-hero--compact");
   if (hero) {
+    hero.dataset.status = assembly.status || "";
     let phLine = hero.querySelector(".dashboard-hero-ph");
     if (!phLine) {
       phLine = document.createElement("p");
@@ -130,7 +131,7 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
   qs("#assembly-meta").innerHTML = `
     <span>${escapeHtml(formatDateTime(assembly.scheduledAtUtc))}</span>
     <span>${escapeHtml(assembly.modality || "—")}</span>
-    <span>Estado: ${escapeHtml(statusLabelEs(assembly.status || ""))}</span>`;
+    <span>${escapeHtml(statusLabelEs(assembly.status || ""))}</span>`;
 
   const c = counts || assembly.counts || {};
   const prepDone = readiness?.completedChecks ?? 0;

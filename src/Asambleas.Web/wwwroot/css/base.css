@@ -10,7 +10,7 @@
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -54,10 +54,7 @@ body {
   gap: var(--space-5);
   padding: var(--space-5) var(--space-4);
   border-right: 1px solid var(--border-subtle);
-  background:
-    linear-gradient(180deg, rgba(22, 32, 51, 0.92), rgba(11, 18, 32, 0.96)),
-    var(--surface-secondary);
-  backdrop-filter: blur(16px);
+  background: var(--surface-primary);
 }
 
 .app-nav .brand {
@@ -96,14 +93,14 @@ body {
 
 .app-nav a:hover {
   color: var(--text-primary);
-  background: rgba(45, 212, 191, 0.08);
+  background: var(--brand-teal-100);
 }
 
 .app-nav a[aria-current="page"] {
-  color: var(--text-primary);
-  background: rgba(45, 212, 191, 0.12);
-  border-color: rgba(45, 212, 191, 0.28);
-  box-shadow: var(--glow-teal);
+  color: var(--brand-teal-900);
+  background: var(--brand-teal-100);
+  border-color: color-mix(in srgb, var(--brand-teal-700) 35%, transparent);
+  font-weight: 700;
 }
 
 .app-top {
@@ -114,8 +111,7 @@ body {
   gap: var(--space-4);
   padding: 0 var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
-  background: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
-  backdrop-filter: blur(14px);
+  background: var(--surface-primary);
 }
 
 .app-workspace {
@@ -229,6 +225,29 @@ select {
   }
 }
 
+.btn-nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  min-width: var(--touch-min);
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.btn-nav-toggle:focus-visible {
+  box-shadow: var(--shadow-focus);
+}
+
+.nav-backdrop {
+  display: none;
+}
+
 @media (max-width: 1023px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -237,8 +256,43 @@ select {
       "workspace";
   }
 
+  .btn-nav-toggle {
+    display: inline-flex;
+  }
+
   .app-nav {
-    display: none;
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(18.5rem, 86vw);
+    z-index: var(--z-drawer);
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform var(--motion-med) var(--ease-out), visibility 0s linear var(--motion-med);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .app-shell.is-nav-open .app-nav {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+    transition: transform var(--motion-med) var(--ease-out);
+  }
+
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-drawer) - 1);
+    background: var(--surface-overlay);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-fast) var(--ease-out);
+  }
+
+  .app-shell.is-nav-open .nav-backdrop {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 

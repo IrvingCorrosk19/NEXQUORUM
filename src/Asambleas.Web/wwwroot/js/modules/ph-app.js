@@ -1,12 +1,12 @@
 import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
-import { mountIaShell, phHref } from "./ia-nav.js?v=tabs2";
+import { mountIaShell, phHref } from "./ia-nav.js?v=gov1";
 import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
 import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton } from "./loading.js";
-import { startHybridShell } from "./hybrid-router.js";
+import { startHybridShell } from "./hybrid-router.js?v=gov1";
 import { createUnitsHub } from "./ph-units-hub.js?v=cancel-label1";
 
 const STEP_LABELS = [
@@ -27,6 +27,7 @@ let editingOwnerId = null;
 let myMemberships = [];
 let phAssemblies = [];
 let asmFilter = "upcoming";
+let asmSearch = "";
 let phFormBinder = null;
 /** @type {Map<string, number>} */
 const phTabFreshAt = new Map();
@@ -384,6 +385,11 @@ function wireUi() {
     });
   });
 
+  $("#asm-search")?.addEventListener("input", (ev) => {
+    asmSearch = String(ev.target.value || "");
+    renderAssembliesList();
+  });
+
   window.addEventListener("hashchange", () => {
     if (currentPhId) applyHashTab();
   });
@@ -729,19 +735,11 @@ async function openPh(id, preferredTab = null) {
   `;
 
   const nextHost = $("#ph-next-assembly");
-  if (ph.nextAssemblyAtUtc || ph.nextAssemblyTitle) {
-    nextHost.hidden = false;
-    const when = ph.nextAssemblyAtUtc ? formatDateTime(ph.nextAssemblyAtUtc) : "—";
-    nextHost.innerHTML = `
-      <p class="section-title" style="margin:0 0 0.35rem">Próxima asamblea</p>
-      <strong>${escapeHtml(ph.nextAssemblyTitle || "Asamblea")}</strong>
-      <p class="muted" style="margin:0.35rem 0 0.75rem">${escapeHtml(when)}</p>
-      <a class="btn btn-primary" id="btn-view-next-assembly" href="/calendar.html?phId=${encodeURIComponent(id)}">Ver asamblea</a>
-    `;
-  } else {
+  if (nextHost) {
     nextHost.hidden = true;
     nextHost.innerHTML = "";
   }
+  renderPhCommand(ph, id);
 
   const newAsm = $("#btn-new-assembly");
   if (newAsm) {
@@ -1049,6 +1047,7 @@ async function loadAssemblies({ soft = false } = {}) {
       );
       markPhTabFresh("assemblies");
       renderAssembliesList();
+      if (currentPh) renderPhCommand(currentPh, requestPh);
     } catch (err) {
       if (String(currentPhId) !== requestPh) return;
       host.innerHTML = `
@@ -1074,6 +1073,67 @@ async function loadAssemblies({ soft = false } = {}) {
   return work;
 }
 
+function renderPhCommand(ph, id) {
+  const host = $("#ph-command");
+  if (!host || !ph) return;
+  const live = phAssemblies.find((e) => assemblyListBucket(e.status) === "live");
+  const upcoming =
+    phAssemblies.find((e) => assemblyListBucket(e.status) === "upcoming") ||
+    (ph.nextAssemblyTitle || ph.nextAssemblyAtUtc
+      ? { title: ph.nextAssemblyTitle, scheduledAtUtc: ph.nextAssemblyAtUtc, status: "Scheduled" }
+      : null);
+
+  if (live?.assemblyId) {
+    const primary = resolvePrimaryAction(live, { assemblyId: live.assemblyId });
+    host.dataset.kind = "live";
+    host.innerHTML = `
+      <p class="ops-command__kicker">Asamblea en curso</p>
+      <h2>${escapeHtml(live.title || "Asamblea")}</h2>
+      <div class="ops-command__meta">
+        <span>${escapeHtml(ph.name || "PH")}</span>
+        <span class="ia-badge-status is-live">${escapeHtml(statusLabelEs(live.status))}</span>
+      </div>
+      <div class="ops-command__actions">
+        <a class="btn btn-primary" href="${primary.href || `/lobby.html?assemblyId=${encodeURIComponent(live.assemblyId)}`}">${escapeHtml(
+          primary.label || "Entrar a la sala"
+        )}</a>
+        <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${encodeURIComponent(live.assemblyId)}">Ver detalle</a>
+      </div>`;
+    return;
+  }
+
+  if (upcoming && (upcoming.title || upcoming.scheduledAtUtc)) {
+    const when = upcoming.scheduledAtUtc ? formatDateTime(upcoming.scheduledAtUtc) : "Fecha por confirmar";
+    const aid = upcoming.assemblyId;
+    host.dataset.kind = "next";
+    host.innerHTML = `
+      <p class="ops-command__kicker">Próxima asamblea</p>
+      <h2>${escapeHtml(upcoming.title || "Asamblea")}</h2>
+      <div class="ops-command__meta">
+        <span>${escapeHtml(ph.name || "PH")}</span>
+        <span>${escapeHtml(when)}</span>
+        <span class="ia-badge-status is-ready">${escapeHtml(statusLabelEs(upcoming.status || "Scheduled"))}</span>
+      </div>
+      <div class="ops-command__actions">
+        <a class="btn btn-primary" id="btn-view-next-assembly" href="${
+          aid
+            ? `/dashboard.html?assemblyId=${encodeURIComponent(aid)}`
+            : `/calendar.html?phId=${encodeURIComponent(id)}`
+        }">Ver detalle</a>
+      </div>`;
+    return;
+  }
+
+  host.dataset.kind = "empty";
+  host.innerHTML = `
+    <p class="ops-command__kicker">Panel</p>
+    <h2>No hay asambleas programadas</h2>
+    <p>Cuando exista una reunión, aquí verás el estado y la acción disponible para tu rol.</p>
+    <div class="ops-command__actions">
+      <a class="btn btn-primary" href="/calendar.html?phId=${encodeURIComponent(id)}">+ Nueva asamblea</a>
+    </div>`;
+}
+
 function renderAssembliesList() {
   const host = $("#ph-assemblies-list");
   if (!host) return;
@@ -1083,20 +1143,28 @@ function renderAssembliesList() {
     return;
   }
 
-  const rows =
+  const q = asmSearch.trim().toLowerCase();
+  let rows =
     asmFilter === "all"
       ? phAssemblies
       : phAssemblies.filter((e) => assemblyListBucket(e.status) === asmFilter);
+  if (q) {
+    rows = rows.filter((e) => String(e.title || "").toLowerCase().includes(q));
+  }
 
-  if (!rows.length) {
-    const emptyCopy =
-      asmFilter === "all" || !phAssemblies.length
-        ? "Este PH todavía no tiene asambleas. Puedes crear la primera cuando estés listo."
-        : "No hay asambleas en este filtro.";
+  if (!phAssemblies.length) {
     host.innerHTML = `
       <div class="ia-empty-state">
-        <p>${escapeHtml(emptyCopy)}</p>
+        <p>Este PH todavía no tiene asambleas. Puedes crear la primera cuando estés listo.</p>
         <a class="btn btn-primary" href="/calendar.html?phId=${encodeURIComponent(currentPhId)}">+ Nueva asamblea</a>
+      </div>`;
+    return;
+  }
+
+  if (!rows.length) {
+    host.innerHTML = `
+      <div class="ia-empty-state">
+        <p>${q ? "No hay asambleas que coincidan con la búsqueda." : "No hay asambleas en este filtro."}</p>
       </div>`;
     return;
   }
@@ -1104,7 +1172,6 @@ function renderAssembliesList() {
   const sorted = [...rows].sort(
     (a, b) => new Date(a.scheduledAtUtc).getTime() - new Date(b.scheduledAtUtc).getTime()
   );
-  const now = Date.now();
 
   const fmtRow = (e, { compact = false } = {}) => {
     const d = new Date(e.scheduledAtUtc);
@@ -1163,91 +1230,41 @@ function renderAssembliesList() {
         </div>
       </details>`;
 
-    return `
-      <div class="ia-asm-row" data-assembly-id="${escapeHtml(String(e.assemblyId))}" data-ph-id="${escapeHtml(String(e.propertyHorizontalId || currentPhId))}" data-status="${escapeHtml(String(e.status || ""))}">
+    const statusClass =
+      bucket === "live" ? " is-live" : bucket === "upcoming" ? " is-ready" : bucket === "cancelled" ? " is-cancelled" : "";
+    return {
+      table: `
+        <tr data-assembly-id="${escapeHtml(String(e.assemblyId))}" data-ph-id="${escapeHtml(String(e.propertyHorizontalId || currentPhId))}">
+          <td><strong>${escapeHtml(e.title)}</strong></td>
+          <td>${escapeHtml(when)}</td>
+          <td><span class="ia-badge-status${statusClass}">${escapeHtml(statusLabelEs(e.status))}</span></td>
+          <td><a class="btn btn-primary btn-sm" href="${primaryHref}">${escapeHtml(primaryLabel)}</a></td>
+        </tr>`,
+      stack: `
+      <div class="ops-stack-row ia-asm-row" data-assembly-id="${escapeHtml(String(e.assemblyId))}" data-ph-id="${escapeHtml(String(e.propertyHorizontalId || currentPhId))}" data-status="${escapeHtml(String(e.status || ""))}">
         <div>
           <strong>${escapeHtml(e.title)}</strong>
           <p class="ia-asm-row__meta">${escapeHtml(when)} · ${escapeHtml(e.modality || "—")}${e.assemblyKind ? ` · ${escapeHtml(e.assemblyKind)}` : ""}${compact ? "" : ` · Convocados ${e.participantCount ?? 0}`}</p>
         </div>
-        <div><span class="ia-badge-status${bucket === "live" ? " is-live" : bucket === "upcoming" ? " is-ready" : bucket === "cancelled" ? " is-cancelled" : ""}">${escapeHtml(statusLabelEs(e.status))}</span></div>
+        <div><span class="ia-badge-status${statusClass}">${escapeHtml(statusLabelEs(e.status))}</span></div>
         <div class="ia-asm-row__actions">
           <a class="btn btn-${compact ? "secondary" : "primary"} btn-sm" href="${primaryHref}">${escapeHtml(primaryLabel)}</a>
           ${secondary}
           ${moreMenu}
         </div>
-      </div>`;
+      </div>`
+    };
   };
 
-  if (asmFilter === "upcoming" || asmFilter === "all") {
-    const upcoming = sorted.filter(
-      (e) =>
-        (assemblyListBucket(e.status) === "upcoming" || assemblyListBucket(e.status) === "live") &&
-        new Date(e.scheduledAtUtc).getTime() >= now - 86_400_000
-    );
-    const past = sorted.filter((e) => assemblyListBucket(e.status) === "done");
-    const hero = upcoming[0];
-    const restUpcoming = upcoming.slice(1);
-
-    let html = "";
-    if (hero) {
-      const d = new Date(hero.scheduledAtUtc);
-      const whenLong = Number.isNaN(d.getTime()) ? "—" : formatDateTime(hero.scheduledAtUtc);
-      const id = encodeURIComponent(hero.assemblyId);
-      const primary = resolvePrimaryAction(hero, { assemblyId: hero.assemblyId });
-      html += `
-        <div class="ia-asm-summary__section">
-          <p class="ia-asm-summary__section-title">Próxima asamblea</p>
-          <div class="ia-asm-summary__hero">
-            <div class="ia-asm-summary__hero-head">
-              <div>
-                <strong style="font-size:1.05rem">${escapeHtml(hero.title)}</strong>
-                <p class="ia-asm-row__meta">${escapeHtml(whenLong)} · ${escapeHtml(hero.modality || "—")}</p>
-              </div>
-              <span class="ia-badge-status is-ready">${escapeHtml(statusLabelEs(hero.status))}</span>
-            </div>
-            <div class="ia-asm-row__actions" style="justify-content:flex-start">
-              <a class="btn btn-primary" href="${primary.href || `/dashboard.html?assemblyId=${id}`}">${escapeHtml(
-                primary.label || (hero.status === "Draft" ? "Continuar configuración" : "Continuar preparación")
-              )}</a>
-              <a class="btn btn-secondary" href="/dashboard.html?assemblyId=${id}">Ver asamblea</a>
-              <details class="ia-row-menu">
-                <summary class="btn btn-ghost btn-sm" aria-label="Más acciones">•••</summary>
-                <div class="ia-row-menu__panel" role="menu">
-                  <a role="menuitem" href="/calendar.html?assemblyId=${id}">Reprogramar</a>
-                  <a role="menuitem" href="/convocation.html?assemblyId=${id}">Convocatoria</a>
-                  <a role="menuitem" href="/voting-studio.html?assemblyId=${id}">Votaciones</a>
-                </div>
-              </details>
-            </div>
-          </div>
-        </div>`;
-    }
-
-    if (restUpcoming.length) {
-      html += `<div class="ia-asm-summary__section"><p class="ia-asm-summary__section-title">Próximas</p>${restUpcoming.map((e) => fmtRow(e, { compact: true })).join("")}</div>`;
-    }
-
-    if (past.length && asmFilter === "all") {
-      html += `<div class="ia-asm-summary__section"><p class="ia-asm-summary__section-title">Anteriores</p>${past
-        .slice()
-        .reverse()
-        .map((e) => fmtRow(e, { compact: true }))
-        .join("")}</div>`;
-    }
-
-    if (!html) {
-      html = sorted.map((e) => fmtRow(e)).join("");
-    }
-
-    host.innerHTML = html;
-    return;
-  }
-
-  host.innerHTML = sorted
-    .slice()
-    .reverse()
-    .map((e) => fmtRow(e, { compact: asmFilter === "done" }))
-    .join("");
+  const parts = sorted.map((e) => fmtRow(e, { compact: asmFilter === "done" }));
+  host.innerHTML = `
+    <div class="ops-table-wrap">
+      <table class="ops-table">
+        <thead><tr><th>Asamblea</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead>
+        <tbody>${parts.map((p) => p.table).join("")}</tbody>
+      </table>
+    </div>
+    <div class="ops-stack">${parts.map((p) => p.stack).join("")}</div>`;
 }
 
 async function confirmAction(title, body, okLabel = "Confirmar") {

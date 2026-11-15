@@ -3175,7 +3175,23 @@ async function bootstrapMeeting() {
   syncMeetingControlBar();
 }
 
-function appendChatMessage(msg) {
+let chatUnread = 0;
+
+function updateChatUnreadBadge() {
+  const badge = qs("#chat-unread-badge");
+  const btn = qs("#btn-chat");
+  const panelOpen = qs("#panel-chat")?.classList.contains("is-open");
+  const show = chatIsPhoneLayout() && chatUnread > 0 && !panelOpen;
+  if (badge) {
+    badge.hidden = !show;
+    badge.textContent = chatUnread > 9 ? "9+" : String(chatUnread);
+  }
+  if (btn) {
+    btn.setAttribute("aria-label", show ? `Chat, ${chatUnread} sin leer` : "Chat");
+  }
+}
+
+function appendChatMessage(msg, { fromHistory = false } = {}) {
   const box = qs("#chat-messages");
   if (!box || !msg) return;
   const id = msg.id || msg.Id;
@@ -3191,6 +3207,11 @@ function appendChatMessage(msg) {
   el.innerHTML = `<header><strong>${escapeHtml(author)}</strong> <span class="muted">${escapeHtml(time)}</span>${kind === "Announcement" ? ' <span class="badge">Anuncio</span>' : ""}</header><p>${escapeHtml(body)}</p>`;
   box.appendChild(el);
   box.scrollTop = box.scrollHeight;
+  const panelOpen = qs("#panel-chat")?.classList.contains("is-open");
+  if (!fromHistory && chatIsPhoneLayout() && !panelOpen) {
+    chatUnread += 1;
+    updateChatUnreadBadge();
+  }
 }
 
 async function loadChatHistory() {
@@ -3199,7 +3220,7 @@ async function loadChatHistory() {
   try {
     const rows = await api(`/api/assemblies/${assemblyId}/chat?take=80`);
     box.innerHTML = "";
-    (Array.isArray(rows) ? rows : []).forEach(appendChatMessage);
+    (Array.isArray(rows) ? rows : []).forEach((row) => appendChatMessage(row, { fromHistory: true }));
   } catch {
     /* chat optional */
   }
@@ -3224,7 +3245,11 @@ function setChatOpen(open) {
   }
   if (!phone || !visible) panel.style.bottom = "";
   else pinChatComposer();
-  if (phone && visible) qs("#chat-input")?.focus();
+  if (phone && visible) {
+    chatUnread = 0;
+    updateChatUnreadBadge();
+    qs("#chat-input")?.focus();
+  }
 }
 
 function pinChatComposer() {

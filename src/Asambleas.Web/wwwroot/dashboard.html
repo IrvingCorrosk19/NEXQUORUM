@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/css/ux-remediation.css?v=mP1a" />
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
   <link rel="stylesheet" href="/css/summon-status.css?v=mP1a" />
+  <link rel="stylesheet" href="/css/gov-ops.css?v=gov3" />
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -45,8 +46,9 @@
       <div id="historical-banner" class="ia-historical-banner" hidden role="status"></div>
       <div id="ia-breadcrumbs"></div>
 
-      <section class="page-hero page-hero--compact">
-        <div class="cluster" style="gap:0.75rem;align-items:center;flex-wrap:wrap;justify-content:space-between">
+      <section class="ops-hero page-hero page-hero--compact" id="assembly-ops-hero">
+        <p class="dashboard-hero-ph command-eyebrow">Asamblea</p>
+        <div class="ops-hero__row">
           <div>
             <div class="cluster" style="gap:0.75rem;align-items:center;flex-wrap:wrap">
               <h1 id="assembly-name" style="margin:0"><span class="skeleton" style="display:inline-block;width:16rem;height:1.6rem"></span></h1>
@@ -54,6 +56,7 @@
             </div>
             <div class="meta-row" id="assembly-meta"></div>
           </div>
+          <div id="primary-cta" class="ops-hero__cta" aria-label="Acción principal"></div>
         </div>
       </section>
 
@@ -65,19 +68,14 @@
           <div id="readiness-panel"><div class="skeleton" style="height:8rem"></div></div>
         </section>
 
-        <section class="panel" aria-label="Siguiente paso">
-          <h2 class="section-title">Siguiente paso</h2>
-          <div id="primary-cta"></div>
-        </section>
-
         <section class="panel ia-overview-grid__full" aria-label="Accesos rápidos">
-          <h2 class="section-title">Accesos rápidos</h2>
+          <h2 class="section-title">Agenda, participantes y votaciones</h2>
           <div id="secondary-links"></div>
         </section>
       </div>
     </main>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/js/modules/dashboard-app.js?v=tabs2"></script>
+  <script type="module" src="/js/modules/dashboard-app.js?v=gov1"></script>
 </body>
 </html>
