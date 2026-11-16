@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish13" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish15" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 </head>
 <body class="layout-tabler">
@@ -110,6 +110,7 @@
                     <label class="form-check"><input class="form-check-input" type="checkbox" name="ch" value="WhatsApp" /> <span class="form-check-label">WhatsApp</span></label>
                     <label class="form-check"><input class="form-check-input" type="checkbox" name="ch" value="Sms" /> <span class="form-check-label">SMS</span></label>
                   </fieldset>
+                  <p id="create-channels-error" class="field-error" hidden role="alert"></p>
                 </section>
 
                 <section class="conv-section" aria-labelledby="draft-recipients-heading">
@@ -127,7 +128,7 @@
 
                 <div class="cta-row conv-editor__foot">
                   <button type="submit" class="btn btn-primary" id="btn-save-draft">Guardar borrador</button>
-                  <p id="create-action-status" class="conv-action-status" hidden role="status"></p>
+                  <p id="create-action-status" class="conv-action-status" hidden role="status" tabindex="-1"></p>
                 </div>
               </form>
             </div>
@@ -159,6 +160,6 @@
     </div>
   </div>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/convocation-app.js?v=polish13"></script>
+  <script type="module" src="/js/modules/convocation-app.js?v=polish15"></script>
 </body>
 </html>

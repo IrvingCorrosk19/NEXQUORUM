@@ -1625,10 +1625,29 @@ dialog.app-sheet::backdrop,
   font-weight: 650;
 }
 
+.layout-tabler .conv-editor__foot {
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+}
+
 .layout-tabler .conv-action-status {
   margin: 0;
-  color: #007c78;
+  flex: 1 1 8rem;
+  min-width: 0;
+  color: #102b3f;
   font-weight: 650;
+}
+
+.layout-tabler .conv-action-status--pending {
+  color: #102b3f;
+}
+
+.layout-tabler .conv-action-status--success {
+  color: #007c78;
+}
+
+.layout-tabler .conv-action-status--error {
+  color: #9a3412;
 }
 
 .layout-tabler .conv-list-item {

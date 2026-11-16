@@ -171,12 +171,21 @@ public sealed class ConvocationService
         TenantGuard.EnsureAuthenticated(_currentTenant);
         var assembly = await EnsureAssemblyAsync(request.AssemblyId, cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
+        var title = request.Title?.Trim() ?? string.Empty;
+        if (title.Length == 0)
+        {
+            throw new DomainException("TITLE_REQUIRED", "Indica un título para el borrador.");
+        }
+
+        var subject = string.IsNullOrWhiteSpace(request.Subject) ? title : request.Subject.Trim();
+        var idempotencyKey = IdempotencyKeyNormalizer.Normalize(request.IdempotencyKey);
+
+        if (idempotencyKey is not null)
         {
             var existing = await _db.Convocations
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
-                    c => c.TenantId == _currentTenant.TenantId && c.IdempotencyKey == request.IdempotencyKey,
+                    c => c.TenantId == _currentTenant.TenantId && c.IdempotencyKey == idempotencyKey,
                     cancellationToken);
             if (existing is not null)
             {
@@ -187,7 +196,7 @@ public sealed class ConvocationService
         var channels = ParseChannelNames(request.Channels);
         if (channels.Count == 0)
         {
-            throw new DomainException("CHANNELS_REQUIRED", "Select at least one channel.");
+            throw new DomainException("CHANNELS_REQUIRED", "Selecciona al menos un canal.");
         }
 
         var entity = new Convocation
@@ -195,14 +204,14 @@ public sealed class ConvocationService
             TenantId = _currentTenant.TenantId,
             PropertyHorizontalId = assembly.PropertyHorizontalId,
             AssemblyId = assembly.Id,
-            Title = request.Title.Trim(),
-            Subject = request.Subject.Trim(),
-            BodyHtml = request.BodyHtml,
-            BodyText = request.BodyText,
+            Title = title,
+            Subject = subject,
+            BodyHtml = request.BodyHtml ?? string.Empty,
+            BodyText = request.BodyText ?? string.Empty,
             ChannelsJson = JsonSerializer.Serialize(channels.Select(c => c.ToString()), JsonOptions),
             TemplateId = request.TemplateId,
             CreatedByUserId = TenantGuard.RequireUserId(_currentTenant),
-            IdempotencyKey = string.IsNullOrWhiteSpace(request.IdempotencyKey) ? null : request.IdempotencyKey.Trim(),
+            IdempotencyKey = idempotencyKey,
             Status = ConvocationStatus.Draft
         };
 
@@ -289,12 +298,13 @@ public sealed class ConvocationService
 
         if (c.Status is ConvocationStatus.Sending or ConvocationStatus.Sent or ConvocationStatus.Partial)
         {
-            if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
+            var replayKey = IdempotencyKeyNormalizer.Normalize(request.IdempotencyKey);
+            if (replayKey is not null)
             {
                 var existingBatch = await _db.CommunicationBatches
                     .AsNoTracking()
                     .FirstOrDefaultAsync(
-                        b => b.ConvocationId == convocationId && b.IdempotencyKey == request.IdempotencyKey,
+                        b => b.ConvocationId == convocationId && b.IdempotencyKey == replayKey,
                         cancellationToken);
                 if (existingBatch is not null)
                 {
@@ -330,9 +340,9 @@ public sealed class ConvocationService
         var channels = ParseChannels(c.ChannelsJson);
         await EnsureChannelsEnabledAsync(c.PropertyHorizontalId, channels, cancellationToken);
 
-        var idempotency = string.IsNullOrWhiteSpace(request.IdempotencyKey)
-            ? $"send-{convocationId:N}-{c.Version}"
-            : request.IdempotencyKey.Trim();
+        var idempotency = IdempotencyKeyNormalizer.Require(
+            request.IdempotencyKey,
+            $"send-{convocationId:N}-{c.Version}");
 
         var existing = await _db.CommunicationBatches
             .FirstOrDefaultAsync(b => b.TenantId == _currentTenant.TenantId && b.IdempotencyKey == idempotency, cancellationToken);
@@ -505,9 +515,9 @@ public sealed class ConvocationService
         var channels = ParseChannels(c.ChannelsJson);
         await EnsureChannelsEnabledAsync(c.PropertyHorizontalId, channels, cancellationToken);
 
-        var idempotency = string.IsNullOrWhiteSpace(request.IdempotencyKey)
-            ? $"resend-{convocationId:N}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
-            : request.IdempotencyKey.Trim();
+        var idempotency = IdempotencyKeyNormalizer.Require(
+            request.IdempotencyKey,
+            $"resend-{convocationId:N}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}");
 
         var existing = await _db.CommunicationBatches
             .FirstOrDefaultAsync(b => b.TenantId == _currentTenant.TenantId && b.IdempotencyKey == idempotency, cancellationToken);
@@ -625,9 +635,9 @@ public sealed class ConvocationService
                 convocationId,
                 new ResendConvocationRequest(
                     Confirmed: true,
-                    IdempotencyKey: string.IsNullOrWhiteSpace(request.IdempotencyKey)
-                        ? $"regen-{convocationId:N}-{recipientId:N}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
-                        : request.IdempotencyKey.Trim(),
+                    IdempotencyKey: IdempotencyKeyNormalizer.Require(
+                        request.IdempotencyKey,
+                        $"regen-{convocationId:N}-{recipientId:N}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"),
                     RecipientIds: [recipientId],
                     OnlyFailedOrPending: false),
                 cancellationToken);
@@ -637,9 +647,11 @@ public sealed class ConvocationService
             return await ForceEmailRecipientsAsync(
                 c,
                 [recipient],
-                idempotencyKey: string.IsNullOrWhiteSpace(request.IdempotencyKey)
-                    ? $"regen-force-{convocationId:N}-{recipientId:N}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
-                    : $"{request.IdempotencyKey.Trim()}-force",
+                idempotencyKey: IdempotencyKeyNormalizer.Require(
+                    string.IsNullOrWhiteSpace(request.IdempotencyKey)
+                        ? null
+                        : $"{request.IdempotencyKey.Trim()}-force",
+                    $"regen-force-{convocationId:N}-{recipientId:N}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"),
                 auditEvent: "access_link.regenerated.emailed",
                 cancellationToken);
         }
@@ -659,6 +671,8 @@ public sealed class ConvocationService
         }
 
         await EnsureChannelsEnabledAsync(c.PropertyHorizontalId, channels, cancellationToken);
+
+        idempotencyKey = IdempotencyKeyNormalizer.Require(idempotencyKey, $"force-{c.Id:N}");
 
         var existing = await _db.CommunicationBatches
             .FirstOrDefaultAsync(b => b.TenantId == _currentTenant.TenantId && b.IdempotencyKey == idempotencyKey, cancellationToken);
@@ -1260,9 +1274,14 @@ public sealed class ConvocationService
         }
     }
 
-    private static IReadOnlyList<CommunicationChannel> ParseChannelNames(IReadOnlyList<string> names)
+    private static IReadOnlyList<CommunicationChannel> ParseChannelNames(IReadOnlyList<string>? names)
     {
         var list = new List<CommunicationChannel>();
+        if (names is null)
+        {
+            return list;
+        }
+
         foreach (var name in names)
         {
             if (Enum.TryParse<CommunicationChannel>(name, ignoreCase: true, out var channel) && !list.Contains(channel))

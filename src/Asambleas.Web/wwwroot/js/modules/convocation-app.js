@@ -9,6 +9,7 @@ import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";
 import { assemblyLabel } from "./assembly-labels.js";
 import { applyAvatarElement, avatarCacheBust } from "./avatar-ui.js?v=own11";
+import { applyTestHooks } from "./query-guard.js?v=polish15";
 
 let assemblyId = assemblyIdFromUrl();
 let selectedId = null;
@@ -98,7 +99,94 @@ function normalizeOwnerList(data) {
   return [];
 }
 
+function isMockMailboxAvailable() {
+  const host = location.hostname;
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+}
+
+function supportRef(error) {
+  return error?.correlationId || error?.payload?.correlationId || error?.payload?.extensions?.correlationId || "";
+}
+
+function setCreateActionStatus(kind, message, correlationId) {
+  const el = qs("#create-action-status");
+  if (!el) return;
+  if (!message) {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "conv-action-status";
+    el.removeAttribute("role");
+    return;
+  }
+  el.hidden = false;
+  el.className = `conv-action-status conv-action-status--${kind || "pending"}`;
+  el.setAttribute("role", kind === "error" ? "alert" : "status");
+  const ref = correlationId ? ` Ref. ${correlationId}` : "";
+  el.textContent = `${message}${ref}`;
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+async function sha256Hex(text) {
+  if (globalThis.crypto?.subtle) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  let h = 0xcbf29ce484222325n;
+  for (const ch of String(text)) {
+    h ^= BigInt(ch.charCodeAt(0));
+    h = (h * 0x100000001b3n) & 0xffffffffffffffffn;
+  }
+  return h.toString(16).padStart(16, "0");
+}
+
+async function compactIdempotencyKey(prefix, parts) {
+  const material = [prefix, ...parts.map((p) => String(p ?? ""))].join("|");
+  const digest = await sha256Hex(material);
+  return `${prefix}:${digest}`;
+}
+
+function showCreateChannelError(message) {
+  const err = qs("#create-channels-error");
+  const host = qs(".conv-channels");
+  if (err) {
+    err.hidden = !message;
+    err.textContent = message || "";
+  }
+  host?.classList.toggle("is-invalid", Boolean(message));
+  if (message) {
+    qs('input[name="ch"]')?.focus?.({ preventScroll: true });
+  }
+}
+
+function applyCreateServerError(error) {
+  const code = String(error?.code || "");
+  const msg = String(error?.message || "");
+  if (code === "OWNER_NOT_ELIGIBLE" || code === "OWNER_IDS_REQUIRED" || code === "NO_RECIPIENTS") {
+    showCreateRecipientError(msg || "Revisa los destinatarios del borrador.");
+    return true;
+  }
+  if (code === "CHANNELS_REQUIRED" || /channel/i.test(msg)) {
+    showCreateChannelError(msg || "Selecciona al menos un canal.");
+    return true;
+  }
+  if (code === "TITLE_REQUIRED") {
+    AppFeedback.field.error(qs("#c-title"), msg || "Indica un título para el borrador.");
+    qs("#c-title")?.focus?.();
+    return true;
+  }
+  if (code === "SUBJECT_REQUIRED") {
+    AppFeedback.field.error(qs("#c-subject"), msg || "Indica un asunto para el borrador.");
+    qs("#c-subject")?.focus?.();
+    return true;
+  }
+  return false;
+}
+
 async function snapshotMailbox() {
+  if (!isMockMailboxAvailable()) {
+    lastMailboxCount = -1;
+    return;
+  }
   try {
     const rows = await api("/api/dev/mock-mailbox");
     lastMailboxCount = Array.isArray(rows) ? rows.length : 0;
@@ -201,27 +289,42 @@ function paintHeader(status) {
 }
 
 async function refreshList() {
-  const rows = await api(`/api/assemblies/${assemblyId}/convocations`);
   const panel = qs("#list-panel");
-  if (!rows.length) {
-    panel.innerHTML = `<div class="empty-state">Todavía no hay borradores. Completa el formulario y pulsa Guardar borrador.</div>`;
-    if (!selectedId) paintHeader(null);
-    return rows;
-  }
-  panel.innerHTML = rows
-    .map(
-      (r) => `
+  try {
+    if (window.__ASAM_TEST_LIST_FAIL) {
+      window.__ASAM_TEST_LIST_FAIL = false;
+      throw new Error("No se pudieron cargar los borradores.");
+    }
+    const rows = await api(`/api/assemblies/${assemblyId}/convocations`);
+    if (!Array.isArray(rows)) {
+      throw new Error("No se pudieron cargar los borradores.");
+    }
+    if (!rows.length) {
+      panel.innerHTML = `<div class="empty-state">Todavía no hay borradores. Completa el formulario y pulsa Guardar borrador.</div>`;
+      if (!selectedId) paintHeader(null);
+      return rows;
+    }
+    panel.innerHTML = rows
+      .map(
+        (r) => `
     <button type="button" class="conv-list-item${selectedId === r.id ? " is-active" : ""}" data-id="${r.id}">
       <span><strong>${escapeHtml(r.title)}</strong> · ${escapeHtml(statusEs(r.status))}</span>
       <span class="badge">${r.validRecipientCount}/${r.recipientCount}</span>
     </button>`
-    )
-    .join("");
-  panel.querySelectorAll("[data-id]").forEach((btn) => {
-    btn.addEventListener("click", () => openDetail(btn.getAttribute("data-id")));
-  });
-  if (!selectedId) paintHeader(rows[0].status);
-  return rows;
+      )
+      .join("");
+    panel.querySelectorAll("[data-id]").forEach((btn) => {
+      btn.addEventListener("click", () => openDetail(btn.getAttribute("data-id")));
+    });
+    if (!selectedId) paintHeader(rows[0].status);
+    return rows;
+  } catch (e) {
+    const ref = supportRef(e);
+    panel.innerHTML = `<div class="alert alert-danger" role="alert">No se pudieron cargar los borradores.${
+      ref ? ` Ref. ${escapeHtml(ref)}` : ""
+    }</div>`;
+    return null;
+  }
 }
 
 function renderDraftRecipients(recipients) {
@@ -705,16 +808,32 @@ async function init() {
     const subject = qs("#c-subject").value.trim() || title;
     const notes = qs("#c-html").value.trim();
     const ownerIds = selectedCreateOwnerIds();
+    AppFeedback.field.clearForm(qs("#create-form"));
+    showCreateChannelError("");
+    if (!channels.length) {
+      showCreateChannelError("Selecciona al menos un canal.");
+      setCreateActionStatus("error", "No se pudo guardar el borrador");
+      return;
+    }
     if (!ownerIds.length) {
       showCreateRecipientError("Selecciona al menos un destinatario del borrador.");
+      setCreateActionStatus("error", "No se pudo guardar el borrador");
       return;
     }
     showCreateRecipientError("");
     const saveBtn = qs("#btn-save-draft");
     createInFlight = true;
+    setCreateActionStatus("pending", "Guardando…");
     try {
-      const created = await runWithButton(saveBtn, "Guardando…", () =>
-        api(`/api/assemblies/${assemblyId}/convocations`, {
+      const created = await runWithButton(saveBtn, "Guardando…", async () => {
+        await applyTestHooks();
+        const idempotencyKey = await compactIdempotencyKey("draft", [
+          assemblyId,
+          title,
+          channels.slice().sort().join(","),
+          ownerIds.slice().sort().join(",")
+        ]);
+        return api(`/api/assemblies/${assemblyId}/convocations`, {
           method: "POST",
           body: {
             assemblyId,
@@ -724,29 +843,34 @@ async function init() {
             bodyText: notes || "Convocatoria institucional.",
             channels,
             ownerIds,
-            idempotencyKey: `draft-${assemblyId}-${title}-${ownerIds.slice().sort().join("-")}`
+            idempotencyKey
           }
-        })
-      );
+        });
+      });
       const mailboxAfter = lastMailboxCount;
       await snapshotMailbox();
       const mailed = lastMailboxCount > mailboxAfter && mailboxAfter >= 0;
       if (mailed) {
+        setCreateActionStatus("error", "Borrador guardado, pero el buzón de prueba recibió correo");
         AppFeedback.warning("El borrador se guardó, pero el buzón de prueba recibió correo. Revisa el envío.", {
           title: "Atención"
         });
       } else {
-        AppFeedback.success(
-          `Borrador guardado con ${ownerIds.length} destinatario(s). No se envió correo ni se publicó en el portal.`,
-          { title: "Borrador guardado" }
-        );
+        setCreateActionStatus("success", "Borrador guardado");
       }
       collapseCreateForm();
       await refreshList();
       await openDetail(created.id);
     } catch (e) {
-      AppFeedback.fromError(e, "No pudimos guardar el borrador.");
       expandCreateForm();
+      const mapped = applyCreateServerError(e);
+      const ref = supportRef(e);
+      setCreateActionStatus("error", "No se pudo guardar el borrador", mapped ? "" : ref);
+      if (!mapped) {
+        const statusEl = qs("#create-action-status");
+        statusEl?.focus?.({ preventScroll: true });
+        statusEl?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
     } finally {
       createInFlight = false;
       if (saveBtn) saveBtn.textContent = "Guardar borrador";
@@ -807,7 +931,9 @@ async function init() {
     if (!ok) return;
 
     sendInFlight = true;
-    lastSendKey = lastSendKey || `send-${selectedId}-${ids.slice().sort().join("-")}`;
+    lastSendKey =
+      lastSendKey ||
+      (await compactIdempotencyKey("send", [selectedId, ids.slice().sort().join(",")]));
 
     AppFeedback.info("Estamos preparando y enviando las notificaciones.", {
       title: "Enviando convocatoria…",
