@@ -28,8 +28,8 @@ function canSoftPair(from, to) {
 
 const MODULE_LOADERS = {
   "dashboard.html": () => import("./dashboard-app.js?v=gov1"),
-  "ph.html": () => import("./ph-app.js?v=polish12"),
-  "calendar.html": () => import("./calendar-app.js?v=polish8"),
+  "ph.html": () => import("./ph-app.js?v=polish13"),
+  "calendar.html": () => import("./calendar-app.js?v=polish13"),
   "agenda.html": () => import("./agenda-app.js?v=agenda-finish1"),
   "checkin.html": () => import("./checkin-app.js"),
   "voting-studio.html": () => import("./voting-studio-app.js"),

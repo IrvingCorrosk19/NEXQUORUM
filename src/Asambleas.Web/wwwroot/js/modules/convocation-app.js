@@ -1,20 +1,27 @@
 import { api } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
-import { assemblyIdFromUrl, confirmDialog, escapeHtml, qs } from "./ui.js?v=agenda-return1";
+import { assemblyIdFromUrl, confirmDialog, escapeHtml, formatDateTime, qs } from "./ui.js?v=agenda-return1";
 import { AppFeedback, showPageError } from "./app-feedback.js";
 import { runWithButton } from "./loading.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js?v=tabs2";
+import { bootIaPage } from "./ia-page.js?v=polish9";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";
 import { assemblyLabel } from "./assembly-labels.js";
+import { applyAvatarElement, avatarCacheBust } from "./avatar-ui.js?v=own11";
 
 let assemblyId = assemblyIdFromUrl();
 let selectedId = null;
 let selectedPreview = null;
+let selectedDetail = null;
 let currentRecipients = [];
 let createOwners = [];
 let phId = null;
+let assembly = null;
+let createInFlight = false;
+let sendInFlight = false;
+let lastSendKey = null;
+let lastMailboxCount = 0;
 
 function showError(message) {
   showPageError(message, "error");
@@ -33,6 +40,56 @@ function statusEs(status) {
   return map[status] || assemblyLabel(status);
 }
 
+function statusPillClass(status) {
+  const key = String(status || "Draft").toLowerCase();
+  if (key === "ready" || key === "approved") return "ready";
+  if (key === "sending") return "sending";
+  if (key === "sent") return "sent";
+  if (key === "partial" || key === "failed") return "failed";
+  return "draft";
+}
+
+function channelLabel(name) {
+  const map = { Email: "Email", Portal: "Portal", WhatsApp: "WhatsApp", Sms: "SMS" };
+  return map[name] || name;
+}
+
+function formatPanama(iso, timeZoneId) {
+  if (!iso) return "Fecha por confirmar";
+  try {
+    const label = new Intl.DateTimeFormat("es-PA", {
+      timeZone: timeZoneId || "America/Panama",
+      dateStyle: "full",
+      timeStyle: "short"
+    }).format(new Date(iso));
+    return `${label} (hora de Panamá)`;
+  } catch {
+    return `${formatDateTime(iso)} (hora de Panamá)`;
+  }
+}
+
+function setStatusPill(el, status, fallback) {
+  if (!el) return;
+  const label = fallback || statusEs(status);
+  el.textContent = label;
+  el.className = `conv-status-pill conv-status-pill--${statusPillClass(status)}`;
+}
+
+function draftHashId() {
+  const h = (location.hash || "").replace(/^#/, "");
+  const fromC = h.match(/(?:^|&)c=([0-9a-f-]{36})/i);
+  if (fromC) return fromC[1];
+  if (/^[0-9a-f-]{36}$/i.test(h)) return h;
+  return null;
+}
+
+function rememberDraft(id) {
+  if (!id) return;
+  const url = new URL(location.href);
+  url.hash = `c=${id}`;
+  history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 function normalizeOwnerList(data) {
   if (!data) return [];
   if (Array.isArray(data)) return data;
@@ -41,10 +98,44 @@ function normalizeOwnerList(data) {
   return [];
 }
 
+async function snapshotMailbox() {
+  try {
+    const rows = await api("/api/dev/mock-mailbox");
+    lastMailboxCount = Array.isArray(rows) ? rows.length : 0;
+  } catch {
+    lastMailboxCount = -1;
+  }
+}
+
+function collapseCreateForm() {
+  const sheet = qs("#create-sheet");
+  if (sheet) sheet.open = false;
+}
+
+function expandCreateForm() {
+  const sheet = qs("#create-sheet");
+  if (sheet) sheet.open = true;
+}
+
+function showCreateRecipientError(message) {
+  const err = qs("#create-recipients-error");
+  const host = qs("#create-owner-picker");
+  const list = host?.querySelector(".conv-picker");
+  if (err) {
+    err.hidden = !message;
+    err.textContent = message || "";
+  }
+  list?.classList.toggle("is-invalid", Boolean(message));
+  if (!message) return;
+  const first = host?.querySelector(".create-owner-check");
+  (first || host)?.focus?.({ preventScroll: true });
+  host?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
 async function loadCreateOwnerPicker() {
   const host = qs("#create-owner-picker");
   if (!host || !phId) {
-    if (host) host.innerHTML = `<p class="muted">No se pudo cargar el PH.</p>`;
+    if (host) host.innerHTML = `<p class="text-secondary">No se pudo cargar el PH.</p>`;
     return;
   }
   try {
@@ -60,20 +151,20 @@ async function loadCreateOwnerPicker() {
       String(a.displayName || "").localeCompare(String(b.displayName || ""), "es")
     );
     if (!createOwners.length) {
-      host.innerHTML = `<p class="muted">No hay propietarios Activo/Invitado con unidad. Asigna unidades antes de convocar.</p>`;
+      host.innerHTML = `<p class="text-secondary">No hay propietarios Activo/Invitado con unidad. Asigna unidades antes de convocar.</p>`;
       return;
     }
     host.innerHTML = `
-      <ul class="blocker-list" style="list-style:none;padding:0;margin:0;display:grid;gap:0.35rem;max-height:16rem;overflow:auto">
+      <ul class="conv-picker" id="create-owner-list">
         ${createOwners
           .map(
             (o) => `
-          <li style="display:flex;align-items:center;gap:0.65rem;padding:0.45rem 0.55rem;border:1px solid rgba(255,255,255,.08);border-radius:0.5rem">
-            <input type="checkbox" class="create-owner-check" value="${escapeHtml(o.id)}" data-name="${escapeHtml(o.displayName || "")}" />
+          <li>
+            <input type="checkbox" class="create-owner-check form-check-input" value="${escapeHtml(o.id)}" data-name="${escapeHtml(o.displayName || "")}" />
             <span style="flex:1">
               <strong>${escapeHtml(o.displayName || "—")}</strong>
-              <span class="muted"> · ${escapeHtml(o.email || "sin email")}</span>
-              <span class="muted"> · ${(o.unitCodes || []).join(", ") || "sin unidad"}</span>
+              <span class="text-secondary"> · ${escapeHtml(o.email || "sin email")}</span>
+              <span class="text-secondary"> · ${(o.unitCodes || []).join(", ") || "sin unidad"}</span>
             </span>
             <span class="badge">${escapeHtml(assemblyLabel(o.status))}</span>
           </li>`
@@ -81,7 +172,7 @@ async function loadCreateOwnerPicker() {
           .join("")}
       </ul>`;
   } catch (e) {
-    host.innerHTML = `<p class="muted">${escapeHtml(e.message || "Error al cargar propietarios.")}</p>`;
+    host.innerHTML = `<p class="text-secondary">${escapeHtml(e.message || "Error al cargar propietarios.")}</p>`;
   }
 }
 
@@ -89,18 +180,39 @@ function selectedCreateOwnerIds() {
   return [...document.querySelectorAll(".create-owner-check:checked")].map((el) => el.value);
 }
 
+function paintHeader(status) {
+  const phLine = qs("#conv-ph-line");
+  const whenLine = qs("#conv-when-line");
+  const title = qs("#conv-page-title");
+  if (title) title.textContent = assembly?.title || "Preparar convocatoria";
+  if (phLine) phLine.textContent = assembly?.propertyHorizontalName || "PH activo";
+  if (whenLine) {
+    whenLine.textContent = formatPanama(
+      assembly?.scheduledAtUtc || assembly?.scheduledAt,
+      assembly?.timeZoneId || "America/Panama"
+    );
+  }
+  setStatusPill(qs("#conv-status-pill"), status || "Draft", status ? statusEs(status) : "Sin borrador");
+  const back = qs("#btn-back-assembly");
+  if (back && assemblyId) {
+    back.href = `/dashboard.html?assemblyId=${encodeURIComponent(assemblyId)}`;
+    back.textContent = "Volver a la asamblea";
+  }
+}
+
 async function refreshList() {
   const rows = await api(`/api/assemblies/${assemblyId}/convocations`);
   const panel = qs("#list-panel");
   if (!rows.length) {
-    panel.innerHTML = `<div class="empty-state">No hay convocatorias.</div>`;
-    return;
+    panel.innerHTML = `<div class="empty-state">Todavía no hay borradores. Completa el formulario y pulsa Guardar borrador.</div>`;
+    if (!selectedId) paintHeader(null);
+    return rows;
   }
   panel.innerHTML = rows
     .map(
       (r) => `
-    <button type="button" class="readiness-item" data-id="${r.id}" style="width:100%;text-align:left;cursor:pointer">
-      <span>${escapeHtml(r.title)} · ${escapeHtml(statusEs(r.status))}</span>
+    <button type="button" class="conv-list-item${selectedId === r.id ? " is-active" : ""}" data-id="${r.id}">
+      <span><strong>${escapeHtml(r.title)}</strong> · ${escapeHtml(statusEs(r.status))}</span>
       <span class="badge">${r.validRecipientCount}/${r.recipientCount}</span>
     </button>`
     )
@@ -108,33 +220,54 @@ async function refreshList() {
   panel.querySelectorAll("[data-id]").forEach((btn) => {
     btn.addEventListener("click", () => openDetail(btn.getAttribute("data-id")));
   });
+  if (!selectedId) paintHeader(rows[0].status);
+  return rows;
+}
+
+function renderDraftRecipients(recipients) {
+  if (!recipients?.length) {
+    return `<p class="text-secondary">Este borrador no tiene destinatarios.</p>`;
+  }
+  return `
+    <ul class="conv-readonly">
+      ${recipients
+        .map(
+          (r) => `<li>
+            <strong>${escapeHtml(r.displayName)}</strong>
+            <span class="text-secondary"> · ${escapeHtml(r.email || "sin email")}</span>
+            ${r.isValid ? "" : ` <span class="badge">Datos incompletos</span>`}
+          </li>`
+        )
+        .join("")}
+    </ul>`;
 }
 
 function renderRecipientPicker(recipients) {
   currentRecipients = Array.isArray(recipients) ? recipients : [];
   const valid = currentRecipients.filter((r) => r.isValid);
   if (!valid.length) {
-    return `<div class="empty-state">No hay destinatarios válidos.</div>`;
+    return `<div class="empty-state">No hay destinatarios válidos para este envío.</div>`;
   }
   return `
-    <div class="conv-recipients" style="margin-top:1rem">
-        <div class="cluster" style="justify-content:space-between;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.5rem">
-        <strong>Destinatarios a enviar</strong>
-        <div class="cta-row" style="margin:0">
-          <button type="button" class="btn btn-ghost" id="btn-select-all">Seleccionar todos</button>
-          <button type="button" class="btn btn-ghost" id="btn-select-none">Ninguno</button>
+    <div class="conv-recipients">
+      <div class="conv-section__head">
+        <h3 class="conv-section__title">Destinatarios de este envío</h3>
+        <div class="cta-row conv-section__actions">
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-select-all">Todos</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-select-none">Ninguno</button>
         </div>
       </div>
-      <p class="muted" style="margin:0 0 0.5rem">Marca solo a quienes quieres notificar ahora.</p>
-      <ul class="blocker-list" id="recipient-list" style="list-style:none;padding:0;margin:0;display:grid;gap:0.35rem">
+      <p class="text-secondary">Marca solo a quienes quieres notificar ahora. El resto permanece en el borrador.</p>
+      <p id="send-recipients-error" class="field-error" hidden role="alert"></p>
+      <ul class="conv-picker" id="recipient-list">
         ${valid
           .map(
             (r) => `
-          <li style="display:flex;align-items:center;gap:0.65rem;padding:0.45rem 0.55rem;border:1px solid rgba(255,255,255,.08);border-radius:0.5rem">
-            <input type="checkbox" class="rcpt-check" value="${escapeHtml(r.id)}" data-name="${escapeHtml(r.displayName)}" />
+          <li>
+            <input type="checkbox" class="rcpt-check form-check-input" value="${escapeHtml(r.id)}" data-name="${escapeHtml(r.displayName)}" checked />
             <span style="flex:1">
               <strong>${escapeHtml(r.displayName)}</strong>
-              <span class="muted"> · ${escapeHtml(r.email || "sin email")}</span>
+              <span class="text-secondary"> · ${escapeHtml(r.email || "sin email")}</span>
             </span>
             <span class="badge badge-success">OK</span>
           </li>`
@@ -143,12 +276,13 @@ function renderRecipientPicker(recipients) {
       </ul>
       ${
         currentRecipients.some((r) => !r.isValid)
-          ? `<p class="muted" style="margin-top:0.75rem">Omitidos por datos incompletos: ${currentRecipients
+          ? `<p class="text-secondary" style="margin-top:0.75rem">Omitidos por datos incompletos: ${currentRecipients
               .filter((r) => !r.isValid)
               .map((r) => escapeHtml(r.displayName))
               .join(", ")}</p>`
           : ""
       }
+      <p class="conv-send-summary" id="send-summary" role="status"></p>
     </div>`;
 }
 
@@ -156,59 +290,137 @@ function selectedRecipientIds() {
   return [...document.querySelectorAll(".rcpt-check:checked")].map((el) => el.value);
 }
 
+function updateSendSummary() {
+  const el = qs("#send-summary");
+  if (!el || !selectedDetail) return;
+  const ids = selectedRecipientIds();
+  const channels = (selectedDetail.channels || []).map(channelLabel);
+  const channelText = channels.length ? channels.join(" y ") : "ningún canal";
+  const people = ids.length === 1 ? "1 persona" : `${ids.length} personas`;
+  el.textContent = ids.length
+    ? `Se notificará a ${people} por ${channelText}.`
+    : "No hay personas seleccionadas para este envío.";
+}
+
+function showSendRecipientError(message) {
+  const err = qs("#send-recipients-error");
+  const list = qs("#recipient-list");
+  if (err) {
+    err.hidden = !message;
+    err.textContent = message || "";
+  }
+  list?.classList.toggle("is-invalid", Boolean(message));
+  if (message) {
+    const first = list?.querySelector(".rcpt-check");
+    (first || list)?.focus?.({ preventScroll: true });
+  }
+}
+
 function wireRecipientPicker() {
   qs("#btn-select-all")?.addEventListener("click", () => {
     document.querySelectorAll(".rcpt-check").forEach((el) => {
       el.checked = true;
     });
+    showSendRecipientError("");
+    updateSendSummary();
   });
   qs("#btn-select-none")?.addEventListener("click", () => {
     document.querySelectorAll(".rcpt-check").forEach((el) => {
       el.checked = false;
     });
+    updateSendSummary();
   });
+  document.querySelectorAll(".rcpt-check").forEach((el) => {
+    el.addEventListener("change", () => {
+      showSendRecipientError("");
+      updateSendSummary();
+    });
+  });
+  updateSendSummary();
+}
+
+async function loadEmailPreview(id) {
+  const frame = qs("#conv-preview-frame");
+  if (!frame) return;
+  try {
+    const preview = await api(`/api/convocations/${id}/email-preview`);
+    frame.srcdoc = preview.html || "";
+    const subj = qs("#conv-preview-subject");
+    if (subj) subj.textContent = preview.subject || "Vista previa";
+  } catch (e) {
+    frame.srcdoc = `<body style="font-family:DM Sans,sans-serif;padding:24px;color:#5c6f89"><p>${escapeHtml(e.message || "No se pudo cargar la vista previa.")}</p></body>`;
+  }
 }
 
 async function openDetail(id) {
   selectedId = id;
+  rememberDraft(id);
   const detail = await api(`/api/convocations/${id}`);
+  selectedDetail = detail;
   const panel = qs("#detail-panel");
   panel.hidden = false;
-  const preview = detail.preview;
-  selectedPreview = preview || null;
-  const chip = qs("#sandbox-chip");
-  if (chip) chip.hidden = !preview?.sandboxMode;
+  selectedPreview = detail.preview || null;
+  paintHeader(detail.status);
+  setStatusPill(qs("#detail-status-pill"), detail.status);
 
   const alreadySent = ["Sending", "Sent", "Partial", "Failed"].includes(detail.status);
-  qs("#btn-send").disabled = alreadySent;
-  qs("#btn-validate").disabled = alreadySent;
+  const sendBtn = qs("#btn-send");
+  const validateBtn = qs("#btn-validate");
+  if (sendBtn) {
+    sendBtn.disabled = alreadySent;
+    sendBtn.textContent = "Enviar convocatoria";
+  }
+  if (validateBtn) validateBtn.disabled = alreadySent;
+  qs("#detail-actions").hidden = alreadySent;
+  lastSendKey = alreadySent ? null : lastSendKey;
+
+  const titleEl = qs("#detail-title");
+  if (titleEl) titleEl.textContent = detail.title || "Detalle y envío";
 
   qs("#detail-body").innerHTML = `
-    <p><strong>${escapeHtml(detail.title)}</strong> · ${escapeHtml(statusEs(detail.status))}</p>
-    <p class="muted">${escapeHtml(detail.subject)}</p>
-    <p>Canales: ${detail.channels.map(escapeHtml).join(", ")}</p>
+    <p class="text-secondary">${escapeHtml(detail.subject)}</p>
+    <p>Canales del borrador: ${detail.channels.map((ch) => escapeHtml(channelLabel(ch))).join(", ")}</p>
     ${
-      preview
-        ? `<div class="readiness-summary ${preview.sandboxMode ? "blocked" : "ready"}">
-            ${preview.sandboxMode ? "Modo prueba: no se usará SMTP real." : "Envío real por SMTP (sandbox desactivado)."}
-            ${preview.testRecipientOverride ? ` Override: ${escapeHtml(preview.testRecipientOverride)}.` : ""}
+      selectedPreview
+        ? `<div class="readiness-summary ${selectedPreview.sandboxMode ? "blocked" : "ready"}">
+            ${selectedPreview.sandboxMode ? "Modo prueba: no se usará SMTP real." : "Envío real por SMTP (sandbox desactivado)."}
+            ${selectedPreview.testRecipientOverride ? ` Destino de prueba: ${escapeHtml(selectedPreview.testRecipientOverride)}.` : ""}
           </div>`
         : ""
     }
-    ${alreadySent ? "" : renderRecipientPicker(detail.recipients)}
+    <section class="conv-section" aria-labelledby="draft-rcpt-title">
+      <h3 id="draft-rcpt-title" class="conv-section__title">Destinatarios del borrador (${detail.recipients?.length || 0})</h3>
+      ${renderDraftRecipients(detail.recipients)}
+    </section>
+    ${alreadySent ? "" : `<section class="conv-section" aria-labelledby="send-rcpt-title">
+      <span id="send-rcpt-title" class="visually-hidden">Destinatarios de este envío</span>
+      ${renderRecipientPicker(detail.recipients)}
+    </section>`}
+    <section class="conv-section" aria-labelledby="preview-heading">
+      <h3 id="preview-heading" class="conv-section__title">Vista previa del envío</h3>
+      <p class="text-secondary" id="conv-preview-subject">Plantilla institucional que se enviará.</p>
+      <div class="conv-email-preview">
+        <iframe id="conv-preview-frame" title="Vista previa del correo de convocatoria" sandbox=""></iframe>
+      </div>
+    </section>
   `;
 
   if (!alreadySent) wireRecipientPicker();
   else await renderDeliveryPanel(id);
 
+  titleEl?.focus?.({ preventScroll: true });
+  panel.scrollIntoView({ block: "start", behavior: "smooth" });
+  await loadEmailPreview(id);
+  await refreshList();
+
   try {
     const deliveries = await api(`/api/convocations/${id}/deliveries`);
     qs("#deliveries").innerHTML = deliveries.length
-      ? `<h3 class="section-title">Historial de entregas</h3>` +
+      ? `<h3 class="conv-section__title">Resultado por destinatario</h3>` +
         deliveries
           .map(
             (d) =>
-              `<div class="readiness-item"><span>${escapeHtml(d.channel)} → ${escapeHtml(d.destination || "—")}${d.providerType ? ` · ${escapeHtml(d.providerType)}` : ""}</span><span class="badge">${escapeHtml(deliveryStatusEs(d.status))}</span></div>`
+              `<div class="conv-list-item" tabindex="-1"><span>${escapeHtml(channelLabel(d.channel))} → ${escapeHtml(d.destination || "—")}${d.wasRedirectedToTestOverride ? " · destino de prueba" : ""}${d.providerType ? ` · ${escapeHtml(d.providerType)}` : ""}</span><span class="badge">${escapeHtml(deliveryStatusEs(d.status))}</span></div>`
           )
           .join("")
       : "";
@@ -240,27 +452,27 @@ async function renderDeliveryPanel(convocationId) {
       "beforeend",
       `
       <div style="margin-top:1.25rem">
-        <div class="cluster" style="justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem">
-          <strong>Destinatarios y reenvío</strong>
-          <div class="cta-row" style="margin:0">
+        <div class="conv-section__head">
+          <h3 class="conv-section__title">Destinatarios y reenvío</h3>
+          <div class="cta-row conv-section__actions">
             <button type="button" class="btn btn-secondary" id="btn-resend-selected">Reenviar seleccionados</button>
             <button type="button" class="btn btn-primary" id="btn-resend-pending"${pending.length ? "" : " disabled"}>Reenviar pendientes (${pending.length})</button>
           </div>
         </div>
-        <ul class="blocker-list" style="list-style:none;padding:0;margin:0;display:grid;gap:0.35rem">
+        <ul class="conv-picker">
           ${rows
             .map(
               (r) => `
-            <li style="display:flex;align-items:center;gap:0.65rem;padding:0.45rem 0.55rem;border:1px solid rgba(255,255,255,.08);border-radius:0.5rem">
-              <input type="checkbox" class="rcpt-check" value="${escapeHtml(r.recipientId)}" ${r.canResend ? "checked" : "disabled"} />
+            <li>
+              <input type="checkbox" class="rcpt-check form-check-input" value="${escapeHtml(r.recipientId)}" ${r.canResend ? "checked" : "disabled"} />
               <span style="flex:1">
                 <strong>${escapeHtml(r.displayName)}</strong>
-                <span class="muted"> · ${escapeHtml(r.email || "sin email")}</span>
-                <span class="muted"> · intentos ${r.emailAttemptCount}</span>
+                <span class="text-secondary"> · ${escapeHtml(r.email || "sin email")}</span>
+                <span class="text-secondary"> · intentos ${r.emailAttemptCount}</span>
               </span>
               <span class="badge">${escapeHtml(deliveryStatusEs(r.deliveryStatus))}</span>
-              <button type="button" class="btn btn-ghost" data-resend-one="${escapeHtml(r.recipientId)}" ${r.canResend ? "" : "disabled"}>Reenviar</button>
-              <button type="button" class="btn btn-ghost" data-regen-one="${escapeHtml(r.recipientId)}" ${r.canResend ? "" : "disabled"} title="Invalida el enlace anterior">Regenerar enlace</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-resend-one="${escapeHtml(r.recipientId)}" ${r.canResend ? "" : "disabled"}>Reenviar</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-regen-one="${escapeHtml(r.recipientId)}" ${r.canResend ? "" : "disabled"} title="Invalida el enlace anterior">Regenerar enlace</button>
             </li>`
             )
             .join("")}
@@ -277,7 +489,6 @@ async function renderDeliveryPanel(convocationId) {
       btn.addEventListener("click", () => regenerateOne(btn.getAttribute("data-regen-one")));
     });
 
-    // Offer adding owners who are not yet on this convocation.
     if (phId) {
       const presentOwnerEmails = new Set(
         rows.map((r) => String(r.email || "").trim().toLowerCase()).filter(Boolean)
@@ -290,14 +501,14 @@ async function renderDeliveryPanel(convocationId) {
           "beforeend",
           `
           <div style="margin-top:1.25rem" id="add-recipients-box">
-            <strong>Agregar destinatarios faltantes</strong>
-            <p class="muted">Marca propietarios elegibles que no están en esta convocatoria y reenvía solo a ellos.</p>
-            <ul style="list-style:none;padding:0;margin:0.5rem 0;display:grid;gap:0.35rem;max-height:12rem;overflow:auto">
+            <h3 class="conv-section__title">Agregar destinatarios faltantes</h3>
+            <p class="text-secondary">Marca propietarios elegibles que no están en esta convocatoria y reenvía solo a ellos.</p>
+            <ul class="conv-picker" style="max-height:12rem">
               ${missing
                 .map(
                   (o) => `
-                <li style="display:flex;align-items:center;gap:0.65rem">
-                  <input type="checkbox" class="add-owner-check" value="${escapeHtml(o.id)}" />
+                <li>
+                  <input type="checkbox" class="add-owner-check form-check-input" value="${escapeHtml(o.id)}" />
                   <span>${escapeHtml(o.displayName || "—")} · ${escapeHtml(o.email || "")}</span>
                 </li>`
                 )
@@ -310,7 +521,7 @@ async function renderDeliveryPanel(convocationId) {
       }
     }
   } catch (e) {
-    host.insertAdjacentHTML("beforeend", `<p class="muted">${escapeHtml(e.message || "No se pudo cargar el historial.")}</p>`);
+    host.insertAdjacentHTML("beforeend", `<p class="text-secondary">${escapeHtml(e.message || "No se pudo cargar el historial.")}</p>`);
   }
 }
 
@@ -326,10 +537,6 @@ async function addAndResend() {
       method: "POST",
       body: { ownerIds }
     });
-    const added = (detail.recipients || []).filter((r) =>
-      ownerIds.includes(String(r.ownerId || ""))
-    );
-    // Match by email if ownerId casing differs
     const emails = new Set(
       createOwners.filter((o) => ownerIds.includes(String(o.id))).map((o) => String(o.email || "").toLowerCase())
     );
@@ -385,7 +592,7 @@ async function regenerateOne(recipientId) {
       body: {
         confirmed: true,
         reason,
-        idempotencyKey: `regen-${selectedId}-${recipientId}-${Date.now()}`
+        idempotencyKey: `regen-${selectedId}-${recipientId}`
       }
     });
     AppFeedback.success(`Enlace regenerado. Envíos: ${batch.sentCount ?? 0}.`, { title: "Enlace nuevo" });
@@ -418,13 +625,14 @@ async function resendSelected(onlyPending) {
 
 async function doResend({ recipientIds, onlyFailedOrPending }) {
   try {
+    const keyParts = (recipientIds || []).slice().sort().join("-") || "pending";
     const batch = await api(`/api/convocations/${selectedId}/resend`, {
       method: "POST",
       body: {
         confirmed: true,
         recipientIds: recipientIds || null,
         onlyFailedOrPending: Boolean(onlyFailedOrPending),
-        idempotencyKey: `resend-${selectedId}-${Date.now()}`
+        idempotencyKey: `resend-${selectedId}-${keyParts}`
       }
     });
     if (batch.failedCount) {
@@ -461,28 +669,33 @@ async function init() {
     return;
   }
 
-  qs("#user-chip").textContent = user.displayName;
-  qs("#nav-tenant") && (qs("#nav-tenant").textContent = user.tenantCode || user.tenantName || "Gobernanza");
+  if (qs("#user-chip")) qs("#user-chip").textContent = user.displayName;
+  if (qs("#account-role-label")) qs("#account-role-label").textContent = user.displayName || user.email || "Cuenta";
+  const avatar = qs("#user-avatar");
+  if (avatar) {
+    const url = user.avatarUrl ? avatarCacheBust(user.avatarUrl) : null;
+    applyAvatarElement(avatar, { url, label: user.displayName || user.email || "AS" });
+  }
   await bootIaPage({ current: "asm-convocation", pageLabel: "Convocatoria" });
-  const q = `assemblyId=${encodeURIComponent(assemblyId)}`;
-  qs("#nav-dashboard")?.setAttribute("href", `/dashboard.html?${q}`);
-  qs("#nav-comms")?.setAttribute("href", `/communications.html?${q}`);
-  qs("#nav-assembly")?.setAttribute("href", `/assembly.html?${q}`);
-  qs("#btn-logout")?.addEventListener("click", async () => {
+  qs("#btn-logout")?.addEventListener("click", async (ev) => {
+    ev.preventDefault();
     await logout();
     location.href = "/";
   });
 
   try {
-    const assembly = await api(`/api/assemblies/${assemblyId}`);
+    assembly = await api(`/api/assemblies/${assemblyId}`);
     phId = assembly.propertyHorizontalId || assembly.propertyHorizontal?.id || null;
   } catch {
     phId = null;
   }
+  paintHeader(null);
   await loadCreateOwnerPicker();
+  await snapshotMailbox();
 
   qs("#create-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
+    if (createInFlight) return;
     if (!hasPermission(user, "convocations:create")) {
       AppFeedback.warning("No tienes permiso para crear convocatorias.", { title: "Sin permiso" });
       return;
@@ -493,31 +706,50 @@ async function init() {
     const notes = qs("#c-html").value.trim();
     const ownerIds = selectedCreateOwnerIds();
     if (!ownerIds.length) {
-      AppFeedback.warning("Selecciona al menos un propietario destinatario.", { title: "Destinatarios requeridos" });
+      showCreateRecipientError("Selecciona al menos un destinatario del borrador.");
       return;
     }
+    showCreateRecipientError("");
+    const saveBtn = qs("#btn-save-draft");
+    createInFlight = true;
     try {
-      const created = await api(`/api/assemblies/${assemblyId}/convocations`, {
-        method: "POST",
-        body: {
-          assemblyId,
-          title,
-          subject,
-          bodyHtml: notes || "<p>Convocatoria institucional (plantilla premium al enviar).</p>",
-          bodyText: notes || "Convocatoria institucional.",
-          channels,
-          ownerIds,
-          idempotencyKey: `ui-${Date.now()}`
-        }
-      });
-      AppFeedback.success(
-        `Borrador creado con ${ownerIds.length} destinatario(s) seleccionado(s).`,
-        { title: "Convocatoria creada" }
+      const created = await runWithButton(saveBtn, "Guardando…", () =>
+        api(`/api/assemblies/${assemblyId}/convocations`, {
+          method: "POST",
+          body: {
+            assemblyId,
+            title,
+            subject,
+            bodyHtml: notes || "<p>Convocatoria institucional (plantilla premium al enviar).</p>",
+            bodyText: notes || "Convocatoria institucional.",
+            channels,
+            ownerIds,
+            idempotencyKey: `draft-${assemblyId}-${title}-${ownerIds.slice().sort().join("-")}`
+          }
+        })
       );
+      const mailboxAfter = lastMailboxCount;
+      await snapshotMailbox();
+      const mailed = lastMailboxCount > mailboxAfter && mailboxAfter >= 0;
+      if (mailed) {
+        AppFeedback.warning("El borrador se guardó, pero el buzón de prueba recibió correo. Revisa el envío.", {
+          title: "Atención"
+        });
+      } else {
+        AppFeedback.success(
+          `Borrador guardado con ${ownerIds.length} destinatario(s). No se envió correo ni se publicó en el portal.`,
+          { title: "Borrador guardado" }
+        );
+      }
+      collapseCreateForm();
       await refreshList();
       await openDetail(created.id);
     } catch (e) {
-      AppFeedback.fromError(e, "No pudimos crear la convocatoria.");
+      AppFeedback.fromError(e, "No pudimos guardar el borrador.");
+      expandCreateForm();
+    } finally {
+      createInFlight = false;
+      if (saveBtn) saveBtn.textContent = "Guardar borrador";
     }
   });
 
@@ -525,6 +757,7 @@ async function init() {
     document.querySelectorAll(".create-owner-check").forEach((el) => {
       el.checked = true;
     });
+    showCreateRecipientError("");
   });
   qs("#btn-create-select-none")?.addEventListener("click", () => {
     document.querySelectorAll(".create-owner-check").forEach((el) => {
@@ -546,6 +779,7 @@ async function init() {
 
   qs("#btn-send")?.addEventListener("click", async () => {
     if (!selectedId) return;
+    if (sendInFlight) return;
     if (!hasPermission(user, "convocations:send")) {
       AppFeedback.warning("No tienes permiso para enviar convocatorias.", { title: "Sin permiso" });
       return;
@@ -555,19 +789,25 @@ async function init() {
 
     const ids = selectedRecipientIds();
     if (!ids.length) {
-      AppFeedback.warning("Selecciona al menos un destinatario.", { title: "Destinatarios requeridos" });
+      showSendRecipientError("Selecciona al menos un destinatario de este envío.");
       return;
     }
+    showSendRecipientError("");
 
     const sandbox = Boolean(selectedPreview?.sandboxMode);
+    const channels = (selectedDetail?.channels || []).map(channelLabel).join(" y ");
+    const people = ids.length === 1 ? "1 persona" : `${ids.length} personas`;
     const ok = await confirmDialog({
       title: "Enviar convocatoria",
       body: sandbox
-        ? `Se enviará a ${ids.length} destinatario(s) en modo prueba (sin SMTP real).`
-        : `Se enviará el correo profesional a ${ids.length} destinatario(s) seleccionados.`,
-      confirmLabel: "Enviar ahora"
+        ? `Se notificará a ${people} por ${channels || "los canales del borrador"} en modo prueba.`
+        : `Se notificará a ${people} por ${channels || "los canales del borrador"}. Confirma para enviar ahora.`,
+      confirmLabel: "Enviar convocatoria"
     });
     if (!ok) return;
+
+    sendInFlight = true;
+    lastSendKey = lastSendKey || `send-${selectedId}-${ids.slice().sort().join("-")}`;
 
     AppFeedback.info("Estamos preparando y enviando las notificaciones.", {
       title: "Enviando convocatoria…",
@@ -581,7 +821,7 @@ async function init() {
           body: {
             confirmed: true,
             recipientIds: ids,
-            idempotencyKey: `send-${selectedId}-${Date.now()}`
+            idempotencyKey: lastSendKey
           }
         })
       );
@@ -590,12 +830,12 @@ async function init() {
       const failed = batch.failedCount ?? 0;
       if (failed > 0) {
         AppFeedback.warning(
-          `${count} enviados · ${failed} no pudieron completarse. Revisa el historial de entregas.`,
+          `${count} enviados · ${failed} no pudieron completarse. Revisa el resultado por destinatario.`,
           {
             title: "Envío parcial",
             actionLabel: "Ver entregas",
             onAction: () => {
-              location.hash = "#deliveries";
+              location.hash = `c=${selectedId}`;
               openDetail(selectedId);
             },
             ttlMs: 12000
@@ -603,30 +843,42 @@ async function init() {
         );
       } else {
         const recipientLabel =
-          count === 1 ? "1 propietario fue notificado correctamente." : `${count} propietarios fueron notificados correctamente.`;
+          count === 1 ? "1 persona fue notificada correctamente." : `${count} personas fueron notificadas correctamente.`;
         AppFeedback.success(recipientLabel, {
           title: count === 1 ? "Convocatoria enviada" : "Convocatorias enviadas",
           actionLabel: "Ver entregas",
-          onAction: () => {
-            location.hash = "#deliveries";
-            openDetail(selectedId);
-          }
+          onAction: () => openDetail(selectedId)
         });
       }
+      lastSendKey = null;
       await openDetail(selectedId);
       await refreshList();
     } catch (e) {
-      AppFeedback.error("Verifica tu conexión e inténtalo nuevamente.", {
-        title: "No pudimos enviar la convocatoria",
-        actionLabel: "Intentar nuevamente",
-        onAction: () => sendBtn?.click()
-      });
+      if (e?.code === "ALREADY_SENT" || /already submitted/i.test(e?.message || "")) {
+        AppFeedback.info("Este envío ya está en curso o se completó. No se duplicó.", { title: "Sin duplicados" });
+        await openDetail(selectedId);
+      } else {
+        AppFeedback.error("Verifica tu conexión e inténtalo nuevamente.", {
+          title: "No pudimos enviar la convocatoria",
+          actionLabel: "Intentar nuevamente",
+          onAction: () => {
+            sendInFlight = false;
+            sendBtn?.click();
+          }
+        });
+      }
     } finally {
-      if (sendBtn) sendBtn.textContent = "Enviar";
+      sendInFlight = false;
+      if (sendBtn) sendBtn.textContent = "Enviar convocatoria";
     }
   });
 
   await refreshList();
+  const reopen = draftHashId();
+  if (reopen) {
+    collapseCreateForm();
+    await openDetail(reopen);
+  }
 
   if (isReadinessReturnContext()) {
     mountReadinessActionBar({

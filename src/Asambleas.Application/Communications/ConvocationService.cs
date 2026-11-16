@@ -101,6 +101,69 @@ public sealed class ConvocationService
         return ToDetail(c, recipients, preview);
     }
 
+    public async Task<ConvocationEmailPreviewDto> PreviewEmailAsync(
+        Guid convocationId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var c = await _db.Convocations.AsNoTracking().FirstOrDefaultAsync(x => x.Id == convocationId, cancellationToken)
+            ?? throw new DomainException("CONVOCATION_NOT_FOUND", "Convocation not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, c.TenantId);
+
+        var assembly = await _db.Assemblies.AsNoTracking().FirstAsync(a => a.Id == c.AssemblyId, cancellationToken);
+        var ph = await _db.PropertyHorizontals.AsNoTracking().FirstAsync(p => p.Id == c.PropertyHorizontalId, cancellationToken);
+        var agenda = await _db.AgendaItems.AsNoTracking()
+            .Where(i => i.AssemblyId == assembly.Id)
+            .OrderBy(i => i.Ordinal)
+            .Select(i => new ValueTuple<int, string>(i.Ordinal, i.Title))
+            .ToListAsync(cancellationToken);
+
+        var recipient = await _db.ConvocationRecipients.AsNoTracking()
+            .Where(r => r.ConvocationId == convocationId)
+            .OrderBy(r => r.DisplayName)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        string? unitCode = null;
+        decimal? coef = null;
+        if (recipient?.OwnerId is Guid ownerId)
+        {
+            var ownership = await (
+                from o in _db.Ownerships.AsNoTracking()
+                join u in _db.Units.AsNoTracking() on o.UnitId equals u.Id
+                where o.OwnerId == ownerId
+                      && u.PropertyHorizontalId == c.PropertyHorizontalId
+                      && o.IsActive
+                orderby u.Code
+                select new { u.Code, Coef = u.CoefficientPercent * (o.SharePercent / 100m) })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (ownership is not null)
+            {
+                unitCode = ownership.Code;
+                coef = ownership.Coef;
+            }
+        }
+
+        var (profile, _, _, _, _) = await _config.LoadRuntimeAsync(c.PropertyHorizontalId, cancellationToken);
+        var composed = ConvocationEmailComposer.Compose(
+            new ConvocationEmailComposer.ComposeInput(
+                recipient?.DisplayName ?? "Propietario",
+                ph.Name,
+                assembly.Title,
+                assembly.AssemblyKind,
+                assembly.ScheduledAtUtc,
+                string.IsNullOrWhiteSpace(ph.TimeZoneId) ? "America/Panama" : ph.TimeZoneId,
+                assembly.Modality,
+                assembly.LocationText,
+                unitCode,
+                coef,
+                agenda,
+                "https://asambleas.app/ingresar/vista-previa",
+                null,
+                profile.SandboxMode));
+
+        return new ConvocationEmailPreviewDto(composed.Subject, composed.Preheader, composed.Html, composed.Text);
+    }
+
     public async Task<ConvocationDetailDto> CreateAsync(
         CreateConvocationRequest request,
         CancellationToken cancellationToken = default)

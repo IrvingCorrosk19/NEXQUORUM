@@ -167,6 +167,11 @@ public sealed class ConvocationsController : ControllerBase
     public Task<ConvocationDetailDto> Get(Guid convocationId, CancellationToken cancellationToken) =>
         _convocations.GetAsync(convocationId, cancellationToken);
 
+    [HttpGet("{convocationId:guid}/email-preview")]
+    [Authorize(Policy = Permissions.CommunicationsView)]
+    public Task<ConvocationEmailPreviewDto> EmailPreview(Guid convocationId, CancellationToken cancellationToken) =>
+        _convocations.PreviewEmailAsync(convocationId, cancellationToken);
+
     [HttpPost("{convocationId:guid}/recipients")]
     [Authorize(Policy = Permissions.ConvocationsCreate)]
     public Task<ConvocationDetailDto> AddRecipients(

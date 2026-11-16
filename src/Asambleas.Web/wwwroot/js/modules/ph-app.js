@@ -7,7 +7,7 @@ import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton, startTopProgress, stopTopProgress } from "./loading.js";
-import { startHybridShell } from "./hybrid-router.js?v=polish12";
+import { startHybridShell } from "./hybrid-router.js?v=polish13";
 import { createUnitsHub } from "./ph-units-hub.js?v=polish9";
 import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks, lockPageScroll, scrollFieldIntoSheet } from "./query-guard.js?v=polish11";
 
@@ -1627,7 +1627,7 @@ function renderAssembliesList() {
       bucket === "done"
         ? `<a class="btn btn-ghost btn-sm" href="/minutes.html?assemblyId=${id}">Acta</a>`
         : bucket === "upcoming"
-          ? `<a class="btn btn-ghost btn-sm" href="/convocation.html?assemblyId=${id}">Convocatoria</a>`
+          ? `<a class="btn btn-ghost btn-sm" href="/convocation.html?assemblyId=${id}">Preparar convocatoria</a>`
           : "";
     const moreMenu =
       bucket === "done" || bucket === "cancelled"
@@ -1646,7 +1646,7 @@ function renderAssembliesList() {
         <div class="ia-row-menu__panel" role="menu">
           <button type="button" role="menuitem" data-asm-summary="${id}">Ver resumen</button>
           <a role="menuitem" href="/calendar.html?assemblyId=${id}">Reprogramar</a>
-          <a role="menuitem" href="/convocation.html?assemblyId=${id}">Convocatoria</a>
+          <a role="menuitem" href="/convocation.html?assemblyId=${id}">Preparar convocatoria</a>
           <a role="menuitem" href="/minutes.html?assemblyId=${id}">Acta</a>
         </div>
       </details>`;

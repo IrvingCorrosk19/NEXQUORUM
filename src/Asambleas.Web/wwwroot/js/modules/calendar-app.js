@@ -7,7 +7,7 @@ import { showPageError } from "./app-feedback.js";
 import { bootIaPage } from "./ia-page.js?v=polish7";
 import { iconSvg } from "./tabler-icons.js?v=idn2";
 import { mountIaShell, phHref } from "./ia-nav.js?v=polish7";
-import { startHybridShell } from "./hybrid-router.js?v=polish7";
+import { startHybridShell } from "./hybrid-router.js?v=polish13";
 import { runWithButton } from "./loading.js";
 import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, lockPageScroll, applyTestHooks } from "./query-guard.js?v=polish9b";
 import { assemblyLabel } from "./assembly-labels.js";
@@ -491,6 +491,9 @@ async function openEvent(id) {
       ${ev.locationText ? `<div>Ubicación: ${escapeHtml(ev.locationText)}</div>` : ""}`;
     const actions = [];
     actions.push(`<a class="btn btn-secondary" href="/dashboard.html?assemblyId=${ev.assemblyId}">Ver asamblea</a>`);
+    if (!isOwnerPortalUser(state.user) && hasPermission(state.user, "communications:view")) {
+      actions.push(`<a class="btn btn-secondary" href="/convocation.html?assemblyId=${ev.assemblyId}">Preparar convocatoria</a>`);
+    }
     if (ev.canJoin) {
       const live = ev.calendarStatus === "LIVE";
       actions.push(`<a class="btn btn-primary" href="/assembly.html?assemblyId=${ev.assemblyId}">${live ? "Entrar ahora" : "Entrar"}</a>`);

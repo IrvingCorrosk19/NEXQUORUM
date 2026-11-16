@@ -1492,6 +1492,239 @@ dialog.app-sheet::backdrop,
   }
 }
 
+.layout-tabler .conv-hero-meta {
+  margin: 0.2rem 0 0;
+  color: rgba(250, 248, 244, 0.82);
+  font-weight: 650;
+}
+
+.layout-tabler .conv-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  background: rgba(250, 248, 244, 0.12);
+  color: #faf8f4;
+}
+
+.layout-tabler .card .conv-status-pill {
+  margin-top: 0;
+}
+
+.layout-tabler .conv-status-pill--draft { color: #3e536b; background: #f4f1ea; border-color: rgba(16, 43, 63, 0.12); }
+.layout-tabler .conv-status-pill--ready,
+.layout-tabler .conv-status-pill--approved { color: #005f5c; background: rgba(0, 124, 120, 0.1); border-color: rgba(0, 124, 120, 0.28); }
+.layout-tabler .conv-status-pill--sending { color: #9a3412; background: rgba(255, 128, 107, 0.14); }
+.layout-tabler .conv-status-pill--sent { color: #005f5c; background: rgba(0, 124, 120, 0.12); }
+.layout-tabler .conv-status-pill--partial,
+.layout-tabler .conv-status-pill--failed { color: #9a3412; background: #fff7f5; border-color: rgba(185, 28, 28, 0.25); }
+
+.layout-tabler details.conv-editor {
+  margin-bottom: 1.15rem;
+  border: 1px solid rgba(16, 43, 63, 0.08);
+}
+
+.layout-tabler details.conv-editor > summary.conv-editor__summary {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+}
+
+.layout-tabler details.conv-editor > summary.conv-editor__summary::-webkit-details-marker {
+  display: none;
+}
+
+.layout-tabler details.conv-editor[open] > summary.conv-editor__summary {
+  border-bottom: 1px solid rgba(16, 43, 63, 0.08);
+}
+
+.layout-tabler .conv-section {
+  margin-bottom: 1.35rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid rgba(16, 43, 63, 0.08);
+}
+
+.layout-tabler .conv-section:last-of-type {
+  border-bottom: 0;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0;
+}
+
+.layout-tabler .conv-section__title {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #102b3f;
+}
+
+.layout-tabler .conv-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.layout-tabler .conv-section__head .conv-section__title { margin: 0; }
+
+.layout-tabler .conv-copy-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+}
+
+.layout-tabler .conv-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.layout-tabler .conv-picker {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  max-height: 16rem;
+  overflow: auto;
+}
+
+.layout-tabler .conv-picker li {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid rgba(16, 43, 63, 0.1);
+  border-radius: 0.65rem;
+  background: #fff;
+}
+
+.layout-tabler .conv-picker.is-invalid {
+  outline: 2px solid #c2410c;
+  outline-offset: 2px;
+  border-radius: 0.75rem;
+}
+
+.layout-tabler .field-error {
+  margin: 0 0 0.55rem;
+  color: #9a3412;
+  font-weight: 650;
+}
+
+.layout-tabler .conv-action-status {
+  margin: 0;
+  color: #007c78;
+  font-weight: 650;
+}
+
+.layout-tabler .conv-list-item {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  margin: 0 0 0.45rem;
+  border: 1px solid rgba(16, 43, 63, 0.1);
+  border-radius: 0.75rem;
+  background: #fff;
+  color: inherit;
+}
+
+.layout-tabler .conv-list-item.is-active {
+  border-color: #007c78;
+  box-shadow: 0 0 0 2px rgba(0, 124, 120, 0.18);
+}
+
+.layout-tabler .conv-email-preview {
+  border: 1px solid rgba(16, 43, 63, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  margin-top: 0.75rem;
+}
+
+.layout-tabler .conv-email-preview iframe {
+  display: block;
+  width: 100%;
+  min-height: min(48vh, 380px);
+  max-height: 70vh;
+  border: 0;
+  background: #fff;
+}
+
+.layout-tabler .conv-send-summary {
+  margin: 0.85rem 0 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.75rem;
+  background: rgba(0, 124, 120, 0.08);
+  color: #102b3f;
+  font-weight: 650;
+}
+
+.layout-tabler .conv-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.layout-tabler .conv-readonly {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.layout-tabler dialog.dialog {
+  width: min(28rem, calc(100vw - 1.5rem));
+  max-height: min(88dvh, 36rem);
+  margin: auto;
+  padding: 1.2rem 1.3rem;
+  border: 1px solid rgba(16, 43, 63, 0.12);
+  border-radius: 1rem;
+  background: #fff;
+  color: #102b3f;
+  box-shadow: 0 24px 48px rgba(16, 43, 63, 0.18);
+}
+
+.layout-tabler dialog.dialog:not([open]) {
+  display: none !important;
+}
+
+.layout-tabler dialog.dialog::backdrop {
+  background: rgba(16, 43, 63, 0.45);
+}
+
+.layout-tabler dialog.dialog .dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 575px) {
+  .layout-tabler .conv-email-preview iframe { min-height: 260px; }
+  .layout-tabler .brand-hero__inner { align-items: flex-start; }
+  .layout-tabler .brand-hero .btn { width: 100%; }
+}
+
 /* Closed native dialogs must never paint or take focus, even if other sheets share these classes. */
 dialog.app-sheet:not([open]),
 .layout-tabler dialog.app-sheet:not([open]),
