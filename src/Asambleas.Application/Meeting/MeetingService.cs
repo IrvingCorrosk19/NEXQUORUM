@@ -6,6 +6,7 @@ using Asambleas.Application.Security;
 using Asambleas.Contracts.Meetings;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Enums;
+using Asambleas.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 public sealed class MeetingService
@@ -71,12 +72,18 @@ public sealed class MeetingService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
 
-        if (assembly.Status is AssemblyStatus.Draft
-            or AssemblyStatus.Scheduled
-            or AssemblyStatus.Cancelled
-            or AssemblyStatus.Completed)
+        if (assembly.Status is AssemblyStatus.Cancelled or AssemblyStatus.Completed)
         {
             throw new DomainException($"Meeting join is not available while assembly is '{assembly.Status}'.");
+        }
+
+        if (!AssemblyLifecycle.AllowsMeetingJoinToken(assembly.Status))
+        {
+            if (!IsPrepOperator()
+                || assembly.Status is not (AssemblyStatus.Draft or AssemblyStatus.Scheduled))
+            {
+                throw new DomainException($"Meeting join is not available while assembly is '{assembly.Status}'.");
+            }
         }
 
         var participant = await _db.AssemblyParticipants
@@ -361,6 +368,15 @@ public sealed class MeetingService
             CurrentUserIsPresenter = isPresenter,
             CurrentUserCanForceStop = canForceStop || isPresenter
         };
+    }
+
+    private bool IsPrepOperator()
+    {
+        var permissions = _currentTenant.Permissions;
+        return permissions.Contains(Permissions.MeetingModerate)
+            || permissions.Contains(Permissions.AssemblyManage)
+            || permissions.Contains(Permissions.AssemblyStart)
+            || permissions.Contains(Permissions.AttendanceManage);
     }
 
     private sealed record ParticipantCtx(

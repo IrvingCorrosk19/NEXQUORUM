@@ -43,7 +43,30 @@ public sealed class LobbyAdmissionService
         var userId = _currentTenant.UserId
             ?? throw new DomainException("UNAUTHORIZED", "Debe iniciar sesión.");
 
-        var assembly = await RequireJoinableAsync(assemblyId, cancellationToken);
+        var assembly = await LoadAssemblyAsync(assemblyId, cancellationToken);
+
+        // Draft/Scheduled: operators may already be in the lobby to prepare the room.
+        // Admission, attendance, quorum and owner notifications stay closed until the desk opens.
+        if (assembly.Status is AssemblyStatus.Draft or AssemblyStatus.Scheduled)
+        {
+            if (!IsOperator())
+            {
+                throw new DomainException(
+                    "ASSEMBLY_NOT_JOINABLE",
+                    "La admisión solo aplica mientras la mesa o la asamblea estén abiertas.");
+            }
+
+            var prepParticipant = await RequireParticipantAsync(assemblyId, userId, cancellationToken);
+            return Map(prepParticipant);
+        }
+
+        if (assembly.Status is not (AssemblyStatus.CheckIn or AssemblyStatus.InProgress or AssemblyStatus.Paused))
+        {
+            throw new DomainException(
+                "ASSEMBLY_NOT_JOINABLE",
+                "La admisión solo aplica mientras la mesa o la asamblea estén abiertas.");
+        }
+
         var participant = await RequireParticipantAsync(assemblyId, userId, cancellationToken);
 
         // Convocated participants enter directly — no mesa accreditation or manual admit.
@@ -238,7 +261,7 @@ public sealed class LobbyAdmissionService
         }
     }
 
-    private async Task<Domain.Entities.Assembly> RequireJoinableAsync(
+    private async Task<Domain.Entities.Assembly> LoadAssemblyAsync(
         Guid assemblyId,
         CancellationToken cancellationToken)
     {
@@ -246,6 +269,14 @@ public sealed class LobbyAdmissionService
             .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
             ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
         TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+        return assembly;
+    }
+
+    private async Task<Domain.Entities.Assembly> RequireJoinableAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken)
+    {
+        var assembly = await LoadAssemblyAsync(assemblyId, cancellationToken);
         if (assembly.Status is not (AssemblyStatus.CheckIn or AssemblyStatus.InProgress or AssemblyStatus.Paused))
         {
             throw new DomainException(

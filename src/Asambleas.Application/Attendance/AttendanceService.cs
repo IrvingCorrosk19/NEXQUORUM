@@ -321,6 +321,13 @@ public sealed partial class AttendanceService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, participant.TenantId);
 
+        if (assembly.Status is AssemblyStatus.Draft or AssemblyStatus.Scheduled
+            && status is AttendanceStatus.Present or AttendanceStatus.CheckedIn)
+        {
+            var unitCodePrep = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);
+            return Mapping.ToParticipantDto(participant, unitCodePrep, participant.EffectiveCoefficientPercent);
+        }
+
         var now = DateTimeOffset.UtcNow;
         var previous = participant.AttendanceStatus;
 

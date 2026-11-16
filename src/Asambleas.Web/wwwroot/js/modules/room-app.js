@@ -1962,10 +1962,7 @@ function syncOperatorActions() {
   const canClose = hasPermission(user, "assembly:close");
 
   // Permission-gated (not only viewerRole) — secretary without manage won't see 403 buttons.
-  setVisible(
-    qs("#btn-start"),
-    canStart && (status === "CheckIn" || status === "Scheduled")
-  );
+  setVisible(qs("#btn-start"), canStart && status === "CheckIn");
   setVisible(qs("#btn-pause"), canManage && status === "InProgress");
   setVisible(qs("#btn-resume"), canManage && status === "Paused");
   setVisible(
@@ -3887,7 +3884,8 @@ async function init() {
     }
   });
 
-  await state.hub.start(assemblyId);
+  const prepStatus = ["Draft", "Scheduled"].includes(String(state.assembly?.status || ""));
+  await state.hub.start(assemblyId, { markPresence: !prepStatus });
   window.addEventListener("pagehide", () => {
     if (state.intentionalDisconnect) return;
     try {

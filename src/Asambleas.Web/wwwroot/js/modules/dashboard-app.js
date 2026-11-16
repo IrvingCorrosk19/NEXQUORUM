@@ -19,24 +19,62 @@ import {
   renderReadinessCompact,
   renderNextAction,
   renderQuickLinks
-} from "./readiness-workflow.js?v=closed-agenda1";
+} from "./readiness-workflow.js?v=open-desk1";
 import { writeIaContext } from "./ia-context.js";
 import { historicalOverviewUrl, isTerminalStatus, renderHistoricalBanner } from "./assembly-lifecycle.js";
 import { startHybridShell, softNavigate } from "./hybrid-router.js?v=gov1";
 
 let assemblyId = assemblyIdFromUrl();
+let currentUser = null;
+let currentAssembly = null;
+let isOperatorSession = false;
 
 function showError(message) {
-  showPageError(message);
+  showPageError(message, "error");
+}
+
+function showPrimaryCtaError(error) {
+  const el = qs("#primary-cta-error");
+  const message = error?.message || "No se pudo completar la acción.";
+  const code = String(error?.code || error?.payload?.code || error?.payload?.extensions?.code || "");
+  const phId = currentAssembly?.propertyHorizontalId || "";
+  let extra = "";
+  if (code === "COEFFICIENT_CONFIGURATION_INVALID" || /coeficientes/i.test(message)) {
+    extra = phId
+      ? ` <a href="/ph.html?phId=${encodeURIComponent(phId)}#units">Corregir coeficientes</a>`
+      : "";
+  }
+  if (el) {
+    el.hidden = false;
+    el.innerHTML = `${escapeHtml(message)}${extra}`;
+  }
+  showError(message);
 }
 
 async function runPrimaryAction(action, operator) {
   if (!action) return;
   if (action.needsPost === "start-checkin" && operator) {
+    const btn = qs("[data-open-desk]");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Abriendo mesa…";
+    }
     try {
-      await api(`/api/assemblies/${assemblyId}/start-checkin`, { method: "POST" });
+      const updated = await api(`/api/assemblies/${assemblyId}/start-checkin`, { method: "POST" });
+      currentAssembly = {
+        ...(currentAssembly || {}),
+        ...(updated || {}),
+        status: updated?.status || "CheckIn"
+      };
+      await refreshDashboard(currentUser, currentAssembly, operator);
+      showToast("Mesa abierta. Los convocados ya pueden entrar.", "success");
+      return;
     } catch (error) {
-      showToast(error.message, "warn");
+      showPrimaryCtaError(error);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Abrir mesa";
+      }
       return;
     }
   }
@@ -50,7 +88,7 @@ async function runPrimaryAction(action, operator) {
     try {
       await api(`/api/assemblies/${assemblyId}/start`, { method: "POST" });
     } catch (error) {
-      showToast(error.message, "warn");
+      showPrimaryCtaError(error);
       return;
     }
   }
@@ -83,6 +121,9 @@ function formatClosedQuorum(assembly) {
 }
 
 function paintDashboard(user, assembly, readiness, operator, counts = null) {
+  currentUser = user;
+  currentAssembly = assembly;
+  isOperatorSession = operator;
   const phId = assembly.propertyHorizontalId;
   const phName = assembly.propertyHorizontalName || "PH";
   const title = assembly.name || assembly.title || t("dashboard.title");
@@ -202,6 +243,8 @@ async function init() {
   if (ensureAssemblyIdInUrl(assemblyId, { hard: true })) return;
 
   const operator = isOperator(user);
+  isOperatorSession = operator;
+  currentUser = user;
   let assembly = null;
   let readiness = null;
 
@@ -231,6 +274,25 @@ async function init() {
     await ensureJoinSummonPresence({ user });
   } catch (err) {
     console.warn("join-summon presence unavailable", err);
+  }
+
+  try {
+    const { createAssemblyConnection } = await import("./signalr-client.js");
+    const hub = createAssemblyConnection({
+      assemblyStatusChanged: async (asm) => {
+        if (!asm) return;
+        const nextStatus = asm.status || asm.Status;
+        currentAssembly = {
+          ...(currentAssembly || assembly || {}),
+          ...asm,
+          status: nextStatus || currentAssembly?.status
+        };
+        await refreshDashboard(user, currentAssembly, operator);
+      }
+    });
+    await hub.start(assemblyId, { markPresence: false });
+  } catch (err) {
+    console.warn("Dashboard SignalR unavailable", err);
   }
 
   const params = new URLSearchParams(location.search);

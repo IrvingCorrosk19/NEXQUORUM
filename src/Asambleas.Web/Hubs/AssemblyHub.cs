@@ -6,6 +6,7 @@ using Asambleas.Application.Assembly;
 using Asambleas.Application.Attendance;
 using Asambleas.Application.Meeting;
 using Asambleas.Domain.Common;
+using Asambleas.Domain.Services;
 using Asambleas.Infrastructure.Tenancy;
 using Asambleas.Web.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -71,21 +72,22 @@ public sealed class AssemblyHub : Hub
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(assemblyId));
         Context.Items[AssemblyItemKey] = assemblyId;
-        _hubPresence.SetConnected(assemblyId, userId, Context.ConnectionId, markPresence);
 
-        // Terminal assemblies: observe-only — never MarkConnected / quorum mutation.
-        if (!AssemblyAccessService.AllowsPresenceMutation(status))
-        {
-            _logger.LogInformation(
-                "SignalR observe-only join for sealed assembly {AssemblyId} status {Status}",
-                assemblyId,
-                status);
-            return;
-        }
+        // Legal presence (attendance/quorum) only while the desk or assembly is open.
+        // Draft/Scheduled prep joins the hub for realtime, but must not MarkConnected.
+        var countsAsPresence = markPresence && AssemblyLifecycle.AllowsMeetingJoinToken(status);
+        _hubPresence.SetConnected(assemblyId, userId, Context.ConnectionId, countsAsPresence);
 
-        // Lobby/dashboard may join the hub for summons without counting legal presence.
-        if (!markPresence)
+        if (!countsAsPresence)
         {
+            if (!AssemblyAccessService.AllowsPresenceMutation(status))
+            {
+                _logger.LogInformation(
+                    "SignalR observe-only join for sealed assembly {AssemblyId} status {Status}",
+                    assemblyId,
+                    status);
+            }
+
             return;
         }
 

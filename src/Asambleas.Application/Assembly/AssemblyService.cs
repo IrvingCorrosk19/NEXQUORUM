@@ -97,7 +97,7 @@ public sealed class AssemblyService
     }
 
     public Task<AssemblySummaryDto> StartCheckInAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
-        TransitionAsync(assemblyId, AssemblyStatus.CheckIn, AuditEventType.AssemblyJoin, cancellationToken, validateCoefficients: true);
+        TransitionAsync(assemblyId, AssemblyStatus.CheckIn, AuditEventType.AssemblyJoin, cancellationToken);
 
     public Task<AssemblySummaryDto> CloseCheckInAsync(Guid assemblyId, CancellationToken cancellationToken = default) =>
         TransitionAsync(assemblyId, AssemblyStatus.Scheduled, AuditEventType.CheckInDeskClosed, cancellationToken);

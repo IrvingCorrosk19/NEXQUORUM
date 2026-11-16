@@ -17,6 +17,7 @@ const $ = (sel) => document.querySelector(sel);
  *   level?: "global"|"ph"|"assembly",
  *   requirePermission?: string|null,
  *   ownerRedirect?: string,
+ *   allowOwnerPortal?: boolean,
  *   pageLabel?: string|null,
  *   breadcrumbs?: {label:string, href?:string}[],
  *   resolveContext?: (user: object) => Promise<{
@@ -34,6 +35,7 @@ export async function bootIaPage(opts) {
     level = "global",
     requirePermission = null,
     ownerRedirect = "/owner.html?denied=admin",
+    allowOwnerPortal = false,
     pageLabel = null,
     breadcrumbs = [],
     resolveContext = null
@@ -47,7 +49,12 @@ export async function bootIaPage(opts) {
     return null;
   }
 
-  if (isOwnerPortalUser(user) && !hasPermission(user, "ph:view") && !hasPermission(user, "assembly:view")) {
+  if (
+    !allowOwnerPortal &&
+    isOwnerPortalUser(user) &&
+    !hasPermission(user, "ph:view") &&
+    !hasPermission(user, "assembly:view")
+  ) {
     location.href = ownerRedirect;
     return null;
   }

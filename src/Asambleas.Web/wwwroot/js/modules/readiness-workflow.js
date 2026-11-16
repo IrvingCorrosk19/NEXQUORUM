@@ -91,6 +91,30 @@ export function renderReadinessPanel(panel, readiness, ctx) {
  * @param {{ assemblyId: string, operator?: boolean }} ctx
  * @param {(action: object) => void} onRun
  */
+function pendingBlockersHtml(readiness, assembly, ctx) {
+  const checks = readiness?.checks || [];
+  const blockers = checks.filter(
+    (c) => String(c.severity || c.Severity || "") === "Blocking" && String(c.status || c.Status || "") !== "Ready"
+  );
+  if (!blockers.length) return "";
+  const destCtx = { assemblyId: ctx.assemblyId, phId: assembly?.propertyHorizontalId };
+  const items = blockers
+    .map((check) => {
+      const title = check.title || check.Title || "Requisito";
+      const desc = check.description || check.Description || "";
+      const how = check.actionLabel || check.ActionLabel || "Resolver";
+      const canAct = Boolean(check.canAct ?? check.CanAct);
+      const dest = check.destinationKey || check.DestinationKey;
+      const href = canAct && dest ? resolveDestination(dest, destCtx) : null;
+      const action = href
+        ? `<a href="${href}">${escapeHtml(how)}</a>`
+        : `<span class="muted">${escapeHtml(how)}</span>`;
+      return `<li><strong>${escapeHtml(title)}.</strong> ${escapeHtml(desc)} ${action}.</li>`;
+    })
+    .join("");
+  return `<div class="ia-primary-action__pending" role="status"><p>Pendiente para completar la preparación:</p><ul>${items}</ul></div>`;
+}
+
 export function renderNextAction(host, readiness, assembly, ctx, onRun) {
   if (isTerminalStatus(assembly?.status)) {
     const action = resolvePrimaryAction(assembly, ctx);
@@ -105,15 +129,51 @@ export function renderNextAction(host, readiness, assembly, ctx, onRun) {
     return;
   }
 
+  const status = String(assembly?.status || "");
+  const operator = Boolean(ctx.operator);
+  const action = resolvePrimaryAction(assembly, ctx);
+  const pending = pendingBlockersHtml(readiness, assembly, ctx);
+  const q = `assemblyId=${encodeURIComponent(ctx.assemblyId)}`;
+
+  if (operator && status === "Scheduled") {
+    host.innerHTML = `
+      <div class="ia-primary-action ia-primary-action--ready">
+        <h3 class="ia-primary-action__title">Abrir mesa</h3>
+        <p class="ia-primary-action__desc">${escapeHtml(action.description)}</p>
+        ${pending}
+        <p id="primary-cta-error" class="field-error" hidden role="alert"></p>
+        <div class="cta-row">
+          <button type="button" class="btn btn-primary" data-open-desk>Abrir mesa</button>
+          <a class="btn btn-secondary" href="/lobby.html?${q}">Entrar a preparar sala</a>
+        </div>
+      </div>`;
+    host.querySelector("[data-open-desk]")?.addEventListener("click", () => onRun(action));
+    return;
+  }
+
+  if (operator && status === "CheckIn") {
+    host.innerHTML = `
+      <div class="ia-primary-action ia-primary-action--ready">
+        <h3 class="ia-primary-action__title">Mesa abierta</h3>
+        <p class="ia-primary-action__desc">Los convocados ya pueden entrar. Inicie la asamblea cuando el quórum esté validado.</p>
+        <p id="primary-cta-error" class="field-error" hidden role="alert"></p>
+        <div class="cta-row">
+          <button type="button" class="btn btn-primary" data-start-assembly>Iniciar asamblea</button>
+          <a class="btn btn-secondary" href="/checkin.html?${q}">Ver participantes</a>
+        </div>
+      </div>`;
+    host.querySelector("[data-start-assembly]")?.addEventListener("click", () => onRun(action));
+    return;
+  }
+
   const next = readiness?.nextAction;
   const allBlockingDone = Boolean(readiness?.readyToStart);
 
   if (allBlockingDone) {
-    const action = resolvePrimaryAction(assembly, ctx);
     host.innerHTML = `
       <div class="ia-primary-action ia-primary-action--ready">
-        <h3 class="ia-primary-action__title">Asamblea preparada</h3>
-        <p class="ia-primary-action__desc">Todos los requisitos obligatorios están completos.</p>
+        <h3 class="ia-primary-action__title">${escapeHtml(action.label)}</h3>
+        <p class="ia-primary-action__desc">${escapeHtml(action.description || "Todos los requisitos obligatorios están completos.")}</p>
         <div class="cta-row">
           <button type="button" class="btn btn-primary" data-primary="1">${escapeHtml(action.label)}</button>
         </div>
@@ -131,6 +191,7 @@ export function renderNextAction(host, readiness, assembly, ctx, onRun) {
       <div class="ia-primary-action">
         <h3 class="ia-primary-action__title">Siguiente paso</h3>
         <p class="ia-primary-action__desc">${escapeHtml(next.description || next.title || "")}</p>
+        ${pending}
         <div class="cta-row">
           <a class="btn btn-primary" href="${href}">${escapeHtml(next.actionLabel || "Completar")} →</a>
         </div>
@@ -143,12 +204,13 @@ export function renderNextAction(host, readiness, assembly, ctx, onRun) {
       <div class="ia-primary-action">
         <h3 class="ia-primary-action__title">Siguiente paso</h3>
         <p class="ia-primary-action__desc">${escapeHtml(next.description || next.title || "")}</p>
+        ${pending}
         <p class="muted">No tiene permiso para completar este paso. Contacte al administrador de la propiedad.</p>
       </div>`;
     return;
   }
 
-  host.innerHTML = `<p class="muted">Revise la preparación de la asamblea.</p>`;
+  host.innerHTML = `<p class="muted">Revise la preparación de la asamblea.</p>${pending}`;
 }
 
 /**

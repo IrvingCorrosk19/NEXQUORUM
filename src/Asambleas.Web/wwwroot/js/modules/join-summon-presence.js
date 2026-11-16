@@ -71,6 +71,7 @@ export async function ensureJoinSummonPresence(options = {}) {
     if (hubs.has(assemblyId)) continue;
     try {
       const hub = createAssemblyConnection({
+        ...(options.handlers || {}),
         joinSummonRequested: attachJoinSummonListener({
           getUserId: () => selfUserId(user),
           onJoin: options.onJoin || onJoinDefault,

@@ -190,6 +190,29 @@
   max-width: 40rem;
 }
 
+.ia-primary-action__pending {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.55rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.88rem;
+}
+
+.ia-primary-action__pending p {
+  margin: 0 0 0.4rem;
+}
+
+.ia-primary-action__pending ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.ia-primary-action .field-error {
+  margin: 0;
+  color: #f87171;
+}
+
 .ia-asm-filters {
   display: flex;
   flex-wrap: wrap;

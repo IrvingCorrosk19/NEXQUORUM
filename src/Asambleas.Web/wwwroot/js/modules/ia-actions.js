@@ -41,25 +41,32 @@ export function resolvePrimaryAction(assembly, { assemblyId } = {}) {
     case "Scheduled":
       return {
         key: "startCheckin",
-        label: "Abrir presencia",
+        label: "Abrir mesa",
         description:
-          "Abre la ventana de presencia para que los convocados puedan unirse y constituir quórum.",
+          "Abre la mesa para que los convocados puedan entrar y constituir quórum. No requiere estar admitido en la sala.",
         href: `/checkin.html?assemblyId=${encodeURIComponent(id)}`,
-        needsPost: "start-checkin"
+        needsPost: "start-checkin",
+        secondary: {
+          key: "prepareRoom",
+          label: "Entrar a preparar sala",
+          description: "Prueba cámara y micrófono sin registrar asistencia ni abrir la reunión.",
+          href: `/lobby.html?assemblyId=${encodeURIComponent(id)}`,
+          needsPost: null
+        }
       };
     case "CheckIn":
       return {
-        key: "start",
-        label: "Ver participantes",
-        description: "La presencia está abierta. Supervise convocados y quórum.",
-        href: `/checkin.html?assemblyId=${encodeURIComponent(id)}`,
-        needsPost: null,
+        key: "startAssembly",
+        label: "Iniciar asamblea",
+        description: "Cuando el quórum esté validado, constituya la sesión en vivo.",
+        href: `/lobby.html?assemblyId=${encodeURIComponent(id)}`,
+        needsPost: "start",
         secondary: {
-          key: "startAssembly",
-          label: "Iniciar asamblea",
-          description: "Cuando el quórum esté validado, constituya la sesión en vivo.",
-          href: `/lobby.html?assemblyId=${encodeURIComponent(id)}`,
-          needsPost: "start"
+          key: "participants",
+          label: "Ver participantes",
+          description: "La mesa está abierta. Supervise convocados y quórum.",
+          href: `/checkin.html?assemblyId=${encodeURIComponent(id)}`,
+          needsPost: null
         }
       };
     case "InProgress":

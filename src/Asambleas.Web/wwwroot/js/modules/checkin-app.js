@@ -60,7 +60,9 @@ function deskIsOpen() {
 function canOpenDesk() {
   return (
     isOperator(user) &&
-    hasPermission(user, "assembly:start") &&
+    (hasPermission(user, "assembly:start") ||
+      hasPermission(user, "attendance:manage") ||
+      hasPermission(user, "assembly:manage")) &&
     String(assemblyStatus || "") === "Scheduled"
   );
 }

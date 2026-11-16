@@ -3,125 +3,167 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ASAMBLEAS — Sala (previa)</title>
+  <title>ASAMBLEAS — Sala</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=px1" />
-  <link rel="stylesheet" href="/css/base.css?v=px1" />
-  <link rel="stylesheet" href="/css/components.css?v=room-fit2" />
-  <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
-  <link rel="stylesheet" href="/css/loading.css?v=px1" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=polish16" />
+  <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
-  <link rel="stylesheet" href="/css/ia.css?v=sala-fit1" />
-  <link rel="stylesheet" href="/css/ux-remediation.css?v=ux1" />
-  <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
-  <link rel="stylesheet" href="/css/owner-lobby.css?v=cam-confirm1" />
-  <link rel="stylesheet" href="/css/gov-ops.css?v=gov3" />
+  <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=open-desk1" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 </head>
-<body>
-  <a class="skip-link" href="#main">Saltar al contenido</a>
-    <div class="app-shell">
-    <aside class="app-nav" aria-label="Navegación">
-      <div>
-        <h1 class="brand">ASAMBLEAS</h1>
-        <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
-      </div>
-      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
-    </aside>
-    <header class="app-top" role="banner">
-      <div class="ia-top-context">
-        <span class="ia-top-context__brand">ASAMBLEAS</span>
-        <span class="ia-top-context__path" id="ia-context-label">Sala</span>
-      </div>
-      <div class="cluster">
-        <span id="ia-role-chip" class="badge badge-live"></span>
-        <span id="user-chip" class="badge badge-live"></span>
-        <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
-      </div>
-    </header><main id="main" class="page-main lobby-main">
-      <div id="ia-breadcrumbs"></div>
-      <div id="page-alert" class="alert" hidden role="alert"></div>
-      <section class="page-hero lobby-hero">
-        <h1 id="lobby-title">Previa de sala</h1>
-        <div class="meta-row" id="lobby-meta"></div>
-        <p id="lobby-status" class="muted lobby-status" hidden></p>
-        <p id="entry-banner" class="alert" role="status" hidden></p>
-        <div id="admission-wait" class="alert alert-info" role="status" hidden>
-          <p data-admission-msg>Preparando tu ingreso a la sala…</p>
-          <button type="button" id="btn-cancel-entry" class="btn btn-secondary" style="margin-top:0.75rem">Cancelar</button>
+<body class="layout-tabler page-lobby">
+  <a class="skip-link visually-hidden-focusable" href="#main">Saltar al contenido</a>
+  <div class="page app-shell">
+    <aside class="navbar navbar-vertical navbar-expand-lg app-nav" data-bs-theme="dark" aria-label="Navegación">
+      <div class="container-fluid">
+        <button class="navbar-toggler" type="button" id="btn-nav-toggle" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="Abrir menú de navegación">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <h1 class="navbar-brand navbar-brand-autodark">
+          <a href="/ph.html">Asambleas</a>
+        </h1>
+        <p class="nav-tenant visually-hidden" id="nav-tenant">Gobernanza</p>
+        <div class="collapse navbar-collapse" id="sidebar-menu">
+          <nav id="ia-nav" aria-label="Navegación contextual">
+            <div class="ia-nav-skel" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+          </nav>
+          <script src="/js/shell-paint.js?v=polish7"></script>
         </div>
-      </section>
-
-      <div class="stack lobby-stack">
-        <section class="panel">
-          <dl class="participant-facts-grid" id="participant-facts">
-            <div><dt>Participante</dt><dd id="fact-participant">—</dd></div>
-            <div><dt>Unidad</dt><dd id="fact-unit">—</dd></div>
-            <div><dt>Invitación</dt><dd id="fact-invitation">—</dd></div>
-            <div><dt>Representación</dt><dd id="fact-representation">—</dd></div>
-            <div><dt>Conexión</dt><dd id="fact-connection">—</dd></div>
-            <div><dt>Quórum</dt><dd id="fact-quorum">—</dd></div>
-            <div><dt>Estado reunión</dt><dd id="fact-meeting">—</dd></div>
-          </dl>
-        </section>
-
-        <section class="panel" aria-label="Vista previa">
-          <div class="device-preview" id="preview-mount">
-            <video id="preview-video" playsinline muted autoplay hidden></video>
-            <p id="preview-fallback" class="muted" style="padding:1rem;text-align:center"></p>
-          </div>
-          <div class="device-selectors" style="margin-top:1rem;display:grid;gap:0.75rem">
-            <label class="field">
-              <span id="label-camera-select">Cámara</span>
-              <select id="select-camera" class="input"></select>
-            </label>
-            <label class="field">
-              <span id="label-mic-select">Micrófono</span>
-              <select id="select-mic" class="input"></select>
-            </label>
-            <label class="field" id="speaker-field" hidden>
-              <span id="label-speaker-select">Altavoz</span>
-              <select id="select-speaker" class="input"></select>
-            </label>
-            <div class="mic-meter" aria-label="Nivel de micrófono">
-              <span id="label-mic-level">Nivel</span>
-              <div class="mic-meter-track"><div id="mic-meter-fill" class="mic-meter-fill"></div></div>
-            </div>
-          </div>
-          <div class="device-toggles" style="margin-top:1rem">
-            <div class="device-toggle">
-              <span id="label-camera">Cámara</span>
-              <button type="button" id="toggle-camera" class="btn btn-secondary" aria-pressed="true" aria-label="Activar o desactivar cámara">Activado</button>
-            </div>
-            <div class="device-toggle">
-              <span id="label-mic">Micrófono</span>
-              <button type="button" id="toggle-mic" class="btn btn-secondary" aria-pressed="true" aria-label="Activar o desactivar micrófono">Activado</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <button type="button" id="btn-enter" class="btn btn-primary" style="width:100%;padding:1rem;font-size:1.05rem" disabled>
-            ENTRAR A LA ASAMBLEA
-          </button>
-          <p id="enter-hint" class="muted" style="margin-top:0.75rem"></p>
-          <p style="margin-top:0.5rem">
-            <a id="link-checkin" class="muted" href="#" hidden></a>
-          </p>
-          <ul id="staged-loading" class="staged-loading" hidden aria-live="polite"></ul>
-        </section>
       </div>
-    </main>
+    </aside>
+
+    <div class="page-wrapper">
+      <header class="navbar navbar-expand-md d-print-none app-top" role="banner">
+        <div class="container-xl">
+          <span id="ia-context-label" class="visually-hidden">Sala</span>
+          <div class="d-flex align-items-center gap-2 cluster" id="header-cluster"></div>
+          <div class="navbar-nav flex-row order-md-last ms-auto">
+            <div class="nav-item dropdown">
+              <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-label="Menú de cuenta" aria-expanded="false">
+                <span class="avatar avatar-sm" id="user-avatar">AS</span>
+                <div class="d-none d-md-block ps-2">
+                  <div id="user-chip">Cuenta</div>
+                  <div class="mt-1 small text-secondary" id="ia-role-chip"></div>
+                </div>
+              </a>
+              <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                <span class="dropdown-header" id="account-role-label">Cuenta</span>
+                <a class="dropdown-item" href="#" id="btn-logout">Salir</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main id="main" class="app-workspace page-main lobby-main">
+        <div class="container-xl">
+          <div id="page-alert" class="alert alert-danger" hidden role="alert"></div>
+          <div id="ia-breadcrumbs"></div>
+          <div id="ia-assembly-tabs"></div>
+
+          <section class="brand-hero" id="lobby-hero">
+            <div class="brand-hero__inner">
+              <div>
+                <p class="brand-hero__kicker">Sala</p>
+                <h1 class="brand-hero__title" id="lobby-title" tabindex="-1">Previa de sala</h1>
+                <p class="lobby-hero-meta" id="lobby-ph-line">PH activo</p>
+                <p class="lobby-hero-meta" id="lobby-when-line">Fecha y hora de Panamá</p>
+                <p class="mb-0">
+                  <span id="lobby-status-pill" class="conv-status-pill conv-status-pill--draft">Programada</span>
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <p id="lobby-state" class="alert alert-info lobby-state" role="status">Cargando el estado de la sala…</p>
+          <div id="admission-wait" class="alert alert-info" role="status" hidden>
+            <p data-admission-msg>Preparando tu ingreso a la sala…</p>
+            <button type="button" id="btn-cancel-entry" class="btn btn-secondary">Cancelar</button>
+          </div>
+
+          <div class="row g-3 lobby-grid">
+            <div class="col-lg-7">
+              <section class="card lobby-preview-card" aria-label="Vista previa">
+                <div class="card-body">
+                  <div class="device-preview" id="preview-mount">
+                    <video id="preview-video" playsinline muted autoplay hidden></video>
+                    <p id="preview-fallback" class="text-secondary mb-0" style="padding:1rem;text-align:center"></p>
+                  </div>
+                  <div class="device-selectors mt-3">
+                    <label class="form-label">
+                      <span id="label-camera-select">Cámara</span>
+                      <select id="select-camera" class="form-select"></select>
+                    </label>
+                    <label class="form-label">
+                      <span id="label-mic-select">Micrófono</span>
+                      <select id="select-mic" class="form-select"></select>
+                    </label>
+                    <label class="form-label" id="speaker-field" hidden>
+                      <span id="label-speaker-select">Altavoz</span>
+                      <select id="select-speaker" class="form-select"></select>
+                    </label>
+                    <div class="mic-meter" aria-label="Nivel de micrófono">
+                      <span id="label-mic-level">Nivel</span>
+                      <div class="mic-meter-track"><div id="mic-meter-fill" class="mic-meter-fill"></div></div>
+                    </div>
+                  </div>
+                  <div class="device-toggles mt-3">
+                    <div class="device-toggle">
+                      <span id="label-camera">Cámara</span>
+                      <button type="button" id="toggle-camera" class="btn btn-secondary" aria-pressed="true">Activado</button>
+                    </div>
+                    <div class="device-toggle">
+                      <span id="label-mic">Micrófono</span>
+                      <button type="button" id="toggle-mic" class="btn btn-secondary" aria-pressed="true">Activado</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="col-lg-5">
+              <section class="card">
+                <div class="card-body">
+                  <dl class="participant-facts-grid" id="participant-facts">
+                    <div><dt>Participante</dt><dd id="fact-participant">—</dd></div>
+                    <div><dt>Unidad</dt><dd id="fact-unit">—</dd></div>
+                    <div><dt>Invitación</dt><dd id="fact-invitation">—</dd></div>
+                    <div><dt>Representación</dt><dd id="fact-representation">—</dd></div>
+                    <div><dt>Conexión</dt><dd id="fact-connection">—</dd></div>
+                    <div><dt>Quórum</dt><dd id="fact-quorum">—</dd></div>
+                    <div><dt>Estado reunión</dt><dd id="fact-meeting">—</dd></div>
+                  </dl>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <div class="lobby-cta-bar" id="lobby-cta">
+            <button type="button" id="btn-enter" class="btn btn-primary" disabled>Entrar a la asamblea</button>
+            <button type="button" id="btn-open-desk" class="btn btn-secondary" hidden>Abrir mesa</button>
+            <ul id="staged-loading" class="staged-loading" hidden aria-live="polite"></ul>
+          </div>
+        </div>
+      </main>
+    </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
-  <dialog id="camera-entry-dialog" class="dialog camera-entry-dialog" aria-labelledby="camera-entry-message">
-    <p id="camera-entry-message">Tu cámara está encendida. Al entrar a la asamblea, los demás participantes podrán verte.</p>
-    <div class="dialog-actions">
+  <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
+  <dialog id="camera-entry-dialog" class="dialog app-sheet camera-entry-dialog" aria-labelledby="camera-entry-message">
+    <div class="app-sheet__head">
+      <h2 class="app-sheet__title">Cámara</h2>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar" id="btn-camera-entry-close"></button>
+    </div>
+    <div class="app-sheet__body">
+      <p id="camera-entry-message">Tu cámara está encendida. Al entrar a la asamblea, los demás participantes podrán verte.</p>
+    </div>
+    <div class="app-sheet__foot dialog-actions">
       <button type="button" id="btn-camera-entry-off" class="btn btn-secondary">Apagar cámara</button>
       <button type="button" id="btn-camera-entry-on" class="btn btn-primary">Entrar con cámara</button>
     </div>
   </dialog>
-  <script type="module" src="/js/modules/lobby-app.js?v=room-fit2"></script>
+  <script type="module" src="/js/modules/lobby-app.js?v=open-desk1"></script>
 </body>
 </html>

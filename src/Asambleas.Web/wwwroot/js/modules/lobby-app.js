@@ -1,10 +1,11 @@
-import { me } from "./auth.js";
-import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
+import { me, hasPermission } from "./auth.js";
+import { initI18n, t } from "../i18n/i18n.js?v=open-desk1";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { hydrateRoomState } from "./room-state.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js?v=tabs2";
+import { bootIaPage } from "./ia-page.js?v=polish16";
+import { isOperator } from "./roles.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { attachJoinSummonListener } from "./join-summon.js";
 import {
@@ -32,7 +33,86 @@ let hub = null;
 let currentUser = null;
 
 function showError(message) {
-  showPageError(message);
+  showPageError(message, "error");
+}
+
+function clearActionError() {
+  const el = qs("#page-alert");
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = "";
+}
+
+function isPrepStatus(status) {
+  return status === "Draft" || status === "Scheduled";
+}
+
+function isAdmissionOpen(status) {
+  return status === "CheckIn" || status === "InProgress" || status === "Paused";
+}
+
+function viewerIsOperator() {
+  return isOperator(currentUser);
+}
+
+function canOpenDesk() {
+  return (
+    viewerIsOperator() &&
+    (hasPermission(currentUser, "attendance:manage") ||
+      hasPermission(currentUser, "assembly:start") ||
+      hasPermission(currentUser, "assembly:manage"))
+  );
+}
+
+function formatPanama(iso, timeZoneId) {
+  if (!iso) return "";
+  try {
+    const label = new Intl.DateTimeFormat("es-PA", {
+      timeZone: timeZoneId || "America/Panama",
+      dateStyle: "full",
+      timeStyle: "short"
+    }).format(new Date(iso));
+    return `${label} (hora de Panamá)`;
+  } catch {
+    try {
+      return `${new Date(iso).toLocaleString("es-PA")} (hora de Panamá)`;
+    } catch {
+      return "";
+    }
+  }
+}
+
+function scheduledWhen(assembly) {
+  return formatPanama(
+    assembly?.scheduledAtUtc || assembly?.scheduledAt || assembly?.ScheduledAtUtc,
+    assembly?.timeZoneId || assembly?.TimeZoneId || "America/Panama"
+  );
+}
+
+function statusPillClass(status) {
+  if (status === "InProgress" || status === "CheckIn") return "sent";
+  if (status === "Paused") return "sending";
+  if (status === "Cancelled") return "failed";
+  return "draft";
+}
+
+function statusPillLabel(status) {
+  const map = {
+    Draft: "Borrador",
+    Scheduled: "Programada",
+    CheckIn: "Mesa abierta",
+    InProgress: "En curso",
+    Paused: "En pausa",
+    Completed: "Finalizada",
+    Cancelled: "Cancelada"
+  };
+  return map[status] || status || "—";
+}
+
+function isAdmissionClosedError(error) {
+  const code = String(error?.code || error?.payload?.code || error?.payload?.extensions?.code || "");
+  const message = String(error?.message || "");
+  return code === "ASSEMBLY_NOT_JOINABLE" || /admisión solo aplica/i.test(message);
 }
 
 function updateToggleLabels() {
@@ -90,29 +170,18 @@ function isConvocated(self) {
   return Boolean(self?.userId || self?.UserId || self?.displayName);
 }
 
-function updateEntryBanner(self, assembly) {
-  const banner = qs("#entry-banner");
-  if (!banner) return;
-  const status = assembly?.status || assembly?.Status || "";
-  if (status === "Cancelled") {
-    banner.hidden = false;
-    banner.className = "alert";
-    banner.textContent = t("lobby.assemblyCancelled");
+function setLobbyState(message, variant = "info") {
+  const el = qs("#lobby-state");
+  if (!el) return;
+  if (!message) {
+    el.hidden = true;
+    el.textContent = "";
     return;
   }
-  if (!isConvocated(self)) {
-    banner.hidden = false;
-    banner.className = "alert";
-    banner.textContent = t("lobby.noValidInvitation");
-    return;
-  }
-  banner.hidden = false;
-  banner.className = "alert alert-success";
-  if (["Draft", "Scheduled", "CheckIn"].includes(status)) {
-    banner.textContent = t("lobby.waitingRoomHint");
-  } else {
-    banner.textContent = t("lobby.convocatedEnter");
-  }
+  el.hidden = false;
+  el.className = `alert alert-${variant} lobby-state`;
+  el.setAttribute("role", "status");
+  el.textContent = message;
 }
 
 function selfUserId(user) {
@@ -136,47 +205,90 @@ function shouldAutoEnterRoom(assembly) {
 
 function updateEnterGate(self, assembly) {
   const btn = qs("#btn-enter");
-  const hint = qs("#enter-hint");
-  const checkinLink = qs("#link-checkin");
+  const desk = qs("#btn-open-desk");
+  const pill = qs("#lobby-status-pill");
+  const whenLine = qs("#lobby-when-line");
+  const phLine = qs("#lobby-ph-line");
+  const titleEl = qs("#lobby-title");
   const convocated = isConvocated(self);
-  const status = assembly?.status || "";
-  const joinable = !["Draft", "Cancelled", "Completed"].includes(status);
-  if (checkinLink) {
-    checkinLink.hidden = true;
+  const status = assembly?.status || assembly?.Status || "";
+  const operator = viewerIsOperator();
+  const prep = isPrepStatus(status);
+  const admissionOpen = isAdmissionOpen(status);
+  const when = scheduledWhen(assembly);
+
+  if (titleEl && assembly?.title) {
+    titleEl.textContent = assembly.title;
   }
-  joinReady = Boolean(assemblyId) && convocated && joinable;
-  btn.disabled = !joinReady;
-  updateEntryBanner(self, assembly);
+  if (phLine) {
+    phLine.textContent = assembly?.propertyHorizontalName || "PH";
+  }
+  if (whenLine) {
+    whenLine.textContent = when || "Fecha y hora por confirmar (hora de Panamá)";
+  }
+  if (pill) {
+    pill.textContent = statusPillLabel(status);
+    pill.className = `conv-status-pill conv-status-pill--${statusPillClass(status)}`;
+  }
+
+  if (desk) {
+    const showDesk = operator && prep && canOpenDesk() && assemblyId;
+    desk.hidden = !showDesk;
+    desk.disabled = !showDesk;
+    desk.textContent = t("lobby.openDesk");
+  }
+
   qs("#fact-invitation").textContent = convocated
     ? t("lobby.convocated")
     : t("lobby.notConvocated");
-  if (!convocated) {
-    hint.textContent = t("lobby.noValidInvitation");
-  } else if (status === "Cancelled") {
-    hint.textContent = t("lobby.assemblyCancelled");
-  } else if (!joinable) {
-    hint.textContent = t("lobby.assemblyNotJoinable", { status });
-  } else if (["Draft", "Scheduled", "CheckIn"].includes(status)) {
-    hint.textContent = t("lobby.waitingRoomHint");
-  } else if (!meetingAvailable) {
-    hint.textContent = t("lobby.enterGovernanceOnly");
+
+  let ready = false;
+  let label = t("lobby.enter") || "Entrar a la asamblea";
+  let stateMessage = "";
+  let stateVariant = "info";
+
+  if (status === "Cancelled") {
+    stateMessage = t("lobby.assemblyCancelled");
+  } else if (!convocated && !operator) {
+    stateMessage = t("lobby.noValidInvitation");
+  } else if (operator && prep) {
+    ready = Boolean(assemblyId);
+    label = t("lobby.enterPrep") || "Entrar a preparar sala";
+    stateMessage = t("lobby.prepHint") || "Puedes preparar la sala y probar cámara, micrófono y altavoz. La reunión no inicia hasta que abras la mesa.";
+  } else if (!operator && prep) {
+    stateMessage = when
+      ? (t("lobby.scheduledWait", { when }) || `La asamblea está programada para ${when}. La mesa aún no está abierta.`)
+      : (t("lobby.scheduledWaitUnknown") || "La asamblea está programada. La mesa aún no está abierta.");
+  } else if (admissionOpen && convocated) {
+    ready = Boolean(assemblyId);
+    label = t("lobby.enter");
+    if (status === "CheckIn") {
+      stateMessage = t("lobby.waitingRoomHint");
+    } else if (shouldAutoEnterRoom(assembly)) {
+      stateMessage = t("lobby.assemblyLiveEnter");
+      stateVariant = "success";
+    } else if (!meetingAvailable) {
+      stateMessage = t("lobby.enterGovernanceOnly");
+    } else {
+      stateMessage = t("lobby.convocatedEnter");
+      stateVariant = "success";
+    }
+  } else if (operator && admissionOpen) {
+    ready = Boolean(assemblyId);
+    label = t("lobby.enter");
+    stateMessage = t("lobby.enterGovernanceOnly");
   } else {
-    hint.textContent = t("lobby.convocatedEnter");
+    stateMessage = t("lobby.assemblyNotJoinable", { status });
   }
 
-  const statusEl = qs("#lobby-status");
-  if (statusEl) {
-    if (!convocated) {
-      statusEl.hidden = true;
-      statusEl.textContent = "";
-    } else if (["Draft", "Scheduled", "CheckIn"].includes(status)) {
-      statusEl.hidden = false;
-      statusEl.textContent = t("lobby.waitingRoomHint");
-    } else if (shouldAutoEnterRoom(assembly)) {
-      statusEl.hidden = false;
-      statusEl.textContent = t("lobby.assemblyLiveEnter") || "La asamblea ya comenzó. Entrando a la sala…";
-    }
+  joinReady = ready;
+  if (btn) {
+    btn.hidden = !ready && !(operator && prep);
+    btn.disabled = !ready;
+    btn.textContent = label;
   }
+  setLobbyState(stateMessage, stateVariant);
+  document.body.dataset.lobbyMode = operator && prep ? "prep" : admissionOpen ? "enter" : "wait";
 }
 
 let autoEnterScheduled = false;
@@ -197,10 +309,16 @@ function askCameraEntry() {
   const offBtn = qs("#btn-camera-entry-off");
   const onBtn = qs("#btn-camera-entry-on");
   if (message) {
-    message.textContent = lobbyText(
-      "lobby.cameraEntryBody",
-      "Tu cámara está encendida. Al entrar a la asamblea, los demás participantes podrán verte."
-    );
+    const prep = isPrepStatus(currentAssembly?.status);
+    message.textContent = prep
+      ? lobbyText(
+          "lobby.prepCameraBody",
+          "Vas a preparar la sala. Puedes probar cámara y micrófono; esto no inicia la reunión ni registra asistencia."
+        )
+      : lobbyText(
+          "lobby.cameraEntryBody",
+          "Tu cámara está encendida. Al entrar a la asamblea, los demás participantes podrán verte."
+        );
   }
   if (offBtn) offBtn.textContent = lobbyText("lobby.cameraEntryOff", "Apagar cámara");
   if (onBtn) onBtn.textContent = lobbyText("lobby.cameraEntryOn", "Entrar con cámara");
@@ -241,7 +359,9 @@ function askCameraEntry() {
 
 async function beginEntry(options = {}) {
   if (entryInFlight) return false;
-  if (device.camera) {
+  const prep = isPrepStatus(currentAssembly?.status);
+  const operator = viewerIsOperator();
+  if (device.camera && !prep) {
     const choice = await askCameraEntry();
     if (choice === "cancel") return false;
     if (choice === "off") {
@@ -252,7 +372,11 @@ async function beginEntry(options = {}) {
   if (entryInFlight) return false;
   entryInFlight = true;
   try {
-    await enterAssembly(options);
+    await enterAssembly({
+      ...options,
+      skipAdmission: Boolean(options.skipAdmission) || (operator && prep),
+      allowGovernanceOnly: Boolean(options.allowGovernanceOnly) || (operator && prep)
+    });
     return true;
   } catch (error) {
     entryInFlight = false;
@@ -404,18 +528,23 @@ async function enterAssembly(options = {}) {
       userId: user?.id || user?.userId
     });
     const self = resolveSelf(room, user);
-    if (!isConvocated(self)) {
+    const status = room?.assembly?.status || currentAssembly?.status || "";
+    const operator = isOperator(user);
+    const prep = isPrepStatus(status);
+    if (!isConvocated(self) && !operator) {
       throw new Error(t("lobby.noValidInvitation"));
     }
 
-    // Convocated owners are auto-admitted server-side; never park on "wait for president".
-    if (!skipAdmission) {
+    // Admission (request-entry) is only for an open desk/assembly.
+    // Operator prep must not admit, notify, or count quorum.
+    const skipPrepAdmission = skipAdmission || (operator && prep);
+    if (!skipPrepAdmission) {
       const { api } = await import("./api.js");
       const entry = await api(`/api/assemblies/${assemblyId}/attendance/lobby/request-entry`, {
         method: "POST"
       });
-      const status = entry?.roomEntryStatus || entry?.RoomEntryStatus || "";
-      if (/Rejected/i.test(status)) {
+      const entryStatus = entry?.roomEntryStatus || entry?.RoomEntryStatus || "";
+      if (/Rejected/i.test(entryStatus)) {
         throw new Error(
           entry?.roomEntryRejectReason ||
             "No puedes entrar en este momento. Revisa tu invitación o contacta a la mesa."
@@ -429,7 +558,7 @@ async function enterAssembly(options = {}) {
       try {
         await fetchJoinToken(assemblyId);
       } catch (err) {
-        if (!allowGovernanceOnly) throw err;
+        if (!allowGovernanceOnly && !prep) throw err;
         console.warn("Join token unavailable; entering governance-only", err);
       }
     }
@@ -448,7 +577,11 @@ async function enterAssembly(options = {}) {
     stopMeterLoop();
     location.href = `/assembly.html?assemblyId=${assemblyId}`;
   } catch (error) {
-    showError(error.message || t("networkError"));
+    if (isAdmissionClosedError(error)) {
+      updateEnterGate(currentSelf, currentAssembly);
+    } else {
+      showError(error.message || t("networkError"));
+    }
     if (btn) btn.disabled = false;
     if (stages) stages.hidden = true;
     throw error;
@@ -468,7 +601,6 @@ async function init() {
     return;
   }
 
-  qs("#lobby-title").textContent = t("lobby.title");
   qs("#label-camera").textContent = t("lobby.camera");
   qs("#label-mic").textContent = t("lobby.microphone");
   qs("#label-camera-select").textContent = t("lobby.camera");
@@ -476,15 +608,8 @@ async function init() {
   qs("#label-speaker-select").textContent = t("lobby.speaker");
   qs("#label-mic-level").textContent = t("lobby.micLevel");
   qs("#btn-enter").textContent = t("lobby.enter");
-  const linkDash = qs("#link-dashboard");
-  if (linkDash) {
-    linkDash.href = `/dashboard.html?assemblyId=${assemblyId}`;
-    linkDash.textContent = t("back");
-  }
-  const checkinLink = qs("#link-checkin");
-  if (checkinLink) {
-    checkinLink.hidden = true;
-  }
+  const deskBtn = qs("#btn-open-desk");
+  if (deskBtn) deskBtn.textContent = t("lobby.openDesk");
 
   if (!assemblyId) {
     assemblyId = await ensureAssemblyIdOrRedirect();
@@ -503,8 +628,7 @@ async function init() {
   }
   const user = currentUser;
 
-  await bootIaPage({ current: "asm-room", pageLabel: "Sala" });
-  document.body.classList.add("is-fullscreen-ops");
+  await bootIaPage({ current: "asm-room", pageLabel: "Sala", allowOwnerPortal: true });
 
   let room;
   try {
@@ -527,10 +651,10 @@ async function init() {
     return;
   }
 
-  qs("#lobby-meta").innerHTML = `
-    <span><strong>PH:</strong> ${escapeHtml(assembly?.propertyHorizontalName || "—")}</span>
-    <span><strong>${escapeHtml(assembly?.title || "—")}</strong></span>
-  `;
+  const titleEl = qs("#lobby-title");
+  if (titleEl) titleEl.textContent = assembly?.title || t("lobby.title");
+  const phLine = qs("#lobby-ph-line");
+  if (phLine) phLine.textContent = assembly?.propertyHorizontalName || "PH";
 
   const self = resolveSelf(room, user);
   currentSelf = self;
@@ -548,21 +672,6 @@ async function init() {
     qs("#fact-quorum").textContent = `${Number(q.currentCoefficient).toFixed(2)}% / ${Number(q.requiredCoefficient).toFixed(2)}%`;
   } else {
     qs("#fact-quorum").textContent = "—";
-  }
-
-  const statusEl = qs("#lobby-status");
-  if (statusEl) {
-    const convocated = isConvocated(self);
-    if (!convocated) {
-      statusEl.hidden = true;
-      statusEl.textContent = "";
-    } else if (assembly?.status && assembly.status !== "InProgress") {
-      statusEl.hidden = false;
-      statusEl.textContent =
-        assembly.status === "CheckInOpen" || assembly.status === "Scheduled" || assembly.status === "CheckIn"
-          ? t("lobby.waitingRoomHint")
-          : t("lobby.assemblyStatus", { status: assembly.status });
-    }
   }
 
   const dts = qs("#participant-facts").querySelectorAll("dt");
@@ -654,7 +763,7 @@ async function init() {
           const btn = qs("#btn-enter");
           if (btn) {
             btn.disabled = false;
-            btn.textContent = t("lobby.enter");
+            updateEnterGate(currentSelf, currentAssembly);
           }
           showError(chg?.rejectReason || chg?.RejectReason || msg || "Ingreso rechazado.");
         } else if (/Waiting/i.test(status)) {
@@ -692,12 +801,44 @@ async function init() {
   qs("#select-speaker")?.addEventListener("change", (e) => {
     saveDevicePrefs({ speakerId: e.target.value });
   });
+  qs("#btn-camera-entry-close")?.addEventListener("click", () => {
+    qs("#camera-entry-dialog")?.close();
+  });
   qs("#btn-enter").addEventListener("click", () => {
+    clearActionError();
     beginEntry().catch((error) => {
-      showError(error.message);
+      if (!isAdmissionClosedError(error)) {
+        showError(error.message);
+      }
       const btn = qs("#btn-enter");
       if (btn) btn.disabled = false;
     });
+  });
+  qs("#btn-open-desk")?.addEventListener("click", async () => {
+    if (!canOpenDesk() || !isPrepStatus(currentAssembly?.status)) return;
+    const desk = qs("#btn-open-desk");
+    clearActionError();
+    if (desk) {
+      desk.disabled = true;
+      desk.textContent = "Abriendo mesa…";
+    }
+    try {
+      const { api } = await import("./api.js");
+      const updated = await api(`/api/assemblies/${assemblyId}/start-checkin`, { method: "POST" });
+      currentAssembly = {
+        ...(currentAssembly || {}),
+        ...(updated || {}),
+        status: updated?.status || "CheckIn"
+      };
+      updateEnterGate(currentSelf, currentAssembly);
+      showToast("Mesa abierta. Los convocados ya pueden entrar.", "success");
+    } catch (err) {
+      showError(err.message || t("networkError"));
+      if (desk) {
+        desk.disabled = false;
+        desk.textContent = t("lobby.openDesk");
+      }
+    }
   });
   qs("#btn-cancel-entry")?.addEventListener("click", async () => {
     try {
