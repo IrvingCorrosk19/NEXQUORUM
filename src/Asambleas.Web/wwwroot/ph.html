@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
   <link rel="stylesheet" href="/css/ph.css?v=units-hub4" />
   <link rel="stylesheet" href="/css/ph-roster-import.css?v=polish9" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish11" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish12" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
 </head>
@@ -566,7 +566,7 @@
           <header class="app-sheet__head">
             <div>
               <p class="command-eyebrow">Propiedades</p>
-              <h2 id="create-ph-title">Crear PH</h2>
+                  <h2 id="create-ph-title" tabindex="-1">Crear PH</h2>
             </div>
             <button type="button" class="btn btn-ghost app-sheet__close" id="btn-cancel-create" aria-label="Cerrar">✕</button>
           </header>
@@ -575,7 +575,7 @@
               <legend>Identificación</legend>
               <div class="form-grid">
                 <label><span>Nombre <span class="req" aria-hidden="true">*</span></span>
-                  <input name="name" required maxlength="200" autocomplete="organization" autofocus />
+                  <input name="name" required maxlength="200" autocomplete="organization" />
                 </label>
                 <label>Nombre legal
                   <input name="legalName" maxlength="200" />
@@ -630,6 +630,6 @@
     </div>
   </div>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/ph-app.js?v=polish11"></script>
+  <script type="module" src="/js/modules/ph-app.js?v=polish12"></script>
 </body>
 </html>

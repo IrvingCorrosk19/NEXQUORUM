@@ -7,7 +7,7 @@ import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton, startTopProgress, stopTopProgress } from "./loading.js";
-import { startHybridShell } from "./hybrid-router.js?v=polish7";
+import { startHybridShell } from "./hybrid-router.js?v=polish12";
 import { createUnitsHub } from "./ph-units-hub.js?v=polish9";
 import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks, lockPageScroll, scrollFieldIntoSheet } from "./query-guard.js?v=polish11";
 
@@ -196,7 +196,22 @@ function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+function closeStraySheets() {
+  document.querySelectorAll("dialog.app-sheet, #dlg-confirm-action, #dlg-ph-created").forEach((dlg) => {
+    if (dlg.open) {
+      try {
+        dlg.close();
+      } catch {
+        dlg.removeAttribute("open");
+      }
+    } else {
+      dlg.removeAttribute("open");
+    }
+  });
+}
+
 async function init() {
+  closeStraySheets();
   try {
     user = await me();
   } catch {
@@ -444,6 +459,7 @@ function openCreatePhDialog() {
     inlineErr.hidden = true;
     inlineErr.textContent = "";
   }
+  if (dlg && dlg.parentElement !== document.body) document.body.appendChild(dlg);
   dlg?.showModal();
   lockPageScroll(true);
   bindSheetViewport(dlg);
@@ -451,7 +467,11 @@ function openCreatePhDialog() {
   createPhUnbindKeyboard?.();
   createPhUntrap = trapFocus(dlg);
   createPhUnbindKeyboard = wireSheetKeyboard(dlg);
-  requestAnimationFrame(() => requestAnimationFrame(() => nameInput?.focus()));
+  dlg?.querySelector(".app-sheet__body")?.scrollTo(0, 0);
+  requestAnimationFrame(() => {
+    $("#create-ph-title")?.focus?.({ preventScroll: true });
+    nameInput?.focus?.({ preventScroll: true });
+  });
 }
 
 function wireCreatePhCodeSuggest() {
