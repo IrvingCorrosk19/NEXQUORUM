@@ -1759,6 +1759,141 @@ dialog.app-sheet:not([open]),
   }
 }
 
+/* Assembly subnav: readable on the light admin canvas (all routes, including Más). */
+.layout-tabler #ia-assembly-tabs {
+  display: block !important;
+  max-width: 100%;
+}
+
+.layout-tabler .ia-asm-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+  padding: 0.15rem 0 0.65rem;
+  overflow: visible;
+  border-bottom: 1px solid rgba(16, 43, 63, 0.1);
+}
+
+.layout-tabler .ia-asm-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.4rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid rgba(16, 43, 63, 0.16);
+  border-radius: 999px;
+  background: #fff;
+  color: #102b3f;
+  font-size: 0.875rem;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.layout-tabler .ia-asm-tab:hover,
+.layout-tabler .ia-asm-tab:focus-visible {
+  color: #0b3a4a;
+  border-color: #0b3a4a;
+  background: #f4f7f8;
+}
+
+.layout-tabler .ia-asm-tab.is-active,
+.layout-tabler .ia-asm-tab[aria-current="page"] {
+  background: #0b3a4a;
+  color: #fff;
+  border-color: #0b3a4a;
+}
+
+.layout-tabler .ia-asm-tabs__more summary {
+  color: #102b3f;
+  background: #fff;
+  border: 1px solid rgba(16, 43, 63, 0.16);
+  min-height: 2.4rem;
+  font-weight: 650;
+}
+
+.layout-tabler .ia-asm-tabs__menu {
+  background: #fff;
+  color: #102b3f;
+  border-color: rgba(16, 43, 63, 0.12);
+}
+
+.layout-tabler .ia-asm-tabs__menu .ia-asm-tab {
+  width: 100%;
+  border-radius: 0.45rem;
+}
+
+.layout-tabler .studio-main,
+.layout-tabler .page-main {
+  padding-bottom: 1.5rem;
+}
+
+.layout-tabler .studio-search__input,
+.layout-tabler #participant-filter,
+.layout-tabler #vote-search {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 1px solid rgba(16, 43, 63, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: #fff;
+  color: #102b3f;
+}
+
+.layout-tabler dialog.conv-work {
+  width: min(56rem, calc(100vw - 1.25rem));
+  max-height: min(92dvh, 46rem);
+  margin: auto;
+  padding: 0;
+  border: 1px solid rgba(16, 43, 63, 0.12);
+  border-radius: 1rem;
+  background: #fff;
+  color: #102b3f;
+}
+
+.layout-tabler dialog.conv-work:not([open]) { display: none !important; }
+
+.layout-tabler .conv-work__form {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: min(92dvh, 46rem);
+}
+
+.layout-tabler .conv-work__body {
+  overflow: auto;
+  padding: 0 1.1rem 1rem;
+}
+
+.layout-tabler .conv-work__head,
+.layout-tabler .conv-work__foot {
+  padding: 0.85rem 1.1rem;
+  background: #fff;
+}
+
+.layout-tabler .conv-work__foot {
+  position: sticky;
+  bottom: 0;
+  border-top: 1px solid rgba(16, 43, 63, 0.08);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.layout-tabler .conv-list-item {
+  width: 100%;
+  text-align: left;
+}
+
+.layout-tabler .conv-detail-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: #fff;
+  padding: 0.65rem 0;
+}
+
 /* ——— Lobby / room prep ——— */
 .layout-tabler.page-lobby #ia-assembly-tabs {
   display: block !important;

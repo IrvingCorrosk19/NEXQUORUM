@@ -78,6 +78,8 @@ async function saveAgendaItem() {
     qs("#agenda-code").value = "";
     dirty = false;
     await loadAgenda();
+    const dlg = qs("#dlg-agenda");
+    if (dlg?.open) dlg.close();
     showToast("Punto agregado", "success");
     showError("");
     return true;
@@ -150,6 +152,27 @@ async function init() {
 
   await loadAgenda();
 
+  let agendaOpener = null;
+  qs("#btn-open-agenda")?.addEventListener("click", (ev) => {
+    agendaOpener = ev.currentTarget;
+    const dlg = qs("#dlg-agenda");
+    if (dlg && !dlg.open) dlg.showModal();
+    qs("#agenda-title")?.focus();
+  });
+  qs("#agenda-dialog-close")?.addEventListener("click", () => {
+    if (dirty && !window.confirm("Hay cambios sin guardar. ¿Cerrar de todos modos?")) return;
+    dirty = false;
+    qs("#dlg-agenda")?.close();
+  });
+  qs("#dlg-agenda")?.addEventListener("close", () => agendaOpener?.focus?.());
+  qs("#dlg-agenda")?.addEventListener("cancel", (ev) => {
+    if (!dirty) return;
+    ev.preventDefault();
+    if (window.confirm("Hay cambios sin guardar. ¿Cerrar de todos modos?")) {
+      dirty = false;
+      qs("#dlg-agenda")?.close();
+    }
+  });
   qs("#agenda-form")?.addEventListener("input", markDirty);
   qs("#agenda-form")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();

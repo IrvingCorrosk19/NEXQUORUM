@@ -17,31 +17,31 @@
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
   <link rel="stylesheet" href="/css/summon-status.css?v=mP1a" />
   <link rel="stylesheet" href="/css/gov-ops.css?v=gov3" />
+  <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow1" />
 </head>
-<body>
-  <a class="skip-link" href="#main">Saltar al contenido</a>
-  <div class="app-shell">
-    <aside class="app-nav" aria-label="Navegación">
-      <div>
-        <h1 class="brand">ASAMBLEAS</h1>
-        <p class="nav-tenant" id="nav-tenant">Gobernanza</p>
+<body class="layout-tabler">
+  <a class="skip-link visually-hidden-focusable" href="#main">Saltar al contenido</a>
+  <div class="page app-shell">
+    <aside class="navbar navbar-vertical navbar-expand-lg app-nav" data-bs-theme="dark" aria-label="Navegación">
+      <div class="container-fluid">
+        <button class="navbar-toggler" type="button" id="btn-nav-toggle" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="Abrir menú"><span class="navbar-toggler-icon"></span></button>
+        <h1 class="navbar-brand navbar-brand-autodark"><a href="/ph.html">Asambleas</a></h1>
+        <p class="nav-tenant visually-hidden" id="nav-tenant">Gobernanza</p>
+        <div class="collapse navbar-collapse" id="sidebar-menu"><nav id="ia-nav" aria-label="Navegación contextual"></nav><script src="/js/shell-paint.js?v=polish7"></script></div>
       </div>
-      <nav id="ia-nav" aria-label="Navegación contextual"></nav>
     </aside>
-
-    <header class="app-top" role="banner">
-      <div class="ia-top-context">
-        <span class="ia-top-context__brand">ASAMBLEAS</span>
-        <span class="ia-top-context__path" id="ia-context-label">Asamblea</span>
-      </div>
-      <div class="cluster">
-        <span id="ia-role-chip" class="badge badge-live"></span>
-        <span id="user-chip" class="badge badge-live"></span>
-        <button type="button" id="btn-logout" class="btn btn-secondary">Salir</button>
-      </div>
-    </header>
-
-    <main id="main" class="app-workspace page-main page-main--wide">
+    <div class="page-wrapper">
+      <header class="navbar navbar-expand-md d-print-none app-top" role="banner">
+        <div class="container-xl">
+          <span id="ia-context-label" class="visually-hidden">Asamblea</span>
+          <div class="navbar-nav flex-row order-md-last ms-auto"><div class="nav-item dropdown">
+            <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-label="Menú de cuenta"><span class="avatar avatar-sm" id="user-avatar">AS</span><div class="d-none d-md-block ps-2"><div id="user-chip">Cuenta</div><div class="mt-1 small text-secondary" id="ia-role-chip"></div></div></a>
+            <div class="dropdown-menu dropdown-menu-end"><a class="dropdown-item" href="#" id="btn-logout">Salir</a></div>
+          </div></div>
+        </div>
+      </header>
+      <main id="main" class="page-main"><div class="container-xl">
       <div id="page-alert" class="alert" hidden role="alert"></div>
       <div id="historical-banner" class="ia-historical-banner" hidden role="status"></div>
       <div id="ia-breadcrumbs"></div>
@@ -73,8 +73,10 @@
           <div id="secondary-links"></div>
         </section>
       </div>
-    </main>
+      </div></main>
+    </div>
   </div>
+  <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
   <script type="module" src="/js/modules/dashboard-app.js?v=open-desk1"></script>
 </body>

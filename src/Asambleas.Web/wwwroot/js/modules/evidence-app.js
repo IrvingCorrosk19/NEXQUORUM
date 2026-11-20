@@ -26,48 +26,35 @@ function renderEvidence(data) {
   const c = data.completeness || {};
   const timeline = data.timeline || [];
 
+  const table = (heads, rows) => `
+    <div class="table-responsive"><table class="table table-sm card-table">
+      <thead><tr>${heads.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
+      <tbody>${rows || `<tr><td colspan="${heads.length}">—</td></tr>`}</tbody>
+    </table></div>`;
   root.innerHTML = `
-    <header>
-      <h2 style="margin-top:0">${escapeHtml(data.title || t("evidence.title"))}</h2>
-      <p class="muted">${escapeHtml(data.propertyHorizontalName || "")} · ${escapeHtml(assemblyLabel(data.status))}</p>
-      <p><span class="badge ${c.status === "COMPLETE" ? "badge-success" : "badge-warn"}">${escapeHtml(assemblyLabel(c.status))}</span>
-         <a class="btn btn-secondary" style="margin-left:0.5rem" href="/minutes.html?assemblyId=${assemblyId}">Acta</a></p>
-      ${(c.notes || []).map((n) => `<p class="muted">• ${escapeHtml(n)}</p>`).join("")}
-    </header>
+    <div class="card-body">
+      <h2 class="card-title">${escapeHtml(data.title || t("evidence.title"))}</h2>
+      <p class="text-secondary">${escapeHtml(data.propertyHorizontalName || "")} · ${escapeHtml(assemblyLabel(data.status))}</p>
+      <p><span class="badge ${c.status === "COMPLETE" ? "bg-success" : "bg-warning"}">${escapeHtml(assemblyLabel(c.status))}</span>
+         <a class="btn btn-secondary ms-2" href="/minutes.html?assemblyId=${assemblyId}">Acta</a></p>
+      ${(c.notes || []).map((n) => `<p class="text-secondary">• ${escapeHtml(n)}</p>`).join("")}
+      <details class="mt-3" open><summary>Asistencia</summary>
+        ${table(["Nombre", "Unidad", "Coeficiente", "Estado"], (data.attendance || []).map((p) => `<tr><td>${escapeHtml(p.displayName)}</td><td>${escapeHtml(p.unitCode || "—")}</td><td>${pct(p.effectiveCoefficientPercent ?? p.coefficientPercent)}</td><td>${escapeHtml(assemblyLabel(p.attendanceStatus))}</td></tr>`).join(""))}
+      </details>
+      <details class="mt-2"><summary>Representaciones</summary>
+        ${table(["Unidad", "Coeficiente", "Representante", "Origen"], (data.representations || []).map((r) => `<tr><td>${escapeHtml(r.unitCode)}</td><td>${pct(r.coefficientSnapshot)}</td><td>${escapeHtml(r.representativeDisplayName)}</td><td>${escapeHtml(assemblyLabel(r.source))}${r.isActive ? "" : " (inactiva)"}</td></tr>`).join(""))}
+      </details>
+      <details class="mt-2"><summary>Quórum</summary>
+        ${table(["Fecha", "Presente", "Requerido", "Estado"], (data.quorumSnapshots || []).slice(0, 20).map((s) => `<tr><td>${escapeHtml(formatDateTime(s.timestampUtc))}</td><td>${pct(s.presentCoefficient)}</td><td>${pct(s.requiredCoefficient)}</td><td>${escapeHtml(quorumTimelineText(s.status, s.reason) || "—")}</td></tr>`).join(""))}
+      </details>
 
-    <section class="minutes-section">
-      <h3>Asistencia</h3>
-      <ul>${(data.attendance || []).map((p) => `<li>${escapeHtml(p.displayName)} · ${escapeHtml(p.unitCode || "—")} · ${pct(p.effectiveCoefficientPercent ?? p.coefficientPercent)} · ${escapeHtml(assemblyLabel(p.attendanceStatus))}</li>`).join("") || "<li>—</li>"}</ul>
-    </section>
-
-    <section class="minutes-section">
-      <h3>Representaciones</h3>
-      <ul>${(data.representations || []).map((r) => `<li>${escapeHtml(r.unitCode)} · ${pct(r.coefficientSnapshot)} · ${escapeHtml(r.representativeDisplayName)} · ${escapeHtml(assemblyLabel(r.source))}${r.isActive ? "" : " (inactiva)"}</li>`).join("") || "<li class='muted'>Sin representaciones materializadas.</li>"}</ul>
-    </section>
-
-    <section class="minutes-section">
-      <h3>Línea de tiempo de quórum</h3>
-      <ul>${(data.quorumSnapshots || []).slice(0, 20).map((s) => `<li>${escapeHtml(formatDateTime(s.timestampUtc))} · ${pct(s.presentCoefficient)} / ${pct(s.requiredCoefficient)} · ${escapeHtml(quorumTimelineText(s.status, s.reason) || "—")}</li>`).join("") || "<li>—</li>"}</ul>
-    </section>
-
-    <section class="minutes-section">
-      <h3>Decisiones</h3>
-      <ul>${(data.decisions || []).map((d) => `<li><strong>${escapeHtml(d.decisionNumber)}</strong> ${escapeHtml(d.motionTitle)} → ${escapeHtml(d.explanation || assemblyLabel(d.decisionStatus))}</li>`).join("") || "<li class='muted'>Sin decisiones.</li>"}</ul>
-    </section>
-
-    <section class="minutes-section">
-      <h3>Timeline operativo</h3>
-      <ol class="agenda-list">${timeline
-        .slice()
-        .reverse()
-        .slice(0, 80)
-        .map(
-          (e) =>
-            `<li><strong>${escapeHtml(assemblyLabel(e.eventType))}</strong>
-             <div class="muted">${escapeHtml(formatDateTime(e.occurredAtUtc))}</div></li>`
-        )
-        .join("") || "<li>—</li>"}</ol>
-    </section>
+      <details class="mt-2"><summary>Documentos y decisiones</summary>
+        <ul class="list-unstyled">${(data.decisions || []).map((d) => `<li><strong>${escapeHtml(d.decisionNumber)}</strong> ${escapeHtml(d.motionTitle)} → ${escapeHtml(d.explanation || assemblyLabel(d.decisionStatus))}</li>`).join("") || "<li class='text-secondary'>Sin decisiones.</li>"}</ul>
+      </details>
+      <details class="mt-2"><summary>Línea de tiempo</summary>
+        <ol>${timeline.slice().reverse().slice(0, 80).map((e) => `<li><strong>${escapeHtml(assemblyLabel(e.eventType))}</strong> <span class="text-secondary">${escapeHtml(formatDateTime(e.occurredAtUtc))}</span></li>`).join("") || "<li>—</li>"}</ol>
+      </details>
+    </div>
   `;
 }
 

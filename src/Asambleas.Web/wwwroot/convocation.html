@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish15" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow1" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 </head>
 <body class="layout-tabler">
@@ -71,14 +71,37 @@
                 <p class="conv-hero-meta" id="conv-ph-line">PH activo</p>
                 <p class="conv-hero-meta" id="conv-when-line">Fecha y hora de Panamá</p>
                 <p class="mb-0" id="conv-status-wrap">
-                  <span id="conv-status-pill" class="conv-status-pill conv-status-pill--draft">Sin borrador</span>
+                  <span id="conv-status-pill" class="conv-status-pill conv-status-pill--draft">Cargando…</span>
                 </p>
               </div>
-              <a class="btn btn-secondary" id="btn-back-assembly" href="/ph.html">Volver a la asamblea</a>
+              <div class="cta-row">
+                <button type="button" class="btn btn-primary" id="btn-new-convocation">Nueva convocatoria</button>
+                <a class="btn btn-secondary" id="btn-back-assembly" href="/dashboard.html">Volver a la asamblea</a>
+              </div>
             </div>
           </section>
+          <section class="card" aria-labelledby="list-heading">
+            <div class="card-body">
+              <h2 id="list-heading" class="card-title">Convocatorias</h2>
+              <div id="list-panel" role="status" aria-live="polite"><div class="progress progress-sm"><div class="progress-bar progress-bar-indeterminate"></div></div></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
 
-          <details class="card conv-editor" id="create-sheet" open>
+  <dialog id="dlg-convocation" class="conv-work" aria-labelledby="conv-dialog-title">
+    <div class="conv-work__form">
+      <header class="conv-work__head">
+        <div>
+          <p class="command-eyebrow mb-0">Convocatoria</p>
+          <h2 id="conv-dialog-title" tabindex="-1">Convocatoria</h2>
+        </div>
+        <button type="button" class="btn btn-ghost" id="conv-dialog-close" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="conv-work__body">
+          <details class="card conv-editor" id="create-sheet">
             <summary class="conv-editor__summary">
               <h2 class="card-title mb-0" id="create-heading">Nueva convocatoria</h2>
               <span class="text-secondary" id="create-summary-hint">Título, canales y destinatarios del borrador</span>
@@ -126,20 +149,9 @@
                   <div id="create-owner-picker"><div class="progress progress-sm"><div class="progress-bar progress-bar-indeterminate"></div></div></div>
                 </section>
 
-                <div class="cta-row conv-editor__foot">
-                  <button type="submit" class="btn btn-primary" id="btn-save-draft">Guardar borrador</button>
-                  <p id="create-action-status" class="conv-action-status" hidden role="status" tabindex="-1"></p>
-                </div>
               </form>
             </div>
           </details>
-
-          <section class="card conv-task" aria-labelledby="list-heading">
-            <div class="card-body">
-              <h2 id="list-heading" class="card-title">Borradores y envíos</h2>
-              <div id="list-panel"><div class="progress progress-sm"><div class="progress-bar progress-bar-indeterminate"></div></div></div>
-            </div>
-          </section>
 
           <section class="card conv-task" id="detail-panel" hidden>
             <div class="card-body">
@@ -155,11 +167,14 @@
               <div id="deliveries" class="conv-deliveries"></div>
             </div>
           </section>
-        </div>
-      </main>
+      </div>
+      <footer class="conv-work__foot">
+        <button type="submit" form="create-form" class="btn btn-primary" id="btn-save-draft">Guardar borrador</button>
+        <p id="create-action-status" class="conv-action-status mb-0" hidden role="status" tabindex="-1"></p>
+      </footer>
     </div>
-  </div>
+  </dialog>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/convocation-app.js?v=polish15"></script>
+  <script type="module" src="/js/modules/convocation-app.js?v=flow1"></script>
 </body>
 </html>

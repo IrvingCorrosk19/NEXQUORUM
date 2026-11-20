@@ -12,6 +12,10 @@ import { applyAvatarElement, avatarCacheBust } from "./avatar-ui.js?v=own11";
 import { applyTestHooks } from "./query-guard.js?v=polish15";
 
 let assemblyId = assemblyIdFromUrl();
+{
+  const backNow = document.querySelector("#btn-back-assembly");
+  if (backNow && assemblyId) backNow.href = `/dashboard.html?assemblyId=${encodeURIComponent(assemblyId)}`;
+}
 let selectedId = null;
 let selectedPreview = null;
 let selectedDetail = null;
@@ -23,6 +27,34 @@ let createInFlight = false;
 let sendInFlight = false;
 let lastSendKey = null;
 let lastMailboxCount = 0;
+let formDirty = false;
+let modalOpener = null;
+
+function markFormDirty() {
+  formDirty = true;
+}
+
+function openWorkDialog(opener) {
+  const dlg = qs("#dlg-convocation");
+  if (!dlg) return;
+  modalOpener = opener || document.activeElement;
+  if (dlg.parentElement !== document.body) document.body.appendChild(dlg);
+  if (!dlg.open) dlg.showModal();
+  qs("#conv-dialog-title")?.focus?.({ preventScroll: true });
+}
+
+function closeWorkDialog() {
+  if (formDirty) {
+    const ok = window.confirm("Hay cambios sin guardar. ¿Cerrar de todos modos?");
+    if (!ok) return;
+  }
+  formDirty = false;
+  const dlg = qs("#dlg-convocation");
+  if (dlg?.open) dlg.close();
+  const opener = modalOpener;
+  modalOpener = null;
+  if (opener && document.contains(opener)) opener.focus?.();
+}
 
 function showError(message) {
   showPageError(message, "error");
@@ -195,6 +227,22 @@ async function snapshotMailbox() {
   }
 }
 
+function openCreateDialog(opener) {
+  const sheet = qs("#create-sheet");
+  const panel = qs("#detail-panel");
+  if (sheet) {
+    sheet.hidden = false;
+    sheet.open = true;
+  }
+  if (panel) panel.hidden = true;
+  const save = qs("#btn-save-draft");
+  if (save) save.hidden = false;
+  const title = qs("#conv-dialog-title");
+  if (title) title.textContent = "Nueva convocatoria";
+  formDirty = false;
+  openWorkDialog(opener);
+}
+
 function collapseCreateForm() {
   const sheet = qs("#create-sheet");
   if (sheet) sheet.open = false;
@@ -280,7 +328,7 @@ function paintHeader(status) {
       assembly?.timeZoneId || "America/Panama"
     );
   }
-  setStatusPill(qs("#conv-status-pill"), status || "Draft", status ? statusEs(status) : "Sin borrador");
+  if (status) setStatusPill(qs("#conv-status-pill"), status, statusEs(status));
   const back = qs("#btn-back-assembly");
   if (back && assemblyId) {
     back.href = `/dashboard.html?assemblyId=${encodeURIComponent(assemblyId)}`;
@@ -300,21 +348,23 @@ async function refreshList() {
       throw new Error("No se pudieron cargar los borradores.");
     }
     if (!rows.length) {
-      panel.innerHTML = `<div class="empty-state">Todavía no hay borradores. Completa el formulario y pulsa Guardar borrador.</div>`;
-      if (!selectedId) paintHeader(null);
+      panel.innerHTML = `<div class="empty-state">Sin borrador. Crea la primera convocatoria para este PH.</div>`;
+      setStatusPill(qs("#conv-status-pill"), "Draft", "Sin borrador");
       return rows;
     }
     panel.innerHTML = rows
-      .map(
-        (r) => `
+      .map((r) => {
+        const when = r.sentAtUtc || r.scheduledAtUtc;
+        const whenLabel = when ? formatDateTime(when) : "Sin fecha de envío";
+        return `
     <button type="button" class="conv-list-item${selectedId === r.id ? " is-active" : ""}" data-id="${r.id}">
-      <span><strong>${escapeHtml(r.title)}</strong> · ${escapeHtml(statusEs(r.status))}</span>
-      <span class="badge">${r.validRecipientCount}/${r.recipientCount}</span>
-    </button>`
-      )
+      <span><strong>${escapeHtml(r.title)}</strong><br><span class="text-secondary">${escapeHtml(whenLabel)} · ${escapeHtml(statusEs(r.status))}</span></span>
+      <span class="badge">${r.validRecipientCount}/${r.recipientCount} entregas</span>
+    </button>`;
+      })
       .join("");
     panel.querySelectorAll("[data-id]").forEach((btn) => {
-      btn.addEventListener("click", () => openDetail(btn.getAttribute("data-id")));
+      btn.addEventListener("click", () => openDetail(btn.getAttribute("data-id"), btn));
     });
     if (!selectedId) paintHeader(rows[0].status);
     return rows;
@@ -455,13 +505,20 @@ async function loadEmailPreview(id) {
   }
 }
 
-async function openDetail(id) {
+async function openDetail(id, opener) {
   selectedId = id;
   rememberDraft(id);
   const detail = await api(`/api/convocations/${id}`);
   selectedDetail = detail;
   const panel = qs("#detail-panel");
+  const sheet = qs("#create-sheet");
+  if (sheet) sheet.hidden = true;
   panel.hidden = false;
+  const save = qs("#btn-save-draft");
+  if (save) save.hidden = true;
+  const dialogTitle = qs("#conv-dialog-title");
+  if (dialogTitle) dialogTitle.textContent = detail.title || "Convocatoria";
+  openWorkDialog(opener);
   selectedPreview = detail.preview || null;
   paintHeader(detail.status);
   setStatusPill(qs("#detail-status-pill"), detail.status);
@@ -485,10 +542,7 @@ async function openDetail(id) {
     <p>Canales del borrador: ${detail.channels.map((ch) => escapeHtml(channelLabel(ch))).join(", ")}</p>
     ${
       selectedPreview
-        ? `<div class="readiness-summary ${selectedPreview.sandboxMode ? "blocked" : "ready"}">
-            ${selectedPreview.sandboxMode ? "Modo prueba: no se usará SMTP real." : "Envío real por SMTP (sandbox desactivado)."}
-            ${selectedPreview.testRecipientOverride ? ` Destino de prueba: ${escapeHtml(selectedPreview.testRecipientOverride)}.` : ""}
-          </div>`
+        ? `<details class="mt-2"><summary>Detalle técnico</summary><p class="text-secondary">${selectedPreview.sandboxMode ? "Modo prueba (sandbox): no se usa SMTP real." : "SMTP real activo."}${selectedPreview.testRecipientOverride ? ` Destino de prueba: ${escapeHtml(selectedPreview.testRecipientOverride)}.` : ""} Entorno: ${escapeHtml(selectedPreview.environmentLabel || "—")}.</p></details>`
         : ""
     }
     <section class="conv-section" aria-labelledby="draft-rcpt-title">
@@ -512,19 +566,24 @@ async function openDetail(id) {
   else await renderDeliveryPanel(id);
 
   titleEl?.focus?.({ preventScroll: true });
-  panel.scrollIntoView({ block: "start", behavior: "smooth" });
   await loadEmailPreview(id);
   await refreshList();
 
   try {
     const deliveries = await api(`/api/convocations/${id}/deliveries`);
+    const names = new Map((detail.recipients || []).map((r) => [String(r.id), r.displayName || r.email || "Destinatario"]));
     qs("#deliveries").innerHTML = deliveries.length
-      ? `<h3 class="conv-section__title">Resultado por destinatario</h3>` +
+      ? `<h3 class="conv-section__title">Entregas</h3>` +
         deliveries
-          .map(
-            (d) =>
-              `<div class="conv-list-item" tabindex="-1"><span>${escapeHtml(channelLabel(d.channel))} → ${escapeHtml(d.destination || "—")}${d.wasRedirectedToTestOverride ? " · destino de prueba" : ""}${d.providerType ? ` · ${escapeHtml(d.providerType)}` : ""}</span><span class="badge">${escapeHtml(deliveryStatusEs(d.status))}</span></div>`
-          )
+          .map((d) => {
+            const who = names.get(String(d.recipientId)) || "Destinatario";
+            const when = d.deliveredAtUtc || d.sentAtUtc;
+            return `<article class="conv-list-item" tabindex="-1">
+              <span><strong>${escapeHtml(who)}</strong><br><span class="text-secondary">${escapeHtml(channelLabel(d.channel))} · ${escapeHtml(when ? formatDateTime(when) : "Sin fecha")}</span></span>
+              <span class="badge">${escapeHtml(deliveryStatusEs(d.status))}</span>
+              <details><summary>Detalle técnico</summary><p class="text-secondary mb-0">${escapeHtml(d.destination || "sin destino")}${d.wasRedirectedToTestOverride ? " · redirigido a prueba" : ""}${d.providerType ? ` · ${escapeHtml(d.providerType)}` : ""}${d.providerMessageId ? ` · id ${escapeHtml(d.providerMessageId)}` : ""}</p></details>
+            </article>`;
+          })
           .join("")
       : "";
   } catch {
@@ -858,6 +917,7 @@ async function init() {
       } else {
         setCreateActionStatus("success", "Borrador guardado");
       }
+      formDirty = false;
       collapseCreateForm();
       await refreshList();
       await openDetail(created.id);
@@ -875,6 +935,14 @@ async function init() {
       createInFlight = false;
       if (saveBtn) saveBtn.textContent = "Guardar borrador";
     }
+  });
+
+  qs("#btn-new-convocation")?.addEventListener("click", (ev) => openCreateDialog(ev.currentTarget));
+  qs("#conv-dialog-close")?.addEventListener("click", () => closeWorkDialog());
+  qs("#create-form")?.addEventListener("input", markFormDirty);
+  qs("#dlg-convocation")?.addEventListener("cancel", (ev) => {
+    ev.preventDefault();
+    closeWorkDialog();
   });
 
   qs("#btn-create-select-all")?.addEventListener("click", () => {
