@@ -9,7 +9,7 @@ import { renderQuorum } from "./quorum.js?v=labels-es1";
 import { assemblyLabel } from "./assembly-labels.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js?v=tabs2";
+import { bootIaPage } from "./ia-page.js?v=flow5";
 import { startHybridShell } from "./hybrid-router.js";
 import { resolveContextualGuide, renderContextualGuide } from "./contextual-guide.js";
 
@@ -344,8 +344,7 @@ function renderCards(filter = "") {
             const present = isPresent(p);
             const unitCoeff = formatCoeff(p.coefficientPercent);
             const effective = formatCoeff(p.effectiveCoefficientPercent);
-            const presentCoeff = p.attendanceStatus === "Present" ? effective : "No presente";
-            const coeff = `<div>Unidad ${unitCoeff}</div><div class="text-secondary">Efectivo ${effective}</div><div class="text-secondary">Presente ${escapeHtml(presentCoeff)}</div>`;
+            const coeff = `<span class="coeff-line">Unidad ${unitCoeff} · Efectivo ${effective}</span>`;
             return `<tr class="${present ? "is-present" : ""}" data-user-id="${escapeHtml(id)}">
               <td data-label="Propietario"><strong>${escapeHtml(p.displayName || "—")}</strong></td>
               <td data-label="Unidad">${escapeHtml(p.unitCode || "—")}</td>
@@ -412,8 +411,8 @@ function renderOwnerModalBody(preview, participant) {
       </div>
       <div class="owner-metric">
         <div class="label">Coeficiente presente</div>
-        <div class="value">${escapeHtml(present == null ? "No presente" : formatCoeff(present))}</div>
-        <p class="text-secondary mb-0">${escapeHtml(statusLabel)}. Solo cuenta si está presente.</p>
+        <div class="value">${escapeHtml(present == null ? "—" : formatCoeff(present))}</div>
+        <p class="text-secondary mb-0">${escapeHtml(statusLabel)}. Solo entra al quórum si está presente.</p>
       </div>
     </div>
     <div class="owner-section">
@@ -692,7 +691,7 @@ async function init() {
           return `<tr>
             <td>${escapeHtml(ex.displayName || "")}</td>
             <td>${escapeHtml(ex.unitCode || "—")}</td>
-            <td>${escapeHtml(ex.conflictType || "")}</td>
+            <td>${escapeHtml(assemblyLabel(ex.conflictType || ""))}</td>
             <td>${Number(ex.representationCount || 0)}</td>
             <td>${escapeHtml(ex.evidence || ex.reason || "—")}</td>
             <td>${actions || escapeHtml(ex.resolutionResult || "—")}</td>

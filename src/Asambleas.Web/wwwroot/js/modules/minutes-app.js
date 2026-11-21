@@ -3,7 +3,7 @@ import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
 import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getMinutes } from "./room-state.js";
-import { bootIaPage } from "./ia-page.js?v=tabs2";
+import { bootIaPage } from "./ia-page.js?v=flow5";
 import { assemblyLabel } from "./assembly-labels.js";
 
 const assemblyId = assemblyIdFromUrl();
@@ -57,11 +57,11 @@ function renderMinutes(data) {
 
     <section id="sec-attendance" class="minutes-section">
       <h3>Asistencia y representación</h3>
-      <p class="muted">${attendance.length} participantes presentes</p>
+      <p class="muted">${attendance.length === 1 ? "1 participante presente" : `${attendance.length} participantes presentes`}</p>
       <ul>${attendance.map((p) => `<li><strong>${escapeHtml(p.displayName)}</strong> · ${escapeHtml(p.unitCode || "—")} · unidad ${pct(p.coefficientPercent)} · efectivo ${pct(p.effectiveCoefficientPercent)} · ${escapeHtml(assemblyLabel(p.attendanceStatus))}</li>`).join("") || "<li>Sin asistencia registrada.</li>"}</ul>
       ${
         reps.length
-          ? `<h4>Representaciones efectivas</h4><ul>${reps
+          ? `<h4>Titularidades de personas ausentes</h4><p class="muted">Unidades cuyo titular no está presente. No forman parte del quórum de quienes sí están en la mesa.</p><ul>${reps
               .map(
                 (r) =>
                   `<li>${escapeHtml(r.unitCode)} · ${pct(r.coefficientSnapshot)} · ${escapeHtml(r.representativeDisplayName)} (${escapeHtml(assemblyLabel(r.source))})</li>`

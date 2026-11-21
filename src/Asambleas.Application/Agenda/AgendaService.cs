@@ -213,6 +213,134 @@ public sealed class AgendaService
         return await GetItemsAsync(assemblyId, cancellationToken);
     }
 
+    public async Task<AgendaListResponse> UpdateItemAsync(
+        Guid assemblyId,
+        Guid itemId,
+        UpdateAgendaItemRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var assembly = await LoadMutableAssemblyAsync(assemblyId, cancellationToken);
+        var item = await LoadItemAsync(assemblyId, itemId, cancellationToken);
+        if (item.CompletedAtUtc is not null)
+        {
+            throw new DomainException("Este punto ya está finalizado. El texto queda fijo.");
+        }
+
+        var title = (request.Title ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            throw new DomainException("El título del punto es obligatorio.");
+        }
+
+        var code = string.IsNullOrWhiteSpace(request.Code) ? item.Code : request.Code.Trim();
+        if (code.Length > 32)
+        {
+            throw new DomainException("El código del punto no puede superar 32 caracteres.");
+        }
+
+        var clash = await _db.AgendaItems.AnyAsync(
+            i => i.AssemblyId == assemblyId && i.Id != item.Id && i.Code == code,
+            cancellationToken);
+        if (clash)
+        {
+            throw new DomainException("Ya existe otro punto con ese código.");
+        }
+
+        item.Code = code;
+        item.Title = title.Length > 512 ? title[..512] : title;
+        item.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+        return await PublishCurrentAsync(assembly, item, cancellationToken);
+    }
+
+    public async Task<AgendaListResponse> MoveItemAsync(
+        Guid assemblyId,
+        Guid itemId,
+        MoveAgendaItemRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Direction is not (-1 or 1))
+        {
+            throw new DomainException("La dirección de orden debe ser anterior o siguiente.");
+        }
+
+        var assembly = await LoadMutableAssemblyAsync(assemblyId, cancellationToken);
+        var items = await _db.AgendaItems
+            .Where(i => i.AssemblyId == assemblyId)
+            .OrderBy(i => i.Ordinal)
+            .ToListAsync(cancellationToken);
+        var index = items.FindIndex(i => i.Id == itemId);
+        if (index < 0)
+        {
+            throw new DomainException($"Agenda item '{itemId}' was not found.");
+        }
+
+        var neighborIndex = index + request.Direction;
+        if (neighborIndex < 0 || neighborIndex >= items.Count)
+        {
+            throw new DomainException("No hay otro punto en esa dirección.");
+        }
+
+        var item = items[index];
+        var neighbor = items[neighborIndex];
+        if (item.CompletedAtUtc is not null || neighbor.CompletedAtUtc is not null)
+        {
+            throw new DomainException("No se reordenan puntos ya finalizados.");
+        }
+
+        var original = item.Ordinal;
+        var neighborOrdinal = neighbor.Ordinal;
+        var floor = items.Min(i => i.Ordinal);
+        item.Ordinal = floor - 1;
+        await _db.SaveChangesAsync(cancellationToken);
+        neighbor.Ordinal = original;
+        await _db.SaveChangesAsync(cancellationToken);
+        item.Ordinal = neighborOrdinal;
+        item.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        neighbor.UpdatedAtUtc = item.UpdatedAtUtc;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await PublishCurrentAsync(assembly, item, cancellationToken);
+    }
+
+    private async Task<Domain.Entities.Assembly> LoadMutableAssemblyAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken)
+    {
+        var assembly = await _db.Assemblies
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+        EnsureAgendaMutable(assembly);
+        return assembly;
+    }
+
+    private async Task<AgendaItem> LoadItemAsync(
+        Guid assemblyId,
+        Guid itemId,
+        CancellationToken cancellationToken) =>
+        await _db.AgendaItems.FirstOrDefaultAsync(
+            i => i.AssemblyId == assemblyId && i.Id == itemId,
+            cancellationToken)
+        ?? throw new DomainException($"Agenda item '{itemId}' was not found.");
+
+    private async Task<AgendaListResponse> PublishCurrentAsync(
+        Domain.Entities.Assembly assembly,
+        AgendaItem focus,
+        CancellationToken cancellationToken)
+    {
+        var items = await _db.AgendaItems
+            .Where(i => i.AssemblyId == assembly.Id)
+            .OrderBy(i => i.Ordinal)
+            .ToListAsync(cancellationToken);
+        return await PublishAsync(assembly.Id, items, focus, cancellationToken);
+    }
+
     private static void EnsureAgendaMutable(Domain.Entities.Assembly assembly)
     {
         if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)

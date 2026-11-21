@@ -2154,3 +2154,18 @@ dialog.app-sheet:not([open]),
   color: #5c6f89 !important;
   -webkit-text-fill-color: #5c6f89 !important;
 }
+
+.layout-tabler .option-row__move,
+.layout-tabler .option-row__remove {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  background: #fff;
+  color: #102b3f;
+  border: 1px solid rgba(16, 43, 63, 0.28);
+}
+
+.layout-tabler .option-row__move:focus-visible,
+.layout-tabler .option-row__remove:focus-visible {
+  outline: 2px solid #007c78;
+  outline-offset: 2px;
+}

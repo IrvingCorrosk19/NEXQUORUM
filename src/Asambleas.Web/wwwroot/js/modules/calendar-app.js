@@ -4,9 +4,9 @@ import { applyAvatarElement, avatarCacheBust } from "./avatar-ui.js?v=own11";
 import { isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { bootIaPage } from "./ia-page.js?v=polish7";
+import { bootIaPage } from "./ia-page.js?v=flow5";
 import { iconSvg } from "./tabler-icons.js?v=idn2";
-import { mountIaShell, phHref } from "./ia-nav.js?v=polish7";
+import { mountIaShell, phHref } from "./ia-nav.js?v=flow5";
 import { startHybridShell } from "./hybrid-router.js?v=polish13";
 import { runWithButton } from "./loading.js";
 import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, lockPageScroll, applyTestHooks } from "./query-guard.js?v=polish9b";
@@ -250,6 +250,19 @@ function eventsOnDay(dayUtc) {
   });
 }
 
+function panamaTodayYmd(date = new Date()) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Panama",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date);
+  } catch {
+    return utcDayYmd(date);
+  }
+}
+
 function utcDayYmd(day) {
   const pad = (n) => String(n).padStart(2, "0");
   return `${day.getUTCFullYear()}-${pad(day.getUTCMonth() + 1)}-${pad(day.getUTCDate())}`;
@@ -292,11 +305,7 @@ function renderMonth() {
     const day = new Date(gridStart);
     day.setUTCDate(gridStart.getUTCDate() + i);
     const outside = day.getUTCMonth() !== monthStart.getUTCMonth();
-    const today = new Date();
-    const isToday =
-      day.getUTCFullYear() === today.getUTCFullYear() &&
-      day.getUTCMonth() === today.getUTCMonth() &&
-      day.getUTCDate() === today.getUTCDate();
+    const isToday = utcDayYmd(day) === panamaTodayYmd();
     const items = eventsOnDay(day);
     const ymd = utcDayYmd(day);
     const schedulable = canSchedule && !outside;
@@ -331,7 +340,8 @@ function renderWeek() {
     day.setUTCDate(from.getUTCDate() + i);
     const items = eventsOnDay(day);
     const ymd = utcDayYmd(day);
-    html += `<div class="cal-week-col ${canSchedule ? "is-schedulable" : ""}"${
+    const todayClass = ymd === panamaTodayYmd() ? " is-today" : "";
+    html += `<div class="cal-week-col${todayClass} ${canSchedule ? "is-schedulable" : ""}"${
       canSchedule
         ? ` data-schedule-date="${ymd}" role="button" tabindex="0" aria-label="Nueva asamblea el ${formatScheduleDateLabel(ymd)}"`
         : ""

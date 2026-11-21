@@ -5,7 +5,8 @@ import { applyAvatarElement, avatarCacheBust, avatarCanonicalUrl } from "./avata
 import { isOperator, isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { mountIaShell } from "./ia-nav.js?v=own9";
+import { mountIaShell } from "./ia-nav.js?v=flow5";
+import { readIaContext } from "./ia-context.js";
 import { utcIsoToPhLocalParts } from "./schedule-time.js";
 import { startHybridShell } from "./hybrid-router.js?v=own9";
 import { iconSvg } from "./tabler-icons.js?v=own9";
@@ -346,6 +347,30 @@ function syncBottomNav() {
 }
 
 function remountNav() {
+  if (state.staffProfile) {
+    const ctx = readIaContext();
+    mountIaShell(
+      {
+        level: ctx.assemblyId ? "assembly" : "ph",
+        user: state.user,
+        current: "account",
+        phId: ctx.phId || null,
+        phName: ctx.phName || null,
+        assemblyId: ctx.assemblyId || null,
+        assemblyTitle: ctx.assemblyTitle || null,
+        assemblyStatus: ctx.assemblyStatus || null
+      },
+      {
+        breadcrumbs: [
+          { label: ctx.phName || "PH", href: ctx.phId ? `/ph.html?phId=${encodeURIComponent(ctx.phId)}` : "/ph.html" },
+          { label: "Mi perfil" }
+        ]
+      }
+    );
+    paintStaffContext();
+    syncIdentity();
+    return;
+  }
   const base = visibleBaseView();
   const meta = VIEWS[base] || VIEWS.home;
   mountIaShell(
@@ -553,9 +578,58 @@ function renderUnits() {
   el.innerHTML = units.map((u) => renderUnitCard(u)).join("");
 }
 
+function accountName() {
+  const user = state.user || {};
+  const profile = state.profile || {};
+  const userName = String(user.displayName || "").trim();
+  const profileName = String(profile.displayName || "").trim();
+  const technical = profileName && !profileName.includes(" ") && profileName === profileName.toLowerCase();
+  if (userName && technical && userName.toLowerCase() !== profileName.toLowerCase()) return userName;
+  return userName || profileName || "Cuenta";
+}
+
+function safeReturnPath() {
+  const ret = new URLSearchParams(location.search).get("return") || "";
+  if (ret.startsWith("/") && !ret.startsWith("//")) return ret;
+  const ctx = readIaContext();
+  if (ctx.assemblyId) return `/dashboard.html?assemblyId=${encodeURIComponent(ctx.assemblyId)}`;
+  return "/dashboard.html";
+}
+
+function paintStaffContext() {
+  const bar = qs("#staff-context");
+  if (!bar) return;
+  if (!state.staffProfile) {
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  const link = qs("#staff-return-link");
+  if (link) link.href = safeReturnPath();
+  const ctx = readIaContext();
+  const user = state.user || {};
+  const bits = [];
+  if (ctx.phName) bits.push(`PH activo: ${ctx.phName}`);
+  if (ctx.assemblyTitle) bits.push(ctx.assemblyTitle);
+  if (hasPermission(user, "ph:manage")) bits.push("Puede administrar el PH");
+  if (hasPermission(user, "assembly:manage")) bits.push("Puede administrar asambleas");
+  const copy = qs("#staff-context-copy");
+  if (copy) copy.textContent = bits.join(" · ");
+}
+
+function syncIdentity() {
+  const name = accountName();
+  const chip = qs("#user-chip");
+  if (chip) chip.textContent = name;
+  const role = qs("#account-role-label");
+  if (role) role.textContent = name;
+  const hero = qs("#profile-hero-name");
+  if (hero && (state.profile || state.user)) hero.textContent = name;
+}
+
 function syncAvatars() {
   const user = state.user || {};
-  const name = state.profile?.displayName || user.displayName || user.email || "Propietario";
+  const name = accountName() || user.email || "Propietario";
   const raw = user.avatarDisplayUrl || user.avatarUrl || null;
   const url = raw ? avatarCacheBust(raw) : null;
   applyAvatarElement(qs("#user-avatar"), { url, label: name });
@@ -567,11 +641,13 @@ function renderProfileHero() {
   const phEl = qs("#profile-hero-ph");
   const user = state.user;
   const p = state.profile;
-  const name = p?.displayName || user?.displayName || "Propietario";
+  const name = accountName();
   const ph = activePh();
   if (nameEl) nameEl.textContent = name;
-  if (phEl) phEl.textContent = ph?.name || user?.tenantCode || "Tu PH";
+  const ctx = readIaContext();
+  if (phEl) phEl.textContent = (state.staffProfile && ctx.phName) || ph?.name || user?.tenantCode || "Tu PH";
   syncAvatars();
+  paintStaffContext();
 }
 
 function renderSecurity() {
@@ -639,7 +715,7 @@ function renderAccount() {
     return;
   }
 
-  const name = p?.displayName || user?.displayName || "Propietario";
+  const name = accountName();
   const email = p?.email || user?.email || "—";
   const phone = p?.phone || null;
   const props = p?.properties || [];
@@ -688,7 +764,7 @@ function renderChromeContext() {
     lede.textContent = nextAttentionCopy();
   }
   if (hello && (state.profile || state.user)) {
-    const name = state.profile?.displayName || state.user?.displayName || "Propietario";
+    const name = accountName();
     hello.textContent = `Hola, ${name}`;
   }
 
@@ -1714,8 +1790,7 @@ async function init() {
 
   state.user = user;
   state.staffProfile = staff && wantsAccount;
-  const chip = qs("#user-chip");
-  if (chip) chip.textContent = user.displayName || user.email || "Propietario";
+  syncIdentity();
   syncAvatars();
   if (qs("#nav-tenant")) qs("#nav-tenant").textContent = user.tenantCode || "Portal propietario";
   if (qs("#account-role-label")) qs("#account-role-label").textContent = user.displayName || user.email || "Cuenta";
@@ -1728,6 +1803,7 @@ async function init() {
     const fresh = await me({ force: true });
     state.user = { ...state.user, ...fresh };
     rememberMe(state.user);
+    syncIdentity();
     syncAvatars();
     renderAccount();
   } catch {

@@ -3,7 +3,7 @@ import { canConfigurePhComms, hasPermission, logout, me } from "./auth.js";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { resolveDefaultAssemblyId } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js?v=polish9";
+import { bootIaPage } from "./ia-page.js?v=flow5";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { isReadinessReturnContext } from "./return-context.js";
 import { runWithButton } from "./loading.js";
@@ -71,10 +71,11 @@ async function loadPhContext() {
 }
 
 function semaphoreState(ch) {
-  if (!ch) return { mode: "idle", label: "Sin probar — guarda SMTP y pulsa Verificar" };
-  if (ch.lastTestSucceeded === true) return { mode: "ok", label: "Configuración correcta" };
-  if (ch.lastTestSucceeded === false) return { mode: "fail", label: "Configuración incorrecta" };
-  return { mode: "idle", label: "Sin probar — guarda SMTP y pulsa Verificar" };
+  if (!ch) return { mode: "idle", label: "Sin configuración guardada" };
+  if (ch.lastTestSucceeded === true) return { mode: "ok", label: "Conexión verificada" };
+  if (ch.lastTestSucceeded === false) return { mode: "fail", label: "Falló el envío de prueba" };
+  if (ch.hasSecret || ch.publicSettings?.host) return { mode: "saved", label: "Configuración guardada. La conexión aún no está verificada." };
+  return { mode: "idle", label: "Sin configuración guardada" };
 }
 
 function setSemaphore(mode, label) {
@@ -108,8 +109,8 @@ function renderEmailChannel(ch) {
         <input class="form-control" id="smtp-user" value="${escapeHtml(settings.username || "")}" placeholder="tu@gmail.com" autocomplete="username" />
       </label>
       <label class="form-label">Contraseña / app password
-        <input class="form-control" id="smtp-secret" type="password" autocomplete="new-password"
-          placeholder="${ch?.hasSecret ? "•••••••• (guardada — deja vacío para mantener)" : "Contraseña de aplicación de Google"}" />
+        <input class="form-control" id="smtp-secret" type="password" autocomplete="new-password" placeholder="" />
+        <span class="form-hint" id="smtp-secret-help">${ch?.hasSecret ? "Hay una contraseña guardada. Deja este campo vacío para conservarla. No se vuelve a mostrar." : "Escribe la contraseña de aplicación. No se muestra después de guardar."}</span>
       </label>
       <label class="form-label">Correo para probar
         <input class="form-control" id="test-email" type="email" placeholder="donde@recibir.com" autocomplete="email" />

@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/css/loading.css?v=ia2" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
   <link rel="stylesheet" href="/css/ph-tabler.css?v=flow3" />
-  <link rel="stylesheet" href="/css/owner-portal.css?v=own11" />
+  <link rel="stylesheet" href="/css/owner-portal.css?v=flow5" />
   <link rel="stylesheet" href="/css/summon-status.css?v=mP1a" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
@@ -130,6 +130,10 @@
           </section>
 
           <section id="view-account" class="owner-view" data-view="account" hidden>
+            <p id="staff-context" class="owner-staff-context" hidden>
+              <a id="staff-return-link" class="btn btn-secondary btn-sm" href="/dashboard.html">Volver a la pantalla anterior</a>
+              <span id="staff-context-copy"></span>
+            </p>
             <header class="owner-profile-hero" id="profile-hero">
               <div class="owner-profile-hero__avatar-wrap">
                 <span class="owner-profile-avatar" id="profile-avatar" aria-hidden="true">PR</span>
@@ -261,6 +265,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js" defer></script>
-  <script type="module" src="/js/modules/owner-portal-app.js?v=own11"></script>
+  <script type="module" src="/js/modules/owner-portal-app.js?v=flow5"></script>
 </body>
 </html>

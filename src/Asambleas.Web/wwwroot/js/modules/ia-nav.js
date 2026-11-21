@@ -273,7 +273,8 @@ function ensureAccountMenu(user) {
   if (menu && !menu.querySelector("[data-account-profile], a[href*='#account']")) {
     const link = document.createElement("a");
     link.className = "dropdown-item";
-    link.href = "/owner.html#account";
+    const ret = `${location.pathname}${location.search}`;
+    link.href = `/owner.html?return=${encodeURIComponent(ret)}#account`;
     link.dataset.accountProfile = "1";
     link.textContent = "Mi perfil";
     const logout = menu.querySelector("#btn-logout");

@@ -4,7 +4,7 @@ import { initI18n } from "../i18n/i18n.js?v=labels-es1";
 import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
-import { bootIaPage } from "./ia-page.js?v=tabs2";
+import { bootIaPage } from "./ia-page.js?v=flow5";
 import { mountReadinessActionBar } from "./readiness-actions.js?v=agenda-return1";
 import { isReadinessReturnContext } from "./return-context.js";
 import { startHybridShell } from "./hybrid-router.js";
@@ -13,6 +13,8 @@ let assemblyId = assemblyIdFromUrl();
 let dirty = false;
 let canManage = false;
 let assemblyClosed = false;
+let editingItemId = null;
+let agendaOpener = null;
 
 function showError(message) {
   showPageError(message);
@@ -27,12 +29,16 @@ async function loadAgenda() {
   const root = qs("#agenda-list");
   const items = data.items || [];
   const closedNote = assemblyClosed
-    ? `<p class="muted">Agenda en solo lectura. La asamblea está cerrada y ya no se pueden agregar ni modificar puntos.</p>`
-    : "";
+    ? `<p class="muted">Agenda en solo lectura. La asamblea está cerrada y ya no se pueden agregar, editar ni ordenar puntos.</p>`
+    : !canManage
+      ? `<p class="muted">Tu rol puede ver la agenda, pero no editarla ni cambiar el orden.</p>`
+      : "";
   if (!items.length) {
-    root.innerHTML = assemblyClosed
-      ? `${closedNote}<p class="muted">No hay puntos de agenda.</p>`
-      : `<p class="muted">No hay puntos de agenda. Agregue al menos uno para completar la preparación.</p>`;
+    root.innerHTML = `${closedNote}<p class="muted">${
+      canManage && !assemblyClosed
+        ? "No hay puntos de agenda. Agregue al menos uno para completar la preparación."
+        : "No hay puntos de agenda."
+    }</p>`;
     return;
   }
   root.innerHTML = `
@@ -45,17 +51,7 @@ async function loadAgenda() {
           <span class="agenda-edit-code">${escapeHtml(item.code || "")}</span>
           <span class="agenda-edit-title">${escapeHtml(item.title || "")}</span>
           ${item.isCompleted ? `<span class="badge badge-success">Finalizado</span>` : item.isActive ? `<span class="badge badge-live">Activo</span>` : ""}
-          ${
-            canManage && !assemblyClosed
-              ? `<span class="agenda-edit-actions">${
-                  item.isCompleted
-                    ? ""
-                    : item.isActive
-                      ? `<button type="button" class="btn btn-secondary btn-sm" data-complete="1">Finalizar</button>`
-                      : `<button type="button" class="btn btn-secondary btn-sm" data-activate="${escapeHtml(item.id)}">Activar</button>`
-                }</span>`
-              : ""
-          }
+          ${agendaActions(item, items)}
         </li>`
         )
         .join("")}
@@ -64,6 +60,64 @@ async function loadAgenda() {
     btn.addEventListener("click", () => activateAgendaItem(btn.getAttribute("data-activate"), btn));
   });
   root.querySelector("[data-complete]")?.addEventListener("click", (ev) => completeActiveAgendaItem(ev.currentTarget));
+  root.querySelectorAll("[data-edit]").forEach((btn) => {
+    btn.addEventListener("click", () => openAgendaDialog(items.find((item) => item.id === btn.getAttribute("data-edit")), btn));
+  });
+  root.querySelectorAll("[data-move]").forEach((btn) => {
+    btn.addEventListener("click", () => moveAgendaItem(btn.getAttribute("data-move"), Number(btn.getAttribute("data-direction")), btn));
+  });
+}
+
+function agendaActions(item, items) {
+  if (!canManage || assemblyClosed) return "";
+  if (item.isCompleted) {
+    return `<span class="agenda-edit-actions text-secondary">Finalizado. No se edita ni se reordena.</span>`;
+  }
+  const index = items.findIndex((row) => row.id === item.id);
+  const upBlocked = index <= 0 || items[index - 1]?.isCompleted;
+  const downBlocked = index < 0 || index >= items.length - 1 || items[index + 1]?.isCompleted;
+  return `<span class="agenda-edit-actions">
+    <button type="button" class="btn btn-secondary btn-sm" data-edit="${escapeHtml(item.id)}">Editar</button>
+    <button type="button" class="btn btn-secondary btn-sm" data-move="${escapeHtml(item.id)}" data-direction="-1" ${upBlocked ? "disabled" : ""}>Subir</button>
+    <button type="button" class="btn btn-secondary btn-sm" data-move="${escapeHtml(item.id)}" data-direction="1" ${downBlocked ? "disabled" : ""}>Bajar</button>
+    ${
+      item.isActive
+        ? `<button type="button" class="btn btn-secondary btn-sm" data-complete="1">Finalizar</button>`
+        : `<button type="button" class="btn btn-secondary btn-sm" data-activate="${escapeHtml(item.id)}">Activar</button>`
+    }
+  </span>`;
+}
+
+function openAgendaDialog(item, opener) {
+  editingItemId = item?.id || null;
+  const title = qs("#agenda-dialog-title");
+  if (title) title.textContent = item ? "Editar punto" : "Agregar punto";
+  const code = qs("#agenda-code");
+  const name = qs("#agenda-title");
+  if (code) code.value = item?.code || "";
+  if (name) name.value = item?.title || "";
+  dirty = false;
+  agendaOpener = opener || null;
+  const dlg = qs("#dlg-agenda");
+  if (dlg && !dlg.open) dlg.showModal();
+  (name || title)?.focus();
+}
+
+async function moveAgendaItem(id, direction, button) {
+  if (!id || !Number.isFinite(direction)) return;
+  button.disabled = true;
+  try {
+    await api(`/api/assemblies/${assemblyId}/agenda/${id}/move`, {
+      method: "POST",
+      body: { direction }
+    });
+    await loadAgenda();
+    showToast("Orden actualizado", "success");
+    showError("");
+  } catch (e) {
+    showError(e.message || "No se pudo cambiar el orden");
+    button.disabled = false;
+  }
 }
 
 async function activateAgendaItem(id, button) {
@@ -115,17 +169,25 @@ async function saveAgendaItem() {
   }
   const code = qs("#agenda-code").value.trim();
   try {
-    await api(`/api/assemblies/${assemblyId}/agenda`, {
-      method: "POST",
-      body: { ordinal: 0, code, title }
-    });
+    if (editingItemId) {
+      await api(`/api/assemblies/${assemblyId}/agenda/${editingItemId}`, {
+        method: "PUT",
+        body: { code, title }
+      });
+    } else {
+      await api(`/api/assemblies/${assemblyId}/agenda`, {
+        method: "POST",
+        body: { ordinal: 0, code, title }
+      });
+    }
     qs("#agenda-title").value = "";
     qs("#agenda-code").value = "";
     dirty = false;
     await loadAgenda();
     const dlg = qs("#dlg-agenda");
     if (dlg?.open) dlg.close();
-    showToast("Punto agregado", "success");
+    showToast(editingItemId ? "Punto actualizado" : "Punto agregado", "success");
+    editingItemId = null;
     showError("");
     return true;
   } catch (e) {
@@ -197,12 +259,8 @@ async function init() {
 
   await loadAgenda();
 
-  let agendaOpener = null;
   qs("#btn-open-agenda")?.addEventListener("click", (ev) => {
-    agendaOpener = ev.currentTarget;
-    const dlg = qs("#dlg-agenda");
-    if (dlg && !dlg.open) dlg.showModal();
-    qs("#agenda-title")?.focus();
+    openAgendaDialog(null, ev.currentTarget);
   });
   qs("#agenda-dialog-close")?.addEventListener("click", () => {
     if (dirty && !window.confirm("Hay cambios sin guardar. ¿Cerrar de todos modos?")) return;

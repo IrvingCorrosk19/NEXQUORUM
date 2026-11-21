@@ -276,17 +276,34 @@ export function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-export function formatDateTime(value, locale = "es-PA") {
+export function formatDateTime(value, locale = "es-PA", timeZone = "America/Panama") {
   if (!value) {
     return "—";
   }
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      dateStyle: "medium",
-      timeStyle: "short"
-    }).format(new Date(value));
-  } catch {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
     return String(value);
+  }
+  const options = {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone
+  };
+  try {
+    const formatted = new Intl.DateTimeFormat(locale, options).format(date);
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(formatted)) {
+      return new Intl.DateTimeFormat("es", options).format(date);
+    }
+    return formatted;
+  } catch {
+    try {
+      return new Intl.DateTimeFormat("es", options).format(date);
+    } catch {
+      return String(value);
+    }
   }
 }
 

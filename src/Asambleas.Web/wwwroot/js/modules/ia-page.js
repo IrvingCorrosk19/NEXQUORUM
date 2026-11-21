@@ -5,7 +5,7 @@
 import { api } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
 import { isOwnerPortalUser } from "./roles.js";
-import { mountIaShell, buildAssemblyBreadcrumbs, phHref } from "./ia-nav.js?v=polish7";
+import { mountIaShell, buildAssemblyBreadcrumbs, phHref } from "./ia-nav.js?v=flow5";
 import { readIaContext, syncIaContextFromUrl, writeIaContext } from "./ia-context.js";
 import { ensureActivePhClaim, hydratePhContext, loadMyMemberships } from "./ph-context.js";
 

@@ -7,7 +7,7 @@ import { showGlobalLoader, hideGlobalLoader } from "./loading.js";
 import { mountReadinessActionBar } from "./readiness-actions.js";
 import { assemblyLabel } from "./assembly-labels.js";
 import { isReadinessReturnContext } from "./return-context.js";
-import { bootIaPage } from "./ia-page.js?v=tabs2";
+import { bootIaPage } from "./ia-page.js?v=flow5";
 import { readIaContext } from "./ia-context.js";
 import { phHref } from "./ia-nav.js";
 import { openMotionImportWizard } from "./motion-import.js";
@@ -918,9 +918,9 @@ function renderVoteEditor() {
           <div class="option-row">
             <input class="option-row__input studio-field__control" data-opt-idx="${i}" value="${escapeHtml(opt)}" aria-label="Opción ${i + 1}" ${dis} />
             <div class="option-row__actions">
-              <button type="button" class="btn btn-ghost btn-sm" data-opt-up="${i}" aria-label="Subir opción ${i + 1}" ${i === 0 || locked ? "disabled" : ""}>↑</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-opt-down="${i}" aria-label="Bajar opción ${i + 1}" ${i >= options.length - 1 || locked ? "disabled" : ""}>↓</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-remove-opt="${i}" aria-label="Quitar opción ${i + 1}" ${!canRemove ? "disabled" : ""}>×</button>
+              <button type="button" class="option-row__move" data-opt-up="${i}" aria-label="Subir opción ${i + 1}" ${i === 0 || locked ? "disabled" : ""}>↑<span class="visually-hidden"> Subir</span></button>
+              <button type="button" class="option-row__move" data-opt-down="${i}" aria-label="Bajar opción ${i + 1}" ${i >= options.length - 1 || locked ? "disabled" : ""}>↓<span class="visually-hidden"> Bajar</span></button>
+              <button type="button" class="option-row__remove" data-remove-opt="${i}" aria-label="Quitar opción ${i + 1}" ${!canRemove ? "disabled" : ""}>×<span class="visually-hidden"> Quitar</span></button>
             </div>
           </div>`
           )

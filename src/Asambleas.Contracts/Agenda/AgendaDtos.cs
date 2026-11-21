@@ -14,6 +14,10 @@ public sealed record CreateAgendaItemRequest(
     string Code,
     string Title);
 
+public sealed record UpdateAgendaItemRequest(string Code, string Title);
+
+public sealed record MoveAgendaItemRequest(int Direction);
+
 public sealed record ActivateAgendaItemRequest(Guid AgendaItemId);
 
 public sealed record AgendaListResponse(

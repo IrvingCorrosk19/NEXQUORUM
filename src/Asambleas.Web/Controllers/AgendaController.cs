@@ -31,6 +31,24 @@ public sealed class AgendaController : ControllerBase
         CancellationToken cancellationToken) =>
         _agenda.CreateItemAsync(assemblyId, request, cancellationToken);
 
+    [HttpPut("{itemId:guid}")]
+    [Authorize(Policy = Permissions.AgendaManage)]
+    public Task<AgendaListResponse> Update(
+        Guid assemblyId,
+        Guid itemId,
+        [FromBody] UpdateAgendaItemRequest request,
+        CancellationToken cancellationToken) =>
+        _agenda.UpdateItemAsync(assemblyId, itemId, request, cancellationToken);
+
+    [HttpPost("{itemId:guid}/move")]
+    [Authorize(Policy = Permissions.AgendaManage)]
+    public Task<AgendaListResponse> Move(
+        Guid assemblyId,
+        Guid itemId,
+        [FromBody] MoveAgendaItemRequest request,
+        CancellationToken cancellationToken) =>
+        _agenda.MoveItemAsync(assemblyId, itemId, request, cancellationToken);
+
     [HttpPost("active")]
     [Authorize(Policy = Permissions.AgendaManage)]
     public Task<AgendaListResponse> SetActive(
