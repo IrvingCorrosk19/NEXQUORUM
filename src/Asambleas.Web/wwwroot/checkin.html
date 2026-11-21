@@ -12,11 +12,26 @@
   <link rel="stylesheet" href="/css/components.css?v=px1" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <style>
-    .checkin-shell { display: grid; gap: 1.25rem; }
-    .checkin-shell > * { min-width: 0; max-width: 100%; }
-    .checkin-shell > .stack { overflow: auto; }
-    @media (min-width: 1100px) {
-      .checkin-shell { grid-template-columns: minmax(0, 1fr) minmax(16rem, 18rem); align-items: start; }
+    .checkin-shell { display: grid; gap: 0.85rem; min-width: 0; }
+    .checkin-quorum {
+      border: 1px solid rgba(16, 43, 63, 0.12);
+      border-radius: 0.75rem;
+      background: #fff;
+      color: #102b3f;
+    }
+    .checkin-quorum summary {
+      cursor: pointer;
+      padding: 0.7rem 0.95rem;
+      font-weight: 700;
+    }
+    .checkin-quorum__body {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem;
+      padding: 0 0.95rem 0.95rem;
+    }
+    @media (max-width: 720px) {
+      .checkin-quorum__body { grid-template-columns: 1fr; }
     }
     .checkin-banner {
       display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
@@ -108,11 +123,16 @@
       overflow: auto; max-width: 100%; min-width: 0;
     }
     .participants-table-wrap { max-height: min(70vh, 42rem); border-top: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent); }
-    .participants-table { width: 100%; min-width: 44rem; border-collapse: collapse; font-size: 0.92rem; table-layout: auto; }
+    .participants-table { width: 100%; min-width: 0; border-collapse: collapse; font-size: 0.95rem; table-layout: auto; }
     .participants-table .coeff-line { white-space: nowrap; }
     .participants-table td, .participants-table th { vertical-align: middle; }
     .checkin-live { position: static; align-self: start; }
-    .participants-table td:first-child { overflow-wrap: anywhere; }
+    .participants-table td:first-child,
+    .participants-table td:first-child strong {
+      overflow-wrap: normal;
+      word-break: normal;
+    }
+    .participants-table .owner-unit { color: #3e536b; font-size: 0.88rem; }
     .participants-table th:last-child,
     .participants-table td:last-child {
       position: static;
@@ -144,7 +164,7 @@
   <link rel="stylesheet" href="/css/summon-status.css?v=mP1a" />
   <link rel="stylesheet" href="/css/gov-ops.css?v=gov3" />
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow7" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow9" />
 </head>
 <body class="layout-tabler">
   <a class="skip-link visually-hidden-focusable" href="#main">Saltar al contenido</a>
@@ -194,6 +214,24 @@
       <div class="checkin-shell">
         <div class="stack">
           <div id="checkin-summary" class="checkin-summary" aria-label="Resumen de participantes"></div>
+          <details class="checkin-quorum" open>
+            <summary>Quórum e indicadores</summary>
+            <div class="checkin-quorum__body">
+              <div>
+                <div class="muted">Quórum</div>
+                <div id="live-quorum" class="metric">Cargando</div>
+                <div id="live-quorum-meta" class="muted"></div>
+              </div>
+              <div>
+                <div class="muted">Presentes / Convocados</div>
+                <div id="live-counts" class="metric" style="font-size:1.25rem">Cargando</div>
+              </div>
+              <div>
+                <div class="muted">Recientes</div>
+                <div id="recent-root" class="recent-list muted">Sin cambios de presencia aún</div>
+              </div>
+            </div>
+          </details>
           <div class="checkin-filters">
             <div class="field checkin-search">
               <label for="participant-filter">Buscar nombre, unidad…</label>
@@ -235,24 +273,9 @@
           </section>
           <div class="cta-row">
             <button type="button" id="btn-self-checkin" class="btn btn-primary" hidden>Registrar mi asistencia</button>
-            <a id="link-lobby" class="btn btn-gold" href="#">Ir al lobby</a>
+            <a id="link-lobby" class="btn btn-secondary" href="#">Entrar a la sala</a>
           </div>
         </div>
-        <aside class="checkin-live" aria-label="Estado de asistencia">
-          <div>
-            <div class="muted">Quórum</div>
-            <div id="live-quorum" class="metric">—</div>
-            <div id="live-quorum-meta" class="muted"></div>
-          </div>
-          <div>
-            <div class="muted">Presentes / Convocados</div>
-            <div id="live-counts" class="metric" style="font-size:1.25rem">—</div>
-          </div>
-          <div>
-            <div class="muted">Recientes</div>
-            <div id="recent-root" class="recent-list muted">Sin cambios de presencia aún</div>
-          </div>
-        </aside>
       </div>
       <details class="card mt-3"><summary class="card-body">Ayuda de participantes</summary><div id="contextual-guide" class="cx-guide card-body" role="region" aria-live="polite"></div></details>
     </div></main>
@@ -276,6 +299,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/js/modules/checkin-app.js?v=flow5"></script>
+  <script type="module" src="/js/modules/checkin-app.js?v=flow8"></script>
 </body>
 </html>

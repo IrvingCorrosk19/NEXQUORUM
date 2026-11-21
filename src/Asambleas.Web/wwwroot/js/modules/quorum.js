@@ -57,12 +57,18 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
     const statusText = reached
       ? t("quorum.reachedShort") || "Quórum OK"
       : t("quorum.notReachedShort") || "Quórum";
+    const people = contributingPeople(quorum);
+    const peopleLabel = people == null
+      ? "Personas en el quórum no disponibles"
+      : people === 0
+        ? "0 personas en el quórum"
+        : `${people} ${people === 1 ? "persona" : "personas"} en el quórum`;
     root.innerHTML = `
       <div class="quorum-chip-inner" title="${escapeHtml(t("quorum.minimumShort") || "Mín.")} ${requiredLabel}">
         <span class="badge ${reached ? "badge-live" : "badge-warn"}">${escapeHtml(statusText)}</span>
         <span class="quorum-chip-values">
           <strong class="metric-number" data-quorum-current>${currentLabel}</strong>
-          <span class="quorum-chip-people" title="${escapeHtml(t("quorum.contributingPeople") || "Personas en el quórum")}">${contributingPeople(quorum) ?? "—"}</span>
+          <span class="quorum-chip-people">${escapeHtml(peopleLabel)}</span>
         </span>
       </div>
       ${configBanner}

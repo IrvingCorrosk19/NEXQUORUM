@@ -5,7 +5,7 @@ import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getParticipants, hydrateRoomState } from "./room-state.js";
 import { isOperator } from "./roles.js";
-import { renderQuorum } from "./quorum.js?v=labels-es1";
+import { renderQuorum } from "./quorum.js?v=flow8";
 import { assemblyLabel } from "./assembly-labels.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
@@ -270,9 +270,13 @@ function updateLive() {
       }
     }
   } else if (root) {
-    root.textContent = "—";
+    root.textContent = "No disponible";
     const meta = qs("#live-quorum-meta");
-    if (meta) meta.textContent = deskIsOpen() ? "" : t("checkin.assemblyStatus") + ": " + assemblyLabel(assemblyStatus);
+    if (meta) {
+      meta.textContent = deskIsOpen()
+        ? "El quórum todavía no tiene un cálculo."
+        : "Se calcula cuando hay presencia registrada. Estado: " + assemblyLabel(assemblyStatus);
+    }
   }
 
   const recentRoot = qs("#recent-root");
@@ -328,13 +332,8 @@ function renderCards(filter = "") {
       <thead>
         <tr>
           <th>${escapeHtml(t("checkin.owner"))}</th>
-          <th>${escapeHtml(t("checkin.unit"))}</th>
-          <th>Rep.</th>
-          <th>Coeficientes</th>
-          <th>${escapeHtml(t("checkin.invitation"))}</th>
           <th>${escapeHtml(t("checkin.presence"))}</th>
-          <th>${escapeHtml(t("checkin.observation"))}</th>
-          <th></th>
+          <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -342,20 +341,15 @@ function renderCards(filter = "") {
           .map((p) => {
             const id = String(p.userId || "");
             const present = isPresent(p);
-            const unitCoeff = formatCoeff(p.coefficientPercent);
-            const effective = formatCoeff(p.effectiveCoefficientPercent);
-            const coeff = `<span class="coeff-line">Unidad ${unitCoeff} · Efectivo ${effective}</span>`;
             return `<tr class="${present ? "is-present" : ""}" data-user-id="${escapeHtml(id)}">
-              <td data-label="Propietario"><strong>${escapeHtml(p.displayName || "—")}</strong></td>
-              <td data-label="Unidad">${escapeHtml(p.unitCode || "—")}</td>
-              <td data-label="Rep.">${escapeHtml(String(p.representationCount || 0))}</td>
-              <td data-label="Coeficiente">${coeff}</td>
-              <td data-label="Invitación">${escapeHtml(invitationLabel(p))}</td>
+              <td data-label="Propietario">
+                <strong>${escapeHtml(p.displayName || "Sin nombre")}</strong>
+                <div class="owner-unit">${escapeHtml(p.unitCode || "Sin unidad")}</div>
+              </td>
               <td data-label="Presencia"><span class="badge ${present ? "badge-success" : "badge-live"}">${escapeHtml(
                 presenceLabel(p)
               )}</span></td>
-              <td data-label="Obs.">${escapeHtml(observationLabel(p) || "—")}</td>
-              <td data-label="Acción">
+              <td data-label="Acciones">
                 <button type="button" class="btn btn-secondary" data-view="${escapeHtml(id)}">${escapeHtml(t("checkin.viewDetails"))}</button>
               </td>
             </tr>`;

@@ -238,8 +238,9 @@ export function renderReadinessCompact(panel, readiness, ctx) {
 
       return `
         <div class="ia-readiness-row">
-          <span aria-hidden="true">${meta.icon}</span>
-          <span>${escapeHtml(check.title)}</span>
+          <span class="ia-readiness-row__icon" aria-hidden="true">${meta.icon}</span>
+          <span class="ia-readiness-row__name">${escapeHtml(check.title)}</span>
+          <span class="ia-readiness-row__status">${escapeHtml(meta.label)}</span>
           ${action}
         </div>`;
     })

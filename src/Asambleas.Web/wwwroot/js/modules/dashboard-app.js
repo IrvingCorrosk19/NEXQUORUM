@@ -110,12 +110,27 @@ async function loadReadinessData() {
   return null;
 }
 
+function describeQuorumStat(assembly) {
+  if (!assembly) return { value: "Cargando", hint: "Consultando el quórum" };
+  if (assembly.status === "Completed") {
+    return { value: formatClosedQuorum(assembly), hint: "Quórum registrado al cierre" };
+  }
+  const raw = assembly.currentCoefficient ?? assembly.quorumCurrent ?? assembly.quorum?.currentCoefficient;
+  if (raw == null || raw === "") {
+    return { value: "No disponible", hint: "Se calcula cuando hay presencia registrada" };
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return { value: "No disponible", hint: "El cálculo de quórum no es válido" };
+  if (n === 0) return { value: "0%", hint: "Cero: nadie presente cuenta para el quórum" };
+  return { value: `${n.toLocaleString("es-PA", { maximumFractionDigits: 2 })}%`, hint: "Coeficiente presente" };
+}
+
 function formatClosedQuorum(assembly) {
   const opening = assembly.quorumOpening ?? assembly.QuorumOpening;
   const maximum = assembly.quorumMaximum ?? assembly.QuorumMaximum;
   const closing = assembly.quorumClosing ?? assembly.QuorumClosing;
   const numbers = [opening, maximum, closing].map((value) => Number(value));
-  if (numbers.some((value) => !Number.isFinite(value))) return "—";
+  if (numbers.some((value) => !Number.isFinite(value))) return "No disponible";
   const pct = (value) => `${value.toFixed(2)}%`;
   return `${pct(numbers[0])} Apertura · ${pct(numbers[1])} Máximo · ${pct(numbers[2])} Cierre`;
 }
@@ -177,12 +192,14 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
   const c = counts || assembly.counts || {};
   const prepDone = readiness?.completedChecks ?? 0;
   const prepTotal = readiness?.totalChecks ?? 0;
-  const quorumValue = assembly.status === "Completed" ? formatClosedQuorum(assembly) : "—";
+  const quorumStat = describeQuorumStat(assembly);
+  const participantsValue = c.participants ?? c.Participants;
+  const motionsValue = c.motions ?? c.Motions;
   qs("#assembly-stat-strip").innerHTML = `
-    <div class="ia-stat"><div class="ia-stat__value">${prepTotal ? `${prepDone}/${prepTotal}` : "—"}</div><div class="ia-stat__label">Preparación</div></div>
-    <div class="ia-stat"><div class="ia-stat__value">${c.participants ?? c.Participants ?? "—"}</div><div class="ia-stat__label">Participantes</div></div>
-    <div class="ia-stat ia-stat--quorum"><div class="ia-stat__value">${escapeHtml(quorumValue)}</div><div class="ia-stat__label">Quórum</div></div>
-    <div class="ia-stat"><div class="ia-stat__value">${c.motions ?? c.Motions ?? "—"}</div><div class="ia-stat__label">Votaciones</div></div>`;
+    <div class="ia-stat"><div class="ia-stat__value">${prepTotal ? `${prepDone}/${prepTotal}` : "No disponible"}</div><div class="ia-stat__label">Preparación</div><div class="ia-stat__hint">${prepTotal ? "Requisitos completados" : "La preparación no llegó en este resumen"}</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${participantsValue == null ? "No disponible" : String(participantsValue)}</div><div class="ia-stat__label">Participantes</div><div class="ia-stat__hint">${participantsValue == null ? "Sin conteo en este resumen" : participantsValue === 0 ? "Cero convocados" : "Convocados"}</div></div>
+    <div class="ia-stat ia-stat--quorum"><div class="ia-stat__value">${escapeHtml(quorumStat.value)}</div><div class="ia-stat__label">Quórum</div><div class="ia-stat__hint">${escapeHtml(quorumStat.hint)}</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${motionsValue == null ? "No disponible" : String(motionsValue)}</div><div class="ia-stat__label">Votaciones</div><div class="ia-stat__hint">${motionsValue === 0 ? "Ninguna votación creada" : "Votaciones de la asamblea"}</div></div>`;
 
   writeIaContext({ phId, phName, assemblyId, assemblyTitle: title, assemblyStatus: assembly.status || "" });
 

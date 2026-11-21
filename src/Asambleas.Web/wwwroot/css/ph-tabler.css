@@ -32,13 +32,94 @@
   background: var(--surface-base, #faf8f4);
 }
 
+.layout-tabler .btn {
+  background-image: none;
+  box-shadow: none;
+  border-radius: 0.5rem;
+  font-weight: 650;
+}
+
 .layout-tabler .btn-primary {
   --tblr-btn-bg: #007c78;
-  --tblr-btn-border-color: #007c78;
+  --tblr-btn-border-color: #006864;
   --tblr-btn-hover-bg: #006864;
   --tblr-btn-hover-border-color: #006864;
   --tblr-btn-color: #fff;
+  background: #007c78 !important;
+  background-image: none !important;
+  color: #fff !important;
+  border: 1px solid #006864 !important;
   font-weight: 650;
+}
+
+.layout-tabler .btn-primary:hover:not(:disabled),
+.layout-tabler .btn-primary:focus-visible {
+  background: #006864 !important;
+}
+
+.layout-tabler .btn-secondary {
+  background: #fff !important;
+  background-image: none !important;
+  color: #102b3f !important;
+  border: 1px solid rgba(16, 43, 63, 0.28) !important;
+}
+
+.layout-tabler .btn-secondary:hover:not(:disabled) {
+  background: #f4f7f8 !important;
+  border-color: #0b3a4a !important;
+}
+
+.layout-tabler .btn-ghost {
+  background: transparent !important;
+  background-image: none !important;
+  color: #0b3a4a !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.layout-tabler .btn-danger,
+.layout-tabler .btn-outline-danger {
+  background: #fff !important;
+  background-image: none !important;
+  color: #9a3412 !important;
+  border: 1px solid #9a3412 !important;
+}
+
+.layout-tabler .btn:disabled,
+.layout-tabler .btn[aria-disabled="true"] {
+  background: #e7eef3 !important;
+  color: #3e536b !important;
+  border-color: #d5dee8 !important;
+  box-shadow: none !important;
+  opacity: 1;
+}
+
+.layout-tabler .btn:focus-visible {
+  outline: 2px solid #007c78;
+  outline-offset: 2px;
+}
+
+.layout-tabler .ia-readiness-row {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  padding: 0.35rem 0;
+  color: #102b3f;
+}
+
+.layout-tabler .ia-readiness-row__status {
+  color: #3e536b;
+  font-size: 0.82rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.layout-tabler .ia-primary-action,
+.layout-tabler .ia-primary-action__title,
+.layout-tabler .ia-primary-action--ready .ia-primary-action__title {
+  color: #102b3f;
+  font-family: "DM Sans", "Segoe UI", sans-serif;
 }
 
 .layout-tabler .btn-outline-secondary.active,
