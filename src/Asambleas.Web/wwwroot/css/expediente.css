@@ -138,10 +138,13 @@
   overflow-wrap: anywhere;
 }
 
-.exp-modal__header .btn {
+.exp-modal__header .btn,
+.exp-modal__header .btn-ghost {
   min-height: var(--touch-min, 2.75rem);
   min-width: var(--touch-min, 2.75rem);
-  color: var(--text-on-inverse, #0b1220);
+  color: #f4f7fb;
+  background: transparent;
+  border: 1px solid rgba(244, 247, 251, 0.55);
 }
 
 .exp-modal__body {

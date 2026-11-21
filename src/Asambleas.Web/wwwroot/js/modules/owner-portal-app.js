@@ -646,16 +646,16 @@ function renderAccount() {
 
   personal.innerHTML = `
     <h3><span class="owner-card-icon" data-icon="user" aria-hidden="true"></span> Información personal</h3>
-    <dl class="owner-dl">
-      <dt>Nombre</dt><dd>${escapeHtml(name)}</dd>
-      <dt>Correo electrónico</dt><dd>${escapeHtml(email)}</dd>
-      <dt>Teléfono</dt><dd>${escapeHtml(phone || "Sin teléfono registrado")}</dd>
+      <dl class="owner-dl">
+        <dt>Nombre</dt><dd>${escapeHtml(name)}</dd>
+        <dt>Correo electrónico</dt><dd>${escapeHtml(email)}</dd>
+        <dt>Teléfono</dt><dd>${escapeHtml(phone || "Sin teléfono registrado")}</dd>
     </dl>`;
 
   properties.innerHTML = `
     <h3><span class="owner-card-icon" data-icon="building" aria-hidden="true"></span> Propiedades relacionadas</h3>
-    ${
-      props.length
+      ${
+        props.length
         ? `<ul class="owner-prop-list">${props
             .map(
               (x) =>
@@ -663,8 +663,8 @@ function renderAccount() {
                   x.code ? `<span class="owner-prop-list__code">${escapeHtml(x.code)}</span>` : ""
                 }${x.isCurrent ? `<span class="owner-badge owner-badge--ok">Actual</span>` : ""}</li>`
             )
-            .join("")}</ul>`
-        : `<p class="owner-meta">No hay propiedades asociadas.</p>`
+              .join("")}</ul>`
+          : `<p class="owner-meta">No hay propiedades asociadas.</p>`
     }`;
 
   renderSecurity();
@@ -1318,6 +1318,9 @@ function applyRoute({ fromHash = true, seed = null } = {}) {
     }
     state.route = next;
   }
+  if (state.staffProfile && state.route.view !== "account") {
+    state.route = { ...state.route, view: "account", unitCode: null, assemblyId: null };
+  }
   showView(visibleBaseView());
   remountNav();
 
@@ -1453,8 +1456,8 @@ function wireChrome() {
     "click",
     async (e) => {
       e.preventDefault();
-      await logout();
-      location.href = "/";
+    await logout();
+    location.href = "/";
     },
     { signal }
   );
@@ -1537,10 +1540,10 @@ function wireChrome() {
         return;
       }
 
-      const retry = e.target.closest?.("[data-retry]");
-      if (retry) {
-        e.preventDefault();
-        loadPortalData();
+    const retry = e.target.closest?.("[data-retry]");
+    if (retry) {
+      e.preventDefault();
+      loadPortalData();
         return;
       }
 
@@ -1686,7 +1689,9 @@ async function init() {
     return;
   }
 
-  if (isOperator(user) || hasPermission(user, "ph:manage") || hasPermission(user, "assembly:manage")) {
+  const staff = isOperator(user) || hasPermission(user, "ph:manage") || hasPermission(user, "assembly:manage");
+  const wantsAccount = (location.hash || "").replace(/^#/, "").startsWith("account");
+  if (staff && !wantsAccount) {
     const dest = "/dashboard.html";
     if (window.__ASAM_HYBRID__) {
       queueMicrotask(() => {
@@ -1702,12 +1707,13 @@ async function init() {
     return;
   }
 
-  if (!isOwnerPortalUser(user) && !hasPermission(user, "portal:self") && !hasPermission(user, "vote:cast")) {
+  if (!staff && !isOwnerPortalUser(user) && !hasPermission(user, "portal:self") && !hasPermission(user, "vote:cast")) {
     showError("No tienes acceso al portal de propietario.");
     return;
   }
 
   state.user = user;
+  state.staffProfile = staff && wantsAccount;
   const chip = qs("#user-chip");
   if (chip) chip.textContent = user.displayName || user.email || "Propietario";
   syncAvatars();

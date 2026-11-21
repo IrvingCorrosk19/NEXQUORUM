@@ -268,6 +268,28 @@ function persistMountedNav(nav, ctx) {
   });
 }
 
+function ensureAccountMenu(user) {
+  const menu = document.querySelector(".navbar .dropdown-menu");
+  if (menu && !menu.querySelector("[data-account-profile], a[href*='#account']")) {
+    const link = document.createElement("a");
+    link.className = "dropdown-item";
+    link.href = "/owner.html#account";
+    link.dataset.accountProfile = "1";
+    link.textContent = "Mi perfil";
+    const logout = menu.querySelector("#btn-logout");
+    if (logout) menu.insertBefore(link, logout);
+    else menu.appendChild(link);
+  }
+  const avatar = document.querySelector("#user-avatar");
+  if (!avatar || !user) return;
+  import("./avatar-ui.js")
+    .then(({ applyAvatarElement, avatarCacheBust }) => {
+      const url = user.avatarUrl ? avatarCacheBust(user.avatarUrl) : "";
+      applyAvatarElement(avatar, { url, label: user.displayName || user.email || "AS" });
+    })
+    .catch(() => {});
+}
+
 export function mountIaShell(ctx, { breadcrumbs = [] } = {}) {
   const aside = document.querySelector(".app-nav");
   if (aside) {
@@ -315,6 +337,8 @@ export function mountIaShell(ctx, { breadcrumbs = [] } = {}) {
     const parts = [ctx.phName, ctx.assemblyTitle].filter(Boolean);
     topCtx.textContent = parts.join(" · ") || "ASAMBLEAS";
   }
+
+  ensureAccountMenu(ctx.user);
 
   const roleChip = qs("#ia-role-chip");
   if (roleChip) {

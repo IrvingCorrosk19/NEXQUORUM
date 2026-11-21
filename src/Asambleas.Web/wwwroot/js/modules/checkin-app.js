@@ -293,8 +293,15 @@ function updateLive() {
 }
 
 function formatCoeff(value) {
-  if (value == null || Number.isNaN(Number(value))) return "—";
-  return `${Number(value).toFixed(3)}%`;
+  if (value == null || value === "" || !Number.isFinite(Number(value))) return "—";
+  return `${Number(value).toLocaleString("es-PA", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}%`;
+}
+
+function sumCoefficients(units) {
+  return (units || []).reduce((sum, unit) => {
+    const n = Number(unit?.coefficientPercent);
+    return sum + (Number.isFinite(n) ? n : 0);
+  }, 0);
 }
 
 function renderCards(filter = "") {
@@ -323,7 +330,7 @@ function renderCards(filter = "") {
           <th>${escapeHtml(t("checkin.owner"))}</th>
           <th>${escapeHtml(t("checkin.unit"))}</th>
           <th>Rep.</th>
-          <th>Coeficiente de la unidad</th>
+          <th>Coeficientes</th>
           <th>${escapeHtml(t("checkin.invitation"))}</th>
           <th>${escapeHtml(t("checkin.presence"))}</th>
           <th>${escapeHtml(t("checkin.observation"))}</th>
@@ -337,10 +344,8 @@ function renderCards(filter = "") {
             const present = isPresent(p);
             const unitCoeff = formatCoeff(p.coefficientPercent);
             const effective = formatCoeff(p.effectiveCoefficientPercent);
-            const coeff =
-              effective && effective !== unitCoeff
-                ? `${unitCoeff}<div class="text-secondary">Efectivo ${effective}</div>`
-                : unitCoeff;
+            const presentCoeff = p.attendanceStatus === "Present" ? effective : "No presente";
+            const coeff = `<div>Unidad ${unitCoeff}</div><div class="text-secondary">Efectivo ${effective}</div><div class="text-secondary">Presente ${escapeHtml(presentCoeff)}</div>`;
             return `<tr class="${present ? "is-present" : ""}" data-user-id="${escapeHtml(id)}">
               <td data-label="Propietario"><strong>${escapeHtml(p.displayName || "—")}</strong></td>
               <td data-label="Unidad">${escapeHtml(p.unitCode || "—")}</td>
@@ -361,7 +366,7 @@ function renderCards(filter = "") {
     </table>`;
 
   root.querySelectorAll("[data-view]").forEach((btn) => {
-    btn.addEventListener("click", () => openOwnerModal(btn.getAttribute("data-view")));
+    btn.addEventListener("click", () => openOwnerModal(btn.getAttribute("data-view"), btn));
   });
 }
 
@@ -381,23 +386,34 @@ function unitListHtml(units, emptyLabel) {
 
 function renderOwnerModalBody(preview, participant) {
   const conflicts = preview.conflicts || [];
-  const statusLabel = presenceLabel({
-    attendanceStatus: preview.attendanceStatus || participant?.attendanceStatus
-  });
+  const status = preview.attendanceStatus || participant?.attendanceStatus;
+  const statusLabel = presenceLabel({ attendanceStatus: status });
+  const owned = sumCoefficients(preview.owned);
+  const represented = sumCoefficients(preview.represented);
+  const effective = preview.effectiveCoefficientPercent;
+  const present = status === "Present" ? effective : null;
 
   return `
     <div class="owner-metrics">
       <div class="owner-metric">
-        <div class="label">Coeficiente de sus unidades</div>
-        <div class="value">${escapeHtml(formatCoeff(preview.coefficientPercent))}</div>
+        <div class="label">Coeficiente propio</div>
+        <div class="value">${escapeHtml(formatCoeff(owned))}</div>
+        <p class="text-secondary mb-0">Suma de las unidades de su titularidad.</p>
       </div>
       <div class="owner-metric">
-        <div class="label">Coeficiente efectivo (propias y representadas)</div>
-        <div class="value">${escapeHtml(formatCoeff(preview.effectiveCoefficientPercent ?? preview.coefficientPercent))}</div>
+        <div class="label">Coeficiente representado</div>
+        <div class="value">${escapeHtml(formatCoeff(represented))}</div>
+        <p class="text-secondary mb-0">Suma de las unidades que representa.</p>
       </div>
       <div class="owner-metric">
-        <div class="label">${escapeHtml(t("checkin.status"))}</div>
-        <div class="value" style="font-size:1.05rem">${escapeHtml(statusLabel)}</div>
+        <div class="label">Coeficiente efectivo</div>
+        <div class="value">${escapeHtml(formatCoeff(effective))}</div>
+        <p class="text-secondary mb-0">Propias y representadas, sin unidades en conflicto.</p>
+      </div>
+      <div class="owner-metric">
+        <div class="label">Coeficiente presente</div>
+        <div class="value">${escapeHtml(present == null ? "No presente" : formatCoeff(present))}</div>
+        <p class="text-secondary mb-0">${escapeHtml(statusLabel)}. Solo cuenta si está presente.</p>
       </div>
     </div>
     <div class="owner-section">
@@ -424,8 +440,11 @@ function renderOwnerModalBody(preview, participant) {
   `;
 }
 
-async function openOwnerModal(targetUserId) {
+let ownerOpener = null;
+
+async function openOwnerModal(targetUserId, opener) {
   showError("");
+  ownerOpener = opener || document.activeElement;
   const dialog = qs("#owner-dialog");
   try {
     const preview = await api(
@@ -762,9 +781,21 @@ async function init() {
   qs("#btn-close-desk")?.addEventListener("click", closeDesk, { signal });
   const ownerDialog = qs("#owner-dialog");
   ownerDialog?.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key !== "Escape" || !ownerDialog.open) return;
+      e.preventDefault();
+      closeOwnerModal();
+    },
+    { signal }
+  );
+  ownerDialog?.addEventListener(
     "close",
     () => {
       pendingPreview = null;
+      const opener = ownerOpener;
+      ownerOpener = null;
+      if (opener && document.contains(opener)) opener.focus?.();
     },
     { signal }
   );

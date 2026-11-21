@@ -1059,6 +1059,17 @@ dialog.app-sheet::backdrop,
   border-bottom: 1px solid rgba(16, 43, 63, 0.1);
 }
 
+.app-sheet__head > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app-sheet__head > .btn,
+.conv-work__head > .btn {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 .app-sheet__head h2 {
   margin: 0.1rem 0 0;
   font-family: "DM Sans", "Segoe UI", sans-serif;
@@ -1681,10 +1692,12 @@ dialog.app-sheet::backdrop,
 .layout-tabler .conv-email-preview iframe {
   display: block;
   width: 100%;
-  min-height: min(48vh, 380px);
-  max-height: 70vh;
+  height: 12rem;
+  min-height: 0;
+  max-height: none;
   border: 0;
   background: #fff;
+  overflow: hidden;
 }
 
 .layout-tabler .conv-send-summary {
@@ -2088,4 +2101,56 @@ dialog.app-sheet:not([open]),
   .layout-tabler.page-lobby .lobby-cta-bar .btn {
     flex: 1 1 100%;
   }
+}
+
+.layout-tabler dialog.owner-sheet.app-sheet[open] {
+  width: min(44rem, calc(100vw - 1.5rem));
+}
+
+.layout-tabler .ia-badge-status {
+  background: #e7eef3;
+  color: #102b3f;
+}
+
+.layout-tabler .ia-badge-status.is-live,
+.layout-tabler .badge-live {
+  background: #0b3a4a;
+  color: #ffffff;
+}
+
+.layout-tabler .ia-badge-status.is-ready {
+  background: #e5f4f3;
+  color: #0b3a4a;
+}
+
+.layout-tabler .studio-search__input,
+.layout-tabler .studio-editor #editor-canvas .studio-field__control,
+.layout-tabler .studio-editor #editor-config .studio-field__control,
+.layout-tabler .studio-editor .studio-canvas input:not([type="checkbox"]):not([type="radio"]),
+.layout-tabler .studio-editor .studio-canvas textarea,
+.layout-tabler .studio-editor .studio-canvas select,
+.layout-tabler .studio-editor .studio-config input:not([type="checkbox"]):not([type="radio"]),
+.layout-tabler .studio-editor .studio-config textarea,
+.layout-tabler .studio-editor .studio-config select,
+.layout-tabler .studio-editor .option-row__input {
+  background: #fff !important;
+  background-image: none !important;
+  color: #102b3f !important;
+  -webkit-text-fill-color: #102b3f !important;
+  color-scheme: light;
+  caret-color: #102b3f;
+  border-color: rgba(16, 43, 63, 0.22) !important;
+}
+
+.layout-tabler .studio-editor .studio-canvas select option,
+.layout-tabler .studio-editor .studio-config select option {
+  background: #fff;
+  color: #102b3f;
+}
+
+.layout-tabler .studio-search__input::placeholder,
+.layout-tabler .studio-editor input::placeholder,
+.layout-tabler .studio-editor textarea::placeholder {
+  color: #5c6f89 !important;
+  -webkit-text-fill-color: #5c6f89 !important;
 }

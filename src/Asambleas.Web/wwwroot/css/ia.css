@@ -462,12 +462,15 @@
 .agenda-edit-item {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
   padding: 0.65rem 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(16, 43, 63, 0.12);
   border-radius: 0.45rem;
+  background: #fff;
+  color: #102b3f;
 }
+.agenda-edit-actions { margin-left: auto; }
 
 .agenda-edit-code {
   font-weight: 700;

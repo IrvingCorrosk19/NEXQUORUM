@@ -37,7 +37,8 @@ function markFormDirty() {
 function openWorkDialog(opener) {
   const dlg = qs("#dlg-convocation");
   if (!dlg) return;
-  modalOpener = opener || document.activeElement;
+  if (opener) modalOpener = opener;
+  else if (!modalOpener || !document.contains(modalOpener)) modalOpener = document.activeElement;
   if (dlg.parentElement !== document.body) document.body.appendChild(dlg);
   if (!dlg.open) dlg.showModal();
   qs("#conv-dialog-title")?.focus?.({ preventScroll: true });
@@ -52,9 +53,15 @@ function closeWorkDialog() {
   rememberDraft(null);
   const dlg = qs("#dlg-convocation");
   if (dlg?.open) dlg.close();
-  const opener = modalOpener;
+  restoreModalFocus();
+}
+
+function restoreModalFocus() {
+  const key = modalOpener?.getAttribute?.("data-id") || "";
+  const live = key ? document.querySelector(`.conv-list-item[data-id="${CSS.escape(key)}"]`) : null;
+  const opener = live || (modalOpener && document.contains(modalOpener) ? modalOpener : null);
   modalOpener = null;
-  if (opener && document.contains(opener)) opener.focus?.();
+  opener?.focus?.();
 }
 
 function showError(message) {
@@ -503,6 +510,10 @@ async function loadEmailPreview(id) {
   try {
     const preview = await api(`/api/convocations/${id}/email-preview`);
     frame.srcdoc = preview.html || "";
+    frame.onload = () => {
+      const height = frame.contentDocument?.documentElement?.scrollHeight || 0;
+      if (height > 0) frame.style.height = `${Math.min(height + 12, 1600)}px`;
+    };
     const subj = qs("#conv-preview-subject");
     if (subj) subj.textContent = preview.subject || "Vista previa";
   } catch (e) {
@@ -946,6 +957,11 @@ async function init() {
   qs("#conv-dialog-close")?.addEventListener("click", () => closeWorkDialog());
   qs("#create-form")?.addEventListener("input", markFormDirty);
   qs("#dlg-convocation")?.addEventListener("cancel", (ev) => {
+    ev.preventDefault();
+    closeWorkDialog();
+  });
+  qs("#dlg-convocation")?.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
     ev.preventDefault();
     closeWorkDialog();
   });

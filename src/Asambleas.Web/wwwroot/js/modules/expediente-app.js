@@ -171,6 +171,8 @@ function docUrl(key, format, preview = false) {
   return `/api/assemblies/${assemblyId}/expediente/documents/${key}?${q}`;
 }
 
+let previewOpener = null;
+
 function closePreview() {
   const modal = qs("#pdf-preview-modal");
   const frame = qs("#pdf-preview-frame");
@@ -180,6 +182,9 @@ function closePreview() {
     URL.revokeObjectURL(previewObjectUrl);
     previewObjectUrl = null;
   }
+  const opener = previewOpener;
+  previewOpener = null;
+  if (opener && document.contains(opener)) opener.focus?.();
 }
 
 async function openPdfPreview(key, title, button) {
@@ -194,6 +199,7 @@ async function openPdfPreview(key, title, button) {
     const blob = await res.blob();
     if (!blob?.size) throw new Error("El PDF está vacío.");
     closePreview();
+    previewOpener = button || document.activeElement;
     previewObjectUrl = URL.createObjectURL(blob);
     const modal = qs("#pdf-preview-modal");
     const frame = qs("#pdf-preview-frame");

@@ -38,8 +38,12 @@ function renderMinutes(data) {
       <h2>${escapeHtml(data.title || t("minutes.title"))}</h2>
       <p class="muted">${escapeHtml(data.propertyHorizontalName || "")}</p>
       <p class="muted">${escapeHtml(formatDateTime(data.scheduledAtUtc))} · ${escapeHtml(assemblyLabel(data.modality))} · ${escapeHtml(assemblyLabel(data.status))}</p>
-      <p class="muted">Doc: ${escapeHtml(data.documentId || "—")}${data.contentHash ? ` · SHA-256: ${escapeHtml(data.contentHash.slice(0, 16))}…` : ""}</p>
-      <p><span class="badge ${c.status === "COMPLETE" ? "badge-success" : "badge-warn"}">${escapeHtml(assemblyLabel(c.status))}</span></p>
+      <p><span class="badge ${c.status === "COMPLETE" ? "badge-success" : "badge-warn"}">${escapeHtml(c.status === "WARNING" ? "Expediente en preparación" : assemblyLabel(c.status))}</span></p>
+      <details class="minutes-technical">
+        <summary>Detalle técnico</summary>
+        <p>Identificador: ${escapeHtml(data.documentId || "Sin identificador")}</p>
+        <p>SHA-256: ${escapeHtml(data.contentHash || "Sin hash")}</p>
+      </details>
     </header>
 
     <nav class="minutes-outline" aria-label="Secciones">
@@ -54,7 +58,7 @@ function renderMinutes(data) {
     <section id="sec-attendance" class="minutes-section">
       <h3>Asistencia y representación</h3>
       <p class="muted">${attendance.length} participantes presentes</p>
-      <ul>${attendance.map((p) => `<li><strong>${escapeHtml(p.displayName)}</strong> · ${escapeHtml(p.unitCode || "—")} · ${pct(p.effectiveCoefficientPercent ?? p.coefficientPercent)} · ${escapeHtml(assemblyLabel(p.attendanceStatus))}</li>`).join("") || "<li>—</li>"}</ul>
+      <ul>${attendance.map((p) => `<li><strong>${escapeHtml(p.displayName)}</strong> · ${escapeHtml(p.unitCode || "—")} · unidad ${pct(p.coefficientPercent)} · efectivo ${pct(p.effectiveCoefficientPercent)} · ${escapeHtml(assemblyLabel(p.attendanceStatus))}</li>`).join("") || "<li>Sin asistencia registrada.</li>"}</ul>
       ${
         reps.length
           ? `<h4>Representaciones efectivas</h4><ul>${reps

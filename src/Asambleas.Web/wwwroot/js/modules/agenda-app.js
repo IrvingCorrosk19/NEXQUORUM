@@ -44,11 +44,56 @@ async function loadAgenda() {
         <li class="agenda-edit-item">
           <span class="agenda-edit-code">${escapeHtml(item.code || "")}</span>
           <span class="agenda-edit-title">${escapeHtml(item.title || "")}</span>
-          ${item.isCompleted ? `<span class="badge badge-success">FINALIZADO</span>` : item.isActive ? `<span class="badge badge-live">Activo</span>` : ""}
+          ${item.isCompleted ? `<span class="badge badge-success">Finalizado</span>` : item.isActive ? `<span class="badge badge-live">Activo</span>` : ""}
+          ${
+            canManage && !assemblyClosed
+              ? `<span class="agenda-edit-actions">${
+                  item.isCompleted
+                    ? ""
+                    : item.isActive
+                      ? `<button type="button" class="btn btn-secondary btn-sm" data-complete="1">Finalizar</button>`
+                      : `<button type="button" class="btn btn-secondary btn-sm" data-activate="${escapeHtml(item.id)}">Activar</button>`
+                }</span>`
+              : ""
+          }
         </li>`
         )
         .join("")}
     </ol>`;
+  root.querySelectorAll("[data-activate]").forEach((btn) => {
+    btn.addEventListener("click", () => activateAgendaItem(btn.getAttribute("data-activate"), btn));
+  });
+  root.querySelector("[data-complete]")?.addEventListener("click", (ev) => completeActiveAgendaItem(ev.currentTarget));
+}
+
+async function activateAgendaItem(id, button) {
+  if (!id) return;
+  button.disabled = true;
+  try {
+    await api(`/api/assemblies/${assemblyId}/agenda/active`, {
+      method: "POST",
+      body: { agendaItemId: id }
+    });
+    await loadAgenda();
+    showToast("Punto activado", "success");
+    showError("");
+  } catch (e) {
+    showError(e.message || "No se pudo activar el punto");
+    button.disabled = false;
+  }
+}
+
+async function completeActiveAgendaItem(button) {
+  button.disabled = true;
+  try {
+    await api(`/api/assemblies/${assemblyId}/agenda/complete`, { method: "POST" });
+    await loadAgenda();
+    showToast("Punto finalizado", "success");
+    showError("");
+  } catch (e) {
+    showError(e.message || "No se pudo finalizar el punto");
+    button.disabled = false;
+  }
 }
 
 function savedAgendaCount() {

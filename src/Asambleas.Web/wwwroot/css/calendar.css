@@ -63,7 +63,7 @@
 }
 .calendar-controls {
   display: grid;
-  grid-template-columns: auto minmax(12rem, 1fr) minmax(16rem, 22rem);
+  grid-template-columns: auto minmax(12rem, auto) minmax(28rem, 1fr);
   gap: 0.65rem 0.85rem;
   align-items: center;
 }

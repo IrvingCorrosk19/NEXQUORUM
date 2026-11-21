@@ -236,7 +236,7 @@
 
 .video-stage .speaker-meta {
   margin-top: var(--space-2);
-  color: rgba(244, 247, 248, 0.8);
+  color: #f7f4ef;
 }
 
 .connection-banner {
@@ -246,7 +246,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  background: rgba(15, 28, 36, 0.55);
+  color: #f7f4ef;
+  background: rgba(11, 26, 36, 0.88);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   font-size: 0.85rem;

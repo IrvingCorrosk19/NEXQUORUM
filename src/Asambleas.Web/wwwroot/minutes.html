@@ -12,10 +12,15 @@
   <link rel="stylesheet" href="/css/components.css?v=px1" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <style>
-    .minutes-header h2 { font-family: "DM Sans", sans-serif; margin: 0.25rem 0; }
-    .minutes-outline { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0 1.5rem; }
-    .minutes-outline a { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
-    .minutes-section { margin: 1.5rem 0; padding-top: 0.5rem; border-top: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent); }
+    #minutes-root.card { padding: 0.25rem; }
+    #minutes-root .card-body, #minutes-root > .minutes-header { padding: 1.25rem 1.5rem; }
+    .minutes-header { padding: 1.25rem 1.5rem 0; }
+    .minutes-header h2 { font-family: "DM Sans", sans-serif; margin: 0.35rem 0 0.5rem; }
+    .minutes-outline { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 1.5rem 1.25rem; }
+    .minutes-outline a { color: #102b3f; text-decoration: none; border: 1px solid rgba(16,43,63,.16); border-radius: 999px; padding: 0.35rem 0.75rem; background: #fff; }
+    .minutes-section { margin: 0 1.5rem 1.25rem; padding-top: 1rem; border-top: 1px solid rgba(16,43,63,.12); }
+    .minutes-technical { margin: 0.75rem 0 0; }
+    .minutes-technical p { overflow-wrap: anywhere; margin: 0.35rem 0; }
     .minutes-section h3 { font-family: "DM Sans", sans-serif; }
     .minutes-block { margin: 1rem 0; }
     .no-print { }
@@ -33,7 +38,7 @@
   <link rel="stylesheet" href="/css/ux-ia-reeng.css?v=ia2" />
   <link rel="stylesheet" href="/css/gov-ops.css?v=gov3" />
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow1" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow3" />
 </head>
 <body class="layout-tabler">
   <a class="skip-link visually-hidden-focusable" href="#main">Saltar al contenido</a>
