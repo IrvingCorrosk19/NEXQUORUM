@@ -3160,11 +3160,20 @@ async function bootstrapMeeting() {
     syncMeetingControlBar();
   } catch (error) {
     const msg = String(error?.message || "");
-    const friendly =
-      /Failed to fetch|NetworkError|signal connection/i.test(msg)
-        ? t("media.signalFailed")
-        : msg || t("lobby.avBlocked");
+    const connection = /Failed to fetch|NetworkError|signal connection|pc connection|could not establish|websocket/i.test(msg);
+    const friendly = connection ? t("media.signalFailed") : t("lobby.avBlocked");
     renderAvBlocked(els.video, friendly);
+    if (msg && els.video) {
+      const details = document.createElement("details");
+      details.className = "px-3 pb-3";
+      const summary = document.createElement("summary");
+      summary.textContent = "Diagnóstico";
+      const note = document.createElement("p");
+      note.className = "text-secondary";
+      note.textContent = msg;
+      details.append(summary, note);
+      els.video.append(details);
+    }
   }
   updateMediaConnectionBanner();
   renderMediaCockpit();

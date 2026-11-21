@@ -1,7 +1,7 @@
 import { api } from "./api.js";
 import { me } from "./auth.js";
 import { initI18n, t } from "../i18n/i18n.js?v=labels-es1";
-import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
+import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { ensureAssemblyIdOrRedirect, isValidAssemblyId } from "./assembly-context.js?v=guid1";
 import { bootIaPage } from "./ia-page.js?v=tabs2";
@@ -200,6 +200,11 @@ async function openPdfPreview(key, title, button) {
     const titleEl = qs("#pdf-preview-title");
     if (titleEl) titleEl.textContent = title || "Vista previa";
     if (frame) frame.src = previewObjectUrl;
+    const openLink = qs("#pdf-preview-open");
+    if (openLink) {
+      openLink.href = previewObjectUrl;
+      openLink.download = `${(title || "documento").replace(/[^\w\- ]+/g, "")}.pdf`;
+    }
     if (modal) modal.hidden = false;
   } finally {
     if (button) {
@@ -447,10 +452,11 @@ function renderTimeline(items) {
   }
   root.innerHTML = items
     .map((e) => {
+      const when = e.occurredAtUtc ? formatDateTime(e.occurredAtUtc) : "Sin fecha";
       const offset =
         e.offsetSecondsFromRecordingStart != null
           ? formatDuration(e.offsetSecondsFromRecordingStart)
-          : "—";
+          : "";
       const canSeek =
         e.recordingId &&
         e.offsetSecondsFromRecordingStart != null &&
@@ -458,7 +464,10 @@ function renderTimeline(items) {
       const seekBtn = canSeek
         ? `<button type="button" class="btn btn-ghost" data-seek-rec="${escapeHtml(e.recordingId)}" data-seek-sec="${e.offsetSecondsFromRecordingStart}">Ver en grabación</button>`
         : "";
-      return `<li><strong>${escapeHtml(offset)}</strong> · ${escapeHtml(e.label || assemblyLabel(e.eventType))} ${seekBtn}</li>`;
+      const tech = offset
+        ? `<details><summary>Detalle técnico</summary><p class="text-secondary mb-0">Desfase desde la grabación: ${escapeHtml(offset)}</p></details>`
+        : "";
+      return `<li><strong>${escapeHtml(when)}</strong> · ${escapeHtml(e.label || assemblyLabel(e.eventType))} ${seekBtn}${tech}</li>`;
     })
     .join("");
 

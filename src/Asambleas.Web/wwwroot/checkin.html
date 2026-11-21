@@ -30,7 +30,7 @@
       display: grid; gap: 0.75rem; padding: 1rem 1.1rem;
       background: color-mix(in srgb, var(--color-surface) 88%, var(--color-accent, #1a5f4a) 12%);
     }
-    .checkin-live .metric { font-family: "Source Serif 4", Georgia, serif; font-size: 1.75rem; font-weight: 600; }
+    .checkin-live .metric { font-family: "DM Sans", sans-serif; font-size: 1.75rem; font-weight: 600; }
     .checkin-search input { min-height: 3rem; font-size: 1.05rem; width: 100%; }
     .owner-dialog {
       border: none; padding: 0; max-width: min(34rem, calc(100vw - 1.5rem));
@@ -44,7 +44,8 @@
       box-shadow: 0 18px 40px rgba(0,0,0,0.22);
     }
     .owner-sheet header { display: grid; gap: 0.25rem; }
-    .owner-sheet h2 { font-family: "Source Serif 4", Georgia, serif; margin: 0; font-size: 1.55rem; }
+    .owner-sheet { border-radius: 1rem; }
+    .owner-sheet h2 { font-family: "DM Sans", sans-serif; margin: 0; font-size: 1.55rem; }
     .owner-sheet .subtitle { margin: 0; opacity: 0.7; font-size: 0.95rem; }
     .owner-label { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.65; margin: 0; }
     .owner-section { display: grid; gap: 0.45rem; }
@@ -67,7 +68,7 @@
       background: color-mix(in srgb, var(--brand-teal-500, #1a5f4a) 8%, transparent);
     }
     .owner-metric .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
-    .owner-metric .value { font-family: "Source Serif 4", Georgia, serif; font-size: 1.35rem; font-weight: 600; }
+    .owner-metric .value { font-family: "DM Sans", sans-serif; font-size: 1.35rem; font-weight: 600; }
     .conflict-box {
       border-left: 3px solid var(--color-danger, #9b2c2c);
       padding: 0.75rem 0.85rem; background: color-mix(in srgb, #9b2c2c 8%, transparent);
@@ -82,7 +83,8 @@
       padding: 0.55rem 0.7rem;
       background: color-mix(in srgb, var(--color-ink) 4%, transparent);
     }
-    .checkin-summary .chip strong { display: block; font-family: "Source Serif 4", Georgia, serif; font-size: 1.25rem; }
+    .checkin-summary .chip strong { display: block; font-family: "DM Sans", sans-serif; font-size: 1.25rem; }
+    .participants-table td:last-child .btn { white-space: nowrap; }
     .checkin-summary .chip span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
     .checkin-filters { display: grid; gap: 0.65rem; }
     @media (min-width: 720px) {

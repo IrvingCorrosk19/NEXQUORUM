@@ -49,6 +49,7 @@ function closeWorkDialog() {
     if (!ok) return;
   }
   formDirty = false;
+  rememberDraft(null);
   const dlg = qs("#dlg-convocation");
   if (dlg?.open) dlg.close();
   const opener = modalOpener;
@@ -116,11 +117,15 @@ function draftHashId() {
   return null;
 }
 
-function rememberDraft(id) {
-  if (!id) return;
+function rememberDraft(id, { push = true } = {}) {
   const url = new URL(location.href);
-  url.hash = `c=${id}`;
-  history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  url.hash = id ? `c=${id}` : "";
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  const current = `${location.pathname}${location.search}${location.hash}`;
+  if (next === current) return;
+  const state = { convocationId: id || null };
+  if (push) history.pushState(state, "", next);
+  else history.replaceState(state, "", next);
 }
 
 function normalizeOwnerList(data) {
@@ -505,9 +510,9 @@ async function loadEmailPreview(id) {
   }
 }
 
-async function openDetail(id, opener) {
+async function openDetail(id, opener, { pushHash = true } = {}) {
   selectedId = id;
-  rememberDraft(id);
+  rememberDraft(id, { push: pushHash });
   const detail = await api(`/api/convocations/${id}`);
   selectedDetail = detail;
   const panel = qs("#detail-panel");
@@ -1071,8 +1076,19 @@ async function init() {
   const reopen = draftHashId();
   if (reopen) {
     collapseCreateForm();
-    await openDetail(reopen);
+    await openDetail(reopen, qs("#btn-new-convocation"), { pushHash: false });
   }
+  window.addEventListener("popstate", async () => {
+    const id = draftHashId();
+    const dlg = qs("#dlg-convocation");
+    if (id) {
+      formDirty = false;
+      await openDetail(id, modalOpener, { pushHash: false });
+      return;
+    }
+    formDirty = false;
+    if (dlg?.open) dlg.close();
+  });
 
   if (isReadinessReturnContext()) {
     mountReadinessActionBar({

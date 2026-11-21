@@ -63,11 +63,7 @@ export function createLiveVotingWorkspace({
     const agenda = getAgenda();
     const items = agenda?.items || [];
     if (items.length) return items[0];
-    const created = await api(`/api/assemblies/${getAssemblyId()}/agenda`, {
-      method: "POST",
-      body: { ordinal: 1, code: "A01", title: "Punto en sesión" }
-    });
-    return (created.items || [])[0];
+    throw new Error("No hay puntos de agenda. Agrégalos en Agenda antes de abrir una votación.");
   }
 
   function mountOperatorChrome(root) {

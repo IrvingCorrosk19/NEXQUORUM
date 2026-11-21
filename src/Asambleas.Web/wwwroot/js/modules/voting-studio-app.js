@@ -1372,12 +1372,7 @@ function showPreview() {
 
 async function ensureAgendaItem() {
   if (state.agenda.length) return state.agenda[0];
-  const created = await api(`/api/assemblies/${assemblyId}/agenda`, {
-    method: "POST",
-    body: { ordinal: 1, code: "A01", title: "Punto principal" }
-  });
-  state.agenda = created.items || [];
-  return state.agenda[0];
+  throw new Error("Esta asamblea no tiene puntos de agenda. Agrégalos en Agenda; no se crea un punto automático.");
 }
 
 async function refresh() {

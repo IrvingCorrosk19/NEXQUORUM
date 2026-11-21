@@ -134,7 +134,10 @@ async function init() {
 
   try {
     const list = await api("/api/assemblies");
-    all = (Array.isArray(list) ? list : list?.items || []).slice().sort((a, b) => {
+    all = (Array.isArray(list) ? list : list?.items || [])
+      .filter((a) => a.status === "Completed" || a.status === "Cancelled")
+      .slice()
+      .sort((a, b) => {
       const da = a.scheduledAtUtc ? new Date(a.scheduledAtUtc).getTime() : 0;
       const db = b.scheduledAtUtc ? new Date(b.scheduledAtUtc).getTime() : 0;
       return db - da;

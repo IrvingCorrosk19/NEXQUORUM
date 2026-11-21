@@ -323,7 +323,7 @@ function renderCards(filter = "") {
           <th>${escapeHtml(t("checkin.owner"))}</th>
           <th>${escapeHtml(t("checkin.unit"))}</th>
           <th>Rep.</th>
-          <th>${escapeHtml(t("checkin.coefficient"))}</th>
+          <th>Coeficiente de la unidad</th>
           <th>${escapeHtml(t("checkin.invitation"))}</th>
           <th>${escapeHtml(t("checkin.presence"))}</th>
           <th>${escapeHtml(t("checkin.observation"))}</th>
@@ -335,15 +335,17 @@ function renderCards(filter = "") {
           .map((p) => {
             const id = String(p.userId || "");
             const present = isPresent(p);
+            const unitCoeff = formatCoeff(p.coefficientPercent);
+            const effective = formatCoeff(p.effectiveCoefficientPercent);
             const coeff =
-              p.effectiveCoefficientPercent != null && present
-                ? formatCoeff(p.effectiveCoefficientPercent)
-                : formatCoeff(p.coefficientPercent);
+              effective && effective !== unitCoeff
+                ? `${unitCoeff}<div class="text-secondary">Efectivo ${effective}</div>`
+                : unitCoeff;
             return `<tr class="${present ? "is-present" : ""}" data-user-id="${escapeHtml(id)}">
               <td data-label="Propietario"><strong>${escapeHtml(p.displayName || "—")}</strong></td>
               <td data-label="Unidad">${escapeHtml(p.unitCode || "—")}</td>
               <td data-label="Rep.">${escapeHtml(String(p.representationCount || 0))}</td>
-              <td data-label="Coef.">${escapeHtml(coeff)}</td>
+              <td data-label="Coeficiente">${coeff}</td>
               <td data-label="Invitación">${escapeHtml(invitationLabel(p))}</td>
               <td data-label="Presencia"><span class="badge ${present ? "badge-success" : "badge-live"}">${escapeHtml(
                 presenceLabel(p)
@@ -386,7 +388,11 @@ function renderOwnerModalBody(preview, participant) {
   return `
     <div class="owner-metrics">
       <div class="owner-metric">
-        <div class="label">${escapeHtml(t("checkin.effectiveTotal"))}</div>
+        <div class="label">Coeficiente de sus unidades</div>
+        <div class="value">${escapeHtml(formatCoeff(preview.coefficientPercent))}</div>
+      </div>
+      <div class="owner-metric">
+        <div class="label">Coeficiente efectivo (propias y representadas)</div>
         <div class="value">${escapeHtml(formatCoeff(preview.effectiveCoefficientPercent ?? preview.coefficientPercent))}</div>
       </div>
       <div class="owner-metric">

@@ -28,6 +28,7 @@ public sealed class SecurityHeadersMiddleware
                 "media-src 'self' blob:; " +
                 "connect-src 'self' ws: wss: https:; " +
                 "worker-src 'self' blob:; " +
+                "frame-src 'self' blob:; " +
                 "frame-ancestors 'none'; " +
                 "base-uri 'self'; " +
                 "form-action 'self'";

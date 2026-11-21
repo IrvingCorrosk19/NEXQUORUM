@@ -1599,8 +1599,8 @@ dialog.app-sheet::backdrop,
   padding: 0;
   display: grid;
   gap: 0.35rem;
-  max-height: 16rem;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .layout-tabler .conv-picker li {
@@ -1830,8 +1830,12 @@ dialog.app-sheet:not([open]),
 }
 
 .layout-tabler .studio-search__input,
+.layout-tabler .studio-editor input,
+.layout-tabler .studio-editor textarea,
+.layout-tabler .studio-editor select,
 .layout-tabler #participant-filter,
-.layout-tabler #vote-search {
+.layout-tabler #vote-search,
+.layout-tabler #search {
   width: 100%;
   min-height: 2.5rem;
   border: 1px solid rgba(16, 43, 63, 0.2);
@@ -1839,6 +1843,26 @@ dialog.app-sheet:not([open]),
   padding: 0.4rem 0.75rem;
   background: #fff;
   color: #102b3f;
+}
+
+.layout-tabler .participants-table {
+  width: 100%;
+}
+
+.layout-tabler .participants-table th:last-child,
+.layout-tabler .participants-table td:last-child,
+.layout-tabler .participants-table .btn {
+  white-space: nowrap;
+}
+
+.layout-tabler .owner-sheet,
+.layout-tabler .owner-sheet h2,
+.layout-tabler .owner-metric .value,
+.layout-tabler .checkin-live .metric,
+.layout-tabler .minutes-header h2,
+.layout-tabler .minutes-section h3 {
+  font-family: "DM Sans", sans-serif;
+  border-radius: 0.75rem;
 }
 
 .layout-tabler dialog.conv-work {
@@ -1850,6 +1874,7 @@ dialog.app-sheet:not([open]),
   border-radius: 1rem;
   background: #fff;
   color: #102b3f;
+  overflow: hidden;
 }
 
 .layout-tabler dialog.conv-work:not([open]) { display: none !important; }
@@ -1869,6 +1894,22 @@ dialog.app-sheet:not([open]),
 .layout-tabler .conv-work__foot {
   padding: 0.85rem 1.1rem;
   background: #fff;
+}
+
+.layout-tabler .conv-work__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.layout-tabler dialog.conv-work #create-heading,
+.layout-tabler dialog.conv-work #detail-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
 }
 
 .layout-tabler .conv-work__foot {

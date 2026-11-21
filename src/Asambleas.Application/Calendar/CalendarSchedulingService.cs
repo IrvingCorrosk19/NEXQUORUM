@@ -126,8 +126,9 @@ public sealed class CalendarSchedulingService
             .Take(20)
             .ToListAsync(cancellationToken);
 
-        var live = upcoming.FirstOrDefault(a => a.Status is AssemblyStatus.InProgress or AssemblyStatus.Paused);
-        var pick = live ?? upcoming.FirstOrDefault(a => a.ScheduledAtUtc >= now.AddHours(-1)) ?? upcoming.FirstOrDefault();
+        var live = upcoming.FirstOrDefault(a => a.Status is AssemblyStatus.InProgress or AssemblyStatus.Paused or AssemblyStatus.CheckIn);
+        var future = upcoming.Where(a => a.ScheduledAtUtc >= now).OrderBy(a => a.ScheduledAtUtc).FirstOrDefault();
+        var pick = live ?? future;
         var roleView = canManage ? "President" : "Owner";
         if (pick is null)
         {

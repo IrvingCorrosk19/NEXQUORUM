@@ -225,7 +225,10 @@ async function loadNextBanner() {
     el.classList.remove("empty");
     el.classList.add("has-next");
     const when = formatInTz(n.scheduledAtUtc, n.timeZoneId);
-    el.innerHTML = `<p class="next-brief"><strong>Próxima:</strong> ${escapeHtml(n.title)} · ${escapeHtml(when)} · <a href="/dashboard.html?assemblyId=${n.assemblyId}">Ver</a></p>`;
+    const past = n.scheduledAtUtc && new Date(n.scheduledAtUtc).getTime() < Date.now() - 60000;
+    const live = ["InProgress", "Paused", "CheckIn"].includes(n.status);
+    const label = live ? (past ? "Sesión abierta:" : "En curso:") : past ? "Fecha vencida:" : "Próxima:";
+    el.innerHTML = `<p class="next-brief"><strong>${label}</strong> ${escapeHtml(n.title)} · ${escapeHtml(when)} · <a href="/dashboard.html?assemblyId=${n.assemblyId}">Ver</a></p>`;
   } catch {
     if (!bannerQuery.isCurrent(token)) return;
     el.classList.add("empty");
