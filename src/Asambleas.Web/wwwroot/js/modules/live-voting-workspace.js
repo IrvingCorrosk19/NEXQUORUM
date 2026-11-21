@@ -201,8 +201,17 @@ export function createLiveVotingWorkspace({
 
     const wrap = document.querySelector("#questionnaire-wrap");
     if (!ordered.length) {
-      if (wrap) wrap.hidden = true;
-      host.innerHTML = "";
+      host.innerHTML = manage
+        ? `<p class="empty-state-what">Sin preguntas aún.</p><p class="empty-state-why">Use Agregar pregunta para crear la primera.</p>`
+        : "";
+      if (wrap) {
+        wrap.hidden = !manage;
+        if (manage) {
+          wrap.open = true;
+          const summary = wrap.querySelector("summary");
+          if (summary) summary.textContent = "Preguntas";
+        }
+      }
       return;
     }
     if (wrap) {

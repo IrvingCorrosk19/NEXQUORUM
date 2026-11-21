@@ -242,6 +242,38 @@ function safeReturnUrl() {
   return raw;
 }
 
+const pendingInviteToken =
+  loginParams.get("acceptInvite") === "1" ? loginParams.get("token") || "" : "";
+
+async function acceptPendingInvite() {
+  if (!pendingInviteToken) return;
+  try {
+    await api("/api/ph/invitations/accept", {
+      method: "POST",
+      body: { token: pendingInviteToken }
+    });
+  } catch (err) {
+    const code = err?.code || "";
+    if (code === "INVITE_CONSUMED") return;
+    throw err;
+  }
+}
+
+async function finishLogin(session, explicitReturn) {
+  try {
+    await acceptPendingInvite();
+  } catch (err) {
+    hideGlobalLoader();
+    setButtonLoading(otpVerifySubmit, false);
+    setButtonLoading(submitBtn, false);
+    mesaBusy = false;
+    showError(err?.message || "Iniciaste sesión, pero no pudimos vincular la invitación.");
+    return;
+  }
+  const fresh = await me().catch(() => session);
+  goHome(fresh || session, explicitReturn);
+}
+
 function goHome(user, explicitReturn) {
   let ret = explicitReturn || safeReturnUrl();
   if (ret && ret.startsWith("/lobby.html")) {
@@ -465,7 +497,7 @@ otpVerifyForm?.addEventListener("submit", async (ev) => {
     }
     showGlobalLoader("Entrando a tu asamblea…");
     const session = result.user || (await me());
-    goHome(session, result.returnUrl);
+    await finishLogin(session, result.returnUrl);
   } catch (err) {
     hideGlobalLoader();
     setButtonLoading(otpVerifySubmit, false);
@@ -526,7 +558,7 @@ try {
   const session = await me();
   const users = await api("/api/demo/users").catch(() => null);
   defaultAssemblyId = users?.[0]?.assemblyId || null;
-  goHome(session);
+  await finishLogin(session);
 } catch {
   // not authenticated
 }
@@ -561,7 +593,7 @@ loginForm?.addEventListener("submit", async (event) => {
   try {
     const session = await login(email, password);
     showGlobalLoader("Preparando tu acceso…");
-    goHome(session || (await me()));
+    await finishLogin(session || (await me()));
   } catch {
     hideGlobalLoader();
     setButtonLoading(submitBtn, false);

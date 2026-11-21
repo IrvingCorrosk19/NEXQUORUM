@@ -846,6 +846,38 @@
     margin-right: -0.85rem;
   }
 
+  .layout-tabler .table-wrap {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .layout-tabler #owners-table thead {
+    display: none;
+  }
+
+  .layout-tabler #owners-table,
+  .layout-tabler #owners-table tbody,
+  .layout-tabler #owners-table tr,
+  .layout-tabler #owners-table td {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .layout-tabler #owners-table tr {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(16, 43, 63, 0.08);
+  }
+
+  .layout-tabler #owners-table .owner-action-bar,
+  .layout-tabler #owners-table .owners-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    width: 100%;
+  }
+
   .layout-tabler .ph-cover,
   .layout-tabler .ph-cover__inner {
     min-height: 9.5rem;
@@ -915,6 +947,15 @@
     margin-left: -1rem;
     margin-right: -1rem;
     border-radius: 0;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+  .layout-tabler .brand-hero,
+  .layout-tabler .ph-cover {
+    /* The page absorbs 8px of bleed here. -0.75rem still overflowed 4px. */
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
   }
 
   .layout-tabler .ph-cover,

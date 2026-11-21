@@ -640,10 +640,18 @@ dialog.event-sheet.event-drawer {
   }
 
   .calendar-nav-range {
-    width: auto;
+    display: flex !important;
+    width: 100%;
     max-width: 100%;
-    overflow-x: auto;
-    align-self: flex-start;
+    min-width: 0;
+    flex-wrap: wrap !important;
+    overflow: visible;
+    align-self: stretch;
+  }
+
+  #range-label {
+    min-width: 0;
+    flex: 1 1 8rem;
   }
 
   .calendar-filters {
