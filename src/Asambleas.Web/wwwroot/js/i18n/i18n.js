@@ -20,11 +20,11 @@ export async function initI18n(requested) {
       catalog = (await import("./en.js?v=open-desk1")).default;
       locale = "en";
     } else {
-      catalog = (await import("./es-PA.js?v=open-desk1")).default;
+      catalog = (await import("./es-PA.js?v=mesa1")).default;
       locale = "es-PA";
     }
   } catch {
-    catalog = (await import("./es-PA.js?v=open-desk1")).default;
+    catalog = (await import("./es-PA.js?v=mesa1")).default;
     locale = "es-PA";
   }
   localStorage.setItem(STORAGE_KEY, locale);

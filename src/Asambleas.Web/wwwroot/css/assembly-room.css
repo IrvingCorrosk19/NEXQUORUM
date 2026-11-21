@@ -3309,39 +3309,39 @@ body:has(.room--meeting-ux) {
   }
 }
 
-.room-header,
-.meeting-drawer,
-.device-settings-dialog,
-.questionnaire-panel,
-#agenda-panel,
-#vote-panel,
-#people-panel,
-.room-header .ph-name span,
-.quorum-chip,
-.quorum-chip-req,
-.quorum-chip-people,
-.device-settings-form,
-.mcb-btn,
-.mcb-busy,
-.mcb-quality,
-.meeting-drawer__header h2,
-.meeting-more-item,
-.meeting-people-list,
-.section-title,
-.empty-state,
-.governance-only,
-#media-connection-state {
+.room .room-header,
+.room .meeting-drawer,
+.room .device-settings-dialog,
+.room .questionnaire-panel,
+.room #agenda-panel,
+.room #vote-panel,
+.room #people-panel,
+.room .room-header .ph-name span,
+.room .quorum-chip,
+.room .quorum-chip-req,
+.room .quorum-chip-people,
+.room .device-settings-form,
+.room .mcb-btn,
+.room .mcb-busy,
+.room .mcb-quality,
+.room .meeting-drawer__header h2,
+.room .meeting-more-item,
+.room .meeting-people-list,
+.room .section-title,
+.room .empty-state,
+.room .governance-only,
+.room #media-connection-state {
   color: #f4f7fb;
 }
 
-.meeting-control-bar,
-.meeting-control-bar__inner,
-.meeting-drawer,
-.device-settings-dialog {
+.room .meeting-control-bar,
+.room .meeting-control-bar__inner,
+.room .meeting-drawer,
+.room .device-settings-dialog {
   background: #0e2436;
 }
 
-.device-settings-form select {
+.room .device-settings-form select {
   background: #fff;
   color: #102b3f;
 }

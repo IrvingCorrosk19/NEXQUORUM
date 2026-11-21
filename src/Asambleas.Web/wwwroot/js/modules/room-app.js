@@ -4,7 +4,7 @@ import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=labels-es1";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=labels-es1";
-import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=flow10";
+import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=flow11";
 import { createMobileVotingController } from "./mobile-voting-sheet.js?v=labels-es1";
 import {
   resolveContextualGuide,
@@ -63,8 +63,8 @@ import {
   switchLocalDevices,
   syncHandRaisedIndicators,
   unlockRemoteAudio
-} from "./meeting.js?v=flow10";
-import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=labels-es1";
+} from "./meeting.js?v=flow11";
+import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=mesa1";
 import {
   assemblyIdFromUrl,
   confirmDialog,
@@ -1309,18 +1309,30 @@ async function openDeviceSettings() {
   if (speakerWrap) speakerWrap.hidden = !devices.supportsSinkId || !devices.speakers.length;
   fillOrEmpty("#device-speaker-select", devices.speakers, prefs.speakerId, "Sin altavoz disponible");
   const ready = dialog.querySelector('button[value="ok"]');
-  const usable = devices.mics.length + devices.cameras.length > 0 && !devices.permissionError;
+  const usable = devices.mics.length + devices.cameras.length > 0;
   if (ready) {
     ready.disabled = !usable;
     ready.title = usable ? "" : "No hay un dispositivo utilizable";
   }
   const hint = qs("#device-settings-hint");
   if (hint) {
-    hint.textContent = devices.permissionError
-      ? devices.permissionError
-      : usable
-        ? (t("media.deviceSettingsHint") || "Los cambios se aplican sin salir de la reunión.")
-        : "No hay micrófono ni cámara disponibles. Puede continuar la asamblea sin audio ni video.";
+    const line = (kind, state) => {
+      if (state === "denied") return `${kind}: permiso denegado.`;
+      if (state === "busy") return `${kind}: dispositivo ocupado.`;
+      if (state === "missing" || state === "error") return `${kind}: sin dispositivo.`;
+      return "";
+    };
+    const notes = [
+      devices.mics.length ? "" : line("Micrófono", devices.micState),
+      devices.cameras.length ? "" : line("Cámara", devices.camState)
+    ].filter(Boolean);
+    hint.textContent = notes.length
+      ? notes.join(" ")
+      : "Elija el micrófono y la cámara.";
+  }
+  if (!dialog.dataset.cancelBound) {
+    dialog.dataset.cancelBound = "1";
+    qs("#device-settings-cancel")?.addEventListener("click", () => dialog.close());
   }
   dialog.showModal();
   dialog.addEventListener(

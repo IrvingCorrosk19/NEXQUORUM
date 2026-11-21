@@ -689,6 +689,128 @@ a {
   margin-top: 1.25rem;
 }
 
+/* Dark room only. Light screens keep the rules above. */
+.room--ocean h1,
+.room--ocean h2,
+.room--ocean h3,
+.room--ocean .brand,
+.room--ocean .section-title,
+.room--ocean .live-vote-dialog,
+.room--ocean .live-vote-dialog h3,
+.room--ocean .live-vote-dialog p,
+.room--ocean .live-vote-dialog label,
+.room--ocean .live-vote-dialog small,
+.room--ocean .device-settings-dialog,
+.room--ocean .device-settings-dialog h2,
+.room--ocean .device-settings-dialog label,
+.room--ocean .mcb-btn,
+.room--ocean .mcb-label,
+.room--ocean .empty-state,
+.room--ocean .governance-only {
+  color: #f4f7fb;
+}
+
+.room--ocean .muted,
+.room--ocean .text-secondary,
+.room--ocean .command-eyebrow,
+.room--ocean .live-vote-dialog .muted,
+.room--ocean .device-settings-dialog .muted,
+.room--ocean .mcb-btn:disabled,
+.room--ocean .btn:disabled,
+.room--ocean .btn-primary:disabled,
+.room--ocean .btn-secondary:disabled {
+  color: #d5deea;
+}
+
+.room--ocean a,
+.room--ocean .btn-ghost,
+.room--ocean .live-vote-dialog a,
+.room--ocean .device-settings-dialog .btn-ghost {
+  color: #5eead4;
+}
+
+.room--ocean .btn-secondary,
+.room--ocean .live-vote-dialog .btn-secondary,
+.room--ocean .device-settings-dialog .btn-secondary {
+  background: #ffffff;
+  color: #0b2440;
+  border-color: rgba(11, 36, 64, 0.28);
+}
+
+.room--ocean .btn-primary,
+.room--ocean .live-vote-dialog .btn-primary {
+  background: #2dd4bf;
+  color: #062521;
+  border-color: #0f766e;
+}
+
+.room--ocean .btn:disabled,
+.room--ocean .btn-primary:disabled,
+.room--ocean .btn-secondary:disabled,
+.room--ocean .device-settings-dialog button:disabled,
+.room--ocean .live-vote-dialog button:disabled {
+  color: #d5deea;
+  background: #1c3048;
+  border-color: #25354b;
+}
+
+.room--ocean .mcb-btn.is-off {
+  color: #fecdd3;
+}
+
+.room--ocean .mcb-btn--leave,
+.room--ocean .mcb-btn.mcb-btn--leave {
+  color: #ffe4e6;
+  background: #9f1239;
+}
+
+.room--ocean .live-vote-form input,
+.room--ocean .live-vote-form textarea,
+.room--ocean .live-vote-form select,
+.room--ocean .device-settings-form select {
+  background: #ffffff;
+  color: #0b2440;
+}
+
+.room--ocean .mcb-btn:focus-visible,
+.room--ocean .live-vote-dialog :focus-visible,
+.room--ocean .device-settings-dialog :focus-visible,
+.room--ocean .btn:focus-visible {
+  outline: 2px solid #5eead4;
+  outline-offset: 2px;
+}
+
+.room--ocean .sidebar h2,
+.room--ocean .sidebar h3,
+.room--ocean .sidebar .section-title,
+.room--ocean .sidebar section.is-primary .section-title,
+.room--ocean .sidebar section.is-primary p,
+.room--ocean .sidebar section.is-primary li,
+.room--ocean .sidebar section.is-primary .empty-state,
+.room--ocean .sidebar section.is-idle .section-title,
+.room--ocean .sidebar section.is-collapsed .section-title,
+.room--ocean .sidebar .empty-state,
+.room--ocean .sidebar p,
+.room--ocean .live-vote-lock,
+.room--ocean .live-vote-lock p {
+  color: #f4f7fb;
+}
+
+.room--ocean .sidebar .empty-state,
+.room--ocean .video-stage .empty-state {
+  background: #132238;
+  border-color: #25354b;
+}
+
+.room--ocean .sidebar .empty-state p,
+.room--ocean .sidebar .empty-state .muted,
+.room--ocean .sidebar .empty-state-next,
+.room--ocean .sidebar .empty-state-why,
+.room--ocean .video-stage .empty-state p,
+.room--ocean .video-stage .empty-state .muted {
+  color: #d5deea;
+}
+
 .ia-asm-summary__hero {
   padding: 0;
   border: 0;

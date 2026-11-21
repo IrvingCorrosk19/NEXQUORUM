@@ -564,23 +564,74 @@ function wireRecipientPicker() {
   updateSendSummary();
 }
 
-async function loadEmailPreview(id) {
+let previewHtml = "";
+
+function fitPreviewFrame() {
   const frame = qs("#conv-preview-frame");
   if (!frame) return;
+  const panel = frame.closest("[data-conv-panel]");
+  if (panel?.hidden) {
+    frame.dataset.pendingFit = "1";
+    return;
+  }
+  const doc = frame.contentDocument;
+  const height = Math.max(
+    doc?.documentElement?.scrollHeight || 0,
+    doc?.body?.scrollHeight || 0
+  );
+  if (height > 40) {
+    frame.style.height = `${height + 24}px`;
+    frame.setAttribute("scrolling", "no");
+    frame.dataset.pendingFit = "";
+    return;
+  }
+  frame.setAttribute("scrolling", "auto");
+  frame.style.height = "min(70vh, 40rem)";
+}
+
+function openPreviewFallback() {
+  if (!previewHtml) return;
+  const blob = new Blob([previewHtml], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const opened = window.open(url, "_blank", "noopener");
+  if (!opened) {
+    const fallback = qs("#conv-preview-fallback p");
+    if (fallback) fallback.textContent = "El navegador bloqueó la ventana. Permita ventanas emergentes e intente de nuevo.";
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+async function loadEmailPreview(id) {
+  const frame = qs("#conv-preview-frame");
   const subj = qs("#conv-preview-subject");
+  const fallback = qs("#conv-preview-fallback");
+  previewHtml = "";
   if (subj) subj.textContent = "Cargando vista previa…";
+  if (fallback) fallback.hidden = true;
+  if (!frame) return;
+  frame.style.height = "12rem";
   frame.srcdoc = `<body style="font-family:DM Sans,sans-serif;padding:24px;color:#3e536b"><p>Cargando vista previa…</p></body>`;
   try {
     const preview = await api(`/api/convocations/${id}/email-preview`);
-    frame.srcdoc = preview.html || "";
+    previewHtml = preview.html || "";
     frame.onload = () => {
-      const height = frame.contentDocument?.documentElement?.scrollHeight || 0;
-      if (height > 0) frame.style.height = `${height + 8}px`;
+      fitPreviewFrame();
+      window.setTimeout(fitPreviewFrame, 120);
     };
-    const subj = qs("#conv-preview-subject");
+    frame.srcdoc = previewHtml;
     if (subj) subj.textContent = preview.subject || "Vista previa";
+    if (!window.__convPreviewResize) {
+      window.__convPreviewResize = true;
+      window.addEventListener("resize", () => fitPreviewFrame());
+    }
   } catch (e) {
-    frame.srcdoc = `<body style="font-family:DM Sans,sans-serif;padding:24px;color:#5c6f89"><p>${escapeHtml(e.message || "No se pudo cargar la vista previa.")}</p></body>`;
+    if (subj) subj.textContent = "No se pudo cargar la vista previa.";
+    frame.srcdoc = "";
+    if (fallback) {
+      fallback.hidden = false;
+      const note = fallback.querySelector("p");
+      if (note) note.textContent = e.message || "No se pudo cargar la vista previa.";
+    }
   }
 }
 
@@ -649,7 +700,11 @@ async function openDetail(id, opener, { pushHash = true } = {}) {
       <p class="text-secondary" id="conv-preview-subject">Cargando el mismo asunto que se enviará…</p>
       <p class="text-secondary">El botón del correo es un enlace demostrativo. El envío real crea un enlace personal de acceso.</p>
       <div class="conv-email-preview">
-        <iframe id="conv-preview-frame" title="Vista previa del correo de convocatoria" sandbox="" scrolling="no"></iframe>
+        <iframe id="conv-preview-frame" title="Vista previa del correo de convocatoria" sandbox="allow-same-origin" scrolling="auto"></iframe>
+      </div>
+      <div id="conv-preview-fallback" hidden>
+        <p role="alert">No se pudo cargar la vista previa.</p>
+        <button type="button" class="btn btn-secondary" id="conv-preview-open">Abrir vista previa</button>
       </div>
     </section>
     <section class="conv-section" data-conv-panel="deliveries" hidden>
@@ -668,8 +723,10 @@ async function openDetail(id, opener, { pushHash = true } = {}) {
       qs("#detail-body").querySelectorAll("[data-conv-panel]").forEach((panel) => {
         panel.hidden = panel.getAttribute("data-conv-panel") !== name;
       });
+      if (name === "preview") requestAnimationFrame(() => fitPreviewFrame());
     });
   });
+  qs("#conv-preview-open")?.addEventListener("click", () => openPreviewFallback());
   qs("#btn-edit-convocation")?.addEventListener("click", () => beginEdit(detail));
 
   if (!alreadySent) wireRecipientPicker();

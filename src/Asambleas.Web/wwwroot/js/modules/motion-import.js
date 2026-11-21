@@ -214,12 +214,16 @@ export function openMotionImportWizard({ assemblyId, onImported }) {
         <label>Codigo <input name="codigo" value="${escapeHtml(row.codigo || "")}" /></label>
         <label>Orden <input name="orden" type="number" min="1" value="${row.orden ?? ""}" /></label>
         <footer class="cluster">
-          <button type="submit" class="btn btn-ghost" value="cancel">Volver</button>
+          <button type="button" class="btn btn-ghost" data-dismiss>Volver</button>
           <button type="submit" class="btn btn-primary" value="save">Revalidar</button>
         </footer>
       </form>`;
     document.body.appendChild(form);
     form.showModal();
+    form.querySelector("[data-dismiss]")?.addEventListener("click", () => {
+      form.close();
+      form.remove();
+    });
     form.querySelector("form").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const submitter = ev.submitter;

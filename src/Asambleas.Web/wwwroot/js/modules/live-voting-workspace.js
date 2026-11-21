@@ -98,14 +98,14 @@ export function createLiveVotingWorkspace({
       if (!btn) return;
       const action = btn.getAttribute("data-lv");
       try {
-        if (action === "quick") await quickCreate();
-        if (action === "pick") await pickPrepared();
-        if (action === "edit") await editCurrent();
-        if (action === "preview") await previewCurrent();
+        if (action === "quick") await quickCreate(btn);
+        if (action === "pick") await pickPrepared(btn);
+        if (action === "edit") await editCurrent(btn);
+        if (action === "preview") await previewCurrent(btn);
         if (action === "withdraw") await withdrawOpen();
-        if (action === "cancel") await cancelOpen();
+        if (action === "cancel") await cancelOpen(btn);
         if (action === "version") await createVersion();
-        if (action === "history") await showHistory();
+        if (action === "history") await showHistory(btn);
       } catch (err) {
         showToast(err.message || "Error", "error");
       }
@@ -449,12 +449,60 @@ export function createLiveVotingWorkspace({
     }
   }
 
-  function openDialog(html) {
+  function formSnapshot(form) {
+    return JSON.stringify([...new FormData(form).entries()]);
+  }
+
+  function rememberForm(form) {
+    form.dataset.initial = formSnapshot(form);
+  }
+
+  function formIsDirty(form) {
+    return form.dataset.initial !== formSnapshot(form);
+  }
+
+  async function dismissVoteDialog(dialog, form) {
+    if (formIsDirty(form)) {
+      const ok = await confirmDialog({
+        title: "Descartar cambios",
+        body: "Hay cambios sin guardar. Si cierra ahora, no se crea ninguna pregunta.",
+        confirmLabel: "Descartar",
+        danger: true
+      });
+      if (!ok) return;
+    }
+    dialog.close();
+  }
+
+  let voteReturnFocus = null;
+
+  function openDialog(html, opener) {
     const root = document.querySelector("#questionnaire-panel") || qs("#vote-panel");
     const dialog = root?.querySelector("[data-lv-dialog]");
     const form = root?.querySelector("[data-lv-form]");
     if (!dialog || !form) return null;
+    voteReturnFocus = opener instanceof HTMLElement ? opener : document.activeElement;
     form.innerHTML = html;
+    rememberForm(form);
+    if (!form.dataset.dismissBound) {
+      form.dataset.dismissBound = "1";
+      form.addEventListener("click", (ev) => {
+        const dismiss = ev.target.closest("[data-dismiss]");
+        if (!dismiss) return;
+        ev.preventDefault();
+        dismissVoteDialog(dialog, form);
+      });
+      dialog.addEventListener("cancel", (ev) => {
+        if (!formIsDirty(form)) return;
+        ev.preventDefault();
+        dismissVoteDialog(dialog, form);
+      });
+      dialog.addEventListener("close", () => {
+        const el = voteReturnFocus;
+        voteReturnFocus = null;
+        if (el instanceof HTMLElement && document.contains(el)) el.focus();
+      });
+    }
     dialog.showModal();
     return { dialog, form };
   }
@@ -468,11 +516,24 @@ export function createLiveVotingWorkspace({
       status,
       reason: allowed
         ? ""
-        : `Presentar o abrir exige la asamblea en curso. Estado actual: ${status || "desconocido"}. Puede guardar el borrador.`
+        : `Para presentar o abrir, la asamblea debe estar en curso. Ahora está en «${assemblyStatusEs(status)}». Puede guardar un borrador.`
     };
   }
 
-  async function quickCreate() {
+  function assemblyStatusEs(status) {
+    const map = {
+      Draft: "Borrador",
+      Scheduled: "Programada",
+      CheckIn: "Mesa abierta",
+      InProgress: "En curso",
+      Paused: "En receso",
+      Completed: "Finalizada",
+      Cancelled: "Cancelada"
+    };
+    return map[status] || "Estado no disponible";
+  }
+
+  async function quickCreate(opener) {
     const agenda = await ensureAgendaItem();
     let gate = { allowed: false, status: "", reason: "Comprobando el estado de la asamblea…" };
     try {
@@ -482,8 +543,8 @@ export function createLiveVotingWorkspace({
     }
     const ui = openDialog(`
       <header><h3>Votación rápida</h3></header>
-      <p class="muted">La pregunta queda vacía. Escriba el texto o elija una plantilla en el estudio de votaciones. No se usa un ejemplo como valor real.</p>
-      <label>Pregunta<textarea name="question" rows="3" required placeholder="Escriba la pregunta que verán los propietarios"></textarea></label>
+      <p class="muted">Escribe la pregunta que verán los participantes.</p>
+      <label>Pregunta<textarea name="question" rows="3" required placeholder="Escribe la pregunta que verán los participantes"></textarea></label>
       <label>Código<input name="code" value="VQ-${Date.now().toString().slice(-5)}" required /></label>
       <label>Método
         <select name="calc">
@@ -500,7 +561,7 @@ export function createLiveVotingWorkspace({
       </label>
       <label data-threshold hidden>Umbral %
         <input name="threshold" type="number" step="0.01" min="0.01" max="100" placeholder="Indique el porcentaje" />
-        <span class="muted">Obligatorio solo si elige mayoría calificada. No hay un 66.67% automático.</span>
+        <span class="muted">Indica el porcentaje exigido para aprobar.</span>
       </label>
       <label>Resultados
         <select name="vis">
@@ -511,13 +572,14 @@ export function createLiveVotingWorkspace({
       </label>
       <p role="status">${escapeHtml(gate.reason)}</p>
       <footer class="live-vote-dialog-actions">
-        <button type="submit" class="btn btn-secondary" value="cancel">Cancelar</button>
+        <button type="button" class="btn btn-secondary" data-dismiss>Cancelar</button>
         <button type="submit" class="btn btn-secondary" value="save">Guardar borrador</button>
         <button type="submit" class="btn btn-primary" value="present" ${gate.allowed ? "" : "disabled"}>Guardar y presentar</button>
         <button type="submit" class="btn btn-primary" value="open" ${gate.allowed ? "" : "disabled"}>Guardar, presentar y abrir</button>
       </footer>
-    `);
+    `, opener);
     if (!ui) return;
+    rememberForm(ui.form);
     const rule = ui.form.querySelector('[name="rule"]');
     const thresholdWrap = ui.form.querySelector("[data-threshold]");
     rule?.addEventListener("change", () => {
@@ -527,15 +589,12 @@ export function createLiveVotingWorkspace({
     ui.form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const submitter = ev.submitter;
-      const action = submitter?.value || "cancel";
-      if (action === "cancel") {
-        ui.dialog.close();
-        return;
-      }
+      const action = submitter?.value || "";
+      if (!action || action === "cancel") return;
       const fd = new FormData(ui.form);
       const question = String(fd.get("question") || "").trim();
       if (!question) {
-        showToast("Escriba la pregunta. No hay un texto de ejemplo.", "error");
+        showToast("Escribe la pregunta que verán los participantes.", "error");
         return;
       }
       const ruleCode = String(fd.get("rule"));
@@ -632,11 +691,11 @@ export function createLiveVotingWorkspace({
     }, { once: true });
   }
 
-  async function pickPrepared() {
+  async function pickPrepared(opener) {
     const ui = openDialog(`
       <header><h3>Votaciones preparadas</h3></header>
       <p role="status">Cargando preguntas elegibles…</p>
-    `);
+    `, opener);
     if (!ui) return;
     let motions;
     try {
@@ -647,11 +706,12 @@ export function createLiveVotingWorkspace({
         <p role="alert">${escapeHtml(err.message || "No se pudieron cargar las preguntas.")}</p>
         <footer class="live-vote-dialog-actions">
           <button type="button" class="btn btn-secondary" data-retry>Reintentar</button>
-          <button type="submit" class="btn btn-ghost" value="cancel">Cerrar</button>
+          <button type="button" class="btn btn-ghost" data-dismiss>Cerrar</button>
         </footer>`;
+      rememberForm(ui.form);
       ui.form.querySelector("[data-retry]")?.addEventListener("click", () => {
         ui.dialog.close();
-        pickPrepared();
+        pickPrepared(opener);
       });
       return;
     }
@@ -663,9 +723,10 @@ export function createLiveVotingWorkspace({
         <header><h3>Votaciones preparadas</h3></header>
         <p>No hay preguntas en borrador ni presentadas. Prepare una en el estudio o cree un borrador rápido.</p>
         <footer class="live-vote-dialog-actions">
-          <button type="submit" class="btn btn-secondary" value="cancel">Cerrar</button>
+          <button type="button" class="btn btn-secondary" data-dismiss>Cerrar</button>
           <a class="btn btn-primary" href="/voting-studio.html?assemblyId=${encodeURIComponent(getAssemblyId())}">Preparar votación</a>
         </footer>`;
+      rememberForm(ui.form);
       return;
     }
     let gate = { allowed: false, reason: "Comprobando si la asamblea está en curso…" };
@@ -688,10 +749,11 @@ export function createLiveVotingWorkspace({
         )
         .join("")}</div>
       <footer class="live-vote-dialog-actions">
-        <button type="submit" class="btn btn-secondary" value="cancel">Cancelar</button>
+        <button type="button" class="btn btn-secondary" data-dismiss>Cancelar</button>
         <button type="submit" class="btn btn-primary" value="use" ${gate.allowed ? "" : "disabled"}>Usar / Presentar</button>
       </footer>
     `;
+    rememberForm(ui.form);
     ui.form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       if (ev.submitter?.value === "cancel") {
@@ -724,7 +786,7 @@ export function createLiveVotingWorkspace({
     }, { once: true });
   }
 
-  async function editCurrent() {
+  async function editCurrent(opener) {
     const motion = getMotion();
     if (!motion) {
       showToast("No hay moción activa", "info");
@@ -737,11 +799,11 @@ export function createLiveVotingWorkspace({
         <p>Esta votación está actualmente en curso o ya tiene actividad.</p>
         <p class="muted">${escapeHtml(policy.message || "Para cambiar la pregunta debes cerrar o anular esta votación.")}</p>
         <footer class="live-vote-dialog-actions">
-          <button type="submit" class="btn btn-secondary" value="back">Volver</button>
+          <button type="button" class="btn btn-secondary" data-dismiss>Volver</button>
           ${policy.editMode === "WithdrawRequired" ? `<button type="submit" class="btn btn-primary" value="withdraw">Retirar apertura</button>` : ""}
           ${policy.editMode === "CancelRequired" ? `<button type="submit" class="btn btn-danger" value="void">Anular votación</button>` : ""}
         </footer>
-      `);
+      `, opener);
       if (!ui) return;
       ui.form.addEventListener("submit", async (ev) => {
         ev.preventDefault();
@@ -779,15 +841,16 @@ export function createLiveVotingWorkspace({
         </select>
       </label>
       <footer class="live-vote-dialog-actions">
-        <button type="submit" class="btn btn-secondary" value="cancel">Cancelar</button>
+        <button type="button" class="btn btn-secondary" data-dismiss>Cancelar</button>
         <button type="submit" class="btn btn-ghost" value="preview">Vista previa</button>
         <button type="submit" class="btn btn-primary" value="save">Guardar</button>
       </footer>
-    `);
+    `, opener);
     if (!ui) return;
     ui.form.querySelector('[name="calc"]').value = motion.calculationMethod || "Coefficient";
     ui.form.querySelector('[name="rule"]').value = motion.decisionRuleCode || "SimpleMajority";
     ui.form.querySelector('[name="vis"]').value = motion.defaultResultVisibilityPolicy || "HiddenUntilClose";
+    rememberForm(ui.form);
 
     ui.form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -829,7 +892,7 @@ export function createLiveVotingWorkspace({
     }, { once: true });
   }
 
-  async function previewCurrent() {
+  async function previewCurrent(opener) {
     const motion = getMotion();
     if (!motion) {
       showToast("No hay moción para previsualizar", "error");
@@ -850,12 +913,9 @@ export function createLiveVotingWorkspace({
         <button type="button" class="choice" disabled>Abstención</button>
       </div>
       <footer class="live-vote-dialog-actions">
-        <button type="submit" class="btn btn-secondary" value="close">Cerrar</button>
+        <button type="button" class="btn btn-secondary" data-dismiss>Cerrar</button>
       </footer>
-    `)?.form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      qs("#questionnaire-panel [data-lv-dialog]")?.close();
-    }, { once: true });
+    `, opener);
   }
 
   async function withdrawOpen() {
@@ -882,7 +942,7 @@ export function createLiveVotingWorkspace({
     }
   }
 
-  async function cancelOpen() {
+  async function cancelOpen(opener) {
     const session = getSession();
     if (!session) return;
     const ui = openDialog(`
@@ -892,10 +952,10 @@ export function createLiveVotingWorkspace({
         <textarea name="reason" rows="3" required minlength="5" placeholder="Ej. Se corrigió el monto indicado en la moción."></textarea>
       </label>
       <footer class="live-vote-dialog-actions">
-        <button type="submit" class="btn btn-secondary" value="back">Cancelar</button>
+        <button type="button" class="btn btn-secondary" data-dismiss>Cancelar</button>
         <button type="submit" class="btn btn-danger" value="confirm">Confirmar anulación</button>
       </footer>
-    `);
+    `, opener);
     if (!ui) return;
     ui.form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -948,7 +1008,7 @@ export function createLiveVotingWorkspace({
     }
   }
 
-  async function showHistory() {
+  async function showHistory(opener) {
     const motion = getMotion();
     if (!motion) {
       showToast("Sin moción activa", "error");
@@ -969,12 +1029,9 @@ export function createLiveVotingWorkspace({
         )
         .join("") || "<li>Sin sesiones aún</li>"}</ul>
       <footer class="live-vote-dialog-actions">
-        <button type="submit" class="btn btn-secondary" value="close">Cerrar</button>
+        <button type="button" class="btn btn-secondary" data-dismiss>Cerrar</button>
       </footer>
-    `)?.form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      qs("#questionnaire-panel [data-lv-dialog]")?.close();
-    }, { once: true });
+    `, opener);
   }
 
   return {

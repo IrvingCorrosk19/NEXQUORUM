@@ -226,7 +226,7 @@ export default {
     representedCount: "Representados",
     enrolledTotal: "Inscritos",
     presenceDetail: "Detalle de presencia",
-    checkIn: "Presencia",
+    checkIn: "Mesa abierta",
     connectedShort: "Conectado",
     pendingShort: "Pendiente",
     operatorRoleChip: "Presidente",
@@ -509,7 +509,7 @@ export default {
   status: {
     Draft: "Borrador",
     Scheduled: "Programada",
-    CheckIn: "Presencia",
+    CheckIn: "Mesa abierta",
     InProgress: "En curso",
     Paused: "Pausada",
     Completed: "Completada",

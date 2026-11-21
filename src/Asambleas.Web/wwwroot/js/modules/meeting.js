@@ -174,14 +174,31 @@ export function getCanPublishScreenShare() {
   return canPublishScreenShare;
 }
 
-async function probeMedia(constraints) {
-  if (!navigator.mediaDevices?.getUserMedia) return "Este navegador no expone audio ni video.";
+function classifyCaptureError(error) {
+  const name = String(error?.name || "");
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") return "denied";
+  if (name === "NotFoundError" || name === "DevicesNotFoundError" || name === "OverconstrainedError") return "missing";
+  if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError") return "busy";
+  return "error";
+}
+
+async function probeKind(kind) {
+  if (!navigator.mediaDevices?.getUserMedia) return { state: "error", message: "Este navegador no expone audio ni video." };
+  const constraints = kind === "audio" ? { audio: true, video: false } : { audio: false, video: true };
   try {
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
     stream.getTracks().forEach((track) => track.stop());
-    return "";
+    return { state: "ok", message: "" };
   } catch (error) {
-    return mapGetUserMediaError(error);
+    const state = classifyCaptureError(error);
+    const message = state === "denied"
+      ? "Permiso denegado."
+      : state === "busy"
+        ? "Dispositivo ocupado."
+        : state === "missing"
+          ? "Sin dispositivo."
+          : mapGetUserMediaError(error);
+    return { state, message };
   }
 }
 
@@ -192,16 +209,18 @@ export async function enumerateMediaDevices() {
       mics: [],
       speakers: [],
       supportsSinkId: false,
+      micState: "error",
+      camState: "error",
       permissionError: "Este navegador no permite elegir dispositivos."
     };
   }
   let devices = await navigator.mediaDevices.enumerateDevices();
   const unlabeled = devices.some((d) => (d.kind === "audioinput" || d.kind === "videoinput") && !d.label);
-  let permissionError = "";
+  let micProbe = { state: "ok", message: "" };
+  let camProbe = { state: "ok", message: "" };
   if (unlabeled || !devices.some((d) => d.kind === "audioinput" || d.kind === "videoinput")) {
-    const micError = await probeMedia({ audio: true, video: false });
-    const camError = await probeMedia({ audio: false, video: true });
-    permissionError = [micError, camError].filter(Boolean).join(" ");
+    micProbe = await probeKind("audio");
+    camProbe = await probeKind("video");
     devices = await navigator.mediaDevices.enumerateDevices();
   }
   const supportsSinkId =
@@ -212,7 +231,11 @@ export async function enumerateMediaDevices() {
     mics: devices.filter((d) => d.kind === "audioinput"),
     speakers: supportsSinkId ? devices.filter((d) => d.kind === "audiooutput") : [],
     supportsSinkId,
-    permissionError
+    micState: micProbe.state,
+    camState: camProbe.state,
+    permissionError: [micProbe, camProbe].some((p) => p.state === "denied")
+      ? "Permiso denegado."
+      : ""
   };
 }
 
@@ -711,7 +734,27 @@ export function isLiveKitConnected() {
   return Boolean(liveKitRoom) && mediaConnectionState === "connected";
 }
 
+let connectInFlight = null;
+let mediaReconnects = 0;
+
 export async function connectLiveKit(container, joinInfo, options = {}) {
+  if (
+    liveKitRoom &&
+    mediaConnectionState === "connected" &&
+    mediaContainer === container &&
+    !options.forceReconnect
+  ) {
+    officialSpeakerIdentity = options.officialSpeakerIdentity || officialSpeakerIdentity;
+    return liveKitRoom;
+  }
+  if (connectInFlight && !options.forceReconnect) return connectInFlight;
+  connectInFlight = connectLiveKitAttempt(container, joinInfo, options).finally(() => {
+    connectInFlight = null;
+  });
+  return connectInFlight;
+}
+
+async function connectLiveKitAttempt(container, joinInfo, options = {}) {
   if (!window.LivekitClient) {
     setMediaState("governance-only");
     renderGovernanceOnly(container, t("lobby.avBlocked"));
@@ -931,12 +974,22 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
   });
 
   liveKitRoom.on(RoomEvent.Reconnecting, () => {
+    mediaReconnects += 1;
+    if (mediaReconnects > 2) {
+      const box = container;
+      mediaDebug("reconnect-capped", { attempts: mediaReconnects });
+      disconnectLiveKit().finally(() => {
+        renderGovernanceOnly(box, t("media.signalFailed"));
+      });
+      return;
+    }
     setMediaState("reconnecting");
-    mediaDebug("Reconnecting");
+    mediaDebug("Reconnecting", { attempt: mediaReconnects });
     pushIncident("media-reconnect", t("media.reconnecting"), "warn");
   });
 
   liveKitRoom.on(RoomEvent.Reconnected, () => {
+    mediaReconnects = 0;
     setMediaState("connected");
     clearIncident("media-reconnect");
     mediaDebug("Reconnected");
@@ -957,6 +1010,19 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
   if (!serverUrl || !token) {
     throw new Error("Meeting join token is incomplete (serverUrl/token missing).");
   }
+  let mediaHost = "";
+  try {
+    mediaHost = new URL(String(serverUrl).replace(/^ws/i, "http")).host;
+  } catch {
+    mediaHost = "invalid-url";
+  }
+  console.info("[media] connecting", {
+    correlationId: mediaCorrelationId,
+    host: mediaHost,
+    tokenPresent: true,
+    expiresAtUtc: joinInfo.expiresAtUtc || joinInfo.ExpiresAtUtc || null
+  });
+  mediaReconnects = 0;
 
   let timer = 0;
   try {
