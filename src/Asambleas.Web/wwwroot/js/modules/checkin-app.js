@@ -218,19 +218,21 @@ function coefficientPoints(p) {
 function renderSummary() {
   const host = qs("#checkin-summary");
   if (!host) return;
-  const invited = participants.length;
-  const presentPeople = participants.filter((p) => isPresent(p)).length;
+  const owners = participants.filter((p) => !isOperatorRole(p));
   const mesaStaff = participants.filter((p) => isOperatorRole(p)).length;
-  const coeff = participants
-    .filter((p) => isPresent(p))
-    .reduce((s, p) => s + coefficientPoints(p), 0);
-  const units = participants.reduce((s, p) => s + Number(p.representationCount || 0), 0);
+  const presentOwners = owners.filter((p) => isPresent(p));
+  const linkedUnits = owners.filter((p) => p.unitId || p.unitCode).length;
+  const presentUnits = presentOwners.filter((p) => p.unitId || p.unitCode).length;
+  const representations = presentOwners.reduce((s, p) => s + Number(p.representationCount || 0), 0);
+  const coeff = presentOwners.reduce((s, p) => s + coefficientPoints(p), 0);
   host.innerHTML = `
-    <div class="chip"><strong>${invited}</strong><span>Convocados</span></div>
-    <div class="chip"><strong>${presentPeople}</strong><span>Presentes</span></div>
-    <div class="chip"><strong>${units}</strong><span>Unidades representadas</span></div>
-    <div class="chip"><strong>${coeff.toFixed(2)}%</strong><span>Coeficiente presente</span></div>
+    <div class="chip"><strong>${owners.length}</strong><span>Propietarios convocados</span></div>
     <div class="chip"><strong>${mesaStaff}</strong><span>Personal de mesa</span></div>
+    <div class="chip"><strong>${presentOwners.length}</strong><span>Presentes acreditados</span></div>
+    <div class="chip"><strong>${linkedUnits}</strong><span>Unidades vinculadas</span></div>
+    <div class="chip"><strong>${presentUnits}</strong><span>Unidades presentes</span></div>
+    <div class="chip"><strong>${representations}</strong><span>Representaciones en quórum</span></div>
+    <div class="chip"><strong>${coeff.toFixed(2)}%</strong><span>Coeficiente en el quórum</span></div>
   `;
 }
 

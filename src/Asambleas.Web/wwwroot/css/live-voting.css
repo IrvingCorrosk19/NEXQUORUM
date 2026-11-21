@@ -32,6 +32,8 @@
   max-width: min(420px, 94vw);
   width: 100%;
   box-shadow: 0 16px 40px rgba(10, 40, 40, 0.25);
+  background: #102b3f;
+  color: #f4f7fb;
 }
 
 .live-vote-dialog::backdrop {
@@ -58,6 +60,8 @@
   padding: 0.5rem 0.65rem;
   border-radius: 0.4rem;
   border: 1px solid #c5d4d3;
+  background: #fff;
+  color: #102b3f;
 }
 
 .live-vote-dialog-actions {
@@ -98,9 +102,9 @@
   .live-vote-form textarea,
   .live-vote-form select {
     min-height: var(--touch-min, 2.75rem);
-    background: var(--surface-secondary, #121a2b);
-    color: var(--text-primary, #e8eef8);
-    border-color: var(--border-default);
+    background: #fff;
+    color: #102b3f;
+    border-color: rgba(16, 43, 63, 0.28);
   }
 
   .live-vote-dialog-actions {

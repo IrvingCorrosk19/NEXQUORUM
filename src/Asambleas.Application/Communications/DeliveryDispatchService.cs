@@ -281,8 +281,10 @@ public sealed class DeliveryDispatchService
                         CommunicationProviderType.Mock, to, redirected);
                 }
 
+                var composed = await ComposePremiumEmailAsync(
+                    delivery, recipient, convocation, forceMock, emailContext, cancellationToken);
                 var send = await _mockWhatsApp.SendAsync(
-                    new WhatsAppMessage(to, Render(convocation.BodyText, recipient, convocation), null, null),
+                    new WhatsAppMessage(to, composed.Text, null, null),
                     cancellationToken);
                 return (send, _mockWhatsApp.ProviderType, to, redirected);
             }
@@ -308,8 +310,10 @@ public sealed class DeliveryDispatchService
                         CommunicationProviderType.Mock, to, redirected);
                 }
 
+                var composed = await ComposePremiumEmailAsync(
+                    delivery, recipient, convocation, forceMock, emailContext, cancellationToken);
                 var send = await _mockSms.SendAsync(
-                    new SmsMessage(to, Render(convocation.BodyText, recipient, convocation)),
+                    new SmsMessage(to, composed.Text),
                     cancellationToken);
                 return (send, _mockSms.ProviderType, to, redirected);
             }
@@ -321,6 +325,8 @@ public sealed class DeliveryDispatchService
                         CommunicationProviderType.Portal, recipient.UserId?.ToString(), false);
                 }
 
+                var composed = await ComposePremiumEmailAsync(
+                    delivery, recipient, convocation, forceMock, emailContext, cancellationToken);
                 var send = await _portal.SendAsync(
                     new PortalMessage(
                         convocation.TenantId,
@@ -329,8 +335,8 @@ public sealed class DeliveryDispatchService
                         recipient.OwnerId,
                         convocation.Id,
                         delivery.Id,
-                        convocation.Subject,
-                        Render(convocation.BodyText, recipient, convocation)),
+                        composed.Subject,
+                        composed.Text),
                     cancellationToken);
                 return (send, CommunicationProviderType.Portal, recipient.UserId?.ToString() ?? recipient.OwnerId?.ToString(), false);
             }
@@ -415,7 +421,9 @@ public sealed class DeliveryDispatchService
                 agenda,
                 issued.AbsoluteUrl,
                 null,
-                sandbox));
+                sandbox,
+                string.IsNullOrWhiteSpace(convocation.Subject) ? null : convocation.Subject.Trim(),
+                DemonstrationLink: false));
     }
 
     private static string Render(string template, ConvocationRecipient recipient, Convocation convocation) =>

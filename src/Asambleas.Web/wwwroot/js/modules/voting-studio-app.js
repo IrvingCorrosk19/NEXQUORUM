@@ -1230,6 +1230,10 @@ async function saveDraft({ returnToList = true } = {}) {
       showError("Seleccione o cree un punto de agenda.");
       return false;
     }
+    if (d.decisionRuleCode === "QualifiedMajority" && !(Number(d.requiredThresholdPercent) > 0)) {
+      showError("Indique el porcentaje de mayoría calificada. No se aplica un umbral de ejemplo.");
+      return false;
+    }
     const body = {
       agendaItemId: d.agendaItemId,
       code: d.code,
@@ -1241,7 +1245,7 @@ async function saveDraft({ returnToList = true } = {}) {
       calculationMethod: d.calculationMethod,
       decisionRuleCode: d.decisionRuleCode,
       requiredThresholdPercent:
-        d.decisionRuleCode === "QualifiedMajority" ? Number(d.requiredThresholdPercent || 66.67) : null,
+        d.decisionRuleCode === "QualifiedMajority" ? Number(d.requiredThresholdPercent) : null,
       defaultResultVisibilityPolicy: d.defaultResultVisibilityPolicy,
       optionsJson: JSON.stringify(d.options || []),
       isSecret: !!d.isSecret,

@@ -180,6 +180,14 @@ public sealed class ConvocationsController : ControllerBase
         CancellationToken cancellationToken) =>
         _convocations.AddRecipientsAsync(convocationId, request, cancellationToken);
 
+    [HttpPut("{convocationId:guid}")]
+    [Authorize(Policy = Permissions.ConvocationsCreate)]
+    public Task<ConvocationDetailDto> Update(
+        Guid convocationId,
+        [FromBody] UpdateConvocationRequest request,
+        CancellationToken cancellationToken) =>
+        _convocations.UpdateAsync(convocationId, request, cancellationToken);
+
     [HttpPost("{convocationId:guid}/validate")]
     [Authorize(Policy = Permissions.ConvocationsCreate)]
     public Task<ConvocationDetailDto> Validate(Guid convocationId, CancellationToken cancellationToken) =>

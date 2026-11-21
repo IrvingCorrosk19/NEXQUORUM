@@ -1886,6 +1886,46 @@ dialog.app-sheet::backdrop,
   flex-wrap: wrap;
   gap: 0.55rem;
   margin-top: 1rem;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 0.65rem 0;
+  background: #fff;
+}
+
+.layout-tabler .conv-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.layout-tabler .conv-checks {
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.layout-tabler .conv-checks li {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.65rem;
+  background: #f4f7fb;
+  color: #102b3f;
+}
+
+.layout-tabler .conv-checks li.is-fail {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.layout-tabler .conv-list-item .badge {
+  white-space: normal;
+  text-align: right;
+  max-width: 16rem;
 }
 
 .layout-tabler .conv-readonly {

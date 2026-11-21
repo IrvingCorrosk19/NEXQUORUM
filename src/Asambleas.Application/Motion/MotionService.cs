@@ -873,7 +873,13 @@ public sealed class MotionService
         decimal? threshold = request.RequiredThresholdPercent;
         if (rule == QualifiedMajorityDecisionRule.Code)
         {
-            threshold ??= 66.67m;
+            if (threshold is null or <= 0)
+            {
+                throw new DomainException(
+                    "THRESHOLD_REQUIRED",
+                    "Indica el porcentaje de mayoría calificada. No se aplica un umbral de ejemplo.");
+            }
+
             threshold = Math.Round(threshold.Value, 4, MidpointRounding.AwayFromZero);
         }
         else
@@ -940,8 +946,15 @@ public sealed class MotionService
         {
             if (motion.DecisionRuleCode == QualifiedMajorityDecisionRule.Code)
             {
-                var t = request.RequiredThresholdPercent ?? motion.RequiredThresholdPercent ?? 66.67m;
-                motion.RequiredThresholdPercent = Math.Round(t, 4, MidpointRounding.AwayFromZero);
+                var t = request.RequiredThresholdPercent ?? motion.RequiredThresholdPercent;
+                if (t is null or <= 0)
+                {
+                    throw new DomainException(
+                        "THRESHOLD_REQUIRED",
+                        "Indica el porcentaje de mayoría calificada. No se aplica un umbral de ejemplo.");
+                }
+
+                motion.RequiredThresholdPercent = Math.Round(t.Value, 4, MidpointRounding.AwayFromZero);
             }
             else
             {

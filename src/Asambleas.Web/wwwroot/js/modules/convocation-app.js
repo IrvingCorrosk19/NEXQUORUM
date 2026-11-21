@@ -28,6 +28,7 @@ let sendInFlight = false;
 let lastSendKey = null;
 let lastMailboxCount = 0;
 let formDirty = false;
+let editingId = null;
 let modalOpener = null;
 
 function markFormDirty() {
@@ -107,6 +108,55 @@ function formatPanama(iso, timeZoneId) {
   } catch {
     return `${formatDateTime(iso)} (hora de Panamá)`;
   }
+}
+
+function deliveryBadge(r) {
+  const draft = Number(r.recipientCount || 0);
+  const pending = Number(r.pendingDeliveryCount || 0);
+  const accepted = Number(r.acceptedDeliveryCount || 0);
+  const confirmed = Number(r.confirmedDeliveryCount || 0);
+  const failed = Number(r.failedDeliveryCount || 0);
+  const people = draft === 1 ? "1 destinatario del borrador" : `${draft} destinatarios del borrador`;
+  if (pending + accepted + confirmed + failed === 0) {
+    return `${people} · sin envío`;
+  }
+  return `${people} · ${pending} pendientes · ${accepted} aceptados · ${confirmed} entregados · ${failed} fallos`;
+}
+
+function syncDialogChrome(mode) {
+  const cancel = qs("#conv-dialog-cancel");
+  const save = qs("#btn-save-draft");
+  if (cancel) cancel.textContent = mode === "detail" ? "Cerrar" : "Cancelar";
+  if (save) {
+    save.hidden = mode === "detail";
+    save.textContent = mode === "edit" ? "Guardar cambios" : "Guardar borrador";
+  }
+}
+
+function footerForStatus(detail) {
+  if (!detail) return;
+  if (detail.status === "Ready") {
+    setCreateActionStatus("success", "Lista para enviar. Siguiente paso: elige destinatarios y pulsa Enviar convocatoria.");
+  } else if (detail.status === "Approved") {
+    setCreateActionStatus("success", "Aprobada. Siguiente paso: enviar a los destinatarios seleccionados.");
+  } else if (detail.status === "Draft") {
+    setCreateActionStatus("pending", "Borrador. Siguiente paso: validar. Validar no envía ni cuenta como entrega.");
+  } else if (detail.status === "Sent") {
+    setCreateActionStatus("success", "Envío aceptado. Revisa pendientes, entregas confirmadas y fallos.");
+  } else if (detail.status === "Partial" || detail.status === "Failed") {
+    setCreateActionStatus("error", "El envío no se completó para todos. Revisa cada entrega.");
+  } else if (detail.status === "Sending") {
+    setCreateActionStatus("pending", "Envío en curso. Espera el resultado por destinatario.");
+  }
+}
+
+function renderChecks(checks) {
+  if (!checks?.length) return "";
+  return `<ul class="conv-checks">${checks
+    .map(
+      (c) => `<li class="${c.passed ? "is-pass" : "is-fail"}"><strong>${c.passed ? "Cumple" : "Pendiente"} · ${escapeHtml(c.label)}</strong><span>${escapeHtml(c.detail || "")}</span></li>`
+    )
+    .join("")}</ul>`;
 }
 
 function setStatusPill(el, status, fallback) {
@@ -247,11 +297,12 @@ function openCreateDialog(opener) {
     sheet.open = true;
   }
   if (panel) panel.hidden = true;
-  const save = qs("#btn-save-draft");
-  if (save) save.hidden = false;
+  editingId = null;
+  syncDialogChrome("create");
   const title = qs("#conv-dialog-title");
   if (title) title.textContent = "Nueva convocatoria";
   formDirty = false;
+  setCreateActionStatus("", "");
   openWorkDialog(opener);
 }
 
@@ -359,19 +410,27 @@ async function refreshList() {
     if (!Array.isArray(rows)) {
       throw new Error("No se pudieron cargar los borradores.");
     }
+    const scope = qs("#conv-scope-line");
     if (!rows.length) {
       panel.innerHTML = `<div class="empty-state">Sin borrador. Crea la primera convocatoria para este PH.</div>`;
       setStatusPill(qs("#conv-status-pill"), "Draft", "Sin borrador");
+      if (scope) scope.textContent = "No hay convocatorias en esta asamblea.";
       return rows;
+    }
+    const active = rows.find((r) => r.id === selectedId) || rows[0];
+    if (scope) {
+      scope.textContent = rows.length === 1
+        ? `Esta página resume «${active.title}», versión ${active.version || 1}.`
+        : `Hay ${rows.length} convocatorias. La resumida ahora es «${active.title}», versión ${active.version || 1}.`;
     }
     panel.innerHTML = rows
       .map((r) => {
-        const when = r.sentAtUtc || r.scheduledAtUtc;
+        const when = r.sentAtUtc;
         const whenLabel = when ? formatDateTime(when) : "Sin fecha de envío";
         return `
     <button type="button" class="conv-list-item${selectedId === r.id ? " is-active" : ""}" data-id="${r.id}">
-      <span><strong>${escapeHtml(r.title)}</strong><br><span class="text-secondary">${escapeHtml(whenLabel)} · ${escapeHtml(statusEs(r.status))}</span></span>
-      <span class="badge">${r.validRecipientCount}/${r.recipientCount} entregas</span>
+      <span><strong>${escapeHtml(r.title)}</strong><br><span class="text-secondary">${escapeHtml(whenLabel)} · ${escapeHtml(statusEs(r.status))} · v${r.version || 1}</span></span>
+      <span class="badge">${escapeHtml(deliveryBadge(r))}</span>
     </button>`;
       })
       .join("");
@@ -461,10 +520,11 @@ function updateSendSummary() {
   const ids = selectedRecipientIds();
   const channels = (selectedDetail.channels || []).map(channelLabel);
   const channelText = channels.length ? channels.join(" y ") : "ningún canal";
-  const people = ids.length === 1 ? "1 persona" : `${ids.length} personas`;
+  const people = ids.length === 1 ? "1 destinatario seleccionado para enviar" : `${ids.length} destinatarios seleccionados para enviar`;
+  const draftCount = currentRecipients.length;
   el.textContent = ids.length
-    ? `Se notificará a ${people} por ${channelText}.`
-    : "No hay personas seleccionadas para este envío.";
+    ? `${draftCount} en el borrador. ${people} por ${channelText}. Todavía no hay entrega.`
+    : `${draftCount} en el borrador. No hay destinatarios seleccionados para este envío.`;
 }
 
 function showSendRecipientError(message) {
@@ -515,7 +575,7 @@ async function loadEmailPreview(id) {
     frame.srcdoc = preview.html || "";
     frame.onload = () => {
       const height = frame.contentDocument?.documentElement?.scrollHeight || 0;
-      if (height > 0) frame.style.height = `${Math.min(height + 12, 1600)}px`;
+      if (height > 0) frame.style.height = `${height + 8}px`;
     };
     const subj = qs("#conv-preview-subject");
     if (subj) subj.textContent = preview.subject || "Vista previa";
@@ -552,37 +612,67 @@ async function openDetail(id, opener, { pushHash = true } = {}) {
   if (validateBtn) validateBtn.disabled = alreadySent;
   qs("#detail-actions").hidden = alreadySent;
   lastSendKey = alreadySent ? null : lastSendKey;
+  syncDialogChrome("detail");
+  footerForStatus(detail);
 
   const titleEl = qs("#detail-title");
   if (titleEl) titleEl.textContent = detail.title || "Detalle y envío";
+  const notes = String(detail.bodyText || "").trim();
+  const internalNotes = notes && !/^Convocatoria institucional\.?$/.test(notes) ? notes : "";
 
   qs("#detail-body").innerHTML = `
-    <p class="text-secondary">${escapeHtml(detail.subject)}</p>
-    <p>Canales del borrador: ${detail.channels.map((ch) => escapeHtml(channelLabel(ch))).join(", ")}</p>
-    ${
-      selectedPreview
-        ? `<details class="mt-2"><summary>Detalle técnico</summary><p class="text-secondary">${selectedPreview.sandboxMode ? "Modo prueba (sandbox): no se usa SMTP real." : "SMTP real activo."}${selectedPreview.testRecipientOverride ? ` Destino de prueba: ${escapeHtml(selectedPreview.testRecipientOverride)}.` : ""} Entorno: ${escapeHtml(selectedPreview.environmentLabel || "—")}.</p></details>`
-        : ""
-    }
-    <section class="conv-section" aria-labelledby="draft-rcpt-title">
-      <h3 id="draft-rcpt-title" class="conv-section__title">Destinatarios del borrador (${detail.recipients?.length || 0})</h3>
-      ${renderDraftRecipients(detail.recipients)}
+    <div class="conv-detail-nav" role="tablist" aria-label="Secciones de la convocatoria">
+      <button type="button" class="btn btn-secondary btn-sm" data-conv-tab="summary" aria-selected="true">Resumen</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-conv-tab="recipients" aria-selected="false">Destinatarios</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-conv-tab="preview" aria-selected="false">Vista previa</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-conv-tab="deliveries" aria-selected="false">Entregas</button>
+    </div>
+    <section class="conv-section" data-conv-panel="summary">
+      <p class="text-secondary">Asunto que verá el destinatario: ${escapeHtml(detail.subject || "sin asunto")}</p>
+      <p>Canales del borrador: ${detail.channels.map((ch) => escapeHtml(channelLabel(ch))).join(", ") || "ninguno"} · versión ${detail.version || 1}</p>
+      ${internalNotes ? `<p class="text-secondary">Notas internas (no se envían): ${escapeHtml(internalNotes)}</p>` : `<p class="text-secondary">Sin notas internas.</p>`}
+      ${renderChecks(detail.checks)}
+      ${alreadySent ? "" : `<button type="button" class="btn btn-secondary" id="btn-edit-convocation">Editar</button>`}
+      ${
+        selectedPreview
+          ? `<details class="mt-2"><summary>Detalle técnico</summary><p class="text-secondary">${selectedPreview.sandboxMode ? "Modo prueba (sandbox): no se usa SMTP real." : "SMTP real activo."}${selectedPreview.testRecipientOverride ? ` Destino de prueba: ${escapeHtml(selectedPreview.testRecipientOverride)}.` : ""} Entorno: ${escapeHtml(selectedPreview.environmentLabel || "—")}.</p></details>`
+          : ""
+      }
     </section>
-    ${alreadySent ? "" : `<section class="conv-section" aria-labelledby="send-rcpt-title">
-      <span id="send-rcpt-title" class="visually-hidden">Destinatarios de este envío</span>
-      ${renderRecipientPicker(detail.recipients)}
-    </section>`}
-    <section class="conv-section" aria-labelledby="preview-heading">
-      <h3 id="preview-heading" class="conv-section__title">Vista previa del envío</h3>
-      <p class="text-secondary" id="conv-preview-subject">Plantilla institucional que se enviará.</p>
+    <section class="conv-section" data-conv-panel="recipients" hidden>
+      <h3 class="conv-section__title">Destinatarios del borrador (${detail.recipients?.length || 0})</h3>
+      ${renderDraftRecipients(detail.recipients)}
+      ${alreadySent ? "" : renderRecipientPicker(detail.recipients)}
+    </section>
+    <section class="conv-section" data-conv-panel="preview" hidden>
+      <h3 class="conv-section__title">Vista previa del envío</h3>
+      <p class="text-secondary" id="conv-preview-subject">Cargando el mismo asunto que se enviará…</p>
+      <p class="text-secondary">El botón del correo es un enlace demostrativo. El envío real crea un enlace personal de acceso.</p>
       <div class="conv-email-preview">
-        <iframe id="conv-preview-frame" title="Vista previa del correo de convocatoria" sandbox=""></iframe>
+        <iframe id="conv-preview-frame" title="Vista previa del correo de convocatoria" sandbox="" scrolling="no"></iframe>
       </div>
     </section>
+    <section class="conv-section" data-conv-panel="deliveries" hidden>
+      <div id="deliveries" class="conv-deliveries"></div>
+    </section>
   `;
+  qs("#detail-body").querySelectorAll("[data-conv-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const name = btn.getAttribute("data-conv-tab");
+      qs("#detail-body").querySelectorAll("[data-conv-tab]").forEach((other) => {
+        const on = other === btn;
+        other.setAttribute("aria-selected", on ? "true" : "false");
+        other.classList.toggle("btn-secondary", on);
+        other.classList.toggle("btn-ghost", !on);
+      });
+      qs("#detail-body").querySelectorAll("[data-conv-panel]").forEach((panel) => {
+        panel.hidden = panel.getAttribute("data-conv-panel") !== name;
+      });
+    });
+  });
+  qs("#btn-edit-convocation")?.addEventListener("click", () => beginEdit(detail));
 
   if (!alreadySent) wireRecipientPicker();
-  else await renderDeliveryPanel(id);
 
   titleEl?.focus?.({ preventScroll: true });
   await loadEmailPreview(id);
@@ -590,24 +680,29 @@ async function openDetail(id, opener, { pushHash = true } = {}) {
 
   try {
     const deliveries = await api(`/api/convocations/${id}/deliveries`);
+    const host = qs("#deliveries");
     const names = new Map((detail.recipients || []).map((r) => [String(r.id), r.displayName || r.email || "Destinatario"]));
-    qs("#deliveries").innerHTML = deliveries.length
-      ? `<h3 class="conv-section__title">Entregas</h3>` +
-        deliveries
-          .map((d) => {
-            const who = names.get(String(d.recipientId)) || "Destinatario";
-            const when = d.deliveredAtUtc || d.sentAtUtc;
-            return `<article class="conv-list-item" tabindex="-1">
+    if (host) {
+      host.innerHTML = deliveries.length
+        ? `<h3 class="conv-section__title">Entregas</h3>` +
+          deliveries
+            .map((d) => {
+              const who = names.get(String(d.recipientId)) || "Destinatario";
+              const when = d.deliveredAtUtc || d.sentAtUtc;
+              return `<article class="conv-list-item" tabindex="-1">
               <span><strong>${escapeHtml(who)}</strong><br><span class="text-secondary">${escapeHtml(channelLabel(d.channel))} · ${escapeHtml(when ? formatDateTime(when) : "Sin fecha")}</span></span>
               <span class="badge">${escapeHtml(deliveryStatusEs(d.status))}</span>
               <details><summary>Detalle técnico</summary><p class="text-secondary mb-0">${escapeHtml(d.destination || "sin destino")}${d.wasRedirectedToTestOverride ? " · redirigido a prueba" : ""}${d.providerType ? ` · ${escapeHtml(d.providerType)}` : ""}${d.providerMessageId ? ` · id ${escapeHtml(d.providerMessageId)}` : ""}</p></details>
             </article>`;
-          })
-          .join("")
-      : "";
+            })
+            .join("")
+        : `<p class="text-secondary">Sin envíos. Seleccionar o validar destinatarios no crea una entrega.</p>`;
+    }
   } catch {
-    qs("#deliveries").innerHTML = "";
+    const host = qs("#deliveries");
+    if (host) host.innerHTML = `<p class="text-secondary">No se pudieron cargar las entregas.</p>`;
   }
+  if (alreadySent) await renderDeliveryPanel(id);
 }
 
 function deliveryStatusEs(status) {
@@ -624,8 +719,35 @@ function deliveryStatusEs(status) {
   return map[status] || assemblyLabel(status);
 }
 
+function beginEdit(detail) {
+  editingId = detail.id;
+  const sheet = qs("#create-sheet");
+  if (sheet) {
+    sheet.hidden = false;
+    sheet.open = true;
+  }
+  const title = qs("#c-title");
+  const subject = qs("#c-subject");
+  const notes = qs("#c-html");
+  if (title) title.value = detail.title || "";
+  if (subject) subject.value = detail.subject || "";
+  const stored = String(detail.bodyText || "").trim();
+  if (notes) notes.value = /^Convocatoria institucional\.?$/.test(stored) ? "" : stored;
+  document.querySelectorAll('input[name="ch"]').forEach((el) => {
+    el.checked = (detail.channels || []).includes(el.value);
+  });
+  const ownerIds = new Set((detail.recipients || []).map((r) => r.ownerId).filter(Boolean).map(String));
+  document.querySelectorAll(".create-owner-check").forEach((el) => {
+    el.checked = ownerIds.has(el.value);
+  });
+  syncDialogChrome("edit");
+  formDirty = false;
+  setCreateActionStatus("pending", "Editas el borrador. Guardar cambios invalida la validación anterior.");
+  title?.focus?.();
+}
+
 async function renderDeliveryPanel(convocationId) {
-  const host = qs("#detail-body");
+  const host = qs("#deliveries") || qs("#detail-body");
   try {
     const rows = await api(`/api/convocations/${convocationId}/recipient-deliveries`);
     const pending = rows.filter((r) => r.deliveryStatus === "NotSent" || r.deliveryStatus === "Failed" || r.deliveryStatus === "Pending");
@@ -911,18 +1033,22 @@ async function init() {
           channels.slice().sort().join(","),
           ownerIds.slice().sort().join(",")
         ]);
+        const payload = {
+          assemblyId,
+          title,
+          subject,
+          bodyHtml: notes,
+          bodyText: notes,
+          channels,
+          ownerIds,
+          idempotencyKey
+        };
+        if (editingId) {
+          return api(`/api/convocations/${editingId}`, { method: "PUT", body: payload });
+        }
         return api(`/api/assemblies/${assemblyId}/convocations`, {
           method: "POST",
-          body: {
-            assemblyId,
-            title,
-            subject,
-            bodyHtml: notes || "<p>Convocatoria institucional (plantilla premium al enviar).</p>",
-            bodyText: notes || "Convocatoria institucional.",
-            channels,
-            ownerIds,
-            idempotencyKey
-          }
+          body: payload
         });
       });
       const mailboxAfter = lastMailboxCount;
@@ -933,9 +1059,12 @@ async function init() {
         AppFeedback.warning("El borrador se guardó, pero el buzón de prueba recibió correo. Revisa el envío.", {
           title: "Atención"
         });
+      } else if (editingId) {
+        setCreateActionStatus("success", "Cambios guardados. La validación anterior quedó invalidada. Siguiente paso: validar de nuevo.");
       } else {
-        setCreateActionStatus("success", "Borrador guardado");
+        setCreateActionStatus("success", "Borrador guardado. Siguiente paso: validar. Guardar no envía.");
       }
+      editingId = null;
       formDirty = false;
       collapseCreateForm();
       await refreshList();
@@ -985,8 +1114,22 @@ async function init() {
   qs("#btn-validate")?.addEventListener("click", async () => {
     if (!selectedId) return;
     try {
-      await api(`/api/convocations/${selectedId}/validate`, { method: "POST", body: {} });
-      AppFeedback.success("La convocatoria cumple los requisitos para enviarse.", { title: "Validación correcta" });
+      const validated = await runWithButton(qs("#btn-validate"), "Validando…", () =>
+        api(`/api/convocations/${selectedId}/validate`, { method: "POST", body: {} })
+      );
+      const failed = (validated?.checks || []).filter((c) => !c.passed);
+      if (validated?.status === "Ready" && !failed.length) {
+        AppFeedback.success("Cada comprobación pasó. Siguiente paso: selecciona destinatarios y envía.", {
+          title: "Lista para enviar"
+        });
+      } else {
+        AppFeedback.warning(
+          failed.length
+            ? failed.map((c) => c.label).join(", ")
+            : "Revisa el resultado de cada comprobación.",
+          { title: "Validación incompleta" }
+        );
+      }
       await openDetail(selectedId);
       await refreshList();
     } catch (e) {

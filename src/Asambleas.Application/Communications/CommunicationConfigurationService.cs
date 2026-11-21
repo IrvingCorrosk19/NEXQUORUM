@@ -708,7 +708,8 @@ public sealed class CommunicationConfigurationService
                 ],
                 "https://asambleas.app/ejemplo-acceso",
                 null,
-                false));
+                false,
+                DemonstrationLink: true));
 
     private async Task EnsureDefaultConvocationTemplateAsync(
         Guid propertyHorizontalId,

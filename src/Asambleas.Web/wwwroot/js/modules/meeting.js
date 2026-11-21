@@ -174,11 +174,36 @@ export function getCanPublishScreenShare() {
   return canPublishScreenShare;
 }
 
+async function probeMedia(constraints) {
+  if (!navigator.mediaDevices?.getUserMedia) return "Este navegador no expone audio ni video.";
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    stream.getTracks().forEach((track) => track.stop());
+    return "";
+  } catch (error) {
+    return mapGetUserMediaError(error);
+  }
+}
+
 export async function enumerateMediaDevices() {
   if (!navigator.mediaDevices?.enumerateDevices) {
-    return { cameras: [], mics: [], speakers: [], supportsSinkId: false };
+    return {
+      cameras: [],
+      mics: [],
+      speakers: [],
+      supportsSinkId: false,
+      permissionError: "Este navegador no permite elegir dispositivos."
+    };
   }
-  const devices = await navigator.mediaDevices.enumerateDevices();
+  let devices = await navigator.mediaDevices.enumerateDevices();
+  const unlabeled = devices.some((d) => (d.kind === "audioinput" || d.kind === "videoinput") && !d.label);
+  let permissionError = "";
+  if (unlabeled || !devices.some((d) => d.kind === "audioinput" || d.kind === "videoinput")) {
+    const micError = await probeMedia({ audio: true, video: false });
+    const camError = await probeMedia({ audio: false, video: true });
+    permissionError = [micError, camError].filter(Boolean).join(" ");
+    devices = await navigator.mediaDevices.enumerateDevices();
+  }
   const supportsSinkId =
     typeof HTMLMediaElement !== "undefined" &&
     typeof HTMLMediaElement.prototype.setSinkId === "function";
@@ -186,7 +211,8 @@ export async function enumerateMediaDevices() {
     cameras: devices.filter((d) => d.kind === "videoinput"),
     mics: devices.filter((d) => d.kind === "audioinput"),
     speakers: supportsSinkId ? devices.filter((d) => d.kind === "audiooutput") : [],
-    supportsSinkId
+    supportsSinkId,
+    permissionError
   };
 }
 
@@ -661,7 +687,7 @@ function mapQuality(q) {
 
 function isSignalFetchFailure(error) {
   const msg = String(error?.message || error || "");
-  return /signal connection/i.test(msg) || /Failed to fetch/i.test(msg);
+  return /signal connection|pc connection|could not establish|websocket|timeout/i.test(msg) || /Failed to fetch/i.test(msg);
 }
 
 function friendlyMediaConnectError(error) {
@@ -932,7 +958,28 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
     throw new Error("Meeting join token is incomplete (serverUrl/token missing).");
   }
 
-  await liveKitRoom.connect(serverUrl, token);
+  let timer = 0;
+  try {
+    await Promise.race([
+      liveKitRoom.connect(serverUrl, token),
+      new Promise((_, reject) => {
+        timer = window.setTimeout(
+          () => reject(new Error("could not establish pc connection")),
+          20000
+        );
+      })
+    ]);
+  } catch (error) {
+    mediaDebug("pc-connection-failed", { message: String(error?.message || error || "") });
+    console.info("[media] pc-connection-failed", {
+      correlationId: mediaCorrelationId,
+      message: String(error?.message || error || "")
+    });
+    try { await liveKitRoom?.disconnect(); } catch { /* already closing */ }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
   setMediaState("connected");
   clearIncident("media-down");
   clearIncident("media-connect-fail");
@@ -1353,8 +1400,12 @@ export function renderGovernanceOnly(container, reason) {
       <p class="empty-state-what">${escapeHtml(human)}</p>
       <p class="empty-state-why muted">${escapeHtml(t("lobby.avContinue"))}</p>
       <p class="empty-state-why muted">${escapeHtml(t("media.governanceOnly"))}</p>
+      <p><button type="button" class="btn btn-secondary" data-retry-media>Reintentar audio y video</button></p>
     </div>
   `;
+  container.querySelector("[data-retry-media]")?.addEventListener("click", () => {
+    if (typeof window.__asambleasRetryMedia === "function") window.__asambleasRetryMedia();
+  });
 }
 
 export function renderAvBlocked(container, reason) {

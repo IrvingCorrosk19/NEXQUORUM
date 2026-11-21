@@ -459,25 +459,49 @@ export function createLiveVotingWorkspace({
     return { dialog, form };
   }
 
+  async function assemblyCanPresent() {
+    const assembly = await api(`/api/assemblies/${getAssemblyId()}`);
+    const status = assembly.status || assembly.Status || "";
+    const allowed = status === "InProgress" || status === "Paused";
+    return {
+      allowed,
+      status,
+      reason: allowed
+        ? ""
+        : `Presentar o abrir exige la asamblea en curso. Estado actual: ${status || "desconocido"}. Puede guardar el borrador.`
+    };
+  }
+
   async function quickCreate() {
     const agenda = await ensureAgendaItem();
+    let gate = { allowed: false, status: "", reason: "Comprobando el estado de la asamblea…" };
+    try {
+      gate = await assemblyCanPresent();
+    } catch (err) {
+      gate.reason = err.message || "No se pudo leer el estado de la asamblea.";
+    }
     const ui = openDialog(`
       <header><h3>Votación rápida</h3></header>
-      <label>Pregunta<textarea name="question" rows="3" required>¿Aprueba el presupuesto extraordinario 2027?</textarea></label>
+      <p class="muted">La pregunta queda vacía. Escriba el texto o elija una plantilla en el estudio de votaciones. No se usa un ejemplo como valor real.</p>
+      <label>Pregunta<textarea name="question" rows="3" required placeholder="Escriba la pregunta que verán los propietarios"></textarea></label>
       <label>Código<input name="code" value="VQ-${Date.now().toString().slice(-5)}" required /></label>
       <label>Método
         <select name="calc">
           <option value="Coefficient" selected>Coeficiente</option>
           <option value="PerPerson">Por persona</option>
+          <option value="PerUnit">Por unidad</option>
         </select>
       </label>
       <label>Mayoría
         <select name="rule">
-          <option value="SimpleMajority">Simple</option>
-          <option value="QualifiedMajority" selected>Porcentaje</option>
+          <option value="SimpleMajority" selected>Simple</option>
+          <option value="QualifiedMajority">Mayoría calificada</option>
         </select>
       </label>
-      <label>Umbral %<input name="threshold" type="number" step="0.01" value="66.67" /></label>
+      <label data-threshold hidden>Umbral %
+        <input name="threshold" type="number" step="0.01" min="0.01" max="100" placeholder="Indique el porcentaje" />
+        <span class="muted">Obligatorio solo si elige mayoría calificada. No hay un 66.67% automático.</span>
+      </label>
       <label>Resultados
         <select name="vis">
           <option value="HiddenUntilClose" selected>Ocultos hasta cierre</option>
@@ -485,14 +509,20 @@ export function createLiveVotingWorkspace({
           <option value="LiveResults">En vivo</option>
         </select>
       </label>
+      <p role="status">${escapeHtml(gate.reason)}</p>
       <footer class="live-vote-dialog-actions">
         <button type="submit" class="btn btn-secondary" value="cancel">Cancelar</button>
         <button type="submit" class="btn btn-secondary" value="save">Guardar borrador</button>
-        <button type="submit" class="btn btn-primary" value="present">Guardar y presentar</button>
-        <button type="submit" class="btn btn-primary" value="open">Guardar, presentar y abrir</button>
+        <button type="submit" class="btn btn-primary" value="present" ${gate.allowed ? "" : "disabled"}>Guardar y presentar</button>
+        <button type="submit" class="btn btn-primary" value="open" ${gate.allowed ? "" : "disabled"}>Guardar, presentar y abrir</button>
       </footer>
     `);
     if (!ui) return;
+    const rule = ui.form.querySelector('[name="rule"]');
+    const thresholdWrap = ui.form.querySelector("[data-threshold]");
+    rule?.addEventListener("change", () => {
+      if (thresholdWrap) thresholdWrap.hidden = rule.value !== "QualifiedMajority";
+    });
 
     ui.form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -504,6 +534,20 @@ export function createLiveVotingWorkspace({
       }
       const fd = new FormData(ui.form);
       const question = String(fd.get("question") || "").trim();
+      if (!question) {
+        showToast("Escriba la pregunta. No hay un texto de ejemplo.", "error");
+        return;
+      }
+      const ruleCode = String(fd.get("rule"));
+      const thresholdRaw = String(fd.get("threshold") || "").trim();
+      if (ruleCode === "QualifiedMajority" && !thresholdRaw) {
+        showToast("Indique el porcentaje de mayoría calificada.", "error");
+        return;
+      }
+      if ((action === "present" || action === "open") && !gate.allowed) {
+        showToast(gate.reason || "La asamblea no está en curso.", "error");
+        return;
+      }
       const body = {
         agendaItemId: agenda.id,
         code: String(fd.get("code")),
@@ -514,7 +558,7 @@ export function createLiveVotingWorkspace({
         calculationMethod: String(fd.get("calc")),
         decisionRuleCode: String(fd.get("rule")),
         requiredThresholdPercent:
-          String(fd.get("rule")) === "QualifiedMajority" ? Number(fd.get("threshold") || 66.67) : null,
+          ruleCode === "QualifiedMajority" ? Number(thresholdRaw) : null,
         defaultResultVisibilityPolicy: String(fd.get("vis")),
         optionsJson: JSON.stringify(["A favor", "En contra", "Abstención"])
       };
@@ -530,7 +574,6 @@ export function createLiveVotingWorkspace({
       try {
         invalidateCachedGet(`/api/assemblies/${getAssemblyId()}/`);
         const created = await api(`/api/assemblies/${getAssemblyId()}/motions`, { method: "POST", body });
-        await api(`/api/assemblies/${getAssemblyId()}/motions/${created.id}/publish`, { method: "POST" });
 
         if (action === "save") {
           ui.dialog.close();
@@ -556,6 +599,7 @@ export function createLiveVotingWorkspace({
         }
 
         setGlobalLoaderMessage("Presentando pregunta…");
+        await api(`/api/assemblies/${getAssemblyId()}/motions/${created.id}/publish`, { method: "POST" });
         await api(`/api/assemblies/${getAssemblyId()}/motions/present`, {
           method: "POST",
           body: { motionId: created.id }
@@ -589,16 +633,50 @@ export function createLiveVotingWorkspace({
   }
 
   async function pickPrepared() {
-    const motions = await api(`/api/assemblies/${getAssemblyId()}/motions`);
+    const ui = openDialog(`
+      <header><h3>Votaciones preparadas</h3></header>
+      <p role="status">Cargando preguntas elegibles…</p>
+    `);
+    if (!ui) return;
+    let motions;
+    try {
+      motions = await api(`/api/assemblies/${getAssemblyId()}/motions`);
+    } catch (err) {
+      ui.form.innerHTML = `
+        <header><h3>Votaciones preparadas</h3></header>
+        <p role="alert">${escapeHtml(err.message || "No se pudieron cargar las preguntas.")}</p>
+        <footer class="live-vote-dialog-actions">
+          <button type="button" class="btn btn-secondary" data-retry>Reintentar</button>
+          <button type="submit" class="btn btn-ghost" value="cancel">Cerrar</button>
+        </footer>`;
+      ui.form.querySelector("[data-retry]")?.addEventListener("click", () => {
+        ui.dialog.close();
+        pickPrepared();
+      });
+      return;
+    }
     const list = (Array.isArray(motions) ? motions : []).filter(
       (m) => m.status === "Draft" || m.status === "Presented" || m.designStatus === "Ready"
     );
     if (!list.length) {
-      showToast("No hay votaciones preparadas. Cree una rápida o use Votaciones.", "info");
+      ui.form.innerHTML = `
+        <header><h3>Votaciones preparadas</h3></header>
+        <p>No hay preguntas en borrador ni presentadas. Prepare una en el estudio o cree un borrador rápido.</p>
+        <footer class="live-vote-dialog-actions">
+          <button type="submit" class="btn btn-secondary" value="cancel">Cerrar</button>
+          <a class="btn btn-primary" href="/voting-studio.html?assemblyId=${encodeURIComponent(getAssemblyId())}">Preparar votación</a>
+        </footer>`;
       return;
     }
-    const ui = openDialog(`
+    let gate = { allowed: false, reason: "Comprobando si la asamblea está en curso…" };
+    try {
+      gate = await assemblyCanPresent();
+    } catch (err) {
+      gate.reason = err.message || "No se pudo leer el estado de la asamblea.";
+    }
+    ui.form.innerHTML = `
       <header><h3>Votaciones preparadas</h3></header>
+      <p role="status">${escapeHtml(gate.reason)}</p>
       <div class="stack">${list
         .map(
           (m) => `
@@ -611,14 +689,17 @@ export function createLiveVotingWorkspace({
         .join("")}</div>
       <footer class="live-vote-dialog-actions">
         <button type="submit" class="btn btn-secondary" value="cancel">Cancelar</button>
-        <button type="submit" class="btn btn-primary" value="use">Usar / Presentar</button>
+        <button type="submit" class="btn btn-primary" value="use" ${gate.allowed ? "" : "disabled"}>Usar / Presentar</button>
       </footer>
-    `);
-    if (!ui) return;
+    `;
     ui.form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       if (ev.submitter?.value === "cancel") {
         ui.dialog.close();
+        return;
+      }
+      if (!gate.allowed) {
+        showToast(gate.reason, "error");
         return;
       }
       const id = ui.form.querySelector('input[name="motionId"]:checked')?.value;
@@ -636,7 +717,7 @@ export function createLiveVotingWorkspace({
         await refreshRoom?.();
         showToast("Pregunta presentada. Falta abrir la votación.", "success");
       } catch (err) {
-        showToast(err.message, "error");
+        showToast(mapMotionActionError(err), "error");
       } finally {
         hideGlobalLoader();
       }
@@ -689,7 +770,7 @@ export function createLiveVotingWorkspace({
           <option value="QualifiedMajority">Porcentaje</option>
         </select>
       </label>
-      <label>Umbral %<input name="threshold" type="number" step="0.01" value="${motion.requiredThresholdPercent ?? 66.67}" /></label>
+      <label>Umbral %<input name="threshold" type="number" step="0.01" value="${motion.requiredThresholdPercent ?? ""}" placeholder="Solo mayoría calificada" /></label>
       <label>Resultados
         <select name="vis">
           <option value="HiddenUntilClose">Ocultos hasta cierre</option>

@@ -909,7 +909,9 @@ public static class ConvocationEmailComposer
         IReadOnlyList<(int Ordinal, string Title)> Agenda,
         string AccessUrl,
         string? DocumentsUrl,
-        bool Sandbox);
+        bool Sandbox,
+        string? CustomSubject = null,
+        bool DemonstrationLink = false);
 
     public sealed record ComposeResult(string Subject, string Preheader, string Html, string Text);
 
@@ -923,7 +925,9 @@ public static class ConvocationEmailComposer
         var tzLabel = string.IsNullOrWhiteSpace(input.TimeZoneId) ? "hora local" : input.TimeZoneId!;
         var modality = string.IsNullOrWhiteSpace(input.Modality) ? "Virtual" : input.Modality!;
         var subjectDate = FormatSubjectDate(input.ScheduledAtUtc, input.TimeZoneId);
-        var subject = $"Convocatoria | {input.AssemblyTitle} — {input.PhName} | {subjectDate}";
+        var subject = string.IsNullOrWhiteSpace(input.CustomSubject)
+            ? $"Convocatoria | {input.AssemblyTitle} — {input.PhName} | {subjectDate}"
+            : input.CustomSubject.Trim();
         var preheader =
             $"Ha sido convocado(a) a {input.AssemblyTitle} de {input.PhName}" +
             (string.IsNullOrWhiteSpace(dateLabel) ? "." : $" del {dateLabel}.");
@@ -954,6 +958,9 @@ public static class ConvocationEmailComposer
         var sandboxBanner = input.Sandbox
             ? """<tr><td style="padding:10px 16px;background:#fef3c7;color:#92400e;font-size:13px">Modo prueba: este mensaje no es una convocatoria definitiva.</td></tr>"""
             : "";
+        var demoBanner = input.DemonstrationLink
+            ? """<tr><td style="padding:10px 16px;background:#e0f2fe;color:#0c4a6e;font-size:13px">Enlace demostrativo: no otorga acceso real a la asamblea. El envío genera un enlace personal.</td></tr>"""
+            : "";
 
         var access = WebUtility.HtmlEncode(input.AccessUrl);
         var docs = string.IsNullOrWhiteSpace(input.DocumentsUrl)
@@ -975,6 +982,7 @@ public static class ConvocationEmailComposer
             <tr><td align="center">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
                 {sandboxBanner}
+                {demoBanner}
                 <tr><td style="padding:28px 28px 12px;background:#0f3d2e;color:#ecfdf5">
                   <div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.85">ASAMBLEAS</div>
                   <div style="font-size:14px;margin-top:6px;opacity:.9">Gobernanza digital para tu PH</div>

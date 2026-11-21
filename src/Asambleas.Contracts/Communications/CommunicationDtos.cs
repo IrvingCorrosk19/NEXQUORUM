@@ -77,7 +77,17 @@ public sealed record ConvocationSummaryDto(
     DateTimeOffset? ScheduledAtUtc,
     DateTimeOffset? SentAtUtc,
     int RecipientCount,
-    int ValidRecipientCount);
+    int ValidRecipientCount,
+    int PendingDeliveryCount = 0,
+    int AcceptedDeliveryCount = 0,
+    int ConfirmedDeliveryCount = 0,
+    int FailedDeliveryCount = 0);
+
+public sealed record ConvocationCheckDto(
+    string Code,
+    string Label,
+    bool Passed,
+    string Detail);
 
 public sealed record ConvocationDetailDto(
     Guid Id,
@@ -93,7 +103,16 @@ public sealed record ConvocationDetailDto(
     DateTimeOffset? ScheduledAtUtc,
     DateTimeOffset? SentAtUtc,
     IReadOnlyList<ConvocationRecipientDto> Recipients,
-    SendPreviewDto? Preview);
+    SendPreviewDto? Preview,
+    IReadOnlyList<ConvocationCheckDto>? Checks = null);
+
+public sealed record UpdateConvocationRequest(
+    string Title,
+    string Subject,
+    string BodyHtml,
+    string BodyText,
+    IReadOnlyList<string> Channels,
+    IReadOnlyList<Guid>? OwnerIds = null);
 
 public sealed record ConvocationRecipientDto(
     Guid Id,

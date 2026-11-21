@@ -4,7 +4,7 @@ import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=labels-es1";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=labels-es1";
-import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=labels-es1";
+import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=flow10";
 import { createMobileVotingController } from "./mobile-voting-sheet.js?v=labels-es1";
 import {
   resolveContextualGuide,
@@ -63,7 +63,7 @@ import {
   switchLocalDevices,
   syncHandRaisedIndicators,
   unlockRemoteAudio
-} from "./meeting.js?v=room-fit2";
+} from "./meeting.js?v=flow10";
 import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=labels-es1";
 import {
   assemblyIdFromUrl,
@@ -1000,10 +1000,18 @@ function renderParticipantsDrawer() {
 }
 
 function personConnectionState(p) {
+  if (p?.isHubConnected === true || p?.IsHubConnected === true) return "connected";
   const status = String(p?.attendanceStatus || "");
-  if (/^Present$/i.test(status)) return "connected";
   if (/^TemporarilyDisconnected$/i.test(status) || /^Left$/i.test(status)) return "disconnected";
   return "pending";
+}
+
+function presenceLabel(p) {
+  const status = String(p?.attendanceStatus || "");
+  if (/^Present$/i.test(status)) return "Presente acreditado";
+  if (/^TemporarilyDisconnected$/i.test(status)) return "Acreditado, desconectado";
+  if (/^Left$/i.test(status)) return "Salió";
+  return "Convocado";
 }
 
 function buildParticipantsListHtml() {
@@ -1036,15 +1044,16 @@ function buildParticipantsListHtml() {
               ? "Secretario"
               : p.unitCode || (r.includes("owner") ? "Propietario" : "");
           const connection = personConnectionState(p);
+          const link = connection === "connected"
+            ? "Sala conectada"
+            : connection === "disconnected"
+              ? "Sala desconectada"
+              : "Sala sin conexión";
           const status = hasFloor
             ? t("assembly.speaking") || "Hablando"
             : hand
               ? t("assembly.handRaised") || "Palabra"
-              : connection === "connected"
-                ? t("assembly.connectedShort") || "Conectado"
-                : connection === "disconnected"
-                  ? "Desconectado"
-                  : t("assembly.pendingShort") || "Pendiente";
+              : `${presenceLabel(p)} · ${link}`;
           return `<li class="meeting-people-item">
             <div class="meeting-people-copy">
               <strong>${escapeHtml(friendlyParticipantName(p))}</strong>
@@ -1281,26 +1290,37 @@ async function openDeviceSettings() {
   if (!dialog) return;
   const devices = await enumerateMediaDevices();
   const prefs = loadDevicePrefs();
-  const fill = (sel, list, selected) => {
+  const fillOrEmpty = (sel, list, selected, emptyLabel) => {
     const el = qs(sel);
     if (!el) return;
-    el.innerHTML = list
-      .map(
-        (d) =>
-          `<option value="${escapeHtml(d.deviceId)}" ${d.deviceId === selected ? "selected" : ""}>${escapeHtml(d.label || d.deviceId.slice(0, 8))}</option>`
-      )
-      .join("");
+    el.innerHTML = list.length
+      ? list
+          .map(
+            (d) =>
+              `<option value="${escapeHtml(d.deviceId)}" ${d.deviceId === selected ? "selected" : ""}>${escapeHtml(d.label || "Dispositivo sin nombre")}</option>`
+          )
+          .join("")
+      : `<option value="">${escapeHtml(emptyLabel)}</option>`;
+    el.disabled = !list.length;
   };
-  fill("#device-mic-select", devices.mics, prefs.micId);
-  fill("#device-cam-select", devices.cameras, prefs.cameraId);
+  fillOrEmpty("#device-mic-select", devices.mics, prefs.micId, "Sin micrófono disponible");
+  fillOrEmpty("#device-cam-select", devices.cameras, prefs.cameraId, "Sin cámara disponible");
   const speakerWrap = qs("#device-speaker-wrap");
   if (speakerWrap) speakerWrap.hidden = !devices.supportsSinkId || !devices.speakers.length;
-  fill("#device-speaker-select", devices.speakers, prefs.speakerId);
+  fillOrEmpty("#device-speaker-select", devices.speakers, prefs.speakerId, "Sin altavoz disponible");
+  const ready = dialog.querySelector('button[value="ok"]');
+  const usable = devices.mics.length + devices.cameras.length > 0 && !devices.permissionError;
+  if (ready) {
+    ready.disabled = !usable;
+    ready.title = usable ? "" : "No hay un dispositivo utilizable";
+  }
   const hint = qs("#device-settings-hint");
   if (hint) {
-    hint.textContent =
-      t("media.deviceSettingsHint") ||
-      "Los cambios se aplican sin salir de la reunión.";
+    hint.textContent = devices.permissionError
+      ? devices.permissionError
+      : usable
+        ? (t("media.deviceSettingsHint") || "Los cambios se aplican sin salir de la reunión.")
+        : "No hay micrófono ni cámara disponibles. Puede continuar la asamblea sin audio ni video.";
   }
   dialog.showModal();
   dialog.addEventListener(
@@ -2985,18 +3005,22 @@ function updateMediaConnectionBanner() {
   const el = qs("#media-connection-state");
   if (!el) return;
   const st = getMediaConnectionState();
-  if (st === "connected" || st === "idle") {
-    el.hidden = true;
-    return;
-  }
+  const data = state.connectionStatus || "disconnected";
+  const dataLabel = data === "connected"
+    ? "Datos de la sala: conectados"
+    : data === "reconnecting"
+      ? "Datos de la sala: reconectando"
+      : "Datos de la sala: sin conexión";
+  const avLabel = {
+    connected: "Audio y video: conectados",
+    idle: "Audio y video: sin iniciar",
+    connecting: t("media.connecting") || "Audio y video: conectando",
+    reconnecting: t("media.reconnecting") || "Audio y video: reconectando",
+    disconnected: "Audio y video: desconectados. La presencia no los enciende.",
+    "governance-only": "Audio y video: no disponibles. Puede continuar sin ellos."
+  }[st] || `Audio y video: ${st}`;
   el.hidden = false;
-  const labels = {
-    connecting: t("media.connecting"),
-    reconnecting: t("media.reconnecting"),
-    disconnected: t("media.disconnectedGovernanceOk"),
-    "governance-only": t("media.governanceOnly")
-  };
-  el.textContent = labels[st] || st;
+  el.textContent = `${dataLabel}. ${avLabel}.`;
 }
 
 async function bootstrapMeeting() {
@@ -3918,6 +3942,7 @@ async function init() {
   }
   // Hub joined — refresh once; recordings use short TTL cache (no duplicate network).
   await rehydrate();
+  window.__asambleasRetryMedia = () => bootstrapMeeting();
   await bootstrapMeeting();
   wireChat();
   await loadChatHistory();

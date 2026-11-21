@@ -65,10 +65,26 @@ public sealed class ConvocationService
             .GroupBy(r => r.ConvocationId)
             .Select(g => new { ConvocationId = g.Key, Total = g.Count(), Valid = g.Count(x => x.IsValid) })
             .ToListAsync(cancellationToken);
+        var deliveryStats = await _db.CommunicationDeliveries
+            .AsNoTracking()
+            .Where(d => ids.Contains(d.ConvocationId))
+            .GroupBy(d => d.ConvocationId)
+            .Select(g => new
+            {
+                ConvocationId = g.Key,
+                Pending = g.Count(x => x.Status == DeliveryStatus.Pending || x.Status == DeliveryStatus.Queued),
+                Accepted = g.Count(x => x.Status == DeliveryStatus.Sent),
+                Confirmed = g.Count(x => x.Status == DeliveryStatus.Delivered || x.Status == DeliveryStatus.Read),
+                Failed = g.Count(x => x.Status == DeliveryStatus.Failed
+                    || x.Status == DeliveryStatus.Bounced
+                    || x.Status == DeliveryStatus.DeadLetter)
+            })
+            .ToListAsync(cancellationToken);
 
         return rows.Select(c =>
         {
             var stats = recipientStats.FirstOrDefault(s => s.ConvocationId == c.Id);
+            var deliveries = deliveryStats.FirstOrDefault(s => s.ConvocationId == c.Id);
             return new ConvocationSummaryDto(
                 c.Id,
                 c.AssemblyId,
@@ -80,7 +96,11 @@ public sealed class ConvocationService
                 c.ScheduledAtUtc,
                 c.SentAtUtc,
                 stats?.Total ?? 0,
-                stats?.Valid ?? 0);
+                stats?.Valid ?? 0,
+                deliveries?.Pending ?? 0,
+                deliveries?.Accepted ?? 0,
+                deliveries?.Confirmed ?? 0,
+                deliveries?.Failed ?? 0);
         }).ToList();
     }
 
@@ -98,7 +118,8 @@ public sealed class ConvocationService
             .ToListAsync(cancellationToken);
 
         var preview = await BuildPreviewAsync(c, recipients, cancellationToken);
-        return ToDetail(c, recipients, preview);
+        var checks = await BuildChecksAsync(c, recipients, cancellationToken);
+        return ToDetail(c, recipients, preview, checks);
     }
 
     public async Task<ConvocationEmailPreviewDto> PreviewEmailAsync(
@@ -159,7 +180,9 @@ public sealed class ConvocationService
                 agenda,
                 "https://asambleas.app/ingresar/vista-previa",
                 null,
-                profile.SandboxMode));
+                profile.SandboxMode,
+                string.IsNullOrWhiteSpace(c.Subject) ? null : c.Subject.Trim(),
+                DemonstrationLink: true));
 
         return new ConvocationEmailPreviewDto(composed.Subject, composed.Preheader, composed.Html, composed.Text);
     }
@@ -266,11 +289,111 @@ public sealed class ConvocationService
             recipient.ValidationIssuesJson = issues.Count == 0 ? null : JsonSerializer.Serialize(issues, JsonOptions);
         }
 
-        c.Status = recipients.Count > 0 && recipients.All(r => r.IsValid)
-            ? ConvocationStatus.Ready
-            : ConvocationStatus.Draft;
+        var checks = await BuildChecksAsync(c, recipients, cancellationToken);
+        var passed = checks.All(x => x.Passed);
+        if (c.Status is ConvocationStatus.Draft or ConvocationStatus.Ready or ConvocationStatus.Approved)
+        {
+            if (!passed)
+            {
+                c.Status = ConvocationStatus.Draft;
+            }
+            else if (c.Status != ConvocationStatus.Approved)
+            {
+                c.Status = ConvocationStatus.Ready;
+            }
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
         return await GetAsync(convocationId, cancellationToken);
+    }
+
+    public async Task<ConvocationDetailDto> UpdateAsync(
+        Guid convocationId,
+        UpdateConvocationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var c = await _db.Convocations.FirstOrDefaultAsync(x => x.Id == convocationId, cancellationToken)
+            ?? throw new DomainException("CONVOCATION_NOT_FOUND", "Convocation not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, c.TenantId);
+
+        if (c.Status is ConvocationStatus.Sending or ConvocationStatus.Sent or ConvocationStatus.Partial
+            or ConvocationStatus.Failed or ConvocationStatus.Scheduled or ConvocationStatus.Cancelled)
+        {
+            throw new DomainException(
+                "CONVOCATION_LOCKED",
+                "Esta convocatoria ya se envió o está en curso. Su versión enviada se conserva.");
+        }
+
+        var title = request.Title?.Trim() ?? string.Empty;
+        if (title.Length == 0)
+        {
+            throw new DomainException("TITLE_REQUIRED", "Indica un título para el borrador.");
+        }
+
+        var subject = string.IsNullOrWhiteSpace(request.Subject) ? title : request.Subject.Trim();
+        var channels = ParseChannelNames(request.Channels);
+        if (channels.Count == 0)
+        {
+            throw new DomainException("CHANNELS_REQUIRED", "Selecciona al menos un canal.");
+        }
+
+        var notes = request.BodyText ?? string.Empty;
+        var previousOwners = await _db.ConvocationRecipients
+            .AsNoTracking()
+            .Where(r => r.ConvocationId == c.Id && r.OwnerId != null)
+            .Select(r => r.OwnerId!.Value)
+            .ToListAsync(cancellationToken);
+        var nextOwners = request.OwnerIds?.Where(id => id != Guid.Empty).Distinct().OrderBy(id => id).ToList();
+        var ownersChanged = nextOwners is not null
+            && !previousOwners.OrderBy(id => id).SequenceEqual(nextOwners);
+        var channelsJson = JsonSerializer.Serialize(channels.Select(ch => ch.ToString()), JsonOptions);
+        var contentChanged = c.Title != title
+            || c.Subject != subject
+            || c.BodyText != notes
+            || c.ChannelsJson != channelsJson
+            || ownersChanged;
+
+        c.Title = title;
+        c.Subject = subject;
+        c.BodyHtml = request.BodyHtml ?? string.Empty;
+        c.BodyText = notes;
+        c.ChannelsJson = channelsJson;
+        if (contentChanged)
+        {
+            c.Version += 1;
+            if (c.Status is ConvocationStatus.Ready or ConvocationStatus.Approved)
+            {
+                c.Status = ConvocationStatus.Draft;
+            }
+        }
+
+        if (nextOwners is not null)
+        {
+            var existing = await _db.ConvocationRecipients.Where(r => r.ConvocationId == c.Id).ToListAsync(cancellationToken);
+            _db.ConvocationRecipients.RemoveRange(existing);
+            await PopulateRecipientsAsync(c, channels, nextOwners, cancellationToken);
+        }
+        else
+        {
+            var current = await _db.ConvocationRecipients.Where(r => r.ConvocationId == c.Id).ToListAsync(cancellationToken);
+            foreach (var recipient in current)
+            {
+                recipient.ChannelsJson = channelsJson;
+                var issues = ValidateRecipient(recipient, channels);
+                recipient.IsValid = issues.Count == 0;
+                recipient.ValidationIssuesJson = issues.Count == 0 ? null : JsonSerializer.Serialize(issues, JsonOptions);
+            }
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync(
+            "convocation.updated",
+            assemblyId: c.AssemblyId,
+            correlationId: c.Id,
+            metadata: new { c.Version, contentChanged, previousStatus = "draft-or-ready" },
+            cancellationToken: cancellationToken);
+        return await GetAsync(c.Id, cancellationToken);
     }
 
     public async Task<CommunicationBatchDto> SendAsync(
@@ -317,6 +440,12 @@ public sealed class ConvocationService
 
         await ValidateAsync(convocationId, cancellationToken);
         c = await _db.Convocations.FirstAsync(x => x.Id == convocationId, cancellationToken);
+        if (c.Status is not (ConvocationStatus.Ready or ConvocationStatus.Approved))
+        {
+            throw new DomainException(
+                "VALIDATION_FAILED",
+                "La convocatoria no pasó la validación. Revise cada comprobación antes de enviar.");
+        }
 
         var recipientsQuery = _db.ConvocationRecipients.Where(r => r.ConvocationId == convocationId);
         if (request.RecipientIds is { Count: > 0 })
@@ -830,6 +959,81 @@ public sealed class ConvocationService
         return new PortalNotificationDto(row.Id, row.Title, row.Body, row.IsRead, row.CreatedAtUtc, row.ConvocationId);
     }
 
+    private async Task<IReadOnlyList<ConvocationCheckDto>> BuildChecksAsync(
+        Convocation c,
+        IReadOnlyList<ConvocationRecipient> recipients,
+        CancellationToken cancellationToken)
+    {
+        var checks = new List<ConvocationCheckDto>();
+        var channels = ParseChannels(c.ChannelsJson);
+        checks.Add(new ConvocationCheckDto(
+            "title",
+            "Título",
+            !string.IsNullOrWhiteSpace(c.Title),
+            string.IsNullOrWhiteSpace(c.Title) ? "Falta el título." : "El título está definido."));
+        checks.Add(new ConvocationCheckDto(
+            "subject",
+            "Asunto",
+            !string.IsNullOrWhiteSpace(c.Subject),
+            string.IsNullOrWhiteSpace(c.Subject)
+                ? "Falta el asunto. La vista previa y el envío usan el mismo texto."
+                : $"La vista previa y el envío usan este asunto: {c.Subject.Trim()}"));
+        checks.Add(new ConvocationCheckDto(
+            "channels",
+            "Canales",
+            channels.Count > 0,
+            channels.Count == 0 ? "Selecciona al menos un canal." : $"Canales del borrador: {string.Join(", ", channels)}."));
+
+        var configs = await _db.ChannelConfigurations
+            .AsNoTracking()
+            .Where(x => x.PropertyHorizontalId == c.PropertyHorizontalId)
+            .ToListAsync(cancellationToken);
+        foreach (var channel in channels)
+        {
+            var cfg = configs.FirstOrDefault(x => x.Channel == channel);
+            var enabled = cfg is { IsEnabled: true };
+            checks.Add(new ConvocationCheckDto(
+                $"channel-{channel}",
+                $"Canal {channel}",
+                enabled,
+                enabled
+                    ? "Disponible para envío."
+                    : "No está configurado o está desactivado. No se cuenta como entrega."));
+        }
+
+        checks.Add(new ConvocationCheckDto(
+            "recipients",
+            "Destinatarios del borrador",
+            recipients.Count > 0,
+            recipients.Count == 0
+                ? "El borrador no tiene destinatarios. Validar no crea entregas."
+                : $"{recipients.Count} destinatario(s) en el borrador. Esto no es un envío."));
+
+        var invalid = recipients.Where(r => !r.IsValid).Select(r => r.DisplayName).ToList();
+        checks.Add(new ConvocationCheckDto(
+            "recipient-data",
+            "Datos de contacto",
+            recipients.Count > 0 && invalid.Count == 0,
+            invalid.Count == 0
+                ? "Los destinatarios del borrador tienen los datos de sus canales."
+                : $"Datos incompletos: {string.Join(", ", invalid)}. No se infiere una entrega."));
+
+        checks.Add(new ConvocationCheckDto(
+            "internal-notes",
+            "Notas internas",
+            true,
+            "Las notas internas quedan en el expediente y no forman parte del mensaje al destinatario."));
+
+        checks.Add(new ConvocationCheckDto(
+            "deliveries",
+            "Entregas",
+            true,
+            c.SentAtUtc is null
+                ? "Todavía no hay envíos. La validación no cuenta como entrega."
+                : "Hay un envío registrado. El resultado se lee de cada entrega, no de la selección."));
+        return checks;
+    }
+
     private async Task EnsureChannelsEnabledAsync(
         Guid propertyHorizontalId,
         IReadOnlyList<CommunicationChannel> channels,
@@ -1296,7 +1500,8 @@ public sealed class ConvocationService
     private static ConvocationDetailDto ToDetail(
         Convocation c,
         IReadOnlyList<ConvocationRecipient> recipients,
-        SendPreviewDto preview) =>
+        SendPreviewDto preview,
+        IReadOnlyList<ConvocationCheckDto>? checks = null) =>
         new(
             c.Id,
             c.AssemblyId,
@@ -1319,7 +1524,8 @@ public sealed class ConvocationService
                 ParseChannels(r.ChannelsJson).Select(x => x.ToString()).ToList(),
                 r.IsValid,
                 ParseIssues(r.ValidationIssuesJson))).ToList(),
-            preview);
+            preview,
+            checks);
 
     private static IReadOnlyList<string> ParseIssues(string? json)
     {

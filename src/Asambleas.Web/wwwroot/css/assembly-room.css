@@ -3309,4 +3309,41 @@ body:has(.room--meeting-ux) {
   }
 }
 
+.room-header,
+.meeting-drawer,
+.device-settings-dialog,
+.questionnaire-panel,
+#agenda-panel,
+#vote-panel,
+#people-panel,
+.room-header .ph-name span,
+.quorum-chip,
+.quorum-chip-req,
+.quorum-chip-people,
+.device-settings-form,
+.mcb-btn,
+.mcb-busy,
+.mcb-quality,
+.meeting-drawer__header h2,
+.meeting-more-item,
+.meeting-people-list,
+.section-title,
+.empty-state,
+.governance-only,
+#media-connection-state {
+  color: #f4f7fb;
+}
+
+.meeting-control-bar,
+.meeting-control-bar__inner,
+.meeting-drawer,
+.device-settings-dialog {
+  background: #0e2436;
+}
+
+.device-settings-form select {
+  background: #fff;
+  color: #102b3f;
+}
+
 
