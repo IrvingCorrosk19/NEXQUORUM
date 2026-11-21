@@ -212,7 +212,7 @@ export function resolveContextualGuide(ctx) {
       id: "owner-waiting-scheduled",
       severity: "info",
       title: "Esperando a que la mesa prepare la asamblea",
-      explanation: "La asamblea todavía no ha iniciado. Puedes permanecer en la sala de espera.",
+      explanation: "La mesa avisará el inicio. Puede revisar la agenda mientras espera.",
       steps: ["Permanezca en la sala", "Espere el inicio anunciado por la mesa"],
       responsible: "Mesa (presidente)",
       nextActionLabel: null
@@ -244,7 +244,7 @@ export function resolveContextualGuide(ctx) {
       severity: "success",
       title: "Puedes ingresar — espera el inicio",
       explanation:
-        "Puedes ingresar directamente porque fuiste convocado a esta asamblea. La asamblea todavía no ha iniciado. Puedes permanecer en la sala de espera.",
+        "Ya está en la sala. La mesa avisará cuando inicie.",
       steps: ["Espere a que la mesa inicie la asamblea"],
       responsible: "Mesa",
       nextActionLabel: null,

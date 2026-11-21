@@ -811,6 +811,104 @@ a {
   color: #d5deea;
 }
 
+.room--ocean .meeting-people-list,
+.room--ocean .meeting-people-list li,
+.room--ocean .meeting-people-list strong,
+.room--ocean .meeting-people-copy,
+.room--ocean .meeting-people-status,
+.room--ocean .participant,
+.room--ocean .participant strong,
+.room--ocean .participant-meta,
+.room--ocean .presence-summary,
+.room--ocean .presence-summary__value,
+.room--ocean .media-cockpit,
+.room--ocean .hybrid-cockpit,
+.room--ocean .media-cockpit strong,
+.room--ocean .hybrid-cockpit strong {
+  color: #f4f7fb;
+}
+
+.room--ocean .meeting-people-copy span,
+.room--ocean .meeting-people-status,
+.room--ocean .participant-meta span,
+.room--ocean .presence-summary__label,
+.room--ocean .media-cockpit span,
+.room--ocean .hybrid-cockpit span {
+  color: #d5deea;
+}
+
+.room--ocean .participant,
+.room--ocean .meeting-people-list li,
+.room--ocean .presence-summary,
+.room--ocean .media-cockpit,
+.room--ocean .hybrid-cockpit,
+.room--ocean .agenda-list li,
+.room--ocean .speaker-queue li {
+  background: #132238;
+  border-color: #25354b;
+  color: #f4f7fb;
+}
+
+.room--ocean .agenda-list li,
+.room--ocean .agenda-text,
+.room--ocean .agenda-mark,
+.room--ocean .speaker-queue li {
+  color: #f4f7fb;
+}
+
+.room--ocean .participant .avatar {
+  background: #0d1a2b;
+  color: #f4f7fb;
+  border-color: #25354b;
+}
+
+.room--ocean .sidebar,
+.room--ocean .vote-section,
+.room--ocean .sidebar-panels > section {
+  color: #f4f7fb;
+}
+
+.room--ocean .vote-questionnaire-wrap,
+.room--ocean #questionnaire-wrap,
+.room--ocean .live-vote-workspace {
+  background: #132238;
+  color: #f4f7fb;
+  border: 1px solid #25354b;
+  border-radius: 0.75rem;
+}
+
+.room--ocean .live-questionnaire,
+.room--ocean .live-questionnaire-head,
+.room--ocean .live-questionnaire-list li {
+  background: #0d1a2b;
+  color: #f4f7fb;
+  border-color: #25354b;
+}
+
+.room--ocean .live-questionnaire-list,
+.room--ocean .lq-section-title,
+.room--ocean .live-questionnaire .muted {
+  background: transparent;
+  color: #d5deea;
+}
+
+.room--ocean .live-questionnaire-list li.is-active {
+  background: #102d32;
+  color: #f4f7fb;
+}
+
+.room--ocean .waiting-room-banner,
+.room--ocean .waiting-room-banner strong,
+.room--ocean .waiting-room-banner p {
+  background: #102d32;
+  color: #f4f7fb;
+  border-color: #2dd4bf;
+}
+
+.room--ocean .waiting-room-banner p {
+  background: transparent;
+}
+
 .ia-asm-summary__hero {
   padding: 0;
   border: 0;

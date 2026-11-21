@@ -16,7 +16,7 @@ import {
   setWaitingBannerMinimized,
   renderStageGuideChip,
   hideStageGuideChip
-} from "./contextual-guide.js?v=labels-es1";
+} from "./contextual-guide.js?v=flow14";
 import {
   completeFloor,
   cancelOwnFloor,
@@ -64,7 +64,7 @@ import {
   syncHandRaisedIndicators,
   unlockRemoteAudio
 } from "./meeting.js?v=flow11";
-import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=mesa1";
+import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=flow14";
 import {
   assemblyIdFromUrl,
   confirmDialog,
@@ -999,11 +999,36 @@ function renderParticipantsDrawer() {
   renderPeoplePanel();
 }
 
+function isSelfParticipant(p) {
+  const uid = state.user?.userId || state.user?.id;
+  return sameUserId(uid, p?.userId || p?.UserId);
+}
+
 function personConnectionState(p) {
+  if (isSelfParticipant(p)) {
+    if (state.connectionStatus === "connected") return "connected";
+    if (state.connectionStatus === "reconnecting") return "reconnecting";
+    if (state.connectionStatus === "disconnected") return "disconnected";
+  }
   if (p?.isHubConnected === true || p?.IsHubConnected === true) return "connected";
   const status = String(p?.attendanceStatus || "");
   if (/^TemporarilyDisconnected$/i.test(status) || /^Left$/i.test(status)) return "disconnected";
   return "pending";
+}
+
+function dataLinkLabel(kind) {
+  if (kind === "connected") return "Datos conectados";
+  if (kind === "reconnecting") return "Datos reconectando";
+  return "Sin datos";
+}
+
+function selfMediaLabel(p) {
+  if (!isSelfParticipant(p)) return "";
+  const media = getMediaConnectionState();
+  if (media === "connected") return "Audio y video conectados";
+  if (media === "connecting" || media === "reconnecting") return "Audio y video en curso";
+  if (media === "governance-only") return "Sin audio ni video";
+  return "";
 }
 
 function presenceLabel(p) {
@@ -1044,16 +1069,13 @@ function buildParticipantsListHtml() {
               ? "Secretario"
               : p.unitCode || (r.includes("owner") ? "Propietario" : "");
           const connection = personConnectionState(p);
-          const link = connection === "connected"
-            ? "Sala conectada"
-            : connection === "disconnected"
-              ? "Sala desconectada"
-              : "Sala sin conexión";
+          const link = dataLinkLabel(connection);
+          const mediaNote = selfMediaLabel(p);
           const status = hasFloor
             ? t("assembly.speaking") || "Hablando"
             : hand
               ? t("assembly.handRaised") || "Palabra"
-              : `${presenceLabel(p)} · ${link}`;
+              : `${presenceLabel(p)} · ${link}${mediaNote ? ` · ${mediaNote}` : ""}`;
           return `<li class="meeting-people-item">
             <div class="meeting-people-copy">
               <strong>${escapeHtml(friendlyParticipantName(p))}</strong>
@@ -1091,7 +1113,7 @@ function syncMobileOverview() {
         ? t("assembly.live") || "En vivo"
         : /CheckIn/i.test(status)
           ? t("assembly.checkIn") || "Presencia"
-          : t("assembly.notStartedTitle") || "La asamblea aún no ha iniciado.";
+          : "En espera";
     const agenda = Array.isArray(state.agenda) ? state.agenda : state.agenda?.items;
     let point = "";
     if (Array.isArray(agenda) && agenda.length) {
@@ -1316,19 +1338,15 @@ async function openDeviceSettings() {
   }
   const hint = qs("#device-settings-hint");
   if (hint) {
-    const line = (kind, state) => {
-      if (state === "denied") return `${kind}: permiso denegado.`;
-      if (state === "busy") return `${kind}: dispositivo ocupado.`;
-      if (state === "missing" || state === "error") return `${kind}: sin dispositivo.`;
-      return "";
-    };
-    const notes = [
-      devices.mics.length ? "" : line("Micrófono", devices.micState),
-      devices.cameras.length ? "" : line("Cámara", devices.camState)
-    ].filter(Boolean);
-    hint.textContent = notes.length
-      ? notes.join(" ")
-      : "Elija el micrófono y la cámara.";
+    const denied = devices.micState === "denied" || devices.camState === "denied";
+    const busy = devices.micState === "busy" || devices.camState === "busy";
+    hint.textContent = denied
+      ? "Permiso de micrófono o cámara denegado. Puede continuar sin audio ni video."
+      : busy
+        ? "El micrófono o la cámara están ocupados. Puede continuar sin audio ni video."
+        : !usable
+          ? "No hay micrófono ni cámara. Puede continuar sin audio ni video."
+          : "Elija el micrófono y la cámara.";
   }
   if (!dialog.dataset.cancelBound) {
     dialog.dataset.cancelBound = "1";
@@ -1376,7 +1394,7 @@ function setConnectionState(status) {
   state.connectionStatus = status;
   const label =
     {
-      connected: t("connection.online"),
+      connected: "Datos conectados",
       reconnecting: t("connection.reconnectingAssembly") || "Reconectando con la asamblea…",
       disconnected: t("connection.disconnected")
     }[status] || status;
@@ -1615,7 +1633,7 @@ function renderPresenceSummary(items) {
       <span class="presence-summary__value">${present}</span>
     </div>
     <div class="presence-summary__item">
-      <span class="presence-summary__label">${escapeHtml(t("assembly.connectedCount") || "Conectados")}</span>
+      <span class="presence-summary__label">Datos conectados</span>
       <span class="presence-summary__value">${connected}</span>
     </div>
     <div class="presence-summary__item">
@@ -1653,6 +1671,13 @@ function renderHybridCockpit(items) {
     <span>${escapeHtml(t("assembly.enrolledTotal") || "Inscritos")}: ${items.length}</span>`;
 }
 
+function mediaSessionLabel(joinedCount) {
+  const media = getMediaConnectionState();
+  if (media === "connected") return `En audio y video: ${joinedCount}`;
+  if (media === "connecting" || media === "reconnecting") return "Audio y video: conectando";
+  return "Audio y video: sin sesión";
+}
+
 function renderMediaCockpit() {
   const el = qs("#media-cockpit");
   if (!el) return;
@@ -1666,7 +1691,7 @@ function renderMediaCockpit() {
   el.hidden = false;
   el.innerHTML = `
     <strong>${escapeHtml(t("media.diagnosticsLabel") || "Medios de la sala")}</strong>
-    <span>${escapeHtml(t("media.connected"))}: ${media.connected}</span>
+    <span>${escapeHtml(mediaSessionLabel(media.connected))}</span>
     <span>${escapeHtml(t("media.remotes") || "Remotos")}: ${media.remotes ?? 0}</span>
     <span>${escapeHtml(t("assembly.enrolledTotal") || "Inscritos")}: ${attendance}</span>
     <span>${escapeHtml(t("media.problems"))}: ${problems}</span>
@@ -1828,8 +1853,11 @@ function renderParticipants() {
         .slice(0, 2)
         .map((w) => w[0]?.toUpperCase() || "")
         .join("");
-      const connected = personConnectionState(p) === "connected";
-      const presenceLabel = connected ? "Conectado" : personConnectionState(p) === "disconnected" ? "Desconectado" : "Pendiente";
+      const linkKind = personConnectionState(p);
+      const connected = linkKind === "connected";
+      const dataLabel = dataLinkLabel(linkKind);
+      const mediaNote = selfMediaLabel(p);
+      const accredited = presenceLabel(p);
       const entry = String(p.roomEntryStatus || "");
       const waiting = /Waiting/i.test(entry);
       const summonBtn =
@@ -1848,7 +1876,7 @@ function renderParticipants() {
         <span class="avatar" aria-hidden="true">${escapeHtml(initials)}</span>
         <div class="participant-meta">
           <strong>${escapeHtml(name)}</strong>
-          <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(presenceLabel)} · ${escapeHtml(p.presenceType || "—")}${waiting ? " · En espera" : ""}</span>
+          <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(accredited)} · ${escapeHtml(dataLabel)}${mediaNote ? ` · ${escapeHtml(mediaNote)}` : ""}${waiting ? " · En espera" : ""}</span>
           ${renderSummonStatusBadge(p)}
           ${summonBtn}
           ${admitBtns}
@@ -1977,12 +2005,9 @@ function syncLiveMode() {
   if (status === "Paused") {
     els.speakerName.textContent = t("assembly.recessTitle");
     els.speakerMeta.textContent = t("assembly.recessBody");
-  } else if (waiting) {
-    els.speakerName.textContent =
-      t("assembly.notStartedTitle") || "La asamblea todavía no ha comenzado.";
-    els.speakerMeta.textContent =
-      t("assembly.notStartedBody") ||
-      "Puedes permanecer aquí. La sala se actualizará automáticamente cuando comience.";
+  } else if (waiting && els.speakerName && !els.speakerName.textContent) {
+    els.speakerName.textContent = t("assembly.waitingRoom") || "Sala en espera";
+    if (els.speakerMeta) els.speakerMeta.textContent = "";
   }
 }
 
@@ -1994,7 +2019,13 @@ function syncOperatorActions() {
   const canClose = hasPermission(user, "assembly:close");
 
   // Permission-gated (not only viewerRole) — secretary without manage won't see 403 buttons.
-  setVisible(qs("#btn-start"), canStart && status === "CheckIn");
+  const startBtn = qs("#btn-start");
+  const startReady = status === "CheckIn";
+  setVisible(startBtn, canStart && (status === "Draft" || status === "Scheduled" || status === "CheckIn"));
+  if (startBtn) {
+    startBtn.disabled = !startReady;
+    startBtn.title = startReady ? "" : "Disponible cuando la mesa esté abierta.";
+  }
   setVisible(qs("#btn-pause"), canManage && status === "InProgress");
   setVisible(qs("#btn-resume"), canManage && status === "Paused");
   setVisible(
@@ -2451,8 +2482,11 @@ function syncContextualGuide() {
   const chip = els.stageGuideChip || qs("#cx-guide-stage-chip");
   if (stageRoot) {
     const operator = state.viewerRole === "Operator";
+    const waitingNotice =
+      guide.id === "owner-waiting-scheduled" || guide.id === "owner-checkin";
     const showStage =
       !operator &&
+      !waitingNotice &&
       (String(guide.id).includes("owner") || guide.severity === "danger" || guide.severity === "warning") &&
       guide.id !== "owner-can-vote";
     if (showStage) {
@@ -2791,11 +2825,8 @@ function refreshPanelsNow() {
     state.assembly?.status === "CheckIn" ||
     state.assembly?.status === "Draft";
   if (waiting) {
-    els.speakerName.textContent =
-      t("assembly.notStartedTitle") || "La asamblea todavía no ha comenzado.";
-    els.speakerMeta.textContent =
-      t("assembly.notStartedBody") ||
-      "Puedes permanecer aquí. La sala se actualizará automáticamente cuando comience.";
+    if (els.speakerName) els.speakerName.textContent = t("assembly.waitingRoom") || "Sala en espera";
+    if (els.speakerMeta) els.speakerMeta.textContent = "";
   } else {
     els.speakerName.textContent = current?.displayName || t("assembly.waitingRoom");
     if (current) {
@@ -3033,6 +3064,7 @@ function updateMediaConnectionBanner() {
   }[st] || `Audio y video: ${st}`;
   el.hidden = false;
   el.textContent = `${dataLabel}. ${avLabel}.`;
+  renderPeoplePanel();
 }
 
 async function bootstrapMeeting() {

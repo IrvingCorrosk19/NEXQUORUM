@@ -128,7 +128,7 @@ function updateToggleLabels() {
   saveDevicePrefs({ cameraEnabled: device.camera, micEnabled: device.mic });
 }
 
-function fillSelect(select, devices, selectedId) {
+function fillSelect(select, devices, selectedId, emptyLabel) {
   select.innerHTML = devices
     .map(
       (d, i) =>
@@ -136,21 +136,39 @@ function fillSelect(select, devices, selectedId) {
     )
     .join("");
   if (!devices.length) {
-    select.innerHTML = `<option value="">${escapeHtml(t("lobby.noDevice"))}</option>`;
+    select.innerHTML = `<option value="">${escapeHtml(emptyLabel)}</option>`;
+    select.disabled = true;
+  } else {
+    select.disabled = false;
   }
 }
 
 async function refreshDeviceLists() {
   const prefs = loadDevicePrefs();
-  const { cameras, mics, speakers, supportsSinkId } = await enumerateMediaDevices();
-  fillSelect(qs("#select-camera"), cameras, prefs.cameraId);
-  fillSelect(qs("#select-mic"), mics, prefs.micId);
+  const devices = await enumerateMediaDevices();
+  const { cameras, mics, speakers, supportsSinkId } = devices;
+  fillSelect(qs("#select-camera"), cameras, prefs.cameraId, "Sin cámara disponible");
+  fillSelect(qs("#select-mic"), mics, prefs.micId, "Sin micrófono disponible");
   const speakerField = qs("#speaker-field");
   if (supportsSinkId && speakers.length) {
     speakerField.hidden = false;
-    fillSelect(qs("#select-speaker"), speakers, prefs.speakerId);
+    fillSelect(qs("#select-speaker"), speakers, prefs.speakerId, "Sin altavoz disponible");
   } else {
     speakerField.hidden = true;
+  }
+  const hint = qs("#lobby-device-hint");
+  if (hint) {
+    const denied = devices.micState === "denied" || devices.camState === "denied";
+    const busy = devices.micState === "busy" || devices.camState === "busy";
+    const missing = !mics.length && !cameras.length;
+    hint.textContent = denied
+      ? "Permiso de micrófono o cámara denegado. Puede entrar sin audio ni video."
+      : busy
+        ? "El micrófono o la cámara están ocupados. Puede entrar sin audio ni video."
+        : missing
+          ? "No hay micrófono ni cámara. Puede entrar sin audio ni video."
+          : "";
+    hint.hidden = !hint.textContent;
   }
 }
 
@@ -665,7 +683,7 @@ async function init() {
     : t("lobby.notConvocated");
   const coeff = Number(self?.effectiveCoefficientPercent || self?.coefficientPercent || 0);
   qs("#fact-representation").textContent = `${coeff.toFixed(3)}%`;
-  qs("#fact-connection").textContent = navigator.onLine ? t("connection.online") : t("connection.disconnected");
+  qs("#fact-connection").textContent = "Sin datos";
 
   if (room.quorum) {
     const q = room.quorum;
@@ -701,9 +719,9 @@ async function init() {
           el.textContent = t("connection.reconnectingAssembly") || "Reconectando con la asamblea…";
           showToast(t("connection.reconnectingAssembly") || "Reconectando con la asamblea…", "info");
         } else if (status === "connected") {
-          el.textContent = t("connection.online");
+          el.textContent = "Datos conectados";
         } else if (status === "disconnected") {
-          el.textContent = t("connection.disconnected");
+          el.textContent = "Sin datos";
           showToast(
             t("connection.reconnectFailed") ||
               "No fue posible recuperar la conexión. Intentando nuevamente…",
