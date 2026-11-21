@@ -87,6 +87,17 @@ public sealed class AssemblyHub : Hub
                     assemblyId,
                     status);
             }
+            else if (!AssemblyLifecycle.AllowsMeetingJoinToken(status))
+            {
+                try
+                {
+                    await _attendance.ClearPrepGhostLeaveAsync(assemblyId, userId, Context.ConnectionAborted);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Prep leave clear failed for assembly {AssemblyId}", assemblyId);
+                }
+            }
 
             return;
         }
@@ -126,7 +137,7 @@ public sealed class AssemblyHub : Hub
                 ?? [],
                 Context.ConnectionAborted);
 
-            if (!AssemblyAccessService.AllowsPresenceMutation(status))
+            if (!AssemblyLifecycle.AllowsMeetingJoinToken(status))
             {
                 return;
             }
@@ -170,7 +181,7 @@ public sealed class AssemblyHub : Hub
                     permissions,
                     CancellationToken.None);
 
-                if (AssemblyAccessService.AllowsPresenceMutation(status)
+                if (AssemblyLifecycle.AllowsMeetingJoinToken(status)
                     && !_hubPresence.IsPresenceConnected(assemblyId, userId))
                 {
                     _hubPresence.BeginDisconnectGrace(

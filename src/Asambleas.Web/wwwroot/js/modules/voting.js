@@ -242,9 +242,18 @@ export function renderVotePanel(
     return;
   }
 
+  if (!session && !motion) {
+    root.innerHTML = `
+      <div class="empty-state" role="status">
+        <p class="empty-state-what">${escapeHtml(t("assembly.noVoting"))}</p>
+        <p class="empty-state-why">${escapeHtml(t("assembly.noVotingWhy"))}</p>
+      </div>`;
+    return;
+  }
+
   if (!session) {
     root.innerHTML = `
-      <div class="vote-prepare panel-compact-empty" role="region" aria-label="${escapeHtml(t("voting.prepareTitle"))}">
+      <div class="vote-prepare" role="region" aria-label="${escapeHtml(t("voting.prepareTitle"))}">
         <p class="vote-now-kicker">${escapeHtml(t("voting.prepareTitle"))}</p>
         ${
           motion

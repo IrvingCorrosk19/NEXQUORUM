@@ -200,6 +200,11 @@ export function createLiveVotingWorkspace({
     );
 
     const wrap = document.querySelector("#questionnaire-wrap");
+    if (!ordered.length) {
+      if (wrap) wrap.hidden = true;
+      host.innerHTML = "";
+      return;
+    }
     if (wrap) {
       wrap.hidden = false;
       wrap.open = Boolean(manage);

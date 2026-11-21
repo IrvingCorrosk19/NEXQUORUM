@@ -911,8 +911,9 @@
 
   .layout-tabler .brand-hero,
   .layout-tabler .ph-cover {
-    margin-left: -1.5rem;
-    margin-right: -1.5rem;
+    /* Match container-xl padding (1rem). -1.5rem stuck 8px past the viewport. */
+    margin-left: -1rem;
+    margin-right: -1rem;
     border-radius: 0;
   }
 
@@ -1029,9 +1030,10 @@
   margin-bottom: 0.65rem;
 }
 
-.layout-tabler .units-toolbar .units-search {
+.layout-tabler .units-toolbar .units-search,
+.layout-tabler .owners-toolbar__find .units-search {
   flex: 1 1 14rem;
-  min-height: 2.5rem;
+  min-height: 44px;
 }
 
 .layout-tabler .units-result-count {
@@ -1359,9 +1361,12 @@ dialog.app-sheet::backdrop,
   position: relative;
 }
 
+.owners-toolbar__find .roster-search {
+  flex: 1 1 auto;
+}
 .owners-toolbar__find input {
   flex: 1 1 auto;
-  min-height: 2.65rem;
+  min-height: 44px;
 }
 
 .owners-toolbar__actions {

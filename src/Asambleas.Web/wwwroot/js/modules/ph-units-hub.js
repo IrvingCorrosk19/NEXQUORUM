@@ -1,4 +1,5 @@
 import { api } from "./api.js";
+import { coefficientRollupCopy } from "./coefficient-rollup.js";
 import { hasPermission } from "./auth.js";
 import { confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
@@ -54,15 +55,9 @@ export function createUnitsHub(ctx) {
     if (!el || !ctx.currentPhId) return;
     try {
       const c = await api(`/api/ph/${ctx.currentPhId}/coefficients`);
-      const total = Number(c.totalPercent || 0);
-      const delta = Number(c.deltaPercent || 0);
-      const ok = !!c.isComplete;
-      let msg;
-      if (ok) msg = `Coeficiente del PH completo: ${fmtCoef(total)} %. Listo para activación.`;
-      else if (delta < 0) msg = `Total del PH: ${fmtCoef(total)} %. Falta ${fmtCoef(Math.abs(delta))} % para completar el PH.`;
-      else msg = `Total del PH: ${fmtCoef(total)} %. Excede ${fmtCoef(delta)} % sobre 100 %.`;
-      el.className = `units-coeff-banner ${ok ? "is-ok" : delta > 0 ? "is-over" : "is-short"}`;
-      el.textContent = msg;
+      const rollup = coefficientRollupCopy(c);
+      el.className = `units-coeff-banner is-${rollup.tone === "ok" ? "ok" : rollup.tone}`;
+      el.textContent = `${rollup.text} Este aviso es el padrón del PH, no el quórum de una asamblea.`;
     } catch {
       el.textContent = "";
     }

@@ -200,6 +200,72 @@ public sealed partial class AttendanceService
             cancellationToken);
     }
 
+    /// <summary>
+    /// A leave recorded before the desk ever opened is not a legal exit.
+    /// Re-entering the preparation room restores Convocado without touching quorum.
+    /// A person who already checked in keeps Salió until they rejoin with the desk open.
+    /// </summary>
+    public async Task<AssemblyParticipantDto?> ClearPrepGhostLeaveAsync(
+        Guid assemblyId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+
+        var assembly = await _db.Assemblies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        if (AssemblyLifecycle.AllowsMeetingJoinToken(assembly.Status) || AssemblyLifecycle.IsTerminal(assembly.Status))
+        {
+            return null;
+        }
+
+        var participant = await _db.AssemblyParticipants
+            .FirstOrDefaultAsync(p => p.AssemblyId == assemblyId && p.UserId == userId, cancellationToken);
+        if (participant is null)
+        {
+            return null;
+        }
+
+        var ghost = participant.CheckedInAtUtc is null
+            && participant.AttendanceStatus is AttendanceStatus.Left or AttendanceStatus.TemporarilyDisconnected;
+        if (!ghost)
+        {
+            var unitCodeKept = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);
+            return Mapping.ToParticipantDto(participant, unitCodeKept, coefficientPercent: null);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        participant.AttendanceStatus = AttendanceStatus.Registered;
+        participant.UpdatedAtUtc = now;
+        _db.AttendanceRecords.Add(new AttendanceRecord
+        {
+            TenantId = assembly.TenantId,
+            AssemblyId = assemblyId,
+            UserId = userId,
+            UnitId = participant.UnitId,
+            PresenceType = participant.PresenceType ?? PresenceType.Virtual,
+            Status = AttendanceStatus.Registered,
+            TimestampUtc = now
+        });
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.WriteAsync(
+            AuditEventType.ParticipantConnected,
+            assemblyId,
+            metadata: new { userId, Status = AttendanceStatus.Registered.ToString(), Reason = "PrepLeaveCleared" },
+            cancellationToken: cancellationToken);
+
+        var unitCode = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);
+        var dto = Mapping.ToParticipantDto(participant, unitCode, coefficientPercent: null, representationCount: 0);
+        await _realtime.PublishAttendanceAsync(assemblyId, dto, cancellationToken);
+        return dto;
+    }
+
     public async Task<AssemblyParticipantDto> MarkLeftAsync(
         Guid assemblyId,
         Guid userId,
@@ -321,8 +387,9 @@ public sealed partial class AttendanceService
 
         TenantGuard.EnsureTenantMatch(_currentTenant, participant.TenantId);
 
-        if (assembly.Status is AssemblyStatus.Draft or AssemblyStatus.Scheduled
-            && status is AttendanceStatus.Present or AttendanceStatus.CheckedIn)
+        // Draft/Scheduled joins are observe-only. Connecting SignalR or leaving that
+        // preview must not create Present or Left, and must not move quorum.
+        if (!AssemblyLifecycle.AllowsMeetingJoinToken(assembly.Status))
         {
             var unitCodePrep = await Mapping.ResolveUnitCodeAsync(_db, participant.UnitId, cancellationToken);
             return Mapping.ToParticipantDto(participant, unitCodePrep, participant.EffectiveCoefficientPercent);

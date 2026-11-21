@@ -30,4 +30,14 @@ public sealed class CoefficientValidatorTests
     {
         Assert.Equal(0.4231m, CoefficientValidator.Normalize(0.42314m));
     }
+
+    [Fact]
+    public void DescribeRollup_uses_falta_excede_and_complete()
+    {
+        Assert.Equal("Total de coeficientes: 85 %. Falta 15 %.", CoefficientValidator.DescribeRollup(85m));
+        Assert.Equal("Total de coeficientes: 115 %. Excede 15 %.", CoefficientValidator.DescribeRollup(115m));
+        Assert.Equal("Total de coeficientes completo: 100 %.", CoefficientValidator.DescribeRollup(100m));
+        Assert.Equal("Total de coeficientes completo: 100 %.", CoefficientValidator.DescribeRollup(99.99995m));
+        Assert.Equal("Total de coeficientes: 100.01 %. Excede 0.01 %.", CoefficientValidator.DescribeRollup(100.01m));
+    }
 }

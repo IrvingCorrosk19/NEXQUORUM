@@ -8,7 +8,8 @@ import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton, startTopProgress, stopTopProgress } from "./loading.js";
 import { startHybridShell } from "./hybrid-router.js?v=polish13";
-import { createUnitsHub } from "./ph-units-hub.js?v=polish9";
+import { createUnitsHub } from "./ph-units-hub.js?v=rollup1";
+import { coefficientRollupCopy, formatCoefficientAmount } from "./coefficient-rollup.js";
 import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks, lockPageScroll, scrollFieldIntoSheet } from "./query-guard.js?v=polish11";
 
 const STEP_LABELS = [
@@ -3298,15 +3299,16 @@ async function loadCoefficients({ soft = false } = {}) {
     ? await cachedGet(path, { ttlMs: PH_TAB_TTL_MS, cacheKey: `GET:${path}` })
     : await api(path);
   markPhTabFresh("coefficients");
-  const total = Math.round(Number(c.totalPercent));
-  const expected = Math.round(Number(c.expectedPercent));
-  const complete = !!c.isComplete;
+  const rollup = coefficientRollupCopy(c);
+  const total = formatCoefficientAmount(c.totalPercent);
+  const expected = formatCoefficientAmount(c.expectedPercent);
+  const complete = rollup.tone === "ok";
   $("#coeff-panel").innerHTML = `
     <div class="coeff-board">
       <p class="coeff-board__total"><strong>${total}%</strong> <span>de ${expected}%</span></p>
-      <p class="badge ${complete ? "bg-green-lt" : "bg-yellow-lt"}">${complete ? "Completos" : "Pendiente"}</p>
-      <p class="coeff-board__msg">${escapeHtml(c.message || (complete ? "Los coeficientes cubren el 100%." : "Ajusta unidades hasta completar el 100%."))}</p>
-      <p class="muted">${c.activeUnitCount} unidades activas${c.deltaPercent ? ` · delta ${Math.round(Number(c.deltaPercent))}%` : ""}</p>
+      <p class="badge ${complete ? "bg-green-lt" : "bg-yellow-lt"}">${complete ? "Completos" : rollup.tone === "over" ? "Excede" : "Falta"}</p>
+      <p class="coeff-board__msg">${escapeHtml(c.message || rollup.text)}</p>
+      <p class="muted">${c.activeUnitCount} unidades activas. Total de coeficientes del PH, distinto del quórum.</p>
       <div class="cta-row">
         <button type="button" class="btn btn-primary" id="btn-coeff-units">Revisar unidades</button>
       </div>

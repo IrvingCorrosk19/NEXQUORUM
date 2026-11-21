@@ -3,8 +3,8 @@ import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=labels-es1";
-import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=labels-es1";
-import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=flow11";
+import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=empty1";
+import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=empty1";
 import { createMobileVotingController } from "./mobile-voting-sheet.js?v=labels-es1";
 import {
   resolveContextualGuide,
@@ -1039,6 +1039,18 @@ function presenceLabel(p) {
   return "Convocado";
 }
 
+function presenceFollowUp(p) {
+  if (!isSelfParticipant(p) || !/^Left$/i.test(String(p?.attendanceStatus || ""))) return "";
+  const assemblyStatus = String(state.assembly?.status || "");
+  if (["CheckIn", "InProgress", "Paused"].includes(assemblyStatus)) {
+    return "Reingrese para recuperar la presencia. Los datos no acreditan.";
+  }
+  if (p?.checkedInAtUtc || p?.CheckedInAtUtc) {
+    return "La presencia vuelve al entrar con la mesa abierta.";
+  }
+  return "";
+}
+
 function buildParticipantsListHtml() {
   const items = [...state.participants.values()];
   const currentId = state.queue?.currentSpeakerRequestId;
@@ -1075,7 +1087,7 @@ function buildParticipantsListHtml() {
             ? t("assembly.speaking") || "Hablando"
             : hand
               ? t("assembly.handRaised") || "Palabra"
-              : `${presenceLabel(p)} · ${link}${mediaNote ? ` · ${mediaNote}` : ""}`;
+              : `${presenceLabel(p)} · ${link}${mediaNote ? ` · ${mediaNote}` : ""}${presenceFollowUp(p) ? ` · ${presenceFollowUp(p)}` : ""}`;
           return `<li class="meeting-people-item">
             <div class="meeting-people-copy">
               <strong>${escapeHtml(friendlyParticipantName(p))}</strong>
@@ -1876,7 +1888,7 @@ function renderParticipants() {
         <span class="avatar" aria-hidden="true">${escapeHtml(initials)}</span>
         <div class="participant-meta">
           <strong>${escapeHtml(name)}</strong>
-          <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(accredited)} · ${escapeHtml(dataLabel)}${mediaNote ? ` · ${escapeHtml(mediaNote)}` : ""}${waiting ? " · En espera" : ""}</span>
+          <span>${escapeHtml(p.unitCode || "—")} · ${escapeHtml(accredited)} · ${escapeHtml(dataLabel)}${mediaNote ? ` · ${escapeHtml(mediaNote)}` : ""}${presenceFollowUp(p) ? ` · ${escapeHtml(presenceFollowUp(p))}` : ""}${waiting ? " · En espera" : ""}</span>
           ${renderSummonStatusBadge(p)}
           ${summonBtn}
           ${admitBtns}
@@ -3044,6 +3056,11 @@ async function syncPublishForFloor() {
   syncMeetingControlBar();
 }
 
+function finishSentence(text) {
+  const clean = String(text || "").trim().replace(/\.+$/, "");
+  return clean ? `${clean}.` : "";
+}
+
 function updateMediaConnectionBanner() {
   const el = qs("#media-connection-state");
   if (!el) return;
@@ -3063,7 +3080,7 @@ function updateMediaConnectionBanner() {
     "governance-only": "Audio y video: no disponibles. Puede continuar sin ellos."
   }[st] || `Audio y video: ${st}`;
   el.hidden = false;
-  el.textContent = `${dataLabel}. ${avLabel}.`;
+  el.textContent = [finishSentence(dataLabel), finishSentence(avLabel)].filter(Boolean).join(" ");
   renderPeoplePanel();
 }
 
