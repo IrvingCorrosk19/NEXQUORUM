@@ -2806,9 +2806,11 @@ function refreshPanelsNow() {
       });
       if (!ok) return;
       const result = await closeVoting(assemblyId, state.session.id);
-      const motionId = result?.motionId || result?.MotionId || state.session?.motionId;
+      const motionId = result?.motionId || result?.MotionId || state.session?.motionId || state.session?.MotionId;
       const motionStatus = result?.motionStatus || result?.MotionStatus || result?.tally?.decisionStatus;
       state.closedResult = result?.tally || result?.Tally || null;
+      state.session = null;
+      state.tally = null;
       ensureMobileVoting()?.onClosed();
       finishMotion(motionId, motionStatus);
       announceFinishedMotion(motionId, motionStatus);
@@ -3394,7 +3396,11 @@ function wireChat() {
   });
 }
 
+let operatorControlsWired = false;
+
 function wireOperatorControls() {
+  if (operatorControlsWired) return;
+  operatorControlsWired = true;
   qs("#btn-summon-absent")?.addEventListener("click", async () => {
     const btn = qs("#btn-summon-absent");
     const absent = [...state.participants.values()].filter(
@@ -3485,9 +3491,16 @@ function wireOperatorControls() {
 
   qs("#btn-end")?.addEventListener("click", async () => {
     const status = state.assembly?.status;
-    if (state.session?.status === "Open") {
-      showError(t("assembly.cannotEndWhileVoting"));
-      return;
+    const sessionStatus = String(state.session?.status || state.session?.Status || "");
+    if (sessionStatus === "Open") {
+      const live = await api(`/api/assemblies/${assemblyId}/voting/open`);
+      const liveStatus = String(live?.status || live?.Status || "");
+      if (live && liveStatus === "Open") {
+        showError(t("assembly.cannotEndWhileVoting"));
+        return;
+      }
+      state.session = null;
+      state.tally = null;
     }
     const agendaItems = state.agenda?.items?.length ?? 0;
     const done =
@@ -3689,6 +3702,9 @@ async function init() {
   els.userChip.textContent = state.user.displayName;
   state.viewerRole = resolveViewerRole(state.user);
   applyRoleChrome();
+  if (isOperator(state.user, { viewerRole: state.viewerRole })) {
+    wireOperatorControls();
+  }
 
   await rehydrate();
 
@@ -3855,6 +3871,8 @@ async function init() {
       refreshPanels();
     },
     votingClosed: (result) => {
+      state.session = null;
+      state.tally = null;
       const motionId = result?.motionId || result?.MotionId;
       const motionStatus =
         result?.motionStatus || result?.MotionStatus || result?.tally?.decisionStatus || result?.tally?.DecisionStatus;
