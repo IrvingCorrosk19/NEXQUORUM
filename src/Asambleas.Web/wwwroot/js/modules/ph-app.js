@@ -1746,17 +1746,22 @@ async function openAssemblySummary(assemblyId, opener) {
   }
   if (!asmSummaryGuard.isCurrent(token)) return;
   const id = encodeURIComponent(ev.id || ev.assemblyId || assemblyId);
-  const when = ev.scheduledAtUtc
-    ? new Date(ev.scheduledAtUtc).toLocaleString("es-PA", { dateStyle: "medium", timeStyle: "short" })
-    : "—";
+  const when = ev.scheduledAtUtc ? formatDateTime(ev.scheduledAtUtc) : "Sin fecha";
   const status = statusLabelEs(ev.status || ev.calendarStatus || "");
+  const invited = ev.participantCount ?? ev.invitedCount ?? cached?.participantCount ?? cached?.invitedCount;
+  const invitedText = invited == null
+    ? "No disponible en este resumen"
+    : String(invited);
   $("#asm-summary-title").textContent = ev.title || "Asamblea";
   $("#asm-summary-status").textContent = status || "Asamblea";
   $("#asm-summary-body").innerHTML = `
-    <div class="sheet-kv"><span>Fecha</span><span>${escapeHtml(when)}</span></div>
-    <div class="sheet-kv"><span>Modalidad</span><span>${escapeHtml(ev.modality || "—")}</span></div>
-    <div class="sheet-kv"><span>Estado</span><span>${escapeHtml(status)}</span></div>
-    <div class="sheet-kv"><span>Convocados</span><span>${escapeHtml(String(ev.participantCount ?? "—"))}</span></div>`;
+    <dl class="sheet-summary">
+      <div><dt>Fecha</dt><dd>${escapeHtml(when)}</dd></div>
+      <div><dt>Modalidad</dt><dd>${escapeHtml(ev.modality || "—")}</dd></div>
+      <div><dt>Estado</dt><dd>${escapeHtml(status)}</dd></div>
+      <div><dt>Convocados</dt><dd>${escapeHtml(invitedText)}</dd></div>
+      ${invited == null ? `<p class="sheet-summary__note">La lista de convocados se consulta en Participantes. Este resumen no la trae.</p>` : ""}
+    </dl>`;
   const bucket = assemblyListBucket(ev.status);
   const operate =
     bucket === "live"
@@ -2166,14 +2171,13 @@ async function loadOwners({ soft = false } = {}) {
         <div class="owner-action-bar">
           <button type="button" class="btn btn-secondary btn-sm" data-owner="${o.id}">Ver</button>
           <button type="button" class="btn btn-secondary btn-sm" data-edit-owner="${o.id}">Editar</button>
-          ${sendAction}
-          ${statusAction}
-          <button type="button" class="btn btn-ghost btn-sm owner-action-bar__danger" data-delete-owner-row="${o.id}">Eliminar…</button>
           <div class="ux-menu">
-            <button type="button" class="btn btn-ghost btn-sm" data-more-owner="${o.id}" aria-haspopup="true" aria-label="Más acciones">⋮</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-more-owner="${o.id}" aria-haspopup="true" aria-label="Más acciones de ${escapeHtml(o.displayName)}">Más</button>
             <div class="ux-menu__panel" id="owner-more-${o.id}" hidden>
-              <button type="button" data-owner="${o.id}">Ver detalle</button>
               <button type="button" data-owner-units="${o.id}">Administrar unidades</button>
+              ${sendAction}
+              ${statusAction}
+              <button type="button" data-delete-owner-row="${o.id}">Eliminar…</button>
             </div>
           </div>
         </div>

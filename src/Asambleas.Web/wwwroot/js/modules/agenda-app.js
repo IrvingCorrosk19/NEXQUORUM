@@ -262,11 +262,13 @@ async function init() {
   qs("#btn-open-agenda")?.addEventListener("click", (ev) => {
     openAgendaDialog(null, ev.currentTarget);
   });
-  qs("#agenda-dialog-close")?.addEventListener("click", () => {
+  const closeAgendaDialog = () => {
     if (dirty && !window.confirm("Hay cambios sin guardar. ¿Cerrar de todos modos?")) return;
     dirty = false;
     qs("#dlg-agenda")?.close();
-  });
+  };
+  qs("#agenda-dialog-close")?.addEventListener("click", closeAgendaDialog);
+  qs("#agenda-dialog-cancel")?.addEventListener("click", closeAgendaDialog);
   qs("#dlg-agenda")?.addEventListener("close", () => agendaOpener?.focus?.());
   qs("#dlg-agenda")?.addEventListener("cancel", (ev) => {
     if (!dirty) return;

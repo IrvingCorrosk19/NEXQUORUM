@@ -1010,9 +1010,9 @@ dialog.app-sheet[open],
   /* dialog[open] defaults to display:block — flex keeps head/body/foot in the overlay */
   display: flex !important;
   flex-direction: column;
-  width: min(36rem, calc(100vw - 1.5rem));
-  max-height: min(92dvh, calc(100dvh - 1.5rem), 52rem);
-  height: auto;
+  width: min(36rem, calc(100vw - 2rem));
+  max-height: min(92dvh, calc(100dvh - 2rem));
+  height: fit-content;
   margin: auto;
   padding: 0;
   border: 1px solid rgba(16, 43, 63, 0.12);
@@ -1033,11 +1033,13 @@ dialog.app-sheet::backdrop,
 }
 
 .app-sheet__form,
-.app-sheet .unit-hub {
-  display: flex;
+.app-sheet .unit-hub,
+.layout-tabler .unit-hub-dialog .unit-hub {
+  display: flex !important;
   flex-direction: column;
-  flex: 1 1 auto;
-  max-height: min(92dvh, calc(100dvh - 1.5rem), 52rem);
+  flex: 0 1 auto;
+  height: auto !important;
+  max-height: min(92dvh, calc(100dvh - 2rem));
   min-height: 0;
   overflow: hidden;
 }
@@ -1065,9 +1067,17 @@ dialog.app-sheet::backdrop,
 }
 
 .app-sheet__head > .btn,
-.conv-work__head > .btn {
+.app-sheet__close,
+.conv-work__head > .btn,
+.schedule-sheet__close,
+.unit-hub__head > .btn {
   flex: 0 0 auto;
   width: auto;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  color: #102b3f;
+  background: #fff;
+  border: 1px solid rgba(16, 43, 63, 0.22);
 }
 
 .app-sheet__head h2 {
@@ -1135,9 +1145,20 @@ dialog.app-sheet::backdrop,
   color: #102b3f;
 }
 
-.app-sheet .form-grid input,
+.app-sheet .form-grid > legend,
+.unit-hub-form .form-grid > legend,
+.schedule-sheet .app-sheet__block > legend,
+.app-sheet__block > legend {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.app-sheet .form-grid input:not([type="checkbox"]):not([type="radio"]),
 .app-sheet .form-grid select,
-.app-sheet .form-grid textarea {
+.app-sheet .form-grid textarea,
+.unit-hub-form .form-grid input:not([type="checkbox"]):not([type="radio"]),
+.unit-hub-form .form-grid select,
+.unit-hub-form .form-grid textarea {
   min-height: 2.65rem;
   border: 1px solid rgba(16, 43, 63, 0.18);
   border-radius: 0.65rem;
@@ -1146,8 +1167,61 @@ dialog.app-sheet::backdrop,
   color: #102b3f;
 }
 
+.app-sheet .form-grid label.check,
+.unit-hub-form .form-grid label.check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.55rem;
+  grid-column: 1 / -1;
+  min-height: 2.65rem;
+}
+
+.app-sheet .form-grid label.check input,
+.unit-hub-form label.check input {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-height: 1.15rem;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
 .app-sheet .span-2 {
   grid-column: 1 / -1;
+}
+
+.sheet-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.85rem;
+  margin: 0;
+}
+
+.sheet-summary div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.sheet-summary dt {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #3e536b;
+}
+
+.sheet-summary dd {
+  margin: 0;
+  color: #102b3f;
+  font-weight: 650;
+}
+
+.sheet-summary__note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #3e536b;
 }
 
 .layout-tabler .unit-hub__tabs button[hidden] {
@@ -1396,6 +1470,23 @@ dialog.app-sheet::backdrop,
 .layout-tabler .readiness-banner.is-blocked {
   background: rgba(255, 128, 107, 0.16);
   color: #9a3412;
+}
+
+.layout-tabler .ia-primary-action,
+.layout-tabler .ia-stat,
+.layout-tabler .readiness-card {
+  color: #102b3f;
+  background: #fff;
+}
+
+.layout-tabler .ia-primary-action__desc,
+.layout-tabler .ia-stat__hint,
+.layout-tabler .readiness-card__desc {
+  color: #3e536b;
+}
+
+.layout-tabler .unit-hub-dialog.is-create .unit-hub__body {
+  flex: 0 1 auto;
 }
 
 .owner-units-list {
@@ -1879,8 +1970,9 @@ dialog.app-sheet:not([open]),
 }
 
 .layout-tabler dialog.conv-work {
-  width: min(56rem, calc(100vw - 1.25rem));
-  max-height: min(92dvh, 46rem);
+  width: min(56rem, calc(100vw - 2rem));
+  max-height: min(92dvh, calc(100dvh - 2rem));
+  height: fit-content;
   margin: auto;
   padding: 0;
   border: 1px solid rgba(16, 43, 63, 0.12);
@@ -1893,14 +1985,17 @@ dialog.app-sheet:not([open]),
 .layout-tabler dialog.conv-work:not([open]) { display: none !important; }
 
 .layout-tabler .conv-work__form {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  max-height: min(92dvh, 46rem);
+  display: flex;
+  flex-direction: column;
+  max-height: min(92dvh, calc(100dvh - 2rem));
+  height: auto;
 }
 
 .layout-tabler .conv-work__body {
   overflow: auto;
   padding: 0 1.1rem 1rem;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .layout-tabler .conv-work__head,
@@ -1931,6 +2026,7 @@ dialog.app-sheet:not([open]),
   border-top: 1px solid rgba(16, 43, 63, 0.08);
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.5rem;
   align-items: center;
 }

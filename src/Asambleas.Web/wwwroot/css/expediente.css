@@ -127,24 +127,26 @@
   gap: 1rem;
   padding: 0.85rem 1rem;
   border-bottom: 1px solid color-mix(in srgb, var(--text-on-inverse, #0b1220) 14%, transparent);
-  background: var(--surface-inverse, #e8eef8);
-  color: var(--text-on-inverse, #0b1220);
+  background: #102b3f;
+  color: #f4f7fb;
 }
 
 .exp-modal__header h2 {
   margin: 0;
   font-size: 1rem;
-  color: var(--text-on-inverse, #0b1220);
+  color: #f4f7fb;
   overflow-wrap: anywhere;
 }
 
 .exp-modal__header .btn,
-.exp-modal__header .btn-ghost {
+.exp-modal__header .btn-ghost,
+.layout-tabler .exp-modal__header .btn,
+.layout-tabler .exp-modal__header .btn-ghost {
   min-height: var(--touch-min, 2.75rem);
   min-width: var(--touch-min, 2.75rem);
-  color: #f4f7fb;
-  background: transparent;
-  border: 1px solid rgba(244, 247, 251, 0.55);
+  color: #f4f7fb !important;
+  background: transparent !important;
+  border: 1px solid rgba(244, 247, 251, 0.7);
 }
 
 .exp-modal__body {

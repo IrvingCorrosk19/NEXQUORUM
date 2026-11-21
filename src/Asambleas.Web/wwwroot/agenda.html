@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/css/tokens.css?v=flow1" />
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow3" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow7" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 </head>
 <body class="layout-tabler">
@@ -72,26 +72,27 @@
       </main>
     </div>
   </div>
-  <dialog id="dlg-agenda" class="conv-work" aria-labelledby="agenda-dialog-title">
-    <form id="agenda-form" class="conv-work__form">
-      <header class="conv-work__head">
+  <dialog id="dlg-agenda" class="app-sheet" aria-labelledby="agenda-dialog-title">
+    <form id="agenda-form" class="app-sheet__form">
+      <header class="app-sheet__head">
         <h2 id="agenda-dialog-title" tabindex="-1">Agregar punto</h2>
-        <button type="button" class="btn btn-secondary" id="agenda-dialog-close" aria-label="Cerrar">Cerrar</button>
+        <button type="button" class="btn app-sheet__close" id="agenda-dialog-close" aria-label="Cerrar">✕</button>
       </header>
-      <div class="conv-work__body">
+      <div class="app-sheet__body">
         <label class="form-label">Código
-          <input class="form-control" id="agenda-code" type="text" maxlength="64" placeholder="A01" autocomplete="off" />
+          <input class="form-control" id="agenda-code" type="text" maxlength="32" placeholder="A01" autocomplete="off" />
         </label>
-        <label class="form-label mt-2">Título
+        <label class="form-label">Título
           <input class="form-control" id="agenda-title" type="text" required maxlength="200" placeholder="Ej. Aprobación de estados financieros" />
         </label>
       </div>
-      <footer class="conv-work__foot">
+      <footer class="app-sheet__foot">
+        <button type="button" class="btn btn-secondary" id="agenda-dialog-cancel">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar punto</button>
       </footer>
     </form>
   </dialog>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/agenda-app.js?v=flow5"></script>
+  <script type="module" src="/js/modules/agenda-app.js?v=flow7"></script>
 </body>
 </html>

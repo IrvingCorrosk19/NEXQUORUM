@@ -201,7 +201,7 @@ function constraintsFromPrefs({ camera = true, mic = true } = {}) {
   return { video, audio };
 }
 
-/** Ordered fallbacks — Lenovo/desktop cams often reject facingMode or stale deviceIds. */
+/** Ordered fallbacks — some cameras reject facingMode or a stale device id. */
 function constraintAttempts({ camera = true, mic = true } = {}) {
   const prefs = loadDevicePrefs();
   const attempts = [];

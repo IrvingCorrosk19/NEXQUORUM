@@ -507,6 +507,9 @@ function wireRecipientPicker() {
 async function loadEmailPreview(id) {
   const frame = qs("#conv-preview-frame");
   if (!frame) return;
+  const subj = qs("#conv-preview-subject");
+  if (subj) subj.textContent = "Cargando vista previa…";
+  frame.srcdoc = `<body style="font-family:DM Sans,sans-serif;padding:24px;color:#3e536b"><p>Cargando vista previa…</p></body>`;
   try {
     const preview = await api(`/api/convocations/${id}/email-preview`);
     frame.srcdoc = preview.html || "";
@@ -611,8 +614,8 @@ function deliveryStatusEs(status) {
   const map = {
     Pending: "Pendiente",
     Queued: "En cola",
-    Sent: "Enviada",
-    Delivered: "Entregada",
+    Sent: "Enviada al proveedor",
+    Delivered: "Entregada al destinatario",
     Failed: "Fallida",
     Bounced: "Rebotada",
     Skipped: "Omitida",
@@ -955,6 +958,7 @@ async function init() {
 
   qs("#btn-new-convocation")?.addEventListener("click", (ev) => openCreateDialog(ev.currentTarget));
   qs("#conv-dialog-close")?.addEventListener("click", () => closeWorkDialog());
+  qs("#conv-dialog-cancel")?.addEventListener("click", () => closeWorkDialog());
   qs("#create-form")?.addEventListener("input", markFormDirty);
   qs("#dlg-convocation")?.addEventListener("cancel", (ev) => {
     ev.preventDefault();

@@ -13,8 +13,10 @@
   <link rel="stylesheet" href="/css/feedback.css?v=fb1" />
   <style>
     .checkin-shell { display: grid; gap: 1.25rem; }
-    @media (min-width: 900px) {
-      .checkin-shell { grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem); align-items: start; }
+    .checkin-shell > * { min-width: 0; max-width: 100%; }
+    .checkin-shell > .stack { overflow: auto; }
+    @media (min-width: 1100px) {
+      .checkin-shell { grid-template-columns: minmax(0, 1fr) minmax(16rem, 18rem); align-items: start; }
     }
     .checkin-banner {
       display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
@@ -25,6 +27,10 @@
     .checkin-banner.is-open {
       background: color-mix(in srgb, var(--color-surface) 90%, var(--brand-teal-500, #1a5f4a) 10%);
     }
+    .checkin-banner,
+    .checkin-banner .banner-text,
+    .checkin-live,
+    .checkin-live .metric { color: #102b3f; }
     .checkin-banner .banner-text { margin: 0; flex: 1 1 14rem; }
     .checkin-live {
       display: grid; gap: 0.75rem; padding: 1rem 1.1rem;
@@ -105,11 +111,13 @@
     .participants-table { width: 100%; min-width: 44rem; border-collapse: collapse; font-size: 0.92rem; table-layout: auto; }
     .participants-table .coeff-line { white-space: nowrap; }
     .participants-table td, .participants-table th { vertical-align: middle; }
+    .checkin-live { position: static; align-self: start; }
+    .participants-table td:first-child { overflow-wrap: anywhere; }
     .participants-table th:last-child,
     .participants-table td:last-child {
-      position: sticky; right: 0; z-index: 1;
-      background: var(--color-surface, #fff);
-      box-shadow: -8px 0 10px -10px rgba(16, 43, 63, 0.35);
+      position: static;
+      background: transparent;
+      box-shadow: none;
     }
     .participants-table th, .participants-table td {
       padding: 0.55rem 0.45rem; text-align: left; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
@@ -136,7 +144,7 @@
   <link rel="stylesheet" href="/css/summon-status.css?v=mP1a" />
   <link rel="stylesheet" href="/css/gov-ops.css?v=gov3" />
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow4" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow7" />
 </head>
 <body class="layout-tabler">
   <a class="skip-link visually-hidden-focusable" href="#main">Saltar al contenido</a>

@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
   <link rel="stylesheet" href="/css/ph.css?v=units-hub4" />
   <link rel="stylesheet" href="/css/ph-roster-import.css?v=polish9" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=polish12" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=flow7" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="/favicon.ico" />
 </head>
@@ -533,7 +533,8 @@
               <label><span id="owner-unit-select-label">Unidad</span>
                 <select name="unitId" id="owner-unit-select"><option value="">— asociar después —</option></select>
               </label>
-              <label>Participación % <input name="sharePercent" id="owner-share-percent" type="number" min="1" max="100" step="1" value="100" /></label>
+              <label>Participación de titularidad % <input name="sharePercent" id="owner-share-percent" type="number" min="1" max="100" step="1" value="100" /></label>
+              <p class="muted span-2" style="margin:0">La participación es el porcentaje de esta persona sobre la unidad. El coeficiente es el peso de la unidad en el PH y se edita en la unidad, no aquí.</p>
               <p id="owner-share-hint" class="muted" style="grid-column:1/-1;margin:0" hidden></p>
             </fieldset>
             <p id="owner-form-error" class="field-error" hidden role="alert"></p>
@@ -630,6 +631,6 @@
     </div>
   </div>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/ph-app.js?v=polish13"></script>
+  <script type="module" src="/js/modules/ph-app.js?v=flow7"></script>
 </body>
 </html>
