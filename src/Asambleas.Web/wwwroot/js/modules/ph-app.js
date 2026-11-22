@@ -304,8 +304,20 @@ function mountPhListShell() {
   );
 }
 
+function canonicalPhTab(tab) {
+  const key = String(tab || "").replace(/^#/, "").toLowerCase();
+  const aliases = {
+    settings: "info",
+    config: "info",
+    configuracion: "info",
+    prep: "readiness",
+    preparacion: "readiness"
+  };
+  return aliases[key] || key;
+}
+
 function applyHashTab() {
-  const hash = (location.hash || "").replace("#", "");
+  const hash = canonicalPhTab(location.hash || "");
   const map = {
     resumen: "resumen",
     info: "info",
@@ -1156,7 +1168,7 @@ async function openPh(id, preferredTab = null) {
   const inactive = ph.status === "Inactive";
   $("#btn-archive-ph").hidden = inactive;
   $("#btn-template").href = `/api/ph/${id}/import/template`;
-  const initialTab = preferredTab || (isOnboardingMode(ph) ? "info" : "resumen");
+  const initialTab = canonicalPhTab(preferredTab) || (isOnboardingMode(ph) ? "info" : "resumen");
   const allowed = new Set(["resumen", "info", "assemblies", "units", "owners", "coefficients", "import", "readiness"]);
   invalidatePhTabData(id);
   // Lazy-load only the active tab (switchTab). Avoids 5 parallel GETs on every PH open.

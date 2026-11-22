@@ -5,7 +5,7 @@
  */
 import { castVote, getMyVoteStatus } from "./voting.js?v=labels-es1";
 import { t } from "../i18n/i18n.js?v=labels-es1";
-import { escapeHtml } from "./ui.js";
+import { escapeHtml, formatDateTime } from "./ui.js";
 
 const CHOICES = ["InFavor", "Against", "Abstention"];
 const CHOICE_ICON = { InFavor: "✓", Against: "✕", Abstention: "–" };
@@ -618,7 +618,7 @@ export function createMobileVotingController(options) {
             shortReceipt(evidenceId)
           )}</code></dd></div>
           <div><dt>${escapeHtml(t("mvote.castAt") || "Fecha y hora")}</dt><dd>${escapeHtml(
-            castAt ? new Date(castAt).toLocaleString() : "—"
+            castAt ? formatDateTime(castAt) : "—"
           )}</dd></div>
           <div><dt>${escapeHtml(t("mvote.serverConfirmed") || "Estado")}</dt><dd>${escapeHtml(
             t("mvote.serverConfirmed") || "Confirmado por el servidor"
@@ -722,6 +722,11 @@ export function createMobileVotingController(options) {
     log("castAttempt", { sessionId: sid, idempotency: clientRequestId.slice(0, 8) });
     try {
       const receipt = await castVote(assemblyId, sid, selected, null, clientRequestId);
+      const confirmedAt = receipt?.castAtUtc || receipt?.CastAtUtc;
+      const confirmedId = receipt?.evidenceId || receipt?.EvidenceId;
+      if (!confirmedAt || !confirmedId) {
+        throw Object.assign(new Error("El servidor no confirmó el voto."), { status: 502 });
+      }
       clearDraft(sid);
       selected = null;
       clientRequestId = null;

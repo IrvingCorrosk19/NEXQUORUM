@@ -103,6 +103,22 @@
   margin: 0 0 0.55rem;
 }
 
+.room--ocean .vote-receipt {
+  background: #d9f3ef;
+  border-color: #0f766e;
+  color: #062521;
+}
+.room--ocean .vote-receipt h3,
+.room--ocean .vote-receipt p,
+.room--ocean .vote-receipt .metric-number,
+.room--ocean .vote-receipt .evidence-id,
+.room--ocean .vote-receipt .muted {
+  color: #062521;
+}
+.room--ocean .vote-receipt .btn {
+  color: #f8fafc;
+}
+
 .room--ocean .vote-question,
 .room--ocean #vote-question-heading {
   color: var(--ocean-text);

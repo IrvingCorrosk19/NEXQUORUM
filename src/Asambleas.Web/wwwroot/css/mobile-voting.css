@@ -325,10 +325,32 @@ body:has(.room--ocean) .mvo.is-compact .mvo__sheet {
   height: auto;
   max-height: min(90dvh, 40rem);
 }
-body:has(.room--ocean) .mvo__title {
-  color: #f4f7fb;
+body:has(.room--ocean) .mvo__header {
+  background: #102238;
+  color: #f8fafc;
+  border-bottom-color: #25354b;
 }
-body:has(.room--ocean) .mvo__kicker,
+body:has(.room--ocean) .mvo__title {
+  color: #f8fafc;
+}
+body:has(.room--ocean) .mvo__kicker {
+  color: #99f6e4;
+}
+body:has(.room--ocean) .mvo__header .btn,
+body:has(.room--ocean) .mvo__minimize {
+  color: #ecfeff;
+  background: transparent;
+  border: 1px solid #5eead4;
+}
+body:has(.room--ocean) .mvo__meta,
+body:has(.room--ocean) .mvo__meta dt,
+body:has(.room--ocean) .mvo__meta dd,
+body:has(.room--ocean) .mvo__receipt-ok {
+  color: #f8fafc;
+}
+body:has(.room--ocean) .mvo__receipt-ok {
+  color: #6ee7b7;
+}
 body:has(.room--ocean) .muted {
   color: #a9b5c5;
 }

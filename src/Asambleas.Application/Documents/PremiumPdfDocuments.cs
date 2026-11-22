@@ -96,6 +96,21 @@ public static class PremiumPdfDocuments
                     DocumentDesign.SectionTitle(col.Item(), "3. Asistencia");
                     col.Item().Text($"Participantes listados: {m.Attendance.Count}").FontSize(10);
                     col.Item().PaddingTop(8).Element(e => AttendanceTable(e, m.Attendance));
+                    DocumentDesign.SectionTitle(col.Item(), "Titularidades de personas ausentes");
+                    var absent = m.AbsentHolders ?? [];
+                    if (absent.Count == 0)
+                    {
+                        col.Item().Text("Ninguna. No se repite la unidad de quien ya está presente.")
+                            .FontColor(DocumentDesign.Muted);
+                    }
+                    else
+                    {
+                        foreach (var r in absent.OrderBy(x => x.UnitCode))
+                        {
+                            col.Item().PaddingVertical(2).Text(
+                                $"{r.UnitCode} · {DocumentLabels.Coefficient(r.CoefficientSnapshot)} · {r.RepresentativeDisplayName} · {DocumentLabels.RepresentationSource(r.Source)}");
+                        }
+                    }
 
                     DocumentDesign.SectionTitle(col.Item(), "4. Orden del Día");
                     if (m.Agenda.Count == 0)

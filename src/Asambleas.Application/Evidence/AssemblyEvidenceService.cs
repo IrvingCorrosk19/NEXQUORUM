@@ -123,7 +123,14 @@ public sealed class AssemblyEvidenceService
             var sealedDoc = JsonSerializer.Deserialize<AssemblyMinutesDocumentDto>(json, HashJson);
             if (sealedDoc is not null)
             {
-                return sealedDoc with { IsSealed = true, ContentHash = sealedRow.SealedMinutesHash ?? sealedDoc.ContentHash };
+                var holders = sealedDoc.AbsentHolders
+                    ?? AbsentHolderRules.Select(sealedDoc.Attendance, sealedDoc.Representations);
+                return sealedDoc with
+                {
+                    IsSealed = true,
+                    ContentHash = sealedRow.SealedMinutesHash ?? sealedDoc.ContentHash,
+                    AbsentHolders = holders
+                };
             }
         }
 
@@ -195,6 +202,12 @@ public sealed class AssemblyEvidenceService
         DateTimeOffset? startedAt = FirstAudit(audit, AuditEventType.AssemblyStarted);
         DateTimeOffset? completedAt = FirstAudit(audit, AuditEventType.AssemblyCompleted);
 
+        var present = package.Attendance.Where(p =>
+            p.IsAccredited
+            || p.AttendanceStatus is nameof(AttendanceStatus.CheckedIn)
+                or nameof(AttendanceStatus.Present)
+                or nameof(AttendanceStatus.TemporarilyDisconnected)).ToList();
+        var activeRepresentations = package.Representations.Where(r => r.IsActive).ToList();
         var documentId = $"ACTA-{package.AssemblyId:N}-{package.GeneratedAtUtc:yyyyMMddHHmmss}";
         var hashPayload = JsonSerializer.Serialize(new
         {
@@ -224,18 +237,15 @@ public sealed class AssemblyEvidenceService
             startedAt,
             completedAt,
             package.LatestQuorum,
-            package.Attendance.Where(p =>
-                p.IsAccredited
-                || p.AttendanceStatus is nameof(AttendanceStatus.CheckedIn)
-                    or nameof(AttendanceStatus.Present)
-                    or nameof(AttendanceStatus.TemporarilyDisconnected)).ToList(),
-            package.Representations.Where(r => r.IsActive).ToList(),
+            present,
+            activeRepresentations,
             package.Agenda,
             package.Interventions,
             closedVoting,
             package.Decisions,
             "Este documento resume hechos verificados por el sistema. No constituye por sí solo validación jurídica externa.",
-            IsSealed: false);
+            IsSealed: false,
+            AbsentHolders: AbsentHolderRules.Select(present, activeRepresentations));
     }
 
     /// <summary>Backward-compatible projection used by older clients.</summary>

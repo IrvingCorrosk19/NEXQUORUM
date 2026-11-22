@@ -55,6 +55,22 @@ public static class PremiumTextDocuments
                 $"{DocumentLabels.Coefficient(p.EffectiveCoefficientPercent)}");
         }
         sb.AppendLine();
+        sb.AppendLine("Titularidades de personas ausentes");
+        var absent = m.AbsentHolders ?? [];
+        if (absent.Count == 0)
+        {
+            sb.AppendLine("  (ninguna: no se repite la unidad de quien ya está presente)");
+        }
+        else
+        {
+            foreach (var r in absent.OrderBy(x => x.UnitCode))
+            {
+                sb.AppendLine(
+                    $"  - Unidad {r.UnitCode} | {DocumentLabels.Coefficient(r.CoefficientSnapshot)} | " +
+                    $"{r.RepresentativeDisplayName} | {DocumentLabels.RepresentationSource(r.Source)}");
+            }
+        }
+        sb.AppendLine();
 
         sb.AppendLine("## 4. ORDEN DEL DÍA");
         foreach (var a in m.Agenda.OrderBy(x => x.Ordinal))

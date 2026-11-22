@@ -99,6 +99,9 @@ export async function api(path, options = {}) {
           detail = `Request failed (${response.status})`;
         }
       }
+      if (response.status === 401 && !/\/api\/auth\/(me|login|antiforgery|logout)/.test(String(path))) {
+        showSessionExpired();
+      }
       const error = new Error(detail);
       error.status = response.status;
       error.payload = payload;
@@ -156,6 +159,21 @@ export async function cachedGet(path, options = {}) {
 
   getResourceCache.set(cacheKey, { expires: 0, promise });
   return promise;
+}
+
+function showSessionExpired() {
+  if (typeof document === "undefined" || document.getElementById("session-expired-banner")) return;
+  const bar = document.createElement("div");
+  bar.id = "session-expired-banner";
+  bar.setAttribute("role", "alert");
+  bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:10000;padding:0.8rem 1rem;background:#7f1d1d;color:#fff;font:600 0.95rem/1.4 sans-serif;";
+  const link = document.createElement("a");
+  link.href = "/";
+  link.textContent = "Volver a entrar";
+  link.style.color = "#fff";
+  link.style.marginLeft = "0.6rem";
+  bar.append("Tu sesión ya no es válida.", link);
+  document.body?.prepend(bar);
 }
 
 /** Invalidate by exact key or prefix (e.g. `/api/assemblies/{id}/`). */

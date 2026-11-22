@@ -831,6 +831,16 @@
 @media (max-width: 767.98px) {
   .layout-tabler {
     overflow-x: hidden;
+    height: auto;
+    max-height: none;
+  }
+
+  .layout-tabler .page,
+  .layout-tabler .page-wrapper,
+  .layout-tabler .page-body {
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .layout-tabler .page-wrapper,
@@ -1749,7 +1759,23 @@ dialog.app-sheet::backdrop,
 .layout-tabler .conv-status-pill--ready,
 .layout-tabler .conv-status-pill--approved { color: #005f5c; background: rgba(0, 124, 120, 0.1); border-color: rgba(0, 124, 120, 0.28); }
 .layout-tabler .conv-status-pill--sending { color: #9a3412; background: rgba(255, 128, 107, 0.14); }
-.layout-tabler .conv-status-pill--sent { color: #005f5c; background: rgba(0, 124, 120, 0.12); }
+.layout-tabler .conv-status-pill--sent { color: #064e3b; background: #d1fae5; border-color: #047857; }
+.layout-tabler .brand-hero .conv-status-pill,
+.layout-tabler .brand-hero .conv-status-pill--draft,
+.layout-tabler .brand-hero .conv-status-pill--ready,
+.layout-tabler .brand-hero .conv-status-pill--approved,
+.layout-tabler .brand-hero .conv-status-pill--sending,
+.layout-tabler .brand-hero .conv-status-pill--sent {
+  color: #062521;
+  background: #ecfdf5;
+  border-color: #047857;
+}
+.layout-tabler .brand-hero .conv-status-pill--partial,
+.layout-tabler .brand-hero .conv-status-pill--failed {
+  color: #7f1d1d;
+  background: #fee2e2;
+  border-color: #b91c1c;
+}
 .layout-tabler .conv-status-pill--partial,
 .layout-tabler .conv-status-pill--failed { color: #9a3412; background: #fff7f5; border-color: rgba(185, 28, 28, 0.25); }
 
@@ -2077,11 +2103,21 @@ dialog.app-sheet:not([open]),
 }
 
 .layout-tabler .ia-asm-tabs__more summary {
+  display: inline-flex;
+  align-items: center;
+  list-style: none;
+  cursor: pointer;
   color: #102b3f;
   background: #fff;
   border: 1px solid rgba(16, 43, 63, 0.16);
+  border-radius: 999px;
   min-height: 2.4rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.875rem;
   font-weight: 650;
+}
+.layout-tabler .ia-asm-tabs__more summary::-webkit-details-marker {
+  display: none;
 }
 
 .layout-tabler .ia-asm-tabs__menu {

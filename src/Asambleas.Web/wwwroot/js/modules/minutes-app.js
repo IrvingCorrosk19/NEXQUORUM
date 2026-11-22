@@ -17,14 +17,11 @@ function pct(n) {
 }
 
 function absentHolderRepresentations(attendance, representations) {
-  const presentIds = new Set((attendance || []).map((p) => p.unitId).filter(Boolean));
-  const presentCodes = new Set(
-    (attendance || []).map((p) => String(p.unitCode || "").trim()).filter(Boolean)
-  );
+  const presentUsers = new Set((attendance || []).map((p) => p.userId).filter(Boolean));
   return (representations || []).filter((row) => {
-    if (row.unitId && presentIds.has(row.unitId)) return false;
-    const code = String(row.unitCode || "").trim();
-    return !code || !presentCodes.has(code);
+    const proxy = String(row.source || "") === "Power" || Boolean(row.powerId);
+    if (proxy) return true;
+    return !row.representativeUserId || !presentUsers.has(row.representativeUserId);
   });
 }
 
@@ -37,7 +34,9 @@ function renderMinutes(data) {
 
   const c = data.completeness || {};
   const attendance = data.attendance || [];
-  const reps = absentHolderRepresentations(attendance, data.representations);
+  const reps = Array.isArray(data.absentHolders)
+    ? data.absentHolders
+    : absentHolderRepresentations(attendance, data.representations);
   const agenda = data.agenda || [];
   const decisions = data.decisions || [];
   const motions = data.motions || [];

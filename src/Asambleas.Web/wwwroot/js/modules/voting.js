@@ -1,7 +1,7 @@
 import { api } from "./api.js";
 import { explainBlockCode } from "./contextual-guide.js";
 import { t } from "../i18n/i18n.js?v=labels-es1";
-import { escapeHtml } from "./ui.js";
+import { escapeHtml, formatDateTime } from "./ui.js";
 
 export function mapOpenVotingError(error) {
   const code = String(error?.code || error?.payload?.extensions?.code || "").toUpperCase();
@@ -489,8 +489,11 @@ export function renderVotePanel(
 
     try {
       const receipt = await onCast?.(choice);
-      const evidence = receipt?.evidenceId || receipt?.EvidenceId || "—";
-      const at = receipt?.castAtUtc || receipt?.CastAtUtc || new Date().toISOString();
+      const evidence = receipt?.evidenceId || receipt?.EvidenceId;
+      const at = receipt?.castAtUtc || receipt?.CastAtUtc;
+      if (!evidence || !at) {
+        throw Object.assign(new Error("El servidor no confirmó el voto."), { status: 502 });
+      }
       const freshTally = tallyFromCastReceipt(receipt, tally, session);
       const { notify } = await import("./ui.js");
       notify.success(t("voting.registeredToast"), { title: t("voting.registered") });
@@ -518,10 +521,12 @@ export function renderVotePanel(
         if (statusEl) {
           statusEl.className = "vote-status-line is-error";
           statusEl.innerHTML = `
-            <div class="inline-alert" role="status" aria-live="assertive">
+            <div class="inline-alert inline-alert-error" role="alert">
               <p><strong>${escapeHtml(t("voting.failureTitle") || "No se pudo confirmar")}</strong></p>
               <p class="muted">${escapeHtml(t("voting.failureBody"))}</p>
+              <button type="button" class="btn btn-secondary" data-vote-retry>Reintentar</button>
             </div>`;
+          statusEl.querySelector("[data-vote-retry]")?.addEventListener("click", () => submitChoice(choice));
         }
         try {
           const verified = await onVerify?.(choice);
@@ -571,7 +576,9 @@ export function renderVotePanel(
         statusEl.innerHTML = `
           <div class="inline-alert inline-alert-error" role="alert">
             <p><strong>${escapeHtml(t("voting.failureTitle") || t("voting.castFailed") || "No se pudo confirmar")}</strong></p>
+            <button type="button" class="btn btn-secondary" data-vote-retry>Reintentar</button>
           </div>`;
+        statusEl.querySelector("[data-vote-retry]")?.addEventListener("click", () => submitChoice(choice));
       }
     }
   };
@@ -590,9 +597,7 @@ export function renderVotePanel(
 }
 
 function renderReceipt(evidenceId, castAt, tally, session, { waiting = false } = {}) {
-  const time = castAt
-    ? new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(new Date(castAt))
-    : "";
+  const time = castAt ? formatDateTime(castAt) : "";
   const code = shortReceiptCode(evidenceId);
   return `
     <div class="vote-receipt" role="status">

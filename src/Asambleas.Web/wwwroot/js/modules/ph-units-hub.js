@@ -203,7 +203,7 @@ export function createUnitsHub(ctx) {
           <td>${ownerLabel}</td>
           <td>${fmtCoef(u.coefficientPercent)} %</td>
           <td><span class="unit-status ${u.isActive ? "is-on" : "is-off"}">${u.isActive ? "Activa" : "Inactiva"}</span></td>
-          <td class="unit-actions-cell" onclick="event.stopPropagation()">
+          <td class="unit-actions-cell">
             <div class="unit-actions">
               <button type="button" class="btn btn-outline-secondary btn-sm" data-manage-unit="${u.id}">Gestionar</button>
               <button type="button" class="btn btn-ghost btn-icon" data-unit-menu="${u.id}" aria-label="Más acciones" aria-haspopup="menu">•••</button>
