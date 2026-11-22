@@ -3351,18 +3351,84 @@ async function loadReadiness({ soft = false } = {}) {
         : !r.coefficients?.isComplete
           ? { tab: "coefficients", label: "Revisar coeficientes" }
           : { tab: "assemblies", label: "Ir a asambleas" };
+  const coeffPct = Math.round(Number(r.coefficients?.totalPercent || 0));
+  const items = [
+    {
+      title: "Información general",
+      ok: Boolean(r.generalInfoComplete),
+      detail: r.generalInfoComplete
+        ? "Nombre, dirección y contacto del PH están completos."
+        : "Faltan datos del PH. Completa nombre, dirección o contacto.",
+      tab: "info",
+      action: r.generalInfoComplete ? "Revisar" : "Completar"
+    },
+    {
+      title: "Unidades",
+      ok: Boolean(r.unitsComplete),
+      detail: r.unitsComplete
+        ? `${r.unitCount} unidades registradas.`
+        : "Aún no hay unidades suficientes para convocar.",
+      tab: "units",
+      action: "Revisar unidades"
+    },
+    {
+      title: "Propietarios",
+      ok: Boolean(r.ownersComplete),
+      detail: r.ownersComplete
+        ? `${r.ownerCount} propietarios vinculados.`
+        : "Falta vincular propietarios a las unidades.",
+      tab: "owners",
+      action: "Revisar propietarios"
+    },
+    {
+      title: "Coeficientes",
+      ok: Boolean(r.coefficients?.isComplete),
+      detail: `${coeffPct}% del total del PH. ${r.coefficients?.isComplete ? "El total cuadra." : "El total no cuadra con 100%."}`,
+      tab: "coefficients",
+      action: "Revisar coeficientes"
+    },
+    {
+      title: "Usuarios invitados",
+      ok: Number(r.invitedUserCount) > 0,
+      detail: Number(r.invitedUserCount) > 0
+        ? `${r.invitedUserCount} usuarios con invitación.`
+        : "Nadie tiene invitación. Puedes invitar desde propietarios.",
+      tab: "owners",
+      action: "Ver propietarios"
+    },
+    {
+      title: "Configuración de asamblea",
+      ok: Boolean(r.assemblyConfigComplete),
+      detail: r.assemblyConfigComplete
+        ? "La configuración mínima de asamblea está lista."
+        : "Falta la configuración mínima para convocar.",
+      tab: "assemblies",
+      action: "Ir a asambleas"
+    }
+  ];
   $("#readiness-panel").innerHTML = `
     <div class="readiness-banner ${bannerClass}" role="status">${bannerText}</div>
-    <div class="sheet-kv"><span>Información general</span><span>${r.generalInfoComplete ? "✓" : "○"}</span></div>
-    <div class="sheet-kv"><span>Unidades</span><span>${r.unitsComplete ? "✓" : "○"} ${r.unitCount}</span></div>
-    <div class="sheet-kv"><span>Propietarios</span><span>${r.ownersComplete ? "✓" : "○"} ${r.ownerCount}</span></div>
-    <div class="sheet-kv"><span>Coeficientes</span><span>${r.coefficients?.isComplete ? "✓" : "○"} ${Math.round(Number(r.coefficients?.totalPercent || 0))}%</span></div>
-    <div class="sheet-kv"><span>Usuarios invitados</span><span>${r.invitedUserCount}</span></div>
-    <div class="sheet-kv"><span>Configuración asamblea</span><span>${r.assemblyConfigComplete ? "✓" : "○"}</span></div>
+    <div class="readiness-cards">
+      ${items.map((item) => `
+        <article class="ph-ready-card ${item.ok ? "is-ready" : "is-attention"}">
+          <div class="ph-ready-card__main">
+            <p class="ph-ready-card__status">${item.ok ? "Listo" : "Pendiente"}</p>
+            <h3>${escapeHtml(item.title)}</h3>
+            <p>${escapeHtml(item.detail)}</p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" data-ready-tab="${escapeHtml(item.tab)}">${escapeHtml(item.action)}</button>
+        </article>`).join("")}
+    </div>
     ${(r.blockingIssues || []).map((i) => `<p class="lede">${escapeHtml(i)}</p>`).join("")}
-    <div class="cta-row" style="margin-top:1rem">
+    <div class="cta-row">
       <button type="button" class="btn btn-primary" id="btn-readiness-next">${escapeHtml(next.label)}</button>
     </div>`;
+  $("#readiness-panel").querySelectorAll("[data-ready-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      switchTab(btn.dataset.readyTab);
+      focusPhPanelTitle(btn.dataset.readyTab);
+    });
+  });
   $("#btn-readiness-next")?.addEventListener("click", () => {
     switchTab(next.tab);
     focusPhPanelTitle(next.tab);

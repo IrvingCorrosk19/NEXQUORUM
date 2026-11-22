@@ -97,6 +97,8 @@ public static class PremiumPdfDocuments
                     col.Item().Text($"Participantes listados: {m.Attendance.Count}").FontSize(10);
                     col.Item().PaddingTop(8).Element(e => AttendanceTable(e, m.Attendance));
                     DocumentDesign.SectionTitle(col.Item(), "Titularidades de personas ausentes");
+                    col.Item().Text("Proyección calculada al leer. No forma parte del hash SHA-256 de los hechos sellados.")
+                        .FontSize(9).FontColor(DocumentDesign.Muted);
                     var absent = m.AbsentHolders ?? [];
                     if (absent.Count == 0)
                     {

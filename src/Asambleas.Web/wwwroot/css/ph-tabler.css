@@ -828,9 +828,67 @@
   flex-shrink: 0;
 }
 
+.layout-tabler .readiness-list {
+  max-width: 42rem;
+}
+
+.layout-tabler .ph-ready-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(16, 43, 63, 0.12);
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.layout-tabler .ph-ready-card.is-ready {
+  border-left: 3px solid #047857;
+}
+
+.layout-tabler .ph-ready-card.is-attention {
+  border-left: 3px solid #b45309;
+}
+
+.layout-tabler .ph-ready-card__main {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.layout-tabler .ph-ready-card__status {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.layout-tabler .ph-ready-card.is-ready .ph-ready-card__status {
+  color: #065f46;
+}
+
+.layout-tabler .ph-ready-card.is-attention .ph-ready-card__status {
+  color: #9a3412;
+}
+
+.layout-tabler .ph-ready-card h3,
+.layout-tabler .ph-ready-card p {
+  margin: 0.15rem 0 0;
+}
+
+.layout-tabler .ph-ready-card h3 {
+  font-size: 1rem;
+  color: #102b3f;
+}
+
+.layout-tabler .ph-ready-card .btn {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 767.98px) {
   .layout-tabler {
-    overflow-x: hidden;
     height: auto;
     max-height: none;
   }

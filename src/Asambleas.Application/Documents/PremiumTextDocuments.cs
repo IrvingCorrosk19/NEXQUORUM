@@ -56,6 +56,7 @@ public static class PremiumTextDocuments
         }
         sb.AppendLine();
         sb.AppendLine("Titularidades de personas ausentes");
+        sb.AppendLine("  Proyección calculada al leer. No forma parte del hash SHA-256 de los hechos sellados.");
         var absent = m.AbsentHolders ?? [];
         if (absent.Count == 0)
         {

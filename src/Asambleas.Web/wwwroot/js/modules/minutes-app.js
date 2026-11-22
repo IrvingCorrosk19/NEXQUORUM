@@ -54,6 +54,7 @@ function renderMinutes(data) {
         <summary>Detalle técnico</summary>
         <p>Identificador: ${escapeHtml(data.documentId || "Sin identificador")}</p>
         <p>SHA-256: ${escapeHtml(data.contentHash || "Sin hash")}</p>
+        <p>El hash cubre los hechos sellados. La lista de titularidades ausentes se calcula al leer y no entra en ese hash.</p>
       </details>
     </header>
 
@@ -72,7 +73,7 @@ function renderMinutes(data) {
       <ul>${attendance.map((p) => `<li><strong>${escapeHtml(p.displayName)}</strong> · ${escapeHtml(p.unitCode || "—")} · unidad ${pct(p.coefficientPercent)} · efectivo ${pct(p.effectiveCoefficientPercent)} · ${escapeHtml(assemblyLabel(p.attendanceStatus))}</li>`).join("") || "<li>Sin asistencia registrada.</li>"}</ul>
       ${
         reps.length
-          ? `<h4>Titularidades de personas ausentes</h4><p class="muted">Unidades cuyo titular no está presente. No forman parte del quórum de quienes sí están en la mesa.</p><ul>${reps
+          ? `<h4>Titularidades de personas ausentes</h4><p class="muted">Proyección calculada al leer. No forma parte del hash SHA-256 de los hechos sellados.</p><ul>${reps
               .map(
                 (r) =>
                   `<li>${escapeHtml(r.unitCode)} · ${pct(r.coefficientSnapshot)} · ${escapeHtml(r.representativeDisplayName)} (${escapeHtml(assemblyLabel(r.source))})</li>`
