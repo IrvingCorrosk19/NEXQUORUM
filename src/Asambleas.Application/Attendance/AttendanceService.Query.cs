@@ -133,6 +133,7 @@ public sealed partial class AttendanceService
             : await _db.Units.AsNoTracking()
                 .Where(u => unitIds.Contains(u.Id))
                 .ToDictionaryAsync(u => u.Id, u => (u.Code, u.CoefficientPercent), cancellationToken);
+        var ownedCodes = await LoadOwnedUnitCodesAsync(assembly, userIds, cancellationToken);
 
         var items = participants.Select(p =>
         {
@@ -147,7 +148,8 @@ public sealed partial class AttendanceService
             }
 
             var reps = repCounts.GetValueOrDefault(p.UserId, 0);
-            return Mapping.ToParticipantDto(p, code, coeff, reps);
+            ownedCodes.TryGetValue(p.UserId, out var codes);
+            return Mapping.ToParticipantDto(p, code, coeff, reps, codes);
         }).ToList();
 
         return new ParticipantsPageDto(total, skip, take, items);

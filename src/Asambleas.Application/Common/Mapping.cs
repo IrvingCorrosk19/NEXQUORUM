@@ -32,7 +32,8 @@ internal static class Mapping
         AssemblyParticipant participant,
         string? unitCode = null,
         decimal? coefficientPercent = null,
-        int representationCount = 0) =>
+        int representationCount = 0,
+        IReadOnlyList<string>? ownedUnitCodes = null) =>
         new(
             participant.Id,
             participant.AssemblyId,
@@ -56,7 +57,8 @@ internal static class Mapping
             participant.AccreditedByUserId,
             participant.RoomEntryStatus.ToString(),
             participant.RoomEntryRequestedAtUtc,
-            participant.RoomEntryRejectReason);
+            participant.RoomEntryRejectReason,
+            OwnedUnitCodes: ownedUnitCodes);
 
     public static QuorumStateDto ToQuorumState(
         Guid assemblyId,

@@ -730,11 +730,17 @@ a {
 }
 
 .room--ocean .btn-secondary,
-.room--ocean .live-vote-dialog .btn-secondary,
 .room--ocean .device-settings-dialog .btn-secondary {
   background: #ffffff;
   color: #0b2440;
   border-color: rgba(11, 36, 64, 0.28);
+}
+
+.room--ocean .live-vote-dialog .btn-secondary,
+.room--ocean .live-vote-dialog .btn-ghost {
+  background: transparent;
+  color: #e8eef7;
+  border: 1px solid rgba(232, 238, 247, 0.35);
 }
 
 .room--ocean .btn-primary,
@@ -764,12 +770,18 @@ a {
   background: #9f1239;
 }
 
-.room--ocean .live-vote-form input,
-.room--ocean .live-vote-form textarea,
-.room--ocean .live-vote-form select,
 .room--ocean .device-settings-form select {
   background: #ffffff;
   color: #0b2440;
+}
+
+.room--ocean .live-vote-form input,
+.room--ocean .live-vote-form textarea,
+.room--ocean .live-vote-form select {
+  background: #0d1524;
+  color: #f4f7fb;
+  border-color: rgba(232, 238, 247, 0.28);
+  color-scheme: dark;
 }
 
 .room--ocean .mcb-btn:focus-visible,

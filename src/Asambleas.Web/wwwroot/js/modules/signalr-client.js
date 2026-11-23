@@ -45,6 +45,7 @@ export function createAssemblyConnection(handlers = {}) {
   let joinedAssemblyId = null;
   let listenersBound = false;
   let markPresenceOnJoin = true;
+  let presenceOnReconnect = false;
 
   const connection = new signalR.HubConnectionBuilder()
     .withUrl("/hubs/assembly")
@@ -72,7 +73,7 @@ export function createAssemblyConnection(handlers = {}) {
       handlers.onConnectionState?.("connected");
       if (joinedAssemblyId) {
         try {
-          await connection.invoke("JoinAssembly", joinedAssemblyId, markPresenceOnJoin);
+          await connection.invoke("JoinAssembly", joinedAssemblyId, presenceOnReconnect);
           await handlers.onReconnected?.(joinedAssemblyId);
         } catch (error) {
           handlers.onReconnectError?.(error);
@@ -90,6 +91,7 @@ export function createAssemblyConnection(handlers = {}) {
     async start(assemblyId, options = {}) {
       joinedAssemblyId = assemblyId;
       markPresenceOnJoin = options.markPresence !== false;
+      presenceOnReconnect = options.restoreOnReconnect === true;
       bindListenersOnce();
       if (connection.state === signalR.HubConnectionState.Disconnected) {
         await connection.start();

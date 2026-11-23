@@ -73,7 +73,7 @@ function renderMinutes(data) {
       <ul>${attendance.map((p) => `<li><strong>${escapeHtml(p.displayName)}</strong> · ${escapeHtml(p.unitCode || "—")} · unidad ${pct(p.coefficientPercent)} · efectivo ${pct(p.effectiveCoefficientPercent)} · ${escapeHtml(assemblyLabel(p.attendanceStatus))}</li>`).join("") || "<li>Sin asistencia registrada.</li>"}</ul>
       ${
         reps.length
-          ? `<h4>Titularidades de personas ausentes</h4><p class="muted">Proyección calculada al leer. No forma parte del hash SHA-256 de los hechos sellados.</p><ul>${reps
+          ? `<h4>Titularidades de personas ausentes</h4><p class="muted">Unidades cuyos titulares no figuran presentes. No repite a quien ya está en la asistencia.</p><ul>${reps
               .map(
                 (r) =>
                   `<li>${escapeHtml(r.unitCode)} · ${pct(r.coefficientSnapshot)} · ${escapeHtml(r.representativeDisplayName)} (${escapeHtml(assemblyLabel(r.source))})</li>`

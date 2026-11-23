@@ -215,32 +215,67 @@ function coefficientPoints(p) {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+function ownedCodes(p) {
+  const listed = Array.isArray(p.ownedUnitCodes) ? p.ownedUnitCodes : [];
+  const codes = listed.map((code) => String(code || "").trim()).filter(Boolean);
+  if (codes.length) return codes;
+  const primary = String(p.unitCode || "").trim();
+  return primary ? [primary] : [];
+}
+
+function distinctCodes(people) {
+  const seen = new Set();
+  const ordered = [];
+  for (const person of people) {
+    for (const code of ownedCodes(person)) {
+      const key = code.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      ordered.push(code);
+    }
+  }
+  return ordered;
+}
+
+function unitLine(p) {
+  const codes = ownedCodes(p);
+  if (!codes.length) return "Sin unidad";
+  if (codes.length <= 3) {
+    if (codes.length === 1) return codes[0];
+    return `${codes.slice(0, -1).join(", ")} y ${codes[codes.length - 1]}`;
+  }
+  return `${codes[0]} y ${codes.length - 1} más`;
+}
+
 function renderSummary() {
   const host = qs("#checkin-summary");
   if (!host) return;
   const owners = participants.filter((p) => !isOperatorRole(p));
-  const mesaStaff = participants.filter((p) => isOperatorRole(p)).length;
+  const staff = participants.filter((p) => isOperatorRole(p));
   const presentOwners = owners.filter((p) => isPresent(p));
-  const linkedUnits = owners.filter((p) => p.unitId || p.unitCode).length;
-  const presentUnits = presentOwners.filter((p) => p.unitId || p.unitCode).length;
+  const presentStaff = staff.filter((p) => isPresent(p));
+  const linkedUnits = distinctCodes(owners).length;
+  const presentUnits = distinctCodes(presentOwners).length;
+  const quorumPeople = participants.filter((p) => isPresent(p) && coefficientPoints(p) > 0).length;
   const representations = presentOwners.reduce((s, p) => s + Number(p.representationCount || 0), 0);
   const coeff = presentOwners.reduce((s, p) => s + coefficientPoints(p), 0);
   host.innerHTML = `
     <div class="chip"><strong>${owners.length}</strong><span>Propietarios convocados</span></div>
-    <div class="chip"><strong>${mesaStaff}</strong><span>Personal de mesa</span></div>
-    <div class="chip"><strong>${presentOwners.length}</strong><span>Presentes acreditados</span></div>
-    <div class="chip"><strong>${linkedUnits}</strong><span>Unidades vinculadas</span></div>
-    <div class="chip"><strong>${presentUnits}</strong><span>Unidades presentes</span></div>
+    <div class="chip"><strong>${presentOwners.length}</strong><span>Propietarios acreditados</span></div>
+    <div class="chip"><strong>${presentStaff.length}</strong><span>Personal de mesa presente</span></div>
+    <div class="chip"><strong>${quorumPeople}</strong><span>Personas que aportan al quórum</span></div>
+    <div class="chip" title="Unidades distintas de las titularidades de los propietarios convocados. Una unidad compartida cuenta una vez."><strong>${linkedUnits}</strong><span>Unidades de los convocados</span></div>
+    <div class="chip"><strong>${presentUnits}</strong><span>Unidades de propietarios acreditados</span></div>
     <div class="chip"><strong>${representations}</strong><span>Representaciones en quórum</span></div>
     <div class="chip"><strong>${coeff.toFixed(2)}%</strong><span>Coeficiente en el quórum</span></div>
   `;
 }
 
 function updateLive() {
-  const present = participants.filter((p) => isPresent(p)).length;
-  const convocados = participants.length;
+  const owners = participants.filter((p) => !isOperatorRole(p));
+  const presentOwners = owners.filter((p) => isPresent(p));
   const counts = qs("#live-counts");
-  if (counts) counts.textContent = `${present} / ${convocados}`;
+  if (counts) counts.textContent = `${presentOwners.length} / ${owners.length}`;
 
   const root = qs("#live-quorum");
   const warn = qs("#coeff-warn");
@@ -346,7 +381,7 @@ function renderCards(filter = "") {
             return `<tr class="${present ? "is-present" : ""}" data-user-id="${escapeHtml(id)}">
               <td data-label="Propietario">
                 <strong>${escapeHtml(p.displayName || "Sin nombre")}</strong>
-                <div class="owner-unit">${escapeHtml(p.unitCode || "Sin unidad")}</div>
+                <div class="owner-unit">${escapeHtml(unitLine(p))}</div>
               </td>
               <td data-label="Presencia"><span class="badge ${present ? "badge-success" : "badge-live"}">${escapeHtml(
                 presenceLabel(p)
@@ -836,7 +871,7 @@ async function init() {
           }
         }
       });
-      await hubConn.start(assemblyId);
+      await hubConn.start(assemblyId, { markPresence: false });
     }
   } catch {
     // SignalR optional for presence page

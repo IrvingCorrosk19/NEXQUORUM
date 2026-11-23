@@ -556,40 +556,45 @@ export function createLiveVotingWorkspace({
       gate.reason = err.message || "No se pudo leer el estado de la asamblea.";
     }
     const ui = openDialog(`
-      <header><h3>Votación rápida</h3></header>
-      <p class="muted">Escribe la pregunta que verán los participantes.</p>
-      <label>Pregunta<textarea name="question" rows="3" required placeholder="Escribe la pregunta que verán los participantes"></textarea></label>
-      <label>Código<input name="code" value="VQ-${Date.now().toString().slice(-5)}" required /></label>
-      <label>Método
-        <select name="calc">
-          <option value="Coefficient" selected>Coeficiente</option>
-          <option value="PerPerson">Por persona</option>
-          <option value="PerUnit">Por unidad</option>
-        </select>
-      </label>
-      <label>Mayoría
-        <select name="rule">
-          <option value="SimpleMajority" selected>Simple</option>
-          <option value="QualifiedMajority">Mayoría calificada</option>
-        </select>
-      </label>
-      <label data-threshold hidden>Umbral %
-        <input name="threshold" type="number" step="0.01" min="0.01" max="100" placeholder="Indique el porcentaje" />
-        <span class="muted">Indica el porcentaje exigido para aprobar.</span>
-      </label>
-      <label>Resultados
-        <select name="vis">
-          <option value="HiddenUntilClose" selected>Ocultos hasta cierre</option>
-          <option value="PresidentOnlyLive">Solo mesa</option>
-          <option value="LiveResults">En vivo</option>
-        </select>
-      </label>
-      <p role="status">${escapeHtml(gate.reason)}</p>
+      <header class="lv-head">
+        <h3 id="lv-quick-title">Votación rápida</h3>
+        <button type="button" class="btn btn-ghost" data-dismiss aria-label="Cerrar">✕</button>
+      </header>
+      <div class="lv-body">
+        <p class="muted">Escribe la pregunta que verán los participantes.</p>
+        <label>Pregunta<textarea name="question" rows="3" required placeholder="Escribe la pregunta que verán los participantes"></textarea></label>
+        <label>Código<input name="code" value="VQ-${Date.now().toString().slice(-5)}" required /></label>
+        <label>Método
+          <select name="calc">
+            <option value="Coefficient" selected>Coeficiente</option>
+            <option value="PerPerson">Por persona</option>
+            <option value="PerUnit">Por unidad</option>
+          </select>
+        </label>
+        <label>Mayoría
+          <select name="rule">
+            <option value="SimpleMajority" selected>Simple</option>
+            <option value="QualifiedMajority">Mayoría calificada</option>
+          </select>
+        </label>
+        <label data-threshold hidden>Umbral %
+          <input name="threshold" type="number" step="0.01" min="0.01" max="100" placeholder="Indique el porcentaje" />
+          <span class="muted">Indica el porcentaje exigido para aprobar.</span>
+        </label>
+        <label>Resultados
+          <select name="vis">
+            <option value="HiddenUntilClose" selected>Ocultos hasta cierre</option>
+            <option value="PresidentOnlyLive">Solo mesa</option>
+            <option value="LiveResults">En vivo</option>
+          </select>
+        </label>
+        ${gate.allowed ? "" : `<p role="status">${escapeHtml(gate.reason)}</p>`}
+      </div>
       <footer class="live-vote-dialog-actions">
-        <button type="button" class="btn btn-secondary" data-dismiss>Cancelar</button>
-        <button type="submit" class="btn btn-secondary" value="save">Guardar borrador</button>
-        <button type="submit" class="btn btn-primary" value="present" ${gate.allowed ? "" : "disabled"}>Guardar y presentar</button>
-        <button type="submit" class="btn btn-primary" value="open" ${gate.allowed ? "" : "disabled"}>Guardar, presentar y abrir</button>
+        <button type="button" class="btn btn-ghost" data-dismiss>Cancelar</button>
+        <button type="submit" class="btn ${gate.allowed ? "btn-secondary" : "btn-primary"}" value="save">Guardar borrador</button>
+        ${gate.allowed ? `<button type="submit" class="btn btn-secondary" value="present">Guardar y presentar</button>
+        <button type="submit" class="btn btn-primary" value="open">Guardar, presentar y abrir</button>` : ""}
       </footer>
     `, opener);
     if (!ui) return;

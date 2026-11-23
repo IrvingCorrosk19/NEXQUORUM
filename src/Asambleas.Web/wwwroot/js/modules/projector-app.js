@@ -159,7 +159,7 @@ async function init() {
     }
   });
 
-  await hub.start(assemblyId);
+  await hub.start(assemblyId, { markPresence: false });
   timerId = window.setInterval(tickTimer, 1000);
 }
 

@@ -4,7 +4,7 @@ import { createAssemblyConnection } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=labels-es1";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=final1";
-import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=cierre2";
+import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=hallazgo5";
 import { createMobileVotingController } from "./mobile-voting-sheet.js?v=labels-es1";
 import {
   resolveContextualGuide,
@@ -1314,6 +1314,7 @@ function wireMeetingDrawers() {
     closeMeetingDrawers();
     await state.hub?.stop(assemblyId);
     await disconnectLiveKit();
+    sessionStorage.setItem(`asambleas-explicit-leave:${assemblyId}`, "1");
     location.href = `/lobby.html?assemblyId=${assemblyId}`;
   });
   qs("#btn-end-more")?.addEventListener("click", () => {
@@ -4012,7 +4013,15 @@ async function init() {
   });
 
   const prepStatus = ["Draft", "Scheduled"].includes(String(state.assembly?.status || ""));
-  await state.hub.start(assemblyId, { markPresence: !prepStatus });
+  sessionStorage.removeItem(`asambleas-explicit-leave:${assemblyId}`);
+  if (!prepStatus) {
+    try {
+      await api(`/api/assemblies/${assemblyId}/attendance/presence`, { method: "POST" });
+    } catch (error) {
+      showError(error.message || "No se pudo registrar el ingreso.");
+    }
+  }
+  await state.hub.start(assemblyId, { markPresence: false, restoreOnReconnect: !prepStatus });
   window.addEventListener("pagehide", () => {
     if (state.intentionalDisconnect) return;
     try {

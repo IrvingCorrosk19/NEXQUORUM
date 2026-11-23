@@ -29,10 +29,11 @@
   border: 0;
   border-radius: 0.75rem;
   padding: 0;
-  max-width: min(420px, 94vw);
+  max-width: min(36rem, calc(100vw - 1rem));
   width: 100%;
+  max-height: min(92dvh, 100%);
   box-shadow: 0 16px 40px rgba(10, 40, 40, 0.25);
-  background: #102b3f;
+  background: #102238;
   color: #f4f7fb;
 }
 
@@ -41,9 +42,33 @@
 }
 
 .live-vote-form {
-  padding: 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: min(92dvh, 100%);
+  gap: 0;
+}
+
+.lv-head,
+.live-vote-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  flex: 0 0 auto;
+}
+
+.lv-head h3 {
+  margin: 0;
+}
+
+.lv-body {
   display: grid;
   gap: 0.65rem;
+  padding: 0 1rem 0.75rem;
+  overflow: auto;
+  min-height: 0;
 }
 
 .live-vote-form label {
@@ -59,9 +84,10 @@
   font: inherit;
   padding: 0.5rem 0.65rem;
   border-radius: 0.4rem;
-  border: 1px solid #c5d4d3;
-  background: #fff;
-  color: #102b3f;
+  border: 1px solid rgba(232, 238, 247, 0.28);
+  background: #0d1524;
+  color: #f4f7fb;
+  color-scheme: dark;
 }
 
 .live-vote-dialog-actions {
@@ -69,7 +95,8 @@
   flex-wrap: wrap;
   gap: 0.45rem;
   justify-content: flex-end;
-  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-top: 0;
 }
 
 .live-pick-row {
@@ -102,9 +129,9 @@
   .live-vote-form textarea,
   .live-vote-form select {
     min-height: var(--touch-min, 2.75rem);
-    background: #fff;
-    color: #102b3f;
-    border-color: rgba(16, 43, 63, 0.28);
+    background: #0d1524;
+    color: #f4f7fb;
+    border-color: rgba(232, 238, 247, 0.28);
   }
 
   .live-vote-dialog-actions {

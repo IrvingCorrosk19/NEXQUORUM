@@ -97,7 +97,7 @@ public static class PremiumPdfDocuments
                     col.Item().Text($"Participantes listados: {m.Attendance.Count}").FontSize(10);
                     col.Item().PaddingTop(8).Element(e => AttendanceTable(e, m.Attendance));
                     DocumentDesign.SectionTitle(col.Item(), "Titularidades de personas ausentes");
-                    col.Item().Text("Proyección calculada al leer. No forma parte del hash SHA-256 de los hechos sellados.")
+                    col.Item().Text("Unidades cuyos titulares no figuran presentes. No repite a quien ya está en la asistencia.")
                         .FontSize(9).FontColor(DocumentDesign.Muted);
                     var absent = m.AbsentHolders ?? [];
                     if (absent.Count == 0)
@@ -409,7 +409,7 @@ public static class PremiumPdfDocuments
                     col.Item().PaddingTop(8).Text(
                             "El hash SHA-256 del acta sella el payload JSON de hechos verificados " +
                             "(asistencia, quórum, agenda, votaciones cerradas, decisiones). " +
-                            "No hashea los bytes del PDF. Cada archivo del ZIP declara su SHA-256 en Manifest.json.")
+                            "No hashea los bytes del PDF. La lista de titulares ausentes es una referencia al leer y no entra en ese hash. Cada archivo del ZIP declara su SHA-256 en Manifest.json.")
                         .FontSize(8).FontColor(DocumentDesign.Muted);
                 });
             });

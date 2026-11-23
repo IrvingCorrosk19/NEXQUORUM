@@ -121,29 +121,40 @@ function updateToggleLabels({ persist = true } = {}) {
   const camMissing = device.cameraAvailable === false;
   const micMissing = device.micAvailable === false;
   if (camBtn) {
-    camBtn.disabled = camMissing;
-    camBtn.textContent = camMissing ? "Sin cámara" : device.camera ? t("lobby.deviceOn") : t("lobby.deviceOff");
+    camBtn.disabled = camMissing || device.cameraDenied === true;
+    camBtn.textContent = camMissing ? "Sin cámara" : device.cameraDenied ? "Permiso denegado" : device.camera ? t("lobby.deviceOn") : t("lobby.deviceOff");
     camBtn.setAttribute("aria-pressed", camMissing ? "false" : String(device.camera));
     camBtn.setAttribute("aria-label", camMissing ? "No hay cámara en este equipo" : device.camera ? t("lobby.turnCameraOff") : t("lobby.turnCameraOn"));
   }
   if (micBtn) {
-    micBtn.disabled = micMissing;
-    micBtn.textContent = micMissing ? "Sin micrófono" : device.mic ? t("lobby.deviceOn") : t("lobby.deviceOff");
+    micBtn.disabled = micMissing || device.micDenied === true;
+    micBtn.textContent = micMissing ? "Sin micrófono" : device.micDenied ? "Permiso denegado" : device.mic ? t("lobby.deviceOn") : t("lobby.deviceOff");
     micBtn.setAttribute("aria-pressed", micMissing ? "false" : String(device.mic));
     micBtn.setAttribute("aria-label", micMissing ? "No hay micrófono en este equipo" : device.mic ? t("lobby.muteMic") : t("lobby.unmuteMic"));
   }
   setPreviewTracks({ camera: device.camera && !camMissing, mic: device.mic && !micMissing });
-  if (persist && !camMissing && !micMissing) {
+  if (persist && !camMissing && !micMissing && !device.cameraDenied && !device.micDenied) {
     saveDevicePrefs({ cameraEnabled: device.camera, micEnabled: device.mic });
   }
   const hint = qs("#lobby-device-hint");
   if (hint) {
-    const missing = [camMissing ? "cámara" : "", micMissing ? "micrófono" : ""].filter(Boolean);
-    hint.hidden = missing.length === 0;
-    hint.textContent = missing.length
-      ? `No se detectó ${missing.join(" ni ")}. Una preferencia guardada no enciende un dispositivo ausente. Puedes entrar sin medios.`
-      : "";
+    const notice = deviceNotice();
+    hint.hidden = !notice;
+    hint.textContent = notice;
   }
+}
+
+function deviceNotice() {
+  const camMissing = device.cameraAvailable === false;
+  const micMissing = device.micAvailable === false;
+  const denied = device.permissionDenied === true;
+  if (camMissing && micMissing) {
+    return "No hay cámara ni micrófono en este equipo. Puedes entrar sin imagen ni sonido.";
+  }
+  if (camMissing) return "No hay cámara en este equipo. Puedes entrar sin imagen.";
+  if (micMissing) return "No hay micrófono en este equipo. Puedes entrar sin sonido.";
+  if (denied) return "El navegador bloqueó la cámara y el micrófono. Puedes entrar sin imagen ni sonido.";
+  return "";
 }
 
 function fillSelect(select, devices, selectedId, emptyLabel) {
@@ -422,6 +433,7 @@ async function beginEntry(options = {}) {
 
 function scheduleAutoEnterIfLive(assembly, self) {
   if (autoEnterScheduled) return;
+  if (sessionStorage.getItem(`asambleas-explicit-leave:${assemblyId}`) === "1") return;
   if (!shouldAutoEnterRoom(assembly)) return;
   if (!isConvocated(self)) return;
   if (["Cancelled", "Completed"].includes(assembly?.status || "")) return;
@@ -541,16 +553,22 @@ async function setupPreview() {
       fallback.textContent = result.error || t("lobby.avDenied");
     }
   }
+  device.cameraDenied = Boolean(result?.cameraDenied);
+  device.micDenied = Boolean(result?.micDenied);
+  device.permissionDenied = device.cameraDenied || device.micDenied;
   if (result?.error && /notfound|devicenotfound|requested device not found|no hay/i.test(String(result.error))) {
-    if (device.camera) device.cameraAvailable = false;
-    if (device.mic) device.micAvailable = false;
-    device.camera = device.cameraAvailable === false ? false : device.camera;
-    device.mic = device.micAvailable === false ? false : device.mic;
+    device.cameraAvailable = false;
+    device.micAvailable = false;
+    device.camera = false;
+    device.mic = false;
+  }
+  if (!result?.stream && device.permissionDenied) {
+    device.camera = false;
+    device.mic = false;
   }
   updateToggleLabels({ persist: false });
-  const fact = qs("#fact-meeting");
-  if (fact && meetingAvailable && (device.cameraAvailable === false || device.micAvailable === false)) {
-    fact.textContent = "Puedes entrar sin medios. En este equipo falta un dispositivo.";
+  if (!result?.stream && fallback && window.isSecureContext && deviceNotice()) {
+    fallback.textContent = "Sin vista previa.";
   }
 }
 

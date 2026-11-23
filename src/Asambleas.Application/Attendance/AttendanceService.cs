@@ -81,7 +81,7 @@ public sealed partial class AttendanceService
             .FirstOrDefaultAsync(p => p.AssemblyId == assemblyId && p.UserId == userId, cancellationToken)
             ?? throw new DomainException("El participante no está inscrito en esta asamblea.");
 
-        return await MarkConnectedAsync(assemblyId, userId, cancellationToken);
+        return await MarkConnectedAsync(assemblyId, userId, cancellationToken, explicitRoomEntry: true);
     }
 
     private static DomainException AccreditationRemoved() =>
@@ -161,6 +161,7 @@ public sealed partial class AttendanceService
                 .AsNoTracking()
                 .Where(u => unitIds.Contains(u.Id))
                 .ToDictionaryAsync(u => u.Id, u => (u.Code, u.CoefficientPercent), cancellationToken);
+        var ownedCodes = await LoadOwnedUnitCodesAsync(assembly, userIds, cancellationToken);
 
         return participants
             .Select(p =>
@@ -176,7 +177,8 @@ public sealed partial class AttendanceService
                 }
 
                 var reps = repCounts.GetValueOrDefault(p.UserId, 0);
-                return Mapping.ToParticipantDto(p, code, coeff, reps);
+                ownedCodes.TryGetValue(p.UserId, out var codes);
+                return Mapping.ToParticipantDto(p, code, coeff, reps, codes);
             })
             .ToList();
     }
@@ -190,14 +192,16 @@ public sealed partial class AttendanceService
     public async Task<AssemblyParticipantDto> MarkConnectedAsync(
         Guid assemblyId,
         Guid userId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool explicitRoomEntry = false)
     {
         return await UpdatePresenceAsync(
             assemblyId,
             userId,
             AttendanceStatus.Present,
             AuditEventType.ParticipantConnected,
-            cancellationToken);
+            cancellationToken,
+            explicitRoomEntry);
     }
 
     /// <summary>
@@ -364,7 +368,8 @@ public sealed partial class AttendanceService
         Guid userId,
         AttendanceStatus status,
         string auditEventType,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool explicitRoomEntry = false)
     {
         TenantGuard.EnsureAuthenticated(_currentTenant);
 
@@ -397,6 +402,28 @@ public sealed partial class AttendanceService
 
         var now = DateTimeOffset.UtcNow;
         var previous = participant.AttendanceStatus;
+        var observedStamp = participant.UpdatedAtUtc;
+
+        if (status is AttendanceStatus.Present or AttendanceStatus.CheckedIn)
+        {
+            var fresh = await _db.AssemblyParticipants
+                .AsNoTracking()
+                .Where(p => p.Id == participant.Id)
+                .Select(p => new { p.AttendanceStatus, p.UpdatedAtUtc })
+                .FirstAsync(cancellationToken);
+            if (!PresenceJoinPolicy.AllowsPresent(
+                    fresh.AttendanceStatus,
+                    explicitRoomEntry,
+                    observedStamp,
+                    fresh.UpdatedAtUtc))
+            {
+                var current = await _db.AssemblyParticipants
+                    .AsNoTracking()
+                    .FirstAsync(p => p.Id == participant.Id, cancellationToken);
+                var blockedCode = await Mapping.ResolveUnitCodeAsync(_db, current.UnitId, cancellationToken);
+                return Mapping.ToParticipantDto(current, blockedCode, current.EffectiveCoefficientPercent);
+            }
+        }
 
         if (status == AttendanceStatus.TemporarilyDisconnected && previous == AttendanceStatus.Left)
         {
@@ -568,6 +595,59 @@ public sealed partial class AttendanceService
             or Roles.PHAdmin
             or Roles.TenantAdmin
             or Roles.PlatformAdmin;
+
+    private async Task<Dictionary<Guid, IReadOnlyList<string>>> LoadOwnedUnitCodesAsync(
+        Domain.Entities.Assembly assembly,
+        IReadOnlyCollection<Guid> userIds,
+        CancellationToken cancellationToken)
+    {
+        if (userIds.Count == 0)
+        {
+            return [];
+        }
+
+        var owners = await _db.Owners
+            .AsNoTracking()
+            .Where(o => o.UserId != null
+                        && userIds.Contains(o.UserId.Value)
+                        && o.TenantId == assembly.TenantId
+                        && (o.Status == OwnerLifecycleStatus.Active || o.Status == OwnerLifecycleStatus.Invited))
+            .Select(o => new { o.Id, UserId = o.UserId!.Value })
+            .ToListAsync(cancellationToken);
+        if (owners.Count == 0)
+        {
+            return [];
+        }
+
+        var ownerIds = owners.Select(o => o.Id).ToList();
+        var links = await (
+            from own in _db.Ownerships.AsNoTracking()
+            join unit in _db.Units.AsNoTracking() on own.UnitId equals unit.Id
+            where ownerIds.Contains(own.OwnerId)
+                  && own.IsActive
+                  && unit.IsActive
+                  && unit.PropertyHorizontalId == assembly.PropertyHorizontalId
+                  && unit.TenantId == assembly.TenantId
+            orderby unit.Code
+            select new { own.OwnerId, unit.Code }
+        ).ToListAsync(cancellationToken);
+
+        var byOwner = links
+            .GroupBy(x => x.OwnerId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<string>)g.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+        var byUser = new Dictionary<Guid, IReadOnlyList<string>>();
+        foreach (var owner in owners)
+        {
+            if (byOwner.TryGetValue(owner.Id, out var codes))
+            {
+                byUser[owner.UserId] = codes;
+            }
+        }
+
+        return byUser;
+    }
 
     private static bool IsUniqueViolation(DbUpdateException ex)
     {

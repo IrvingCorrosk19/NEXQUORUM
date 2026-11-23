@@ -62,7 +62,8 @@ public sealed record AssemblyParticipantDto(
     string RoomEntryStatus = "None",
     DateTimeOffset? RoomEntryRequestedAtUtc = null,
     string? RoomEntryRejectReason = null,
-    bool IsHubConnected = false);
+    bool IsHubConnected = false,
+    IReadOnlyList<string>? OwnedUnitCodes = null);
 
 public sealed record CheckInRequest(Guid? UnitId, string PresenceType, string? Method = null);
 

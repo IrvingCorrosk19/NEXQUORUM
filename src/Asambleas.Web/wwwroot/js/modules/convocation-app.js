@@ -46,10 +46,6 @@ function openWorkDialog(opener) {
 }
 
 function closeWorkDialog() {
-  if (formDirty) {
-    const ok = window.confirm("Hay cambios sin guardar. ¿Cerrar de todos modos?");
-    if (!ok) return;
-  }
   formDirty = false;
   rememberDraft(null);
   const dlg = qs("#dlg-convocation");
@@ -779,10 +775,16 @@ function deliveryStatusEs(status) {
 function beginEdit(detail) {
   editingId = detail.id;
   const sheet = qs("#create-sheet");
+  const panel = qs("#detail-panel");
+  if (panel) panel.hidden = true;
   if (sheet) {
     sheet.hidden = false;
     sheet.open = true;
   }
+  const dialogTitle = qs("#conv-dialog-title");
+  const formTitle = qs("#create-heading");
+  if (dialogTitle) dialogTitle.textContent = "Editar convocatoria";
+  if (formTitle) formTitle.textContent = "Editar convocatoria";
   const title = qs("#c-title");
   const subject = qs("#c-subject");
   const notes = qs("#c-html");

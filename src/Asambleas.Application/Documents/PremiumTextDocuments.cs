@@ -56,7 +56,7 @@ public static class PremiumTextDocuments
         }
         sb.AppendLine();
         sb.AppendLine("Titularidades de personas ausentes");
-        sb.AppendLine("  Proyección calculada al leer. No forma parte del hash SHA-256 de los hechos sellados.");
+        sb.AppendLine("  Unidades cuyos titulares no figuran presentes. No repite a quien ya está en la asistencia.");
         var absent = m.AbsentHolders ?? [];
         if (absent.Count == 0)
         {
@@ -102,6 +102,7 @@ public static class PremiumTextDocuments
         sb.AppendLine("## 7. INTEGRIDAD DOCUMENTAL");
         sb.AppendLine($"Identificador: {m.DocumentId}");
         sb.AppendLine($"Hash SHA-256 (hechos JSON): {m.ContentHash ?? "—"}");
+        sb.AppendLine("La lista de titularidades de personas ausentes es una referencia al leer y no entra en ese hash.");
         sb.AppendLine($"Sellado: {(m.IsSealed ? "Sí" : "No")}");
         sb.AppendLine($"Estado: {ctx.Lifecycle}");
         sb.AppendLine();
