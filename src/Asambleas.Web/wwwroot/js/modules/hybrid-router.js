@@ -27,12 +27,12 @@ function canSoftPair(from, to) {
 }
 
 const MODULE_LOADERS = {
-  "dashboard.html": () => import("./dashboard-app.js?v=open-desk1"),
-  "ph.html": () => import("./ph-app.js?v=polish13"),
+  "dashboard.html": () => import("./dashboard-app.js?v=vps8"),
+  "ph.html": () => import("./ph-app.js?v=vps8"),
   "calendar.html": () => import("./calendar-app.js?v=polish13"),
   "agenda.html": () => import("./agenda-app.js?v=agenda-finish1"),
-  "checkin.html": () => import("./checkin-app.js"),
-  "voting-studio.html": () => import("./voting-studio-app.js"),
+  "checkin.html": () => import("./checkin-app.js?v=vps8"),
+  "voting-studio.html": () => import("./voting-studio-app.js?v=vps8"),
   "owner.html": () => import("./owner-portal-app.js")
 };
 

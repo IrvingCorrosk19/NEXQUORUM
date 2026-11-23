@@ -198,6 +198,15 @@ public sealed class AssemblyService
 
         if (target == AssemblyStatus.InProgress && from != AssemblyStatus.Paused)
         {
+            var preview = await _quorum.PreviewLiveAsync(assemblyId, cancellationToken);
+            if (from == AssemblyStatus.CheckIn
+                && !Domain.Quorum.ConstitutionQuorum.CanConstitute(preview.Present, preview.Required))
+            {
+                throw new DomainException(
+                    Domain.Quorum.ConstitutionQuorum.NotReachedCode,
+                    Domain.Quorum.ConstitutionQuorum.BlockMessage(preview.Present, preview.Required));
+            }
+
             await _quorum.RecalculateAndSnapshotAsync(
                 assemblyId,
                 Quorum.QuorumService.AssemblyStartReason,

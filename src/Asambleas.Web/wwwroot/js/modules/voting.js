@@ -6,6 +6,9 @@ import { escapeHtml, formatDateTime } from "./ui.js";
 export function mapOpenVotingError(error) {
   const code = String(error?.code || error?.payload?.extensions?.code || "").toUpperCase();
   const msg = String(error?.message || "");
+  if (code === "NOT_ELIGIBLE" && /acreditad|elector|abrir la votación|Cannot open voting/i.test(msg)) {
+    return "No se pudo abrir la votación: no hay propietarios acreditados con derecho a voto. Administrar la votación no otorga un voto personal.";
+  }
   const block = explainBlockCode(code, msg);
   if (code && block?.title) {
     return `${block.title}. ${block.explanation} ${block.next}`;

@@ -170,6 +170,21 @@ public sealed class QuorumService
 
     private sealed record QuorumSpanPoint(DateTimeOffset TimestampUtc, decimal PresentCoefficient, string? Reason);
 
+    public async Task<(decimal Present, decimal Required, bool Reached)> PreviewLiveAsync(
+        Guid assemblyId,
+        CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var assembly = await _db.Assemblies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == assemblyId, cancellationToken)
+            ?? throw new DomainException($"Assembly '{assemblyId}' was not found.");
+        TenantGuard.EnsureTenantMatch(_currentTenant, assembly.TenantId);
+
+        var calculation = await CalculateInternalAsync(assembly, cancellationToken);
+        return (calculation.CurrentCoefficient, calculation.RequiredCoefficient, calculation.QuorumReached);
+    }
+
     public Task<QuorumStateDto> RecalculateAndSnapshotAsync(
         Guid assemblyId,
         CancellationToken cancellationToken = default) =>

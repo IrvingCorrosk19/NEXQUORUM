@@ -52,10 +52,15 @@ function motionBucket(m) {
   return "draft";
 }
 
+function assemblyIsClosed() {
+  return state.assemblyStatus === "Completed" || state.assemblyStatus === "Cancelled";
+}
+
 function motionStatusLabel(m) {
   const status = String(m.status || "");
   if (status === "Open" || status === "InProgress") return "En vivo";
-  if (status === "Closed" || status === "Completed") return "Cerrada";
+  if (status === "Closed" || status === "Completed" || status === "Approved" || status === "Rejected") return "Cerrada";
+  if (assemblyIsClosed()) return "No sometida a votación";
   return DESIGN_LABELS[m.designStatus] || DESIGN_LABELS.Draft;
 }
 
@@ -487,6 +492,9 @@ function updateVoteStatsAndFilters() {
 }
 
 function primaryActionForMotion(m) {
+  if (assemblyIsClosed()) {
+    return `<button type="button" class="btn btn-secondary btn-sm" data-edit-vote="${m.id}">Consultar</button>`;
+  }
   const bucket = motionBucket(m);
   if (bucket === "closed") {
     return `<a class="btn btn-secondary btn-sm" href="/lobby.html?assemblyId=${encodeURIComponent(assemblyId)}">Ver resultados</a>`;
@@ -547,7 +555,7 @@ function renderLists() {
               const questionShort = truncateText(question, 80);
               const canBulk = (m.designStatus || "Draft") === "Draft" && (m.status === "Draft" || !m.status);
               const secondary =
-                motionBucket(m) === "closed" || motionBucket(m) === "live"
+                assemblyIsClosed() || motionBucket(m) === "closed" || motionBucket(m) === "live"
                   ? ""
                   : `<details class="studio-row-more">
                       <summary class="btn btn-ghost btn-sm" aria-label="Más acciones">⋯</summary>
@@ -783,7 +791,7 @@ function motionEditBlockReason(motion) {
 function openVoteEditor(motion, template) {
   state.mode = "vote";
   state.editingId = motion?.id || null;
-  const editMode = motion ? motionEditMode(motion) : "Full";
+  const editMode = assemblyIsClosed() ? "Immutable" : motion ? motionEditMode(motion) : "Full";
   state.draft = motion
     ? {
         agendaItemId: motion.agendaItemId,
@@ -877,7 +885,9 @@ function renderVoteEditor() {
       : d.editMode === "CancelRequired"
         ? "Ya hay votos registrados. Anule y cree una nueva versión para corregir."
         : d.editMode === "Immutable"
-          ? "Registro histórico inmutable. No se pueden alterar resultados ni evidencia."
+          ? assemblyIsClosed()
+            ? "La asamblea está finalizada. Esta pantalla es de consulta y no guarda cambios."
+            : "Registro histórico inmutable. No se pueden alterar resultados ni evidencia."
           : "");
   const dis = locked ? "disabled" : "";
   const agendaOptions = state.agenda
@@ -1406,6 +1416,12 @@ async function refresh() {
   state.agenda = agenda.items || [];
   state.motions = Array.isArray(motions) ? motions : [];
   state.surveys = Array.isArray(surveys) ? surveys : [];
+  state.assemblyStatus = assembly?.status || "";
+  const closed = assemblyIsClosed();
+  for (const id of ["btn-create", "btn-import-motions", "btn-create-survey", "btn-bulk-publish"]) {
+    const el = qs(`#${id}`);
+    if (el) el.hidden = closed;
+  }
   qs("#assembly-label").textContent = `${repairMojibake(assembly?.title || "Asamblea")}${assembly?.status ? ` · ${statusLabelEs(assembly.status)}` : ""}`;
   renderLists();
 }

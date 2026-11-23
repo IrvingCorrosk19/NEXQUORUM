@@ -120,7 +120,7 @@ public sealed class VotingService
         {
             throw new DomainException(
                 VotingCodes.NotEligible,
-                "Cannot open voting: no accredited eligible voters.");
+                "No se puede abrir la votación: no hay propietarios acreditados con derecho a voto. Administrar la votación no otorga un voto personal.");
         }
 
         var ruleCode = string.IsNullOrWhiteSpace(motion.DecisionRuleCode)

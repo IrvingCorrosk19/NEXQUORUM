@@ -3346,4 +3346,29 @@ body:has(.room--meeting-ux) {
   color: #102b3f;
 }
 
+.room[data-priority="motion"] .sidebar section:has(#motion-panel),
+.room[data-priority="voting"] .sidebar section:has(#vote-panel),
+.room--meeting-ux .cx-guide,
+.room--meeting-ux .cx-guide-stage-chip,
+.room .vote-prepare,
+.room .vote-policy-fieldset {
+  background: #152033;
+  color: #f4f7fb;
+}
+
+.room .vote-policy-option,
+.room .vote-policy-option strong,
+.room .vote-policy-option small,
+.room .vote-prepare,
+.room .vote-prepare .vote-now-kicker,
+.room .cx-guide__title,
+.room .cx-guide__explain,
+.room .cx-guide__eyebrow {
+  color: #f4f7fb;
+}
+
+.room .btn-vote-open {
+  color: #041018;
+}
+
 

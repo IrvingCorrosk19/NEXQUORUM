@@ -3,7 +3,7 @@
  * so "Avisar para unirse" reaches owners on dashboard/portal (not only lobby/room).
  */
 import { me } from "./auth.js";
-import { createAssemblyConnection } from "./signalr-client.js";
+import { createAssemblyConnection, ensureSignalR } from "./signalr-client.js";
 import { attachJoinSummonListener } from "./join-summon.js";
 import { api } from "./api.js";
 
@@ -67,6 +67,15 @@ export async function ensureJoinSummonPresence(options = {}) {
   };
 
   const ids = await listLiveAssemblyIds();
+  if (ids.length) {
+    try {
+      await ensureSignalR();
+    } catch (err) {
+      console.warn("join-summon presence failed", err);
+      started = false;
+      return;
+    }
+  }
   for (const assemblyId of ids) {
     if (hubs.has(assemblyId)) continue;
     try {

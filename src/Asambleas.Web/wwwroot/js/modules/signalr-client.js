@@ -37,8 +37,43 @@ function payloadAssemblyId(name, payload) {
   return null;
 }
 
+const SIGNALR_SRC = "https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js";
+let signalRLoading = null;
+
+export function ensureSignalR() {
+  if (window.signalR?.HubConnectionBuilder) return Promise.resolve(window.signalR);
+  if (signalRLoading) return signalRLoading;
+  signalRLoading = new Promise((resolve, reject) => {
+    const finish = () => {
+      if (window.signalR?.HubConnectionBuilder) resolve(window.signalR);
+      else reject(new Error("SignalR client is not loaded."));
+    };
+    const existing = document.querySelector("script[data-signalr-client]");
+    if (existing) {
+      if (window.signalR?.HubConnectionBuilder) {
+        finish();
+        return;
+      }
+      existing.addEventListener("load", finish, { once: true });
+      existing.addEventListener("error", () => reject(new Error("No se pudo cargar la conexión en vivo.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = SIGNALR_SRC;
+    script.async = true;
+    script.dataset.signalrClient = "1";
+    script.onload = finish;
+    script.onerror = () => {
+      signalRLoading = null;
+      reject(new Error("No se pudo cargar la conexión en vivo."));
+    };
+    document.head.appendChild(script);
+  });
+  return signalRLoading;
+}
+
 export function createAssemblyConnection(handlers = {}) {
-  if (!window.signalR) {
+  if (!window.signalR?.HubConnectionBuilder) {
     throw new Error("SignalR client is not loaded.");
   }
 

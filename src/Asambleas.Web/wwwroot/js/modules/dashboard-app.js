@@ -79,9 +79,20 @@ async function runPrimaryAction(action, operator) {
     }
   }
   if (action.needsPost === "start" && operator) {
+    const presentKnown = currentAssembly?.currentCoefficient != null || currentAssembly?.quorumCurrent != null;
+    const present = Number(currentAssembly?.currentCoefficient ?? currentAssembly?.quorumCurrent ?? 0);
+    const required = Number(currentAssembly?.requiredQuorumPercent ?? 0);
+    if (presentKnown && Number.isFinite(required) && required > 0 && (!Number.isFinite(present) || present < required)) {
+      await confirmDialog({
+        title: "No se puede constituir",
+        body: `El quórum presente es ${Number.isFinite(present) ? present.toFixed(2) : "0.00"}% y el mínimo es ${required.toFixed(2)}%. Abrir la mesa no constituye la asamblea. No hay una excepción de quórum configurada.`,
+        confirmLabel: "Entendido"
+      });
+      return;
+    }
     const ok = await confirmDialog({
       title: "Iniciar asamblea",
-      body: "¿Constituir formalmente la asamblea e ingresar a la sala?",
+      body: `El quórum presente es ${Number.isFinite(present) ? present.toFixed(2) : "0.00"}% y el mínimo es ${required.toFixed(2)}%. ¿Constituir formalmente la asamblea?`,
       confirmLabel: "Iniciar asamblea"
     });
     if (!ok) return;
@@ -288,26 +299,34 @@ async function init() {
 
   try {
     const { ensureJoinSummonPresence } = await import("./join-summon-presence.js");
-    await ensureJoinSummonPresence({ user });
-  } catch (err) {
-    console.warn("join-summon presence unavailable", err);
-  }
-
-  try {
-    const { createAssemblyConnection } = await import("./signalr-client.js");
-    const hub = createAssemblyConnection({
-      assemblyStatusChanged: async (asm) => {
-        if (!asm) return;
-        const nextStatus = asm.status || asm.Status;
-        currentAssembly = {
-          ...(currentAssembly || assembly || {}),
-          ...asm,
-          status: nextStatus || currentAssembly?.status
-        };
-        await refreshDashboard(user, currentAssembly, operator);
+    await ensureJoinSummonPresence({
+      user,
+      handlers: {
+        assemblyStatusChanged: async (asm) => {
+          if (!asm) return;
+          const nextStatus = asm.status || asm.Status;
+          currentAssembly = {
+            ...(currentAssembly || assembly || {}),
+            ...asm,
+            status: nextStatus || currentAssembly?.status
+          };
+          await refreshDashboard(user, currentAssembly, operator);
+        },
+        participantUpdated: async () => {
+          await refreshDashboard(user, currentAssembly || assembly, operator);
+        },
+        quorumUpdated: async (payload) => {
+          const q = payload?.quorum || payload;
+          if (q && currentAssembly) {
+            currentAssembly = {
+              ...currentAssembly,
+              currentCoefficient: q.currentCoefficient ?? q.CurrentCoefficient ?? currentAssembly.currentCoefficient
+            };
+          }
+          await refreshDashboard(user, currentAssembly || assembly, operator);
+        }
       }
     });
-    await hub.start(assemblyId, { markPresence: false });
   } catch (err) {
     console.warn("Dashboard SignalR unavailable", err);
   }
@@ -338,7 +357,8 @@ export async function mount(ctx = {}) {
 }
 
 export async function unmount() {
-  /* page-level listeners are wiped with #main swap; abort in-flight via hybrid */
+  const { stopJoinSummonPresence } = await import("./join-summon-presence.js");
+  await stopJoinSummonPresence();
 }
 
 export async function canLeave() {

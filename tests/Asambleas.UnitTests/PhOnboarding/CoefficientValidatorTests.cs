@@ -29,6 +29,8 @@ public sealed class CoefficientValidatorTests
     public void Normalize_uses_four_decimal_scale()
     {
         Assert.Equal(0.4231m, CoefficientValidator.Normalize(0.42314m));
+        Assert.Equal(4.1667m, CoefficientValidator.Normalize(4.1667m));
+        Assert.Equal("4.1667", CoefficientValidator.FormatAmount(4.1667m));
     }
 
     [Fact]

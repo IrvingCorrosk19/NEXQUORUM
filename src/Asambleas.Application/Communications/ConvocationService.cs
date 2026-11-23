@@ -303,6 +303,12 @@ public sealed class ConvocationService
             }
         }
 
+        await EnsureAssemblyParticipantsForRecipientsAsync(
+            c.AssemblyId,
+            c.TenantId,
+            c.PropertyHorizontalId,
+            recipients,
+            cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
         return await GetAsync(convocationId, cancellationToken);
     }
@@ -1216,7 +1222,10 @@ public sealed class ConvocationService
         var convocation = await _db.Convocations
             .AsNoTracking()
             .Where(c => c.AssemblyId == assemblyId
-                        && (c.Status == ConvocationStatus.Sent || c.Status == ConvocationStatus.Draft))
+                        && (c.Status == ConvocationStatus.Sent
+                            || c.Status == ConvocationStatus.Draft
+                            || c.Status == ConvocationStatus.Ready
+                            || c.Status == ConvocationStatus.Approved))
             .OrderByDescending(c => c.SentAtUtc ?? c.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
         if (convocation is null)

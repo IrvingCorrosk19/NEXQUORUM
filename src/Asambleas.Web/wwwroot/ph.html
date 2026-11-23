@@ -294,7 +294,7 @@
               <label>Torre/Bloque <input name="tower" /></label>
               <label>Piso <input name="floor" type="number" /></label>
               <label>Tipo <input name="unitType" /></label>
-              <label>Coeficiente % <input name="coefficientPercent" type="number" step="1" min="0" max="100" required /></label>
+              <label>Coeficiente % <input name="coefficientPercent" type="number" step="0.0001" min="0" max="100" required /></label>
               <div class="cta-row" style="grid-column:1/-1">
                 <button type="submit" class="btn btn-primary">Guardar unidad</button>
               </div>
@@ -309,7 +309,7 @@
               <label>Apto desde <input name="unitFrom" type="number" required /></label>
               <label>Apto hasta <input name="unitTo" type="number" required /></label>
               <label>Padding <input name="unitNumberPad" type="number" value="2" min="1" max="6" /></label>
-              <label>Coef. default % <input name="defaultCoefficientPercent" type="number" step="1" min="0" max="100" value="0" /></label>
+              <label>Coef. default % <input name="defaultCoefficientPercent" type="number" step="0.0001" min="0" max="100" value="0" /></label>
               <div class="cta-row" style="grid-column:1/-1">
                 <button type="button" id="btn-bulk-preview" class="btn btn-secondary">Vista previa</button>
                 <button type="submit" class="btn btn-primary">Confirmar generación</button>
@@ -638,6 +638,6 @@
     </div>
   </div>
   <script src="/lib/tabler/1.7.5/js/tabler.min.js"></script>
-  <script type="module" src="/js/modules/ph-app.js?v=cierre2"></script>
+  <script type="module" src="/js/modules/ph-app.js?v=vps8"></script>
 </body>
 </html>

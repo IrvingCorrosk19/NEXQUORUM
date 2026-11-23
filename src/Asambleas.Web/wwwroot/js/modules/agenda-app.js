@@ -50,7 +50,7 @@ async function loadAgenda() {
         <li class="agenda-edit-item">
           <span class="agenda-edit-code">${escapeHtml(item.code || "")}</span>
           <span class="agenda-edit-title">${escapeHtml(item.title || "")}</span>
-          ${item.isCompleted ? `<span class="badge badge-success">Finalizado</span>` : item.isActive ? `<span class="badge badge-live">Activo</span>` : ""}
+          ${item.isCompleted ? `<span class="badge badge-success">Finalizado</span>` : assemblyClosed && item.isActive ? `<span class="badge">Pendiente al cierre</span>` : item.isActive ? `<span class="badge badge-live">Activo</span>` : ""}
           ${agendaActions(item, items)}
         </li>`
         )

@@ -10,10 +10,16 @@ import { isTerminalStatus } from "./assembly-lifecycle.js";
 
 function statusMeta(check) {
   if (check.status === "Ready") {
-    return { icon: "✓", label: "Listo", cls: "is-ready", aria: "Completo" };
+    return { icon: "✓", label: "Requisito cumplido", cls: "is-ready", aria: "Requisito cumplido" };
   }
-  if (check.severity === "Warning" || check.status === "Optional") {
-    return { icon: "○", label: "Recomendado", cls: "is-optional", aria: "Recomendado" };
+  if (check.status === "Available") {
+    return { icon: "○", label: "Configuración disponible", cls: "is-optional", aria: "Configuración disponible" };
+  }
+  if (check.status === "NotApplicable") {
+    return { icon: "–", label: "No aplica", cls: "is-optional", aria: "No aplica" };
+  }
+  if (check.status === "Optional" || check.severity === "Warning") {
+    return { icon: "○", label: "Opcional", cls: "is-optional", aria: "Opcional" };
   }
   return { icon: "⚠", label: "Requiere atención", cls: "is-attention", aria: "Requiere atención" };
 }
@@ -37,7 +43,7 @@ export function renderReadinessPanel(panel, readiness, ctx) {
 
   const progressHtml =
     total > 0
-      ? `<p class="readiness-progress" role="status">${completed} de ${total} requisitos completados</p>`
+      ? `<p class="readiness-progress" role="status">${completed} de ${total} con requisito cumplido. Esto no acredita quórum ni habilita el voto.</p>`
       : "";
 
   const rowsHtml = checks
@@ -72,7 +78,7 @@ export function renderReadinessPanel(panel, readiness, ctx) {
 
   const summary =
     overall === "Ready"
-      ? `<div class="readiness-summary ready" role="status">✓ Preparación completa — requisitos obligatorios listos</div>`
+      ? `<div class="readiness-summary ready" role="status">Requisitos obligatorios listos. Esto no constituye la asamblea ni abre una votación.</div>`
       : blockingOpen > 0
         ? `<div class="readiness-summary blocked" role="status">⚠ ${blockingOpen} requisito(s) obligatorio(s) pendiente(s)</div>`
         : `<div class="readiness-summary warning" role="status">Preparación usable — revise recomendaciones opcionales</div>`;
@@ -247,7 +253,7 @@ export function renderReadinessCompact(panel, readiness, ctx) {
     .join("");
 
   panel.innerHTML = `
-    <p class="readiness-progress" role="status">Preparación ${completed}/${total}</p>
+    <p class="readiness-progress" role="status">Preparación ${completed}/${total} con requisito cumplido. No acredita quórum ni voto.</p>
     <div class="ia-readiness-grid">${rowsHtml}</div>`;
 }
 

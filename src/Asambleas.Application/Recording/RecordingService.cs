@@ -1118,7 +1118,7 @@ public sealed class RecordingService
                 continue;
             }
 
-            timeline.Add(ToTimelineEvent(audit, recordingStart, primaryRecordingId, HumanizeAudit(audit.EventType)));
+            timeline.Add(ToTimelineEvent(audit, recordingStart, primaryRecordingId, HumanizeAudit(audit.EventType, audit.MetadataJson)));
         }
 
         return timeline;
@@ -1273,7 +1273,25 @@ public sealed class RecordingService
         }
     }
 
-    private static string HumanizeAudit(string eventType) => eventType switch
+    private static string HumanizeAudit(string eventType, string? metadataJson = null)
+    {
+        if (eventType == AuditEventType.AssemblyCompleted
+            && metadataJson is not null
+            && metadataJson.Contains("sealed", StringComparison.OrdinalIgnoreCase)
+            && metadataJson.Contains("true", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Acta sellada";
+        }
+
+        if (eventType == AuditEventType.MinutesSealed)
+        {
+            return "Acta sellada";
+        }
+
+        return HumanizeAuditLabel(eventType);
+    }
+
+    private static string HumanizeAuditLabel(string eventType) => eventType switch
     {
         AuditEventType.RecordingStarted => "Grabación iniciada",
         AuditEventType.RecordingStopped => "Grabación detenida",

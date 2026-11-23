@@ -1815,7 +1815,8 @@ async function init() {
   }
 
   try {
-    const { ensureJoinSummonPresence } = await import("./join-summon-presence.js");
+    const { ensureJoinSummonPresence, stopJoinSummonPresence } = await import("./join-summon-presence.js");
+    await stopJoinSummonPresence();
     await ensureJoinSummonPresence({
       user,
       onJoin: (payload) => {
@@ -1841,6 +1842,8 @@ export async function mount(ctx = {}) {
 }
 
 export async function unmount() {
+  const { stopJoinSummonPresence } = await import("./join-summon-presence.js");
+  await stopJoinSummonPresence();
   cleanupModalTrap();
   modalUi.chromeAbort?.abort();
   modalUi.chromeAbort = null;

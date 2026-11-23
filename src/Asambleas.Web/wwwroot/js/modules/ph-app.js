@@ -8,7 +8,7 @@ import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
 import { runWithButton, startTopProgress, stopTopProgress } from "./loading.js";
 import { startHybridShell } from "./hybrid-router.js?v=polish13";
-import { createUnitsHub } from "./ph-units-hub.js?v=rollup1";
+import { createUnitsHub } from "./ph-units-hub.js?v=vps8";
 import { coefficientRollupCopy, formatCoefficientAmount } from "./coefficient-rollup.js";
 import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, applyTestHooks, lockPageScroll, scrollFieldIntoSheet } from "./query-guard.js?v=polish11";
 
@@ -1926,7 +1926,7 @@ async function showUnit(unitId) {
   const history = (detail.owners || []).filter((o) => !o.isActive);
   el.innerHTML = `
     <h3>Unidad ${escapeHtml(detail.unitCode)}</h3>
-    <p class="muted">Torre ${escapeHtml(detail.tower || "—")} · Piso ${detail.floor ?? "—"} · Coeficiente ${Math.round(Number(detail.coefficientPercent))}% · ${detail.isActive ? "Activa" : "Inactiva"}</p>
+    <p class="muted">Torre ${escapeHtml(detail.tower || "—")} · Piso ${detail.floor ?? "—"} · Coeficiente ${Number(detail.coefficientPercent).toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 4 })}% · ${detail.isActive ? "Activa" : "Inactiva"}</p>
     <p><strong>${statusLabel}</strong></p>
     <h4>Propietarios activos</h4>
     <ul>${active.length
@@ -2187,7 +2187,7 @@ async function loadOwners({ soft = false } = {}) {
         <div class="muted" style="font-size:0.8rem;margin-top:0.15rem">${codes.length} unidad${codes.length === 1 ? "" : "es"} asociada${codes.length === 1 ? "" : "s"}</div>
       </td>
       <td><div class="assoc-chip-row">${chips}</div></td>
-      <td>${Math.round(Number(o.coefficientPercent))}%</td>
+      <td>${Number(o.coefficientPercent).toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 4 })}%</td>
       <td><span class="badge badge-access">${escapeHtml(platformAccessLabel(access))}</span></td>
       <td class="owners-actions">
         <div class="owner-action-bar">
@@ -2879,7 +2879,7 @@ async function showOwner(ownerId, opts = {}) {
         <label>Unidad
           <select name="unitId" id="drawer-link-unit-select" required>
             <option value="">— seleccionar —</option>
-            ${linkableUnits.map((u) => `<option value="${u.id}">${escapeHtml(u.code)} · coeficiente ${Math.round(Number(u.coefficientPercent || u.coefficient || 0))}%</option>`).join("")}
+            ${linkableUnits.map((u) => `<option value="${u.id}">${escapeHtml(u.code)} · coeficiente ${Number(u.coefficientPercent || u.coefficient || 0).toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 4 })}%</option>`).join("")}
           </select>
         </label>
         <label>Participación de titularidad %
@@ -2921,7 +2921,7 @@ async function showOwner(ownerId, opts = {}) {
       <ul class="owner-units-list">${(o.units || [])
         .map(
           (u) =>
-            `<li>${escapeHtml(u.unitCode)} · ${Math.round(Number(u.unitCoefficientPercent))}% · participación ${Math.round(Number(u.sharePercent))}%
+            `<li>${escapeHtml(u.unitCode)} · ${Number(u.unitCoefficientPercent).toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 4 })}% · participación ${Math.round(Number(u.sharePercent))}%
             ${u.isActive && canAdministerCurrentPh() ? `<button type="button" class="btn btn-ghost btn-sm" data-end-own="${u.ownershipId}">Finalizar</button>` : u.isActive ? "" : " · histórico"}</li>`
         )
         .join("") || "<li>Sin unidades</li>"}</ul>

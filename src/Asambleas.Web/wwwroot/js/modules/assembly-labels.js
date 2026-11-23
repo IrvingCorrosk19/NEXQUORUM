@@ -126,6 +126,7 @@ const AUDIT = {
   ASSEMBLY_PAUSED: "Asamblea pausada",
   ASSEMBLY_RESUMED: "Asamblea reanudada",
   ASSEMBLY_COMPLETED: "Asamblea finalizada",
+  MINUTES_SEALED: "Acta sellada",
   ASSEMBLY_CREATED: "Asamblea creada",
   ASSEMBLY_SCHEDULED: "Asamblea programada",
   ASSEMBLY_UPDATED: "Asamblea actualizada",

@@ -3,8 +3,10 @@ import { assemblyLabel } from "../modules/assembly-labels.js";
 const STORAGE_KEY = "asambleas.locale";
 const DEFAULT_LOCALE = "es-PA";
 
-let catalog = null;
-let locale = DEFAULT_LOCALE;
+const shared = (globalThis.__asambleasI18nState ||= {
+  catalog: null,
+  locale: DEFAULT_LOCALE
+});
 
 function resolveLocale(requested) {
   if (!requested) {
@@ -14,34 +16,34 @@ function resolveLocale(requested) {
 }
 
 export async function initI18n(requested) {
-  locale = resolveLocale(requested);
+  shared.locale = resolveLocale(requested);
   try {
-    if (locale.startsWith("en")) {
-      catalog = (await import("./en.js?v=open-desk1")).default;
-      locale = "en";
+    if (shared.locale.startsWith("en")) {
+      shared.catalog = (await import("./en.js?v=open-desk1")).default;
+      shared.locale = "en";
     } else {
-      catalog = (await import("./es-PA.js?v=flow14")).default;
-      locale = "es-PA";
+      shared.catalog = (await import("./es-PA.js?v=flow14")).default;
+      shared.locale = "es-PA";
     }
   } catch {
-    catalog = (await import("./es-PA.js?v=flow14")).default;
-    locale = "es-PA";
+    shared.catalog = (await import("./es-PA.js?v=flow14")).default;
+    shared.locale = "es-PA";
   }
-  localStorage.setItem(STORAGE_KEY, locale);
-  document.documentElement.lang = locale === "en" ? "en" : "es-PA";
-  return catalog;
+  localStorage.setItem(STORAGE_KEY, shared.locale);
+  document.documentElement.lang = shared.locale === "en" ? "en" : "es-PA";
+  return shared.catalog;
 }
 
 export function getLocale() {
-  return locale;
+  return shared.locale;
 }
 
 export function t(path, vars = {}) {
-  if (!catalog) {
+  if (!shared.catalog) {
     return "";
   }
 
-  const value = path.split(".").reduce((acc, key) => (acc == null ? undefined : acc[key]), catalog);
+  const value = path.split(".").reduce((acc, key) => (acc == null ? undefined : acc[key]), shared.catalog);
   if (typeof value !== "string") return "";
   let text = value;
 

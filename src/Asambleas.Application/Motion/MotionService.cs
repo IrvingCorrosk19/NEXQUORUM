@@ -121,7 +121,7 @@ public sealed class MotionService
 
         if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
         {
-            throw new DomainException("Cannot create motions on a closed assembly.");
+            throw new DomainException("No se pueden crear votaciones en una asamblea finalizada.");
         }
 
         await EnsureAgendaItemAsync(assemblyId, request.AgendaItemId, cancellationToken);
@@ -207,7 +207,7 @@ public sealed class MotionService
 
         if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
         {
-            throw new DomainException("Cannot update motions on a closed assembly.");
+            throw new DomainException("No se pueden modificar votaciones en una asamblea finalizada.");
         }
 
         var motion = await _db.Motions
@@ -516,7 +516,7 @@ public sealed class MotionService
 
         if (assembly.Status is AssemblyStatus.Completed or AssemblyStatus.Cancelled)
         {
-            throw new DomainException("Cannot reorder motions on a closed assembly.");
+            throw new DomainException("No se puede reordenar votaciones en una asamblea finalizada.");
         }
 
         var motions = await _db.Motions

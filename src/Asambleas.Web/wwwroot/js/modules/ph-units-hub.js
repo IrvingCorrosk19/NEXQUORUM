@@ -39,7 +39,7 @@ export function createUnitsHub(ctx) {
   function fmtCoef(n) {
     const v = Number(n);
     if (!Number.isFinite(v)) return "0";
-    return String(Math.round(v));
+    return v.toLocaleString("en-US", { useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: 4 });
   }
 
   function canManage() {
@@ -462,7 +462,7 @@ export function createUnitsHub(ctx) {
           <label>Torre <input name="tower" maxlength="64" /></label>
           <label>Piso <input name="floor" type="number" /></label>
           <label>Tipo <input name="unitType" maxlength="64" /></label>
-          <label><span>Coeficiente % <span class="req" aria-hidden="true">*</span></span> <input name="coefficientPercent" type="number" step="1" min="0" max="100" required aria-describedby="unit-hub-inline-error" /></label>
+          <label><span>Coeficiente % <span class="req" aria-hidden="true">*</span></span> <input name="coefficientPercent" type="number" step="0.0001" min="0" max="100" required aria-describedby="unit-hub-inline-error" /></label>
           <label class="check"><input type="checkbox" name="isActive" checked /> Unidad activa</label>
         </div>
         <p id="unit-hub-inline-error" class="field-error" hidden role="alert"></p>
@@ -490,7 +490,7 @@ export function createUnitsHub(ctx) {
             <label>Torre <input name="tower" value="${esc(d.tower || "")}" ${canManage() ? "" : "readonly"} /></label>
             <label>Piso <input name="floor" type="number" value="${d.floor ?? ""}" ${canManage() ? "" : "readonly"} /></label>
             <label>Tipo <input name="unitType" value="${esc(d.unitType || "")}" ${canManage() ? "" : "readonly"} /></label>
-            <label>Coeficiente % <input name="coefficientPercent" type="number" step="1" min="0" max="100" required value="${Math.round(Number(d.coefficientPercent))}" ${canManage() ? "" : "readonly"} /></label>
+            <label>Coeficiente % <input name="coefficientPercent" type="number" step="0.0001" min="0" max="100" required value="${fmtCoef(d.coefficientPercent)}" ${canManage() ? "" : "readonly"} /></label>
             <label class="check"><input type="checkbox" name="isActive" ${d.isActive ? "checked" : ""} ${canManage() ? "" : "disabled"} /> Unidad activa</label>
           </div>
           <p class="muted unit-hub-meta">Creada: ${esc(fmtDate(d.createdAtUtc))} · Actualizada: ${esc(fmtDate(d.updatedAtUtc))}</p>

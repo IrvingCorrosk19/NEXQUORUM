@@ -175,7 +175,7 @@ public sealed class AssemblyEvidenceService
         await _db.SaveChangesAsync(cancellationToken);
 
         await _audit.WriteAsync(
-            AuditEventType.AssemblyCompleted,
+            AuditEventType.MinutesSealed,
             assemblyId,
             metadata: new
             {
@@ -195,6 +195,9 @@ public sealed class AssemblyEvidenceService
         var package = await GetEvidencePackageAsync(assemblyId, cancellationToken);
         var closedVoting = package.Voting
             .Where(v => v.ClosedSession?.Status == nameof(VotingSessionStatus.Closed))
+            .ToList();
+        var unvoted = package.Voting
+            .Where(v => v.ClosedSession is null)
             .ToList();
 
         var audit = package.Timeline;
@@ -218,6 +221,7 @@ public sealed class AssemblyEvidenceService
             package.QuorumSnapshots,
             package.Agenda,
             Motions = closedVoting,
+            UnvotedMotions = unvoted,
             package.Decisions
         }, HashJson);
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(hashPayload)));
@@ -245,7 +249,8 @@ public sealed class AssemblyEvidenceService
             package.Decisions,
             "Este documento resume hechos verificados por el sistema. No constituye por sí solo validación jurídica externa.",
             IsSealed: false,
-            AbsentHolders: AbsentHolderRules.Select(present, activeRepresentations));
+            AbsentHolders: AbsentHolderRules.Select(present, activeRepresentations),
+            UnvotedMotions: unvoted);
     }
 
     /// <summary>Backward-compatible projection used by older clients.</summary>
@@ -466,16 +471,17 @@ public sealed class AssemblyEvidenceService
         if (!hasAttendance) notes.Add("Sin asistentes acreditados/registrados en check-in.");
         if (!hasQuorum) notes.Add("Sin snapshots de quórum.");
         if (!hasAgenda) notes.Add("Sin puntos de agenda.");
-        if (isClosed && decisionCount == 0) notes.Add("Asamblea cerrada sin decisiones registradas (puede ser válido).");
+        if (isClosed && decisionCount == 0) notes.Add("Asamblea cerrada sin decisiones registradas. Las preguntas no votadas siguen como pendientes; no se inventa un resultado.");
 
-        var statusLabel = notes.Count == 0
-            ? (isClosed ? "COMPLETE" : "WARNING")
-            : (hasAttendance && hasAgenda ? "WARNING" : "INCOMPLETE");
+        var statusLabel = EvidenceCompletenessRules.StatusLabel(
+            isClosed,
+            notes.Count,
+            hasAttendance,
+            hasAgenda);
 
-        if (!isClosed && notes.Count == 0)
+        if (!isClosed && statusLabel == "WARNING" && notes.Count == 0)
         {
             notes.Add("Expediente en curso — la asamblea aún no está cerrada.");
-            statusLabel = "WARNING";
         }
 
         return new EvidenceCompletenessDto(

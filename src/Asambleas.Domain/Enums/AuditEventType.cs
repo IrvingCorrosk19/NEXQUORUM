@@ -60,6 +60,7 @@ public static class AuditEventType
     public const string FormClosed = "FORM_CLOSED";
     public const string FormResponseSubmitted = "FORM_RESPONSE_SUBMITTED";
     public const string AssemblyCompleted = "ASSEMBLY_COMPLETED";
+    public const string MinutesSealed = "MINUTES_SEALED";
     public const string AssemblyCreated = "ASSEMBLY_CREATED";
     public const string AssemblyScheduled = "ASSEMBLY_SCHEDULED";
     public const string AssemblyUpdated = "ASSEMBLY_UPDATED";

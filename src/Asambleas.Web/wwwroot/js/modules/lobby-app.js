@@ -6,7 +6,7 @@ import { hydrateRoomState } from "./room-state.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js?v=polish16";
 import { isOperator } from "./roles.js";
-import { createAssemblyConnection } from "./signalr-client.js";
+import { createAssemblyConnection, ensureSignalR } from "./signalr-client.js";
 import { attachJoinSummonListener } from "./join-summon.js";
 import {
   enumerateMediaDevices,
@@ -765,6 +765,7 @@ async function init() {
   scheduleAutoEnterIfLive(assembly, self);
 
   try {
+    await ensureSignalR();
     hub = createAssemblyConnection({
       onConnectionState: (status) => {
         const el = qs("#fact-connection");

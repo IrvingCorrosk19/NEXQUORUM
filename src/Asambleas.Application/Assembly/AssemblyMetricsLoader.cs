@@ -17,7 +17,10 @@ internal static class AssemblyMetricsLoader
         int MotionCount,
         int SurveyCount,
         int ConvocationCount,
-        bool EmailChannelReady);
+        bool EmailChannelReady,
+        int OwnerParticipantCount = 0,
+        int SentConvocationCount = 0,
+        bool VotingSessionExists = false);
 
     internal static async Task<Metrics> LoadAsync(
         IAsambleasDbContext db,
@@ -64,9 +67,25 @@ internal static class AssemblyMetricsLoader
             .AsNoTracking()
             .CountAsync(s => s.AssemblyId == assemblyId, cancellationToken);
 
-        var convocationCount = await db.Convocations
+        var convocationStatuses = await db.Convocations
             .AsNoTracking()
-            .CountAsync(c => c.AssemblyId == assemblyId, cancellationToken);
+            .Where(c => c.AssemblyId == assemblyId)
+            .Select(c => c.Status)
+            .ToListAsync(cancellationToken);
+        var convocationCount = convocationStatuses.Count;
+        var sentConvocationCount = convocationStatuses.Count(s =>
+            s is ConvocationStatus.Sent or ConvocationStatus.Partial or ConvocationStatus.Sending);
+
+        var roleCodes = await db.AssemblyParticipants
+            .AsNoTracking()
+            .Where(p => p.AssemblyId == assemblyId)
+            .Select(p => p.RoleCode)
+            .ToListAsync(cancellationToken);
+        var ownerParticipantCount = roleCodes.Count(role => !DeskStaffRoles.IsDeskStaff(role));
+
+        var votingSessionExists = await db.VotingSessions
+            .AsNoTracking()
+            .AnyAsync(s => s.AssemblyId == assemblyId, cancellationToken);
 
         var emailChannel = await db.ChannelConfigurations
             .AsNoTracking()
@@ -91,6 +110,27 @@ internal static class AssemblyMetricsLoader
             motionCount,
             surveyCount,
             convocationCount,
-            emailChannelReady);
+            emailChannelReady,
+            ownerParticipantCount,
+            sentConvocationCount,
+            votingSessionExists);
+    }
+}
+
+public static class DeskStaffRoles
+{
+    public static bool IsDeskStaff(string? roleCode)
+    {
+        if (string.IsNullOrWhiteSpace(roleCode))
+        {
+            return false;
+        }
+
+        return roleCode.Contains("President", StringComparison.OrdinalIgnoreCase)
+            || roleCode.Contains("Secretary", StringComparison.OrdinalIgnoreCase)
+            || roleCode.Contains("Operator", StringComparison.OrdinalIgnoreCase)
+            || roleCode.Contains("PHAdmin", StringComparison.OrdinalIgnoreCase)
+            || roleCode.Contains("TenantAdmin", StringComparison.OrdinalIgnoreCase)
+            || roleCode.Contains("PlatformAdmin", StringComparison.OrdinalIgnoreCase);
     }
 }

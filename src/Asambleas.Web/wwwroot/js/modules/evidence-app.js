@@ -16,7 +16,15 @@ function pct(n) {
   return `${Number(n ?? 0).toFixed(2)}%`;
 }
 
+function timelineLabel(event) {
+  const meta = String(event?.metadataJson || "");
+  if (event?.eventType === "MINUTES_SEALED") return "Acta sellada";
+  if (event?.eventType === "ASSEMBLY_COMPLETED" && /sealed/i.test(meta) && /true/i.test(meta)) return "Acta sellada";
+  return assemblyLabel(event?.eventType);
+}
+
 function completenessLabel(c) {
+  if (c?.status === "COMPLETE") return "Expediente final";
   if (c?.status === "WARNING") return "Expediente en preparación";
   const label = assemblyLabel(c?.status);
   return label === "—" ? "Sin estado documental" : label;
@@ -58,7 +66,7 @@ function renderEvidence(data) {
         <ul class="list-unstyled">${(data.decisions || []).map((d) => `<li><strong>${escapeHtml(d.decisionNumber)}</strong> ${escapeHtml(d.motionTitle)} → ${escapeHtml(d.explanation || assemblyLabel(d.decisionStatus))}</li>`).join("") || "<li class='text-secondary'>Sin decisiones.</li>"}</ul>
       </details>
       <details class="mt-2"><summary>Línea de tiempo</summary>
-        <ol>${timeline.slice().reverse().slice(0, 80).map((e) => `<li><strong>${escapeHtml(assemblyLabel(e.eventType))}</strong> <span class="text-secondary">${escapeHtml(formatDateTime(e.occurredAtUtc))}</span></li>`).join("") || "<li>—</li>"}</ol>
+        <ol>${timeline.slice().reverse().slice(0, 80).map((e) => `<li><strong>${escapeHtml(timelineLabel(e))}</strong> <span class="text-secondary">${escapeHtml(formatDateTime(e.occurredAtUtc))}</span></li>`).join("") || "<li>—</li>"}</ol>
       </details>
     </div>
   `;

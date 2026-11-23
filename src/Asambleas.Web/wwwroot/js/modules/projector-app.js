@@ -5,7 +5,7 @@ import { showPageError } from "./app-feedback.js";
 import { hydrateRoomState } from "./room-state.js";
 import { renderQuorum } from "./quorum.js?v=labels-es1";
 import { renderAgenda } from "./agenda.js";
-import { createAssemblyConnection } from "./signalr-client.js";
+import { createAssemblyConnection, ensureSignalR } from "./signalr-client.js";
 import { assemblyLabel } from "./assembly-labels.js";
 import { voteResultPhrase } from "./voting.js?v=labels-es1";
 
@@ -120,6 +120,7 @@ async function init() {
     showError(error.message);
   }
 
+  await ensureSignalR();
   const hub = createAssemblyConnection({
     onConnectionState: () => {},
     onReconnected: async () => {

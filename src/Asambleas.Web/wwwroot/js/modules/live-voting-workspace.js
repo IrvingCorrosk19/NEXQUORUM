@@ -475,8 +475,25 @@ export function createLiveVotingWorkspace({
     return form.dataset.initial !== formSnapshot(form);
   }
 
+  function persistedVoteState(form) {
+    return {
+      id: form?.dataset.motionId || "",
+      presented: form?.dataset.motionPresented === "1"
+    };
+  }
+
   async function dismissVoteDialog(dialog, form) {
-    if (formIsDirty(form)) {
+    const saved = persistedVoteState(form);
+    if (saved.id) {
+      const ok = await confirmDialog({
+        title: saved.presented ? "La pregunta ya está presentada" : "La pregunta ya está guardada",
+        body: saved.presented
+          ? "La pregunta quedó guardada y presentada. Cerrar no la borra y no crea otra. La votación sigue sin abrir."
+          : "La pregunta ya está guardada. Cerrar no la borra y no crea otra.",
+        confirmLabel: "Cerrar"
+      });
+      if (!ok) return;
+    } else if (formIsDirty(form)) {
       const ok = await confirmDialog({
         title: "Descartar cambios",
         body: "Hay cambios sin guardar. Si cierra ahora, no se crea ninguna pregunta.",
@@ -605,8 +622,10 @@ export function createLiveVotingWorkspace({
       if (thresholdWrap) thresholdWrap.hidden = rule.value !== "QualifiedMajority";
     });
 
+    let submitting = false;
     ui.form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
+      if (submitting) return;
       const submitter = ev.submitter;
       const action = submitter?.value || "";
       if (!action || action === "cancel") return;
@@ -626,6 +645,8 @@ export function createLiveVotingWorkspace({
         showToast(gate.reason || "La asamblea no está en curso.", "error");
         return;
       }
+      if (submitting) return;
+      submitting = true;
       const body = {
         agendaItemId: agenda.id,
         code: String(fd.get("code")),
@@ -646,12 +667,20 @@ export function createLiveVotingWorkspace({
           body: "Se creará la pregunta, se presentará y se abrirá la votación en tres pasos. Si alguno falla, se detiene el flujo.",
           confirmLabel: "Continuar"
         });
-        if (!ok) return;
+        if (!ok) {
+          submitting = false;
+          return;
+        }
       }
       showGlobalLoader("Guardando pregunta…", { immediate: true });
+      let motionId = ui.form.dataset.motionId || "";
       try {
         invalidateCachedGet(`/api/assemblies/${getAssemblyId()}/`);
-        const created = await api(`/api/assemblies/${getAssemblyId()}/motions`, { method: "POST", body });
+        if (!motionId) {
+          const created = await api(`/api/assemblies/${getAssemblyId()}/motions`, { method: "POST", body });
+          motionId = created.id;
+          ui.form.dataset.motionId = motionId;
+        }
 
         if (action === "save") {
           ui.dialog.close();
@@ -676,12 +705,15 @@ export function createLiveVotingWorkspace({
           await closeVoting(getAssemblyId(), openId);
         }
 
-        setGlobalLoaderMessage("Presentando pregunta…");
-        await api(`/api/assemblies/${getAssemblyId()}/motions/${created.id}/publish`, { method: "POST" });
-        await api(`/api/assemblies/${getAssemblyId()}/motions/present`, {
-          method: "POST",
-          body: { motionId: created.id }
-        });
+        if (ui.form.dataset.motionPresented !== "1") {
+          setGlobalLoaderMessage("Presentando pregunta…");
+          await api(`/api/assemblies/${getAssemblyId()}/motions/${motionId}/publish`, { method: "POST" });
+          await api(`/api/assemblies/${getAssemblyId()}/motions/present`, {
+            method: "POST",
+            body: { motionId }
+          });
+          ui.form.dataset.motionPresented = "1";
+        }
 
         if (action === "present") {
           ui.dialog.close();
@@ -694,7 +726,7 @@ export function createLiveVotingWorkspace({
         setGlobalLoaderMessage("Abriendo votación…");
         await openVoting(
           getAssemblyId(),
-          created.id,
+          motionId,
           body.defaultResultVisibilityPolicy !== "LiveResults",
           body.defaultResultVisibilityPolicy
         );
@@ -703,11 +735,25 @@ export function createLiveVotingWorkspace({
         await refreshRoom?.();
         onMotionChanged?.();
       } catch (err) {
-        showToast(mapMotionActionError(err), "error");
+        const reason = mapMotionActionError(err);
+        const presented = ui.form.dataset.motionPresented === "1";
+        const saved = Boolean(ui.form.dataset.motionId);
+        const status = ui.form.querySelector("[data-partial-status]") || document.createElement("p");
+        status.dataset.partialStatus = "1";
+        status.setAttribute("role", "alert");
+        status.textContent = presented
+          ? `Pregunta guardada y presentada; no se pudo abrir. ${reason}`
+          : saved
+            ? `Pregunta guardada; no se pudo presentar. ${reason}`
+            : reason;
+        ui.form.querySelector(".lv-body")?.append(status);
+        showToast(status.textContent, "error");
+        await refreshRoom?.();
       } finally {
+        submitting = false;
         forceHideGlobalLoader();
       }
-    }, { once: true });
+    });
   }
 
   async function pickPrepared(opener) {

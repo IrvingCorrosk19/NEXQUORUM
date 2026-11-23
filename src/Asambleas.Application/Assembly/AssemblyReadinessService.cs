@@ -114,7 +114,7 @@ public sealed class AssemblyReadinessService
 
 
 
-        var participantsReady = metrics.ParticipantCount > 0;
+        var participantsReady = metrics.OwnerParticipantCount > 0;
 
         var coefficientsReady = metrics.CoefficientsReady;
 
@@ -128,7 +128,8 @@ public sealed class AssemblyReadinessService
 
         var votingPrepared = metrics.MotionCount + metrics.SurveyCount > 0;
 
-        var documentsReady = metrics.ConvocationCount > 0;
+        var documentsSent = metrics.SentConvocationCount > 0;
+        var documentsReady = documentsSent;
 
         var commsReady = metrics.EmailChannelReady;
 
@@ -150,11 +151,19 @@ public sealed class AssemblyReadinessService
 
             participantsReady
 
-                ? "Participantes registrados para esta asamblea."
+                ? "Hay propietarios convocados. Esto no significa que estén presentes ni que haya quórum."
 
-                : "No hay participantes elegibles registrados.",
+                : "No hay propietarios convocados. El personal de mesa no cuenta como convocado.",
 
-            participantsReady ? $"{metrics.ParticipantCount} participante(s)" : null,
+            participantsReady
+
+                ? $"{metrics.OwnerParticipantCount} propietario(s) convocado(s)"
+
+                : metrics.ParticipantCount > 0
+
+                    ? $"Solo personal de mesa ({metrics.ParticipantCount})"
+
+                    : "Sin convocados",
 
             "Revisar participantes",
 
@@ -236,19 +245,41 @@ public sealed class AssemblyReadinessService
 
             "Documentos",
 
-            documentsReady
+            documentsSent
 
-                ? "Hay convocatoria o documentos asociados."
+                ? "La convocatoria consta como enviada."
 
-                : "Todavía no hay convocatoria ni documentos asociados.",
+                : metrics.ConvocationCount > 0
 
-            documentsReady ? $"{metrics.ConvocationCount} convocatoria(s)" : null,
+                    ? "Hay una convocatoria guardada o validada, pero no consta como enviada."
+
+                    : "Todavía no hay convocatoria.",
+
+            documentsSent
+
+                ? $"{metrics.SentConvocationCount} enviada(s)"
+
+                : metrics.ConvocationCount > 0
+
+                    ? $"{metrics.ConvocationCount} sin envío"
+
+                    : null,
 
             "Agregar documentos",
 
             ReadinessDestinationKeys.AssemblyConvocation,
 
-            Can(Permissions.ConvocationsCreate) || Can(Permissions.ConvocationsSend)));
+            Can(Permissions.ConvocationsCreate) || Can(Permissions.ConvocationsSend),
+
+            documentsSent
+
+                ? ReadinessCheckStatuses.Ready
+
+                : metrics.ConvocationCount > 0
+
+                    ? ReadinessCheckStatuses.Available
+
+                    : ReadinessCheckStatuses.Optional));
 
 
 
@@ -268,11 +299,15 @@ public sealed class AssemblyReadinessService
 
                 ? "El quórum requerido debe ser mayor que cero."
 
-                : votingPrepared
+                : metrics.VotingSessionExists
 
-                    ? "Votaciones y reglas preparadas."
+                    ? "Hay una votación abierta o cerrada. Esto no acredita el resultado."
 
-                    : "Prepara al menos una votación o encuesta.",
+                    : votingPrepared
+
+                        ? "Hay preguntas preparadas. Preparar o presentar una pregunta no abre la votación."
+
+                        : "Prepara al menos una votación o encuesta.",
 
             votingPrepared
 
@@ -288,7 +323,21 @@ public sealed class AssemblyReadinessService
 
             ReadinessDestinationKeys.AssemblyVoting,
 
-            Can(Permissions.MotionCreate) || Can(Permissions.VoteOpen)));
+            Can(Permissions.MotionCreate) || Can(Permissions.VoteOpen),
+
+            !votingRulesReady
+
+                ? ReadinessCheckStatuses.Attention
+
+                : metrics.VotingSessionExists
+
+                    ? ReadinessCheckStatuses.Ready
+
+                    : votingPrepared
+
+                        ? ReadinessCheckStatuses.Available
+
+                        : ReadinessCheckStatuses.Optional));
 
 
 
@@ -302,23 +351,37 @@ public sealed class AssemblyReadinessService
 
             "Videoconferencia",
 
-            meetingReady
+            modalityVirtual
 
-                ? "Sala de reunión lista."
+                ? meetingConfigured
 
-                : modalityVirtual
+                    ? "La videoconferencia está configurada. Este indicador no dice que haya una sala conectada."
 
-                    ? "La videoconferencia no está configurada para modalidad virtual."
+                    : "La modalidad virtual no tiene videoconferencia configurada."
 
-                    : "Opcional para modalidad presencial.",
+                : "No aplica: esta modalidad no exige videoconferencia.",
 
-            meetingConfigured ? "LiveKit configurado" : modalityVirtual ? "Pendiente" : "No requerida",
+            modalityVirtual
+
+                ? meetingConfigured ? "Configuración disponible" : "Pendiente"
+
+                : "No aplica",
 
             "Configurar sala",
 
             ReadinessDestinationKeys.AssemblyLobby,
 
-            Can(Permissions.MeetingJoin) || Can(Permissions.AssemblyManage)));
+            Can(Permissions.MeetingJoin) || Can(Permissions.AssemblyManage),
+
+            modalityVirtual
+
+                ? meetingConfigured
+
+                    ? ReadinessCheckStatuses.Available
+
+                    : ReadinessCheckStatuses.Optional
+
+                : ReadinessCheckStatuses.NotApplicable));
 
 
 
@@ -454,19 +517,23 @@ public sealed class AssemblyReadinessService
 
         string destinationKey,
 
-        bool canAct)
+        bool canAct,
+
+        string? explicitStatus = null)
 
     {
 
-        var status = ready
+        var status = explicitStatus
 
-            ? ReadinessCheckStatuses.Ready
+            ?? (ready
 
-            : severity == ReadinessSeverities.Warning
+                ? ReadinessCheckStatuses.Ready
 
-                ? ReadinessCheckStatuses.Optional
+                : severity == ReadinessSeverities.Warning
 
-                : ReadinessCheckStatuses.Attention;
+                    ? ReadinessCheckStatuses.Optional
+
+                    : ReadinessCheckStatuses.Attention);
 
 
 
@@ -484,11 +551,11 @@ public sealed class AssemblyReadinessService
 
             detail,
 
-            ready ? null : actionLabel,
+            status == ReadinessCheckStatuses.Ready ? null : actionLabel,
 
-            ready ? null : destinationKey,
+            status == ReadinessCheckStatuses.Ready ? null : destinationKey,
 
-            !ready && canAct);
+            status != ReadinessCheckStatuses.Ready && canAct);
 
     }
 

@@ -49,7 +49,7 @@ function renderMinutes(data) {
       <h2>${escapeHtml(data.title || t("minutes.title"))}</h2>
       <p class="muted">${escapeHtml(data.propertyHorizontalName || "")}</p>
       <p class="muted">${escapeHtml(formatDateTime(data.scheduledAtUtc))} · ${escapeHtml(assemblyLabel(data.modality))} · ${escapeHtml(assemblyLabel(data.status))}</p>
-      <p><span class="badge ${c.status === "COMPLETE" ? "badge-success" : "badge-warn"}">${escapeHtml(c.status === "WARNING" ? "Expediente en preparación" : assemblyLabel(c.status))}</span></p>
+      <p><span class="badge ${c.status === "COMPLETE" ? "badge-success" : "badge-warn"}">${escapeHtml(c.status === "WARNING" ? "Expediente en preparación" : c.status === "COMPLETE" ? "Expediente final" : assemblyLabel(c.status))}</span></p>
       <details class="minutes-technical">
         <summary>Detalle técnico</summary>
         <p>Identificador: ${escapeHtml(data.documentId || "Sin identificador")}</p>
@@ -94,7 +94,7 @@ function renderMinutes(data) {
 
     <section id="sec-agenda" class="minutes-section">
       <h3>Agenda</h3>
-      <ol>${agenda.map((a) => `<li>${escapeHtml(a.code || "")} ${escapeHtml(a.title || "")}${a.isCompleted ? " · FINALIZADO" : a.isActive ? " · ACTIVO" : ""}</li>`).join("") || "<li>—</li>"}</ol>
+      <ol>${agenda.map((a) => `<li>${escapeHtml(a.code || "")} ${escapeHtml(a.title || "")}${a.isCompleted ? " · FINALIZADO" : data.status === "Completed" && a.isActive ? " · Pendiente al cierre" : a.isActive ? " · ACTIVO" : data.status === "Completed" ? " · Pendiente al cierre" : ""}</li>`).join("") || "<li>—</li>"}</ol>
     </section>
 
     <section class="minutes-section">
@@ -127,7 +127,17 @@ function renderMinutes(data) {
                 </article>`;
               })
               .join("")
-          : `<p class="muted">Sin mociones cerradas.</p>`
+          : `<p class="muted">Sin votaciones cerradas.</p>`
+      }
+      ${
+        (data.unvotedMotions || []).length
+          ? `<h4>Presentadas sin votación</h4><ul>${data.unvotedMotions
+              .map((m) => {
+                const motion = m.motion || m;
+                return `<li>${escapeHtml(motion.code || "")} — ${escapeHtml(motion.title || motion.questionText || "")}. No sometida a votación.</li>`;
+              })
+              .join("")}</ul>`
+          : ""
       }
     </section>
 

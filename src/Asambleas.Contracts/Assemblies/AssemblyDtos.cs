@@ -163,6 +163,8 @@ public static class ReadinessCheckStatuses
     public const string Ready = "Ready";
     public const string Attention = "Attention";
     public const string Optional = "Optional";
+    public const string Available = "Available";
+    public const string NotApplicable = "NotApplicable";
 }
 
 public static class ReadinessSeverities

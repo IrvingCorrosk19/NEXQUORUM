@@ -7,7 +7,7 @@ import { getParticipants, hydrateRoomState } from "./room-state.js";
 import { isOperator } from "./roles.js";
 import { renderQuorum } from "./quorum.js?v=flow8";
 import { assemblyLabel } from "./assembly-labels.js";
-import { createAssemblyConnection } from "./signalr-client.js";
+import { createAssemblyConnection, ensureSignalR } from "./signalr-client.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";
 import { bootIaPage } from "./ia-page.js?v=flow5";
 import { startHybridShell } from "./hybrid-router.js";
@@ -335,7 +335,7 @@ function updateLive() {
 
 function formatCoeff(value) {
   if (value == null || value === "" || !Number.isFinite(Number(value))) return "—";
-  return `${Number(value).toLocaleString("es-PA", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}%`;
+  return `${Number(value).toLocaleString("es-PA", { minimumFractionDigits: 0, maximumFractionDigits: 4 })}%`;
 }
 
 function sumCoefficients(units) {
@@ -838,6 +838,7 @@ async function init() {
   );
 
   try {
+    await ensureSignalR();
     if (window.signalR) {
       if (hubConn) {
         try {

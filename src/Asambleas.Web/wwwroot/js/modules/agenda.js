@@ -20,7 +20,8 @@ export async function completeActiveAgendaItem(assemblyId) {
  * A point is FINALIZADO only after the operator finishes it.
  */
 export function renderAgenda(root, agenda, options = {}) {
-  const { canManage, onActivate, onComplete, motions = [], votingOpen = false, compact = false } = options;
+  const { canManage, onActivate, onComplete, motions = [], votingOpen = false, compact = false, assemblyStatus = "" } = options;
+  const assemblyClosed = assemblyStatus === "Completed" || assemblyStatus === "Cancelled";
   if (!root) {
     return;
   }
@@ -54,13 +55,15 @@ export function renderAgenda(root, agenda, options = {}) {
     <ul class="agenda-list">
       ${items
         .map((item, index) => {
-          const state = resolveAgendaState(item, active);
+          const state = assemblyClosed && !isCompleted(item) ? "pending-close" : resolveAgendaState(item, active);
           const stateLabel =
             state === "done"
               ? "FINALIZADO"
-              : state === "active"
-                ? t("assembly.agendaActive") || "Activo"
-                : t("assembly.agendaPending") || "Pendiente";
+              : state === "pending-close"
+                ? "Pendiente al cierre"
+                : state === "active"
+                  ? t("assembly.agendaActive") || "Activo"
+                  : t("assembly.agendaPending") || "Pendiente";
           const badgeClass =
             state === "done" ? "badge-success" : state === "active" ? "badge-live" : "badge-pending";
           const mark = state === "done" ? "✓" : state === "active" ? "●" : "";
@@ -77,7 +80,7 @@ export function renderAgenda(root, agenda, options = {}) {
             <span class="badge ${badgeClass}">${escapeHtml(stateLabel)}</span>
           </div>
           ${
-            canManage && state === "active"
+            canManage && !assemblyClosed && state === "active"
               ? `<button type="button" class="btn btn-secondary" data-complete="1" ${block.blocked ? "disabled" : ""}>Finalizar punto</button>
                  ${block.blocked ? `<p class="muted agenda-finish-hint" style="margin:0.35rem 0 0">Hay preguntas o votaciones pendientes en este punto.</p>` : ""}`
               : ""

@@ -90,4 +90,5 @@ public sealed record AssemblyMinutesDocumentDto(
     IReadOnlyList<DecisionDto> Decisions,
     string Disclaimer,
     bool IsSealed = false,
-    IReadOnlyList<RepresentationEvidenceDto>? AbsentHolders = null);
+    IReadOnlyList<RepresentationEvidenceDto>? AbsentHolders = null,
+    IReadOnlyList<AssemblyMinutesMotionEntryDto>? UnvotedMotions = null);
