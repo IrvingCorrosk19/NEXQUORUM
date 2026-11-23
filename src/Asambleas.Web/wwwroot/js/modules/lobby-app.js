@@ -689,6 +689,8 @@ async function init() {
     });
   } catch (error) {
     showError(error.message);
+    setLobbyState(error.message || "No se pudo cargar la sala.", "error");
+    await setupPreview();
     return;
   }
 

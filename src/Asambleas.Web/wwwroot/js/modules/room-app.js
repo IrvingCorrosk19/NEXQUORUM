@@ -1206,6 +1206,7 @@ function renderQueueDrawer() {
 function wireMeetingDrawers() {
   if (drawersWired) return;
   drawersWired = true;
+  document.documentElement.dataset.drawersWired = "1";
   qs("#meeting-drawer-backdrop")?.addEventListener("click", closeMeetingDrawers);
   document.querySelectorAll("[data-close-drawer]").forEach((btn) => {
     btn.addEventListener("click", closeMeetingDrawers);
@@ -1231,6 +1232,16 @@ function wireMeetingDrawers() {
     renderQueueDrawer();
     openMeetingDrawer("#speaker-queue-drawer");
   });
+  for (const [id, target] of [
+    ["#more-summon", "#btn-summon-absent"],
+    ["#more-admit", "#btn-admit-waiting"],
+    ["#more-mute-all", "#btn-request-mute-all"]
+  ]) {
+    qs(id)?.addEventListener("click", () => {
+      closeMeetingDrawers();
+      qs(target)?.click();
+    });
+  }
   qs("#btn-hand")?.addEventListener("click", async () => {
     if (handActionBusy) return;
     handActionBusy = true;
@@ -1465,11 +1476,15 @@ function applyRoleChrome() {
     recControls.hidden = !hasPermission(state.user, "recording:control");
   }
   const exp = qs("#link-expediente");
+  const moreExp = qs("#more-link-expediente");
   if (exp) {
     exp.href = `/expediente.html?assemblyId=${assemblyId}`;
     exp.hidden = !hasPermission(state.user, "expediente:view");
   }
+  if (moreExp) moreExp.href = `/expediente.html?assemblyId=${assemblyId}`;
   const studio = qs("#link-studio");
+  const moreStudio = qs("#more-link-studio");
+  if (moreStudio) moreStudio.href = `/voting-studio.html?assemblyId=${assemblyId}`;
   if (studio) {
     studio.href = `/voting-studio.html?assemblyId=${assemblyId}`;
     studio.target = "_blank";
@@ -4022,6 +4037,7 @@ async function init() {
   // Hub joined — refresh once; recordings use short TTL cache (no duplicate network).
   await rehydrate();
   window.__asambleasRetryMedia = () => bootstrapMeeting();
+  wireMeetingDrawers();
   await bootstrapMeeting();
   wireChat();
   await loadChatHistory();

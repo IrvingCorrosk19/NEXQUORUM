@@ -997,7 +997,8 @@ function renderVoteEditor() {
           <option value="LiveResults">Resultados en vivo</option>
         </select>
       </div>
-      <label class="studio-check"><input type="checkbox" id="v-secret" ${d.isSecret ? "checked" : ""} ${dis} /> Voto secreto (operacional)</label>
+      <label class="studio-check"><input type="checkbox" id="v-secret" ${d.isSecret ? "checked" : ""} ${dis} /> Marcar la votación como secreta en el acta</label>
+      <p class="muted">El acta la muestra como secreta. El sistema conserva quién votó para la evidencia. No es un voto anónimo.</p>
     </div>
   `;
   }

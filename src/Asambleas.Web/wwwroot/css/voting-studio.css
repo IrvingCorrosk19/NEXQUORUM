@@ -333,9 +333,15 @@
   cursor: pointer;
 }
 
-.studio-check input {
-  width: 1.05rem;
-  height: 1.05rem;
+.studio-check input[type="checkbox"] {
+  width: 1.05rem !important;
+  height: 1.05rem !important;
+  min-width: 1.05rem;
+  min-height: 0 !important;
+  max-height: 1.05rem !important;
+  padding: 0 !important;
+  margin: 0;
+  flex: 0 0 1.05rem;
   accent-color: var(--brand-teal-500);
 }
 

@@ -693,14 +693,41 @@
     gap: 0.35rem;
   }
 
-  .room.room--meeting-ux.room--ocean .stage-actions .control-cluster-danger .btn,
-  .room.room--meeting-ux.room--ocean .stage-actions .recording-controls,
+  .room.room--meeting-ux.room--ocean .stage-actions .control-cluster-danger .btn:not([hidden]),
+  .room.room--meeting-ux.room--ocean .stage-actions .recording-controls:not([hidden]),
   .room.room--meeting-ux.room--ocean .stage-actions .control-cluster-meta {
     display: flex !important;
   }
 
+  .room.room--meeting-ux.room--ocean .stage-actions .btn[hidden] {
+    display: none !important;
+  }
+
   .room.room--meeting-ux.room--ocean[data-role="owner"] .operator-only {
     display: none !important;
+  }
+
+  .room.room--meeting-ux.room--ocean .stage-actions #btn-summon-absent,
+  .room.room--meeting-ux.room--ocean .stage-actions #btn-admit-waiting,
+  .room.room--meeting-ux.room--ocean .stage-actions #btn-request-mute-all,
+  .room.room--meeting-ux.room--ocean .stage-actions #link-expediente,
+  .room.room--meeting-ux.room--ocean .stage-actions #link-studio {
+    display: none !important;
+  }
+
+  .room.room--meeting-ux.room--ocean .stage-actions [hidden],
+  .room.room--meeting-ux.room--ocean .stage-actions #user-chip:empty,
+  .room.room--meeting-ux.room--ocean .stage-actions #link-dashboard {
+    display: none !important;
+  }
+
+  .room.room--meeting-ux.room--ocean .stage-actions .btn-secondary,
+  .room.room--meeting-ux.room--ocean .stage-actions .btn-ghost,
+  .room.room--meeting-ux.room--ocean .ops-diagnostics,
+  .room.room--meeting-ux.room--ocean .ops-diagnostics summary {
+    background: transparent;
+    color: #e8eef7;
+    border: 1px solid rgba(232, 238, 247, 0.35);
   }
 
   .room.room--meeting-ux.room--ocean .stage-actions .btn {
