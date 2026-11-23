@@ -985,6 +985,7 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
     }
     setMediaState("reconnecting");
     mediaDebug("Reconnecting", { attempt: mediaReconnects });
+    clearIncident("media-down");
     pushIncident("media-reconnect", t("media.reconnecting"), "warn");
   });
 
@@ -1002,6 +1003,8 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
   liveKitRoom.on(RoomEvent.Disconnected, (reason) => {
     setMediaState("disconnected");
     mediaDebug("Disconnected", { reason: String(reason || "") });
+    clearIncident("media-reconnect");
+    clearIncident("media-connect-fail");
     pushIncident("media-down", t("media.disconnectedGovernanceOk"), "error");
   });
 
@@ -1462,11 +1465,9 @@ export function renderGovernanceOnly(container, reason) {
     ? t("lobby.avBlocked")
     : raw || t("lobby.avBlocked");
   container.innerHTML = `
-    <div class="empty-state av-blocked governance-only" role="status" data-media="governance-only">
+    <div class="empty-state av-blocked" role="status" data-media="unavailable">
       <p class="empty-state-what">${escapeHtml(human)}</p>
-      <p class="empty-state-why muted">${escapeHtml(t("lobby.avContinue"))}</p>
-      <p class="empty-state-why muted">${escapeHtml(t("media.governanceOnly"))}</p>
-      <p><button type="button" class="btn btn-secondary" data-retry-media>Reintentar audio y video</button></p>
+      <p><button type="button" class="btn btn-secondary" data-retry-media>Reintentar</button></p>
     </div>
   `;
   container.querySelector("[data-retry-media]")?.addEventListener("click", () => {

@@ -825,17 +825,21 @@ function openVoteEditor(motion, template) {
   const titleEl = qs("#editor-title");
   const ledeEl = qs("#editor-lede");
   if (motion) {
-    if (titleEl) titleEl.textContent = editMode === "Full" ? "Editar votación" : "Votación protegida";
+    const readableStatus = motionStatusLabel(motion);
+    if (titleEl) {
+      titleEl.textContent = editMode === "Full"
+        ? "Editar votación"
+        : readableStatus;
+    }
     if (ledeEl) {
       const code = state.draft.code || "—";
-      const status = DESIGN_LABELS[state.draft.designStatus] || motionStatusLabel(motion);
-      ledeEl.textContent = `${code} · ${status}`;
+      ledeEl.textContent = `${code} · ${readableStatus}`;
     }
   } else {
     if (titleEl) titleEl.textContent = "Nueva votación";
     if (ledeEl) ledeEl.textContent = "Configura la pregunta que se presentará a los participantes.";
   }
-  qs("#editor-status").textContent = DESIGN_LABELS[state.draft.designStatus] || "Borrador";
+  qs("#editor-status").textContent = motion ? motionStatusLabel(motion) : (DESIGN_LABELS[state.draft.designStatus] || "Borrador");
   renderVoteEditor();
   setDirty(false);
   syncStudioUrl();
@@ -904,7 +908,8 @@ function renderVoteEditor() {
     ? `<div class="studio-lock-banner" role="status" id="editor-lock-banner">
         <strong>Campos protegidos</strong>
         <p>${escapeHtml(lockReason || "Esta votación no admite edición crítica en su estado actual.")}</p>
-        <p class="studio-field__hint">Modo: ${escapeHtml(d.editMode || "—")}${d.acceptedBallots ? ` · Votos: ${escapeHtml(String(d.acceptedBallots))}` : ""}</p>
+        <p class="studio-field__hint">Solo lectura.${d.acceptedBallots ? ` Votos registrados: ${escapeHtml(String(d.acceptedBallots))}.` : ""}</p>
+        <details class="studio-technical"><summary>Detalle técnico</summary><p>Estado de diseño: ${escapeHtml(d.designStatus || "—")}. Edición: ${escapeHtml(d.editMode === "Immutable" ? "Solo lectura" : d.editMode || "—")}.</p></details>
       </div>`
     : "";
 

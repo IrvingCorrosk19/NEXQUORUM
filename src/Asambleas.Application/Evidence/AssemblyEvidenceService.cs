@@ -79,12 +79,19 @@ public sealed class AssemblyEvidenceService
             new AuditEventQuery(assemblyId, null, null, null, 0, 500),
             cancellationToken);
 
+        var minutesSealed = await _db.Assemblies
+            .AsNoTracking()
+            .AnyAsync(
+                a => a.Id == assemblyId && a.SealedMinutesHash != null && a.SealedMinutesHash != "",
+                cancellationToken);
+
         var completeness = EvaluateCompleteness(
             detail.Status,
             attendance,
             snapshots,
             agenda.Items.Count,
-            decisions.Count);
+            decisions.Count,
+            minutesSealed);
 
         return new AssemblyEvidencePackageDto(
             detail.Id,
@@ -460,7 +467,8 @@ public sealed class AssemblyEvidenceService
         IReadOnlyList<AssemblyParticipantDto> attendance,
         IReadOnlyList<Contracts.Quorum.QuorumSnapshotDto> snapshots,
         int agendaCount,
-        int decisionCount)
+        int decisionCount,
+        bool minutesSealed)
     {
         var notes = new List<string>();
         var hasAttendance = attendance.Any(p => p.IsAccredited || p.AttendanceStatus is not nameof(AttendanceStatus.Registered));
@@ -472,12 +480,14 @@ public sealed class AssemblyEvidenceService
         if (!hasQuorum) notes.Add("Sin snapshots de quórum.");
         if (!hasAgenda) notes.Add("Sin puntos de agenda.");
         if (isClosed && decisionCount == 0) notes.Add("Asamblea cerrada sin decisiones registradas. Las preguntas no votadas siguen como pendientes; no se inventa un resultado.");
+        if (isClosed && !minutesSealed) notes.Add("La asamblea está finalizada, pero el acta todavía no está sellada.");
 
         var statusLabel = EvidenceCompletenessRules.StatusLabel(
             isClosed,
             notes.Count,
             hasAttendance,
-            hasAgenda);
+            hasAgenda,
+            minutesSealed);
 
         if (!isClosed && statusLabel == "WARNING" && notes.Count == 0)
         {
@@ -491,7 +501,8 @@ public sealed class AssemblyEvidenceService
             hasQuorum,
             hasAgenda,
             decisionCount > 0,
-            isClosed);
+            isClosed,
+            minutesSealed);
     }
 
     private static DateTimeOffset? FirstAudit(IReadOnlyList<AuditEventDto> items, string eventType) =>

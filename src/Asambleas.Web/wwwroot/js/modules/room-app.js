@@ -1730,7 +1730,14 @@ function renderMediaCockpit() {
 function renderIncidentStrip() {
   const el = qs("#incident-strip");
   if (!el) return;
-  const items = listIncidents();
+  const all = listIncidents();
+  const connectionOrder = ["media-down", "media-reconnect", "media-connect-fail"];
+  const connection = connectionOrder.map((id) => all.find((item) => item.id === id)).find(Boolean);
+  const items = connection?.id === "media-down"
+    ? [connection]
+    : connection
+      ? [connection, ...all.filter((item) => item.id !== "media-down" && item.id !== "media-reconnect" && item.id !== "media-connect-fail" && item.id !== "local-av")]
+      : all;
   if (!items.length) {
     el.hidden = true;
     el.innerHTML = "";
@@ -1740,10 +1747,10 @@ function renderIncidentStrip() {
   el.innerHTML = items
     .map((i) => {
       const retry =
-        i.id === "local-av"
-          ? `<button type="button" class="btn btn-sm btn-secondary incident-retry" data-retry-av="1">${escapeHtml(
-              t("media.retryAv") || "Reintentar cámara/micrófono"
-            )}</button>`
+        i.id === "local-av" || i.id === "media-down" || i.id === "media-connect-fail"
+          ? `<button type="button" class="btn btn-sm btn-secondary incident-retry" data-retry-av="1" ${
+              i.id === "local-av" ? "" : "data-retry-connection=\"1\""
+            }>${escapeHtml("Reintentar")}</button>`
           : "";
       return `<div class="incident incident-${escapeHtml(i.severity)}"><span>${escapeHtml(
         i.message
@@ -1754,6 +1761,10 @@ function renderIncidentStrip() {
     btn.addEventListener("click", async () => {
       btn.disabled = true;
       try {
+        if (btn.closest("[data-retry-connection]")) {
+          if (typeof window.__asambleasRetryMedia === "function") await window.__asambleasRetryMedia();
+          return;
+        }
         const result = await retryLocalMedia();
         if (!result.ok) {
           showToast(
@@ -3210,7 +3221,7 @@ async function bootstrapMeeting() {
     qs("#btn-leave-media")?.addEventListener("click", async () => {
       await disconnectLiveKit();
       if (els.video) {
-        els.video.innerHTML = `<div class="empty-state" role="status"><p>${escapeHtml(t("media.leftMedia") || "Audio/video desconectado.")}</p><p class="muted">${escapeHtml(t("media.governanceOnly"))}</p></div>`;
+        els.video.innerHTML = `<div class="empty-state" role="status"><p>${escapeHtml(t("media.leftMedia") || "Audio y video desconectados.")}</p></div>`;
       }
       updateMediaConnectionBanner();
       renderMediaCockpit();

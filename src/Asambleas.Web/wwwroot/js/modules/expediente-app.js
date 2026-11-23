@@ -5,7 +5,7 @@ import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs, showToast } from "./
 import { showPageError } from "./app-feedback.js";
 import { ensureAssemblyIdOrRedirect, isValidAssemblyId } from "./assembly-context.js?v=guid1";
 import { bootIaPage } from "./ia-page.js?v=tabs2";
-import { assemblyLabel } from "./assembly-labels.js";
+import { assemblyLabel, documentaryLabel } from "./assembly-labels.js";
 
 let assemblyId = assemblyIdFromUrl();
 let previewObjectUrl = null;
@@ -71,11 +71,11 @@ function assemblyStatusLabel(status) {
   return map[status] || status || "—";
 }
 
-function documentLifecycle(status) {
-  if (status === "Completed" || status === "Archived") return "FINAL";
-  if (status === "Cancelled") return "CANCELADO";
-  if (status === "InProgress" || status === "Paused" || status === "CheckIn") return "DOCUMENTO EN CURSO";
-  return "BORRADOR";
+function documentLifecycle(data) {
+  return documentaryLabel({
+    assemblyStatus: data?.status,
+    minutesSealed: data?.minutesSealed === true
+  }).label;
 }
 
 function filenameFromContentDisposition(header, fallbackName) {
@@ -283,7 +283,7 @@ function renderDocCards(root, cards, canDownload) {
 }
 
 function renderDocumentSections(data) {
-  const lifecycle = documentLifecycle(data.status);
+  const lifecycle = documentLifecycle(data);
   const lifeEl = qs("#doc-lifecycle");
   if (lifeEl) {
     lifeEl.hidden = false;

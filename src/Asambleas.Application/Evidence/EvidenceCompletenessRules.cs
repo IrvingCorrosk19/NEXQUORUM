@@ -7,11 +7,16 @@ namespace Asambleas.Application.Evidence;
 /// </summary>
 public static class EvidenceCompletenessRules
 {
-    public static string StatusLabel(bool isClosed, int noteCount, bool hasAttendance, bool hasAgenda)
+    public static string StatusLabel(bool isClosed, int noteCount, bool hasAttendance, bool hasAgenda, bool minutesSealed = false)
     {
-        if (isClosed)
+        if (minutesSealed)
         {
             return "COMPLETE";
+        }
+
+        if (isClosed)
+        {
+            return "UNSEALED";
         }
 
         if (noteCount == 0)

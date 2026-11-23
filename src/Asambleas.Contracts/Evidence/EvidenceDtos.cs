@@ -43,7 +43,8 @@ public sealed record EvidenceCompletenessDto(
     bool HasQuorum,
     bool HasAgenda,
     bool HasDecisions,
-    bool IsClosed);
+    bool IsClosed,
+    bool MinutesSealed = false);
 
 /// <summary>Fact-only evidence package — never AI narrative.</summary>
 public sealed record AssemblyEvidencePackageDto(

@@ -193,3 +193,25 @@ export function quorumPresenceLabel(reason) {
 export function quorumTimelineText(status, reason) {
   return [quorumStatusLabel(status), quorumPresenceLabel(reason)].filter(Boolean).join(" · ");
 }
+
+/** Assembly lifecycle and the sealed minutes are different facts. */
+export function documentaryLabel({ assemblyStatus, isSealed = false, minutesSealed = false, completenessStatus = "" } = {}) {
+  const sealed = isSealed === true || minutesSealed === true || completenessStatus === "COMPLETE";
+  const closed = assemblyStatus === "Completed" || assemblyStatus === "Cancelled" || completenessStatus === "UNSEALED";
+  if (sealed && completenessStatus !== "UNSEALED") {
+    return {
+      label: "Expediente final",
+      detail: "El acta está sellada. El identificador y el hash conservan los hechos."
+    };
+  }
+  if (closed) {
+    return {
+      label: "Acta pendiente de sello",
+      detail: "La asamblea ya terminó. Falta el acta sellada; no se inventan decisiones."
+    };
+  }
+  return {
+    label: "Expediente en preparación",
+    detail: "La asamblea sigue abierta. El acta se sella al cerrarla."
+  };
+}

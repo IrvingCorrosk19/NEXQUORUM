@@ -134,8 +134,8 @@ export default {
     verifying: "Verificando acceso…",
     connecting: "Conectando a la sala…",
     synchronizing: "Sincronizando la Asamblea…",
-    avBlocked: "Audio/video no configurado. Puede entrar sin A/V.",
-    avContinue: "La asamblea continúa disponible sin cámara ni micrófono.",
+    avBlocked: "Audio y video no disponibles.",
+    avContinue: "Puede seguir la asamblea sin cámara ni micrófono.",
     avDenied: "No pudimos acceder a tu cámara o micrófono. Puedes continuar sin video o revisar los permisos del navegador.",
     noDevice: "No se encontró cámara o micrófono. Revise el interruptor físico de privacidad, los permisos del sistema y que el dispositivo no esté desactivado.",
     deviceBusy:
@@ -174,8 +174,8 @@ export default {
     you: "Usted",
     connecting: "Conectando audio/video…",
     reconnecting: "Reconectando audio/video…",
-    disconnectedGovernanceOk: "Audio/video desconectado. Puede continuar con agenda, quórum y votación.",
-    governanceOnly: "Modo solo gobernanza: la verdad de la asamblea sigue en ASAMBLEAS.",
+    disconnectedGovernanceOk: "Audio y video desconectados.",
+    governanceOnly: "Puede seguir la asamblea sin cámara ni micrófono.",
     publishFailed: "No se pudo activar cámara/micrófono. La intervención no se marca como finalizada.",
     publishFailedReceiveOk:
       "No se pudo activar cámara/micrófono. Sigue conectado: puede ver y oír a los demás. Use Reintentar.",
@@ -194,7 +194,7 @@ export default {
     tapToEnableAudio: "Toca la pantalla para habilitar el audio remoto",
     liveKitLabel: "Medios de la sala",
     diagnosticsLabel: "Medios de la sala",
-    leftMedia: "Audio/video desconectado. La gobernanza sigue activa.",
+    leftMedia: "Audio y video desconectados.",
     fullscreenUnavailable: "Pantalla completa no disponible en este navegador",
     permissionDenied: "Cámara o micrófono bloqueados por el navegador. Revise la configuración del sitio.",
     permissionDeniedReceiveOk:
@@ -206,8 +206,7 @@ export default {
     activatingCamera: "Activando cámara…",
     deviceSettingsHint: "Los cambios se aplican sin salir de la reunión.",
     devicesUpdated: "Dispositivos actualizados",
-    signalFailed:
-      "No se pudo conectar el audio y el video. Compruebe su red, desactive bloqueadores del sitio y pulse Reintentar. La asamblea sigue disponible sin cámara ni micrófono.",
+    signalFailed: "No se pudo conectar el audio y el video.",
     signalRetrying: "Reintentando conexión de audio/video…"
   },
 

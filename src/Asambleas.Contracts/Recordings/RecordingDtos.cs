@@ -42,7 +42,8 @@ public sealed record SessionExpedienteDto(
     bool CanDownloadDecisions,
     bool CanDownloadEvidencePackage,
     bool CanControlRecording,
-    IReadOnlyList<SessionTimelineEventDto> Timeline);
+    IReadOnlyList<SessionTimelineEventDto> Timeline,
+    bool MinutesSealed = false);
 
 public sealed record SessionTimelineEventDto(
     DateTimeOffset OccurredAtUtc,

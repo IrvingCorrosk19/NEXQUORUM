@@ -27,9 +27,10 @@ public sealed class ConstitutionAndEvidenceTests
     }
 
     [Fact]
-    public void Closed_file_stays_final_when_there_are_notes()
+    public void Sealed_file_stays_final_and_a_closed_file_without_seal_does_not()
     {
-        Assert.Equal("COMPLETE", EvidenceCompletenessRules.StatusLabel(isClosed: true, noteCount: 2, hasAttendance: true, hasAgenda: true));
+        Assert.Equal("COMPLETE", EvidenceCompletenessRules.StatusLabel(isClosed: true, noteCount: 2, hasAttendance: true, hasAgenda: true, minutesSealed: true));
+        Assert.Equal("UNSEALED", EvidenceCompletenessRules.StatusLabel(isClosed: true, noteCount: 2, hasAttendance: true, hasAgenda: true, minutesSealed: false));
         Assert.Equal("WARNING", EvidenceCompletenessRules.StatusLabel(isClosed: false, noteCount: 0, hasAttendance: true, hasAgenda: true));
     }
 

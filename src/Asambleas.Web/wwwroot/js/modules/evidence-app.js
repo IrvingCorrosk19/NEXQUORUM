@@ -4,7 +4,7 @@ import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getEvidence } from "./room-state.js";
 import { bootIaPage } from "./ia-page.js?v=tabs2";
-import { assemblyLabel, quorumTimelineText } from "./assembly-labels.js";
+import { assemblyLabel, documentaryLabel, quorumTimelineText } from "./assembly-labels.js";
 
 const assemblyId = assemblyIdFromUrl();
 
@@ -23,11 +23,12 @@ function timelineLabel(event) {
   return assemblyLabel(event?.eventType);
 }
 
-function completenessLabel(c) {
-  if (c?.status === "COMPLETE") return "Expediente final";
-  if (c?.status === "WARNING") return "Expediente en preparación";
-  const label = assemblyLabel(c?.status);
-  return label === "—" ? "Sin estado documental" : label;
+function completenessLabel(c, assemblyStatus) {
+  return documentaryLabel({
+    assemblyStatus,
+    minutesSealed: c?.minutesSealed === true,
+    completenessStatus: c?.status
+  }).label;
 }
 
 function renderEvidence(data) {
@@ -49,7 +50,7 @@ function renderEvidence(data) {
     <div class="card-body">
       <h2 class="card-title">${escapeHtml(data.title || t("evidence.title"))}</h2>
       <p class="text-secondary">${escapeHtml(data.propertyHorizontalName || "")} · ${escapeHtml(assemblyLabel(data.status))}</p>
-      <p><span class="badge ${c.status === "COMPLETE" ? "bg-success" : c.status === "INCOMPLETE" ? "bg-danger" : "bg-warning text-dark"}">${escapeHtml(completenessLabel(c))}</span>
+      <p><span class="badge ${c.status === "COMPLETE" ? "bg-success" : c.status === "INCOMPLETE" ? "bg-danger" : "bg-warning text-dark"}">${escapeHtml(completenessLabel(c, data.status))}</span>
          <a class="btn btn-secondary ms-2" href="/minutes.html?assemblyId=${assemblyId}">Acta</a></p>
       ${(c.notes || []).map((n) => `<p class="text-secondary">• ${escapeHtml(n)}</p>`).join("")}
       <details class="mt-3" open><summary>Asistencia</summary>

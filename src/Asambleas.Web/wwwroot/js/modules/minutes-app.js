@@ -4,7 +4,7 @@ import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getMinutes } from "./room-state.js";
 import { bootIaPage } from "./ia-page.js?v=flow5";
-import { assemblyLabel } from "./assembly-labels.js";
+import { assemblyLabel, documentaryLabel } from "./assembly-labels.js";
 
 const assemblyId = assemblyIdFromUrl();
 
@@ -33,6 +33,12 @@ function renderMinutes(data) {
   }
 
   const c = data.completeness || {};
+  const documentState = documentaryLabel({
+    assemblyStatus: data.status,
+    isSealed: data.isSealed === true,
+    minutesSealed: c.minutesSealed === true,
+    completenessStatus: data.isSealed === true ? "COMPLETE" : c.status
+  });
   const attendance = data.attendance || [];
   const reps = Array.isArray(data.absentHolders)
     ? data.absentHolders
@@ -49,7 +55,8 @@ function renderMinutes(data) {
       <h2>${escapeHtml(data.title || t("minutes.title"))}</h2>
       <p class="muted">${escapeHtml(data.propertyHorizontalName || "")}</p>
       <p class="muted">${escapeHtml(formatDateTime(data.scheduledAtUtc))} · ${escapeHtml(assemblyLabel(data.modality))} · ${escapeHtml(assemblyLabel(data.status))}</p>
-      <p><span class="badge ${c.status === "COMPLETE" ? "badge-success" : "badge-warn"}">${escapeHtml(c.status === "WARNING" ? "Expediente en preparación" : c.status === "COMPLETE" ? "Expediente final" : assemblyLabel(c.status))}</span></p>
+      <p><span class="badge ${documentState.label === "Expediente final" ? "badge-success" : "badge-warn"}">${escapeHtml(documentState.label)}</span></p>
+      <p class="muted">${escapeHtml(documentState.detail)}</p>
       <details class="minutes-technical">
         <summary>Detalle técnico</summary>
         <p>Identificador: ${escapeHtml(data.documentId || "Sin identificador")}</p>

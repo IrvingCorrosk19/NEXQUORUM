@@ -632,7 +632,8 @@ public sealed class RecordingService
             CanDownloadDecisions: canViewDocs,
             CanDownloadEvidencePackage: canDownloadDocs,
             CanControlRecording: HasPermission(Permissions.RecordingControl),
-            timeline);
+            timeline,
+            MinutesSealed: !string.IsNullOrWhiteSpace(assembly.SealedMinutesHash));
     }
 
     public async Task AuthorizePlayOrDownloadAsync(
