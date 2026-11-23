@@ -550,7 +550,7 @@ async function setupPreview() {
       fallback.innerHTML = `${escapeHtml(t("lobby.insecureContext"))}
         <p style="margin-top:0.75rem"><a class="btn btn-primary" href="${escapeHtml(httpsUrl)}">${escapeHtml(t("lobby.openHttps"))}</a></p>`;
     } else {
-      fallback.textContent = result.error || t("lobby.avDenied");
+      fallback.textContent = result.error || (device.camera || device.mic ? t("lobby.avDenied") : "Sin vista previa.");
     }
   }
   device.cameraDenied = Boolean(result?.cameraDenied);

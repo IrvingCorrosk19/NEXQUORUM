@@ -137,7 +137,7 @@ export default {
     avBlocked: "Audio y video no disponibles.",
     avContinue: "Puede seguir la asamblea sin cámara ni micrófono.",
     avDenied: "No pudimos acceder a tu cámara o micrófono. Puedes continuar sin video o revisar los permisos del navegador.",
-    noDevice: "No se encontró cámara o micrófono. Revise el interruptor físico de privacidad, los permisos del sistema y que el dispositivo no esté desactivado.",
+    noDevice: "No se encontró cámara ni micrófono en este equipo.",
     deviceBusy:
       "La cámara o el micrófono están bloqueados o en uso por otro programa o por el sistema. Ciérrelos e intente de nuevo.",
     insecureContext:

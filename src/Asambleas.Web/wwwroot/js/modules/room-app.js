@@ -3106,8 +3106,8 @@ function updateMediaConnectionBanner() {
     idle: "Audio y video: sin iniciar",
     connecting: t("media.connecting") || "Audio y video: conectando",
     reconnecting: t("media.reconnecting") || "Audio y video: reconectando",
-    disconnected: "Audio y video: desconectados. La presencia no los enciende.",
-    "governance-only": "Audio y video: no disponibles. Puede continuar sin ellos."
+    disconnected: "Audio y video: desconectados",
+    "governance-only": "Audio y video: no disponibles"
   }[st] || `Audio y video: ${st}`;
   el.hidden = false;
   el.textContent = [finishSentence(dataLabel), finishSentence(avLabel)].filter(Boolean).join(" ");

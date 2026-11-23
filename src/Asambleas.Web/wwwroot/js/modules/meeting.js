@@ -295,6 +295,17 @@ export async function startDevicePreview(videoEl, { camera = true, mic = true } 
   stopDevicePreview(videoEl);
   stopMicMeter();
 
+  if (!camera && !mic) {
+    return {
+      stream: null,
+      error: null,
+      camera: false,
+      mic: false,
+      cameraDenied: false,
+      micDenied: false
+    };
+  }
+
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
     return {
       stream: null,
@@ -782,15 +793,18 @@ async function connectLiveKitAttempt(container, joinInfo, options = {}) {
       lastError = error;
       const canRetry = attempt < attempts && isSignalFetchFailure(error);
       if (!canRetry) break;
-      pushIncident("media-reconnect", t("media.signalRetrying"), "warn");
+      clearIncident("media-down");
+      clearIncident("media-connect-fail");
+      setMediaState("reconnecting");
       await disconnectLiveKit();
       await new Promise((r) => setTimeout(r, 700 * attempt));
     }
   }
 
-  setMediaState("governance-only");
+  clearIncident("media-reconnect");
+  clearIncident("media-connect-fail");
+  clearIncident("media-down");
   const friendly = friendlyMediaConnectError(lastError);
-  pushIncident("media-connect-fail", friendly, "error");
   renderGovernanceOnly(container, friendly);
   return null;
 }
@@ -979,14 +993,17 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
       const box = container;
       mediaDebug("reconnect-capped", { attempts: mediaReconnects });
       disconnectLiveKit().finally(() => {
+        clearIncident("media-reconnect");
+        clearIncident("media-connect-fail");
+        clearIncident("media-down");
         renderGovernanceOnly(box, t("media.signalFailed"));
       });
       return;
     }
-    setMediaState("reconnecting");
     mediaDebug("Reconnecting", { attempt: mediaReconnects });
     clearIncident("media-down");
-    pushIncident("media-reconnect", t("media.reconnecting"), "warn");
+    clearIncident("media-connect-fail");
+    setMediaState("reconnecting");
   });
 
   liveKitRoom.on(RoomEvent.Reconnected, () => {
@@ -1001,11 +1018,11 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
   });
 
   liveKitRoom.on(RoomEvent.Disconnected, (reason) => {
-    setMediaState("disconnected");
     mediaDebug("Disconnected", { reason: String(reason || "") });
     clearIncident("media-reconnect");
     clearIncident("media-connect-fail");
-    pushIncident("media-down", t("media.disconnectedGovernanceOk"), "error");
+    clearIncident("media-down");
+    renderGovernanceOnly(container, t("media.disconnectedGovernanceOk"), "disconnected");
   });
 
   const serverUrl = joinInfo.serverUrl || joinInfo.ServerUrl;
@@ -1457,9 +1474,9 @@ export async function disconnectLiveKit() {
   setMediaState("idle");
 }
 
-export function renderGovernanceOnly(container, reason) {
+export function renderGovernanceOnly(container, reason, stateName = "governance-only") {
   if (!container) return;
-  setMediaState("governance-only");
+  setMediaState(stateName);
   const raw = String(reason || "");
   const human = /livekit|meeting provider|not configured/i.test(raw)
     ? t("lobby.avBlocked")

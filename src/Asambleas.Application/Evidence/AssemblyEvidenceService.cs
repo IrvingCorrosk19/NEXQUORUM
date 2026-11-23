@@ -173,7 +173,15 @@ public sealed class AssemblyEvidenceService
         }
 
         var doc = await BuildMinutesDocumentAsync(assemblyId, cancellationToken);
-        var sealedDoc = doc with { IsSealed = true };
+        var sealedCompleteness = doc.Completeness with
+        {
+            Status = "COMPLETE",
+            MinutesSealed = true,
+            Notes = doc.Completeness.Notes
+                .Where(note => !note.Contains("todavía no está sellada", StringComparison.OrdinalIgnoreCase))
+                .ToList()
+        };
+        var sealedDoc = doc with { IsSealed = true, Completeness = sealedCompleteness };
         assembly.SealedMinutesJson = JsonSerializer.Serialize(sealedDoc, HashJson);
         assembly.SealedMinutesHash = sealedDoc.ContentHash;
         assembly.SealedMinutesDocumentId = sealedDoc.DocumentId;
