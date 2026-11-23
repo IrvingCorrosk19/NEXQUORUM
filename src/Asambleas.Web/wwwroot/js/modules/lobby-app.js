@@ -115,17 +115,35 @@ function isAdmissionClosedError(error) {
   return code === "ASSEMBLY_NOT_JOINABLE" || /admisión solo aplica/i.test(message);
 }
 
-function updateToggleLabels() {
+function updateToggleLabels({ persist = true } = {}) {
   const camBtn = qs("#toggle-camera");
   const micBtn = qs("#toggle-mic");
-  camBtn.textContent = device.camera ? t("lobby.deviceOn") : t("lobby.deviceOff");
-  camBtn.setAttribute("aria-pressed", String(device.camera));
-  camBtn.setAttribute("aria-label", device.camera ? t("lobby.turnCameraOff") : t("lobby.turnCameraOn"));
-  micBtn.textContent = device.mic ? t("lobby.deviceOn") : t("lobby.deviceOff");
-  micBtn.setAttribute("aria-pressed", String(device.mic));
-  micBtn.setAttribute("aria-label", device.mic ? t("lobby.muteMic") : t("lobby.unmuteMic"));
-  setPreviewTracks({ camera: device.camera, mic: device.mic });
-  saveDevicePrefs({ cameraEnabled: device.camera, micEnabled: device.mic });
+  const camMissing = device.cameraAvailable === false;
+  const micMissing = device.micAvailable === false;
+  if (camBtn) {
+    camBtn.disabled = camMissing;
+    camBtn.textContent = camMissing ? "Sin cámara" : device.camera ? t("lobby.deviceOn") : t("lobby.deviceOff");
+    camBtn.setAttribute("aria-pressed", camMissing ? "false" : String(device.camera));
+    camBtn.setAttribute("aria-label", camMissing ? "No hay cámara en este equipo" : device.camera ? t("lobby.turnCameraOff") : t("lobby.turnCameraOn"));
+  }
+  if (micBtn) {
+    micBtn.disabled = micMissing;
+    micBtn.textContent = micMissing ? "Sin micrófono" : device.mic ? t("lobby.deviceOn") : t("lobby.deviceOff");
+    micBtn.setAttribute("aria-pressed", micMissing ? "false" : String(device.mic));
+    micBtn.setAttribute("aria-label", micMissing ? "No hay micrófono en este equipo" : device.mic ? t("lobby.muteMic") : t("lobby.unmuteMic"));
+  }
+  setPreviewTracks({ camera: device.camera && !camMissing, mic: device.mic && !micMissing });
+  if (persist && !camMissing && !micMissing) {
+    saveDevicePrefs({ cameraEnabled: device.camera, micEnabled: device.mic });
+  }
+  const hint = qs("#lobby-device-hint");
+  if (hint) {
+    const missing = [camMissing ? "cámara" : "", micMissing ? "micrófono" : ""].filter(Boolean);
+    hint.hidden = missing.length === 0;
+    hint.textContent = missing.length
+      ? `No se detectó ${missing.join(" ni ")}. Una preferencia guardada no enciende un dispositivo ausente. Puedes entrar sin medios.`
+      : "";
+  }
 }
 
 function fillSelect(select, devices, selectedId, emptyLabel) {
@@ -488,7 +506,7 @@ async function setupPreview() {
     const info = await fetchRoomInfo(assemblyId);
     meetingAvailable = Boolean(info?.isAvailable);
     qs("#fact-meeting").textContent = meetingAvailable
-      ? t("lobby.meetingReady")
+      ? "La sala admite ingreso."
       : info?.unavailableReason || t("lobby.avBlocked");
   } catch {
     meetingAvailable = false;
@@ -498,9 +516,15 @@ async function setupPreview() {
   const prefs = loadDevicePrefs();
   if (typeof prefs.cameraEnabled === "boolean") device.camera = prefs.cameraEnabled;
   if (typeof prefs.micEnabled === "boolean") device.mic = prefs.micEnabled;
+  await refreshDeviceLists();
+  const camSelect = qs("#select-cam, #select-camera");
+  const micSelect = qs("#select-mic");
+  device.cameraAvailable = Boolean(camSelect && [...camSelect.options].some((o) => o.value));
+  device.micAvailable = Boolean(micSelect && [...micSelect.options].some((o) => o.value));
+  if (!device.cameraAvailable) device.camera = false;
+  if (!device.micAvailable) device.mic = false;
 
   const result = await startDevicePreview(video, { camera: device.camera, mic: device.mic });
-  await refreshDeviceLists();
 
   if (result.stream) {
     video.hidden = false;
@@ -517,7 +541,17 @@ async function setupPreview() {
       fallback.textContent = result.error || t("lobby.avDenied");
     }
   }
-  updateToggleLabels();
+  if (result?.error && /notfound|devicenotfound|requested device not found|no hay/i.test(String(result.error))) {
+    if (device.camera) device.cameraAvailable = false;
+    if (device.mic) device.micAvailable = false;
+    device.camera = device.cameraAvailable === false ? false : device.camera;
+    device.mic = device.micAvailable === false ? false : device.mic;
+  }
+  updateToggleLabels({ persist: false });
+  const fact = qs("#fact-meeting");
+  if (fact && meetingAvailable && (device.cameraAvailable === false || device.micAvailable === false)) {
+    fact.textContent = "Puedes entrar sin medios. En este equipo falta un dispositivo.";
+  }
 }
 
 async function enterAssembly(options = {}) {

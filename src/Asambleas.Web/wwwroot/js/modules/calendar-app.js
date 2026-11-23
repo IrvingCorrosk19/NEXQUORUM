@@ -144,7 +144,7 @@ function rangeForView() {
   }
   if (state.view === "agenda" || state.view === "upcoming") {
     const from = new Date();
-    from.setUTCHours(0, 0, 0, 0);
+    if (state.view !== "upcoming") from.setUTCHours(0, 0, 0, 0);
     const to = new Date(from);
     to.setUTCDate(to.getUTCDate() + (state.view === "upcoming" ? 90 : 21));
     return { from: from.toISOString(), to: to.toISOString(), label: state.view === "upcoming" ? "Próximos 90 días" : "Agenda" };

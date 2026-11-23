@@ -804,6 +804,11 @@ public sealed class MotionService
             throw new DomainException("Title and code are required to publish.");
         }
 
+        if (string.IsNullOrWhiteSpace(motion.QuestionText) || motion.QuestionText.Trim().Length < 8)
+        {
+            throw new DomainException("Escribe una pregunta válida antes de publicar.");
+        }
+
         if (motion.DecisionRuleCode == QualifiedMajorityDecisionRule.Code
             && motion.RequiredThresholdPercent is null or <= 0 or > 100)
         {

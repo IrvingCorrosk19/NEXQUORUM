@@ -226,7 +226,11 @@ function isLive(ev) {
 }
 
 function isUpcoming(ev) {
-  return ["Scheduled", "CheckIn", "InProgress", "Paused"].includes(String(ev?.status || ""));
+  const status = String(ev?.status || "");
+  if (["CheckIn", "InProgress", "Paused"].includes(status)) return true;
+  if (status !== "Scheduled") return false;
+  const when = new Date(ev.scheduledAtUtc).getTime();
+  return !Number.isFinite(when) || when >= Date.now() - 60000;
 }
 
 function canShowConvocation(ev) {
@@ -304,7 +308,7 @@ function sortedAssemblies() {
   for (const e of state.events) {
     const st = String(e.status);
     if (["InProgress", "Paused", "CheckIn"].includes(st)) live.push(e);
-    else if (st === "Scheduled") upcoming.push(e);
+    else if (st === "Scheduled" && isUpcoming(e)) upcoming.push(e);
     else past.push(e);
   }
   const byDateAsc = (a, b) => new Date(a.scheduledAtUtc) - new Date(b.scheduledAtUtc);

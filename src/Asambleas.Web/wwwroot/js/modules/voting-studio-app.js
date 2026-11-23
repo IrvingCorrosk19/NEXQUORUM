@@ -287,7 +287,15 @@ async function closeEditor() {
 async function createNewVote() {
   try {
     await ensureAgendaItem();
-    openVoteEditor(null, TEMPLATES[0]);
+    openVoteEditor(null, {
+      key: null,
+      title: "",
+      question: "",
+      ballotKind: "FavorAgainstAbstain",
+      calculationMethod: "Coefficient",
+      decisionRuleCode: "SimpleMajority",
+      options: ["A favor", "En contra", "Abstención"]
+    });
   } catch (err) {
     showError(err.message);
   }
@@ -1305,6 +1313,14 @@ async function saveDraft({ returnToList = true } = {}) {
 }
 
 async function publishCurrent() {
+  if (state.mode === "vote") {
+    readVoteDraftFromDom();
+    const question = String(state.draft?.questionText || "").trim();
+    if (question.length < 8) {
+      showError("Escribe la pregunta que verán los participantes. El texto de ejemplo no se publica solo.");
+      return;
+    }
+  }
   const saved = await saveDraft({ returnToList: false });
   if (!saved || !state.editingId) return;
   showLoader("Publicando…");

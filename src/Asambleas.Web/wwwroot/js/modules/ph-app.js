@@ -1178,7 +1178,7 @@ async function openPh(id, preferredTab = null) {
   void refreshPhDeleteAvailability();
   // Enrich next-assembly CTA when calendar rows are already warm (assemblies tab).
   const nextBtn = $("#btn-view-next-assembly");
-  const upcoming = phAssemblies.find((e) => assemblyListBucket(e.status) === "upcoming" || assemblyListBucket(e.status) === "live");
+  const upcoming = phAssemblies.find((e) => assemblyListTimeBucket(e) === "upcoming" || assemblyListTimeBucket(e) === "live");
   if (nextBtn && upcoming) {
     nextBtn.href = `/dashboard.html?assemblyId=${encodeURIComponent(upcoming.assemblyId)}`;
     nextBtn.textContent = "Ver asamblea";
@@ -1485,7 +1485,7 @@ function renderPhCommand(ph, id) {
   if (!host || !ph) return;
   const live = phAssemblies.find((e) => assemblyListBucket(e.status) === "live");
   const upcoming =
-    phAssemblies.find((e) => assemblyListBucket(e.status) === "upcoming") ||
+    phAssemblies.find((e) => assemblyListTimeBucket(e) === "upcoming") ||
     (ph.nextAssemblyTitle || ph.nextAssemblyAtUtc
       ? { title: ph.nextAssemblyTitle, scheduledAtUtc: ph.nextAssemblyAtUtc, status: "Scheduled" }
       : null);
@@ -1552,11 +1552,20 @@ function renderPhCommand(ph, id) {
     </div>`;
 }
 
+function assemblyListTimeBucket(entry) {
+  const statusBucket = assemblyListBucket(entry.status);
+  if (statusBucket !== "upcoming") return statusBucket;
+  const when = new Date(entry.scheduledAtUtc).getTime();
+  if (Number.isFinite(when) && when < Date.now() - 60000) return "overdue";
+  return "upcoming";
+}
+
 function renderAssembliesList() {
   const host = $("#ph-assemblies-list");
   if (!host) return;
   const filterLabels = {
     upcoming: "Próximas",
+    overdue: "Atrasadas",
     live: "En curso",
     done: "Finalizadas",
     cancelled: "Canceladas",
@@ -1578,7 +1587,7 @@ function renderAssembliesList() {
   let rows =
     asmFilter === "all"
       ? phAssemblies
-      : phAssemblies.filter((e) => assemblyListBucket(e.status) === asmFilter);
+      : phAssemblies.filter((e) => assemblyListTimeBucket(e) === asmFilter);
   if (q) {
     rows = rows.filter((e) => String(e.title || "").toLowerCase().includes(q));
   }
@@ -2864,21 +2873,24 @@ async function showOwner(ownerId, opts = {}) {
   const linkFormHtml = !canAdministerCurrentPh()
     ? ""
     : linkableUnits.length
-      ? `<h3 id="owner-link-section">${escapeHtml(linkHeading)}</h3>
-    <form id="form-link-owner-unit" class="unit-hub-form" style="margin-top:0.5rem">
-      <label>Unidad
-        <select name="unitId" id="drawer-link-unit-select" required>
-          <option value="">— seleccionar —</option>
-          ${linkableUnits.map((u) => `<option value="${u.id}">${escapeHtml(u.code)}</option>`).join("")}
-        </select>
-      </label>
-      <label>% titularidad
-        <input name="sharePercent" id="drawer-link-share" type="number" step="1" min="1" max="100" value="100" />
-      </label>
-      <p id="drawer-link-share-hint" class="muted" style="margin:0.25rem 0" hidden></p>
-      <label>Fecha efectiva
-        <input name="effectiveFrom" type="date" required />
-      </label>
+      ? `<form id="form-link-owner-unit" class="owner-form-sections" style="margin-top:0.75rem">
+      <fieldset class="form-grid">
+        <legend id="owner-link-section">${escapeHtml(linkHeading)}</legend>
+        <label>Unidad
+          <select name="unitId" id="drawer-link-unit-select" required>
+            <option value="">— seleccionar —</option>
+            ${linkableUnits.map((u) => `<option value="${u.id}">${escapeHtml(u.code)} · coeficiente ${Math.round(Number(u.coefficientPercent || u.coefficient || 0))}%</option>`).join("")}
+          </select>
+        </label>
+        <label>Participación de titularidad %
+          <input name="sharePercent" id="drawer-link-share" type="number" step="1" min="1" max="100" value="100" />
+        </label>
+        <p class="muted span-2" style="margin:0">La participación es el porcentaje de esta persona sobre la unidad. El coeficiente es el peso de la unidad en el PH y no se cambia aquí.</p>
+        <p id="drawer-link-share-hint" class="muted span-2" style="margin:0" hidden></p>
+        <label>Fecha efectiva
+          <input name="effectiveFrom" type="date" required />
+        </label>
+      </fieldset>
       <div class="cta-row" style="margin-top:0.75rem">
         <button type="submit" class="btn btn-primary">${escapeHtml(linkBtnLabel)}</button>
       </div>
@@ -2965,6 +2977,13 @@ async function showOwner(ownerId, opts = {}) {
   );
   body.querySelectorAll("[data-end-own]").forEach((btn) =>
     btn.addEventListener("click", async () => {
+      const ok = await confirmDialog({
+        title: "Finalizar vínculo",
+        body: "La unidad dejará de estar activa para este propietario. El historial se conserva.",
+        confirmLabel: "Finalizar",
+        danger: true
+      });
+      if (!ok) return;
       await api(`/api/ph/${currentPhId}/ownerships/${btn.dataset.endOwn}/end`, { method: "POST" });
       AppFeedback.success("La relación quedó en histórico.", { title: "Relación finalizada" });
       await showOwner(ownerId, opts);
