@@ -1,7 +1,10 @@
 using Asambleas.Application.Assembly;
+using Asambleas.Application.Calendar;
 using Asambleas.Application.Documents;
 using Asambleas.Application.Evidence;
+using Asambleas.Domain.Common;
 using Asambleas.Domain.Quorum;
+using Asambleas.Domain.Voting;
 
 namespace Asambleas.UnitTests.Assembly;
 
@@ -56,6 +59,27 @@ public sealed class ConstitutionAndEvidenceTests
         Assert.Equal("Votación abierta", DocumentLabels.MotionFact("Voting", "Ready", "Open"));
         Assert.Equal("Votación cerrada", DocumentLabels.MotionFact("Approved", "Ready", "Closed"));
         Assert.Equal("Cancelada", DocumentLabels.MotionFact("Cancelled", "Ready", null));
+    }
+
+    [Fact]
+    public void A_changed_vote_keeps_the_original_and_explains_the_policy()
+    {
+        Assert.Equal("ALREADY_VOTED", VotingCodes.AlreadyVoted);
+        Assert.Equal(
+            "Tu voto ya fue registrado y esta votación no permite cambiarlo.",
+            VotingCodes.VoteChangeNotAllowed);
+    }
+
+    [Fact]
+    public void An_explicit_property_is_not_replaced_by_the_active_one()
+    {
+        var active = Guid.Parse("7430972c-78f7-45ff-aa82-5a7b8effd6bd");
+        var requested = Guid.Parse("d3333416-5b2c-4b4b-b825-cd8a5db64c92");
+        Assert.Equal(requested, AssemblyCreateTarget.Resolve(requested, active, mayScheduleExplicitPh: true));
+        Assert.Equal(active, AssemblyCreateTarget.Resolve(Guid.Empty, active, mayScheduleExplicitPh: false));
+        var error = Assert.Throws<DomainException>(() =>
+            AssemblyCreateTarget.Resolve(requested, active, mayScheduleExplicitPh: false));
+        Assert.Equal("PH_CONTEXT_MISMATCH", error.Code);
     }
 
     [Fact]

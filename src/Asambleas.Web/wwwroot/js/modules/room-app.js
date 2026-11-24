@@ -3,9 +3,9 @@ import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection, ensureSignalR } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
 import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=vps10b";
-import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=vps8";
+import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=vps16";
 import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=vps8";
-import { createMobileVotingController } from "./mobile-voting-sheet.js?v=labels-es1";
+import { createMobileVotingController } from "./mobile-voting-sheet.js?v=vps16";
 import {
   resolveContextualGuide,
   renderContextualGuide,
@@ -65,7 +65,7 @@ import {
   syncHandRaisedIndicators,
   unlockRemoteAudio
 } from "./meeting.js?v=vps10";
-import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=vps9c";
+import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=vps16";
 import {
   assemblyIdFromUrl,
   confirmDialog,
@@ -349,7 +349,7 @@ function mapCastError(error) {
   ].includes(code)) {
     return `${block.title}. ${block.explanation} ${block.next}`;
   }
-  if (code === "ALREADY_VOTED" || /already voted|doble voto/i.test(msg)) {
+  if (code === "ALREADY_VOTED" || code === "VOTE_CHOICE_CONFLICT" || /already voted|doble voto|no permite cambiarlo/i.test(msg)) {
     return t("voting.alreadyVoted") || t("voting.alreadyRegistered");
   }
   if (code === "NOT_PRESENT" || code === "NOT_ACCREDITED") return t("voting.needPresence") || "Debes estar presente en la asamblea para votar.";

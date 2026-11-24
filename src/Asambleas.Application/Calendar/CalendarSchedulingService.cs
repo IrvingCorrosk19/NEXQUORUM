@@ -170,7 +170,6 @@ public sealed class CalendarSchedulingService
             throw new DomainException("ASSEMBLY_IN_PAST", "No se puede programar una asamblea en el pasado.");
         }
 
-        // Active PH claim is the source of truth; do not trust a mismatched client PHId.
         var targetPhId = ResolveCreatePropertyHorizontalId(request.PropertyHorizontalId);
 
         var ph = await _db.PropertyHorizontals
@@ -781,29 +780,17 @@ public sealed class CalendarSchedulingService
 
     private Guid ResolveCreatePropertyHorizontalId(Guid requestedPropertyHorizontalId)
     {
-        if (_currentTenant.PropertyHorizontalId is Guid activePh && activePh != Guid.Empty)
-        {
-            if (requestedPropertyHorizontalId != Guid.Empty
-                && requestedPropertyHorizontalId != activePh
-                && !IsTenantWideAdmin())
-            {
-                throw new DomainException(
-                    "PH_CONTEXT_MISMATCH",
-                    "La asamblea debe crearse en el PH activo. Cambia de PH e inténtalo de nuevo.");
-            }
-
-            return activePh;
-        }
-
-        if (requestedPropertyHorizontalId == Guid.Empty)
-        {
-            throw new DomainException(
-                "PH_REQUIRED",
-                "Selecciona un PH para crear la asamblea.");
-        }
-
-        return requestedPropertyHorizontalId;
+        var active = _currentTenant.PropertyHorizontalId is Guid activePh && activePh != Guid.Empty
+            ? activePh
+            : (Guid?)null;
+        return AssemblyCreateTarget.Resolve(requestedPropertyHorizontalId, active, MayScheduleExplicitPh());
     }
+
+    private bool MayScheduleExplicitPh() =>
+        IsTenantWideAdmin()
+        || _currentTenant.Permissions.Contains(Permissions.PhManage, StringComparer.Ordinal)
+        || RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.PhManage)
+        || RolePermissionMap.HasPermission(_currentTenant.Roles, Permissions.AssemblyManage);
 
     private async Task<Guid?> ResolveListPropertyHorizontalIdAsync(
         Guid? requestedPropertyHorizontalId,

@@ -1,6 +1,6 @@
 import { api } from "./api.js";
 import { explainBlockCode } from "./contextual-guide.js";
-import { t } from "../i18n/i18n.js?v=labels-es1";
+import { t } from "../i18n/i18n.js?v=vps16";
 import { escapeHtml, formatDateTime } from "./ui.js";
 
 export function mapOpenVotingError(error) {
@@ -510,7 +510,8 @@ export function renderVotePanel(
 
       const already =
         error?.code === "ALREADY_VOTED" ||
-        /already voted|ya (fue )?registr/i.test(String(error.message || ""));
+        code === "VOTE_CHOICE_CONFLICT" ||
+        /already voted|no permite cambiarlo|ya (fue )?registr/i.test(String(error.message || ""));
 
       if (networkish) {
         cards.forEach((c) => {

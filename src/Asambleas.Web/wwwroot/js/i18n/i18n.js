@@ -22,11 +22,11 @@ export async function initI18n(requested) {
       shared.catalog = (await import("./en.js?v=open-desk1")).default;
       shared.locale = "en";
     } else {
-      shared.catalog = (await import("./es-PA.js?v=vps9c")).default;
+      shared.catalog = (await import("./es-PA.js?v=vps16")).default;
       shared.locale = "es-PA";
     }
   } catch {
-    shared.catalog = (await import("./es-PA.js?v=vps9c")).default;
+    shared.catalog = (await import("./es-PA.js?v=vps16")).default;
     shared.locale = "es-PA";
   }
   localStorage.setItem(STORAGE_KEY, shared.locale);

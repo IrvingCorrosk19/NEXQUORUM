@@ -372,7 +372,7 @@ public sealed class VotingService
 
             throw new DomainException(
                 VotingCodes.AlreadyVoted,
-                "Double vote is not allowed for this voting session.");
+                VotingCodes.VoteChangeNotAllowed);
         }
 
         if (participant.AttendanceStatus != AttendanceStatus.Present)
@@ -439,7 +439,7 @@ public sealed class VotingService
             {
                 throw new DomainException(
                     VotingCodes.AlreadyVoted,
-                    "Double vote is not allowed for this voting session.",
+                    VotingCodes.VoteChangeNotAllowed,
                     ex);
             }
 
@@ -447,7 +447,7 @@ public sealed class VotingService
             {
                 throw new DomainException(
                     VotingCodes.ConflictChoice,
-                    "Double vote is not allowed for this voting session.",
+                    VotingCodes.VoteChangeNotAllowed,
                     ex);
             }
 

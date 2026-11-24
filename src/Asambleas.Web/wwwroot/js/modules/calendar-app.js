@@ -1016,15 +1016,17 @@ function showScheduleSuccess(created, ph, fallbackEndIso) {
   qs("#success-title").textContent = created.title || created.Title;
   const start = created.scheduledAtUtc || created.ScheduledAtUtc;
   const end = created.estimatedEndAtUtc || created.EstimatedEndAtUtc || fallbackEndIso;
+  const createdName = created.propertyHorizontalName || created.PropertyHorizontalName || ph?.name;
+  const createdPhId = created.propertyHorizontalId || created.PropertyHorizontalId || ph?.id;
   qs("#success-meta").textContent = [
     formatHumanRange(start, end, ph?.timeZoneId || created.timeZoneId),
     modalityLabel(created.modality || created.Modality),
-    ph?.name || created.propertyHorizontalName
+    createdName ? `Quedó creada en ${createdName}` : null
   ]
     .filter(Boolean)
     .join(" · ");
   const id = created.id || created.Id || created.assemblyId;
-  qs("#success-view").href = `/ph.html?phId=${encodeURIComponent(ph?.id || created.propertyHorizontalId || "")}#assemblies`;
+  qs("#success-view").href = `/ph.html?phId=${encodeURIComponent(createdPhId || "")}#assemblies`;
   qs("#success-agenda").href = `/agenda.html?assemblyId=${id}`;
   qs("#success-convocation").href = `/convocation.html?assemblyId=${id}`;
   if (qs("#success-view")) qs("#success-view").textContent = "Ver en listado del PH";
@@ -1366,9 +1368,18 @@ async function init() {
 }
 
 async function reloadForPh({ phId, phName, user } = {}) {
+  const selectedDestination = qs("#sched-ph")?.value || "";
+  const dialogOpen = Boolean(qs("#schedule-dialog")) && qs("#schedule-dialog").hidden === false;
   if (user) state.user = user;
   state.phId = phId || state.phId;
   state.phName = phName || state.phName;
+  if (dialogOpen && selectedDestination && String(state.phId || "") !== String(selectedDestination)) {
+    const hint = qs("#sched-ph-hint");
+    const selectedName = state.schedulablePhs.find((p) => String(p.id) === String(selectedDestination))?.name || "la propiedad seleccionada";
+    if (hint) {
+      hint.textContent = `El PH activo ahora es ${state.phName || "otro"}. Este formulario sigue destinado a ${selectedName}.`;
+    }
+  }
   writeIaContext({
     phId: state.phId,
     phName: state.phName,

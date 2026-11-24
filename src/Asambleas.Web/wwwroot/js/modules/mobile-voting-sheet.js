@@ -4,7 +4,7 @@
  * Does not disconnect LiveKit or use window.confirm/alert.
  */
 import { castVote, getMyVoteStatus } from "./voting.js?v=labels-es1";
-import { t } from "../i18n/i18n.js?v=labels-es1";
+import { t } from "../i18n/i18n.js?v=vps16";
 import { escapeHtml, formatDateTime } from "./ui.js";
 
 const CHOICES = ["InFavor", "Against", "Abstention"];
@@ -56,8 +56,8 @@ function mapCastError(error) {
   const code = String(error?.code || error?.payload?.extensions?.code || error?.message || "").toUpperCase();
   const status = error?.status;
   const msg = String(error?.message || "");
-  if (code.includes("ALREADY_VOTED") || status === 409) {
-    return t("voting.alreadyVoted") || "Ya registró su voto en esta votación.";
+  if (code.includes("ALREADY_VOTED") || code.includes("VOTE_CHOICE_CONFLICT") || status === 409 || /no permite cambiarlo|already voted/i.test(msg)) {
+    return t("voting.alreadyVoted") || "Tu voto ya fue registrado y esta votación no permite cambiarlo.";
   }
   if (code.includes("VOTING_NOT_OPEN") || code.includes("MOTION_NOT_PRESENTED")) {
     return t("voting.notOpenYet") || "La votación todavía no está abierta. Espere a que la mesa la abra.";
