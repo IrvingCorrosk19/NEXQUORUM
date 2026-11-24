@@ -20,7 +20,8 @@ internal static class AssemblyMetricsLoader
         bool EmailChannelReady,
         int OwnerParticipantCount = 0,
         int SentConvocationCount = 0,
-        bool VotingSessionExists = false);
+        bool VotingSessionExists = false,
+        int OwnerAccreditedCount = 0);
 
     internal static async Task<Metrics> LoadAsync(
         IAsambleasDbContext db,
@@ -76,12 +77,17 @@ internal static class AssemblyMetricsLoader
         var sentConvocationCount = convocationStatuses.Count(s =>
             s is ConvocationStatus.Sent or ConvocationStatus.Partial or ConvocationStatus.Sending);
 
-        var roleCodes = await db.AssemblyParticipants
+        var roster = await db.AssemblyParticipants
             .AsNoTracking()
             .Where(p => p.AssemblyId == assemblyId)
-            .Select(p => p.RoleCode)
+            .Select(p => new { p.RoleCode, p.AttendanceStatus })
             .ToListAsync(cancellationToken);
-        var ownerParticipantCount = roleCodes.Count(role => !DeskStaffRoles.IsDeskStaff(role));
+        var ownerParticipantCount = roster.Count(p => !DeskStaffRoles.IsDeskStaff(p.RoleCode));
+        var ownerAccreditedCount = roster.Count(p =>
+            !DeskStaffRoles.IsDeskStaff(p.RoleCode)
+            && p.AttendanceStatus is AttendanceStatus.Present
+                or AttendanceStatus.CheckedIn
+                or AttendanceStatus.TemporarilyDisconnected);
 
         var votingSessionExists = await db.VotingSessions
             .AsNoTracking()
@@ -113,7 +119,8 @@ internal static class AssemblyMetricsLoader
             emailChannelReady,
             ownerParticipantCount,
             sentConvocationCount,
-            votingSessionExists);
+            votingSessionExists,
+            ownerAccreditedCount);
     }
 }
 

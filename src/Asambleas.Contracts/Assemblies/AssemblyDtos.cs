@@ -181,7 +181,8 @@ public sealed record AssemblyDashboardCountsDto(
     int AgendaItems,
     int Motions,
     int OwnerParticipants = 0,
-    int DeskStaff = 0);
+    int DeskStaff = 0,
+    int OwnerAccredited = 0);
 
 public sealed record AssemblyDashboardDto(
     Guid Id,

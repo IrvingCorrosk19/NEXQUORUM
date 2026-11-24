@@ -64,7 +64,7 @@ import {
   syncHandRaisedIndicators,
   unlockRemoteAudio
 } from "./meeting.js?v=flow11";
-import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=flow14";
+import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=vps9c";
 import {
   assemblyIdFromUrl,
   confirmDialog,
@@ -1646,13 +1646,16 @@ function renderPresenceSummary(items) {
   if (!el) return;
   let convocados = 0;
   let desk = 0;
-  let present = 0;
+  let accredited = 0;
   let represented = 0;
   let connected = 0;
   for (const p of items) {
-    if (isDeskStaffParticipant(p)) desk += 1;
+    const deskStaff = isDeskStaffParticipant(p);
+    if (deskStaff) desk += 1;
     else convocados += 1;
-    if (isLiveRoomPresence(p)) present += 1;
+    if (!deskStaff && ["Present", "CheckedIn", "TemporarilyDisconnected"].includes(String(p?.attendanceStatus || ""))) {
+      accredited += 1;
+    }
     if (personConnectionState(p) === "connected") connected += 1;
     represented += liveRepresentedUnits(p);
   }
@@ -1668,7 +1671,7 @@ function renderPresenceSummary(items) {
     </div>
     <div class="presence-summary__item">
       <span class="presence-summary__label">${escapeHtml(t("assembly.presentCount") || "Presentes")}</span>
-      <span class="presence-summary__value">${present}</span>
+      <span class="presence-summary__value">${accredited}</span>
     </div>
     <div class="presence-summary__item">
       <span class="presence-summary__label">Datos conectados</span>

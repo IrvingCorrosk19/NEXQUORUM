@@ -244,8 +244,9 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
   const quorumStat = describeQuorumStat(assembly);
   const ownerCount = c.ownerParticipants ?? c.OwnerParticipants;
   const deskCount = c.deskStaff ?? c.DeskStaff;
+  const accreditedCount = c.ownerAccredited ?? c.OwnerAccredited;
   const participantsValue = ownerCount ?? c.participants ?? c.Participants;
-  const deskHint = `Personal de mesa: ${Number(deskCount) || 0}. No cuenta como convocado.`;
+  const deskHint = `Acreditados: ${Number(accreditedCount) || 0}. Personal de mesa: ${Number(deskCount) || 0}. La mesa no cuenta como convocada.`;
   const motionsValue = c.motions ?? c.Motions;
   qs("#assembly-stat-strip").innerHTML = `
     <div class="ia-stat"><div class="ia-stat__value">${prepTotal ? `${prepDone}/${prepTotal}` : "No disponible"}</div><div class="ia-stat__label">Preparación</div><div class="ia-stat__hint">${prepTotal ? "Requisitos completados" : "La preparación no llegó en este resumen"}</div></div>
