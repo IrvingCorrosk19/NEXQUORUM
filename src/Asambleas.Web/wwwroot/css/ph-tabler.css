@@ -2682,6 +2682,15 @@ dialog.app-sheet:not([open]),
   background: #f8fafc;
 }
 
+@media (max-width: 767px) {
+  .layout-tabler.admin-shell .studio-page-head__actions .btn-primary,
+  .layout-tabler.admin-shell .studio-page-head__actions .btn-secondary,
+  .layout-tabler.admin-shell .studio-page-head__actions .btn-ghost {
+    flex: 1 1 100%;
+    white-space: normal;
+  }
+}
+
 .layout-tabler.admin-shell .studio-list-shell.panel,
 .layout-tabler.admin-shell .studio-editor.panel {
   border-radius: 0.9rem;
