@@ -1636,16 +1636,22 @@ function liveRepresentedUnits(p) {
   return Number.isFinite(units) && units > 0 ? units : 0;
 }
 
+function isDeskStaffParticipant(p) {
+  return /President|Secretary|Operator|PHAdmin|TenantAdmin|PlatformAdmin/i.test(String(p?.roleCode || ""));
+}
+
 function renderPresenceSummary(items) {
   const el = qs("#presence-summary");
   const diagnostics = qs("#ops-diagnostics");
   if (!el) return;
   let convocados = 0;
+  let desk = 0;
   let present = 0;
   let represented = 0;
   let connected = 0;
   for (const p of items) {
-    convocados += 1;
+    if (isDeskStaffParticipant(p)) desk += 1;
+    else convocados += 1;
     if (isLiveRoomPresence(p)) present += 1;
     if (personConnectionState(p) === "connected") connected += 1;
     represented += liveRepresentedUnits(p);
@@ -1655,6 +1661,10 @@ function renderPresenceSummary(items) {
     <div class="presence-summary__item">
       <span class="presence-summary__label">${escapeHtml(t("assembly.invitedCount") || "Convocados")}</span>
       <span class="presence-summary__value">${convocados}</span>
+    </div>
+    <div class="presence-summary__item">
+      <span class="presence-summary__label">Personal de mesa</span>
+      <span class="presence-summary__value">${desk}</span>
     </div>
     <div class="presence-summary__item">
       <span class="presence-summary__label">${escapeHtml(t("assembly.presentCount") || "Presentes")}</span>

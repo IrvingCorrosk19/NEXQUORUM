@@ -4,9 +4,10 @@ import { applyAvatarElement, avatarCacheBust } from "./avatar-ui.js?v=own11";
 import { isOwnerPortalUser } from "./roles.js?v=rbac2";
 import { escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
-import { bootIaPage } from "./ia-page.js?v=flow5";
+import { bootIaPage } from "./ia-page.js?v=vps9";
 import { iconSvg } from "./tabler-icons.js?v=idn2";
 import { mountIaShell, phHref } from "./ia-nav.js?v=flow5";
+import { writeIaContext } from "./ia-context.js";
 import { startHybridShell } from "./hybrid-router.js?v=polish13";
 import { runWithButton } from "./loading.js";
 import { bindSheetViewport, createQueryGuard, rememberOpener, restoreOpener, trapFocus, wireSheetKeyboard, lockPageScroll, applyTestHooks } from "./query-guard.js?v=polish9b";
@@ -1024,7 +1025,7 @@ function showScheduleSuccess(created, ph, fallbackEndIso) {
     .join(" · ");
   const id = created.id || created.Id || created.assemblyId;
   qs("#success-view").href = `/ph.html?phId=${encodeURIComponent(ph?.id || created.propertyHorizontalId || "")}#assemblies`;
-  qs("#success-agenda").href = `/dashboard.html?assemblyId=${id}`;
+  qs("#success-agenda").href = `/agenda.html?assemblyId=${id}`;
   qs("#success-convocation").href = `/convocation.html?assemblyId=${id}`;
   if (qs("#success-view")) qs("#success-view").textContent = "Ver en listado del PH";
   openDialog("schedule-success-dialog");
@@ -1334,7 +1335,11 @@ async function init() {
   }
 
   const urlPh = new URLSearchParams(location.search).get("phId");
-  const boot = await bootIaPage({ current: "calendar", pageLabel: "Calendario" });
+  const boot = await bootIaPage({
+    current: "calendar",
+    pageLabel: "Calendario",
+    inheritAssembly: false
+  });
   state.phId = urlPh || boot?.phId || state.user.propertyHorizontalId || null;
   state.phName = boot?.phName || null;
 
@@ -1364,12 +1369,20 @@ async function reloadForPh({ phId, phName, user } = {}) {
   if (user) state.user = user;
   state.phId = phId || state.phId;
   state.phName = phName || state.phName;
+  writeIaContext({
+    phId: state.phId,
+    phName: state.phName,
+    assemblyId: null,
+    assemblyTitle: null,
+    assemblyStatus: null
+  });
   mountIaShell(
     {
       level: state.phId ? "ph" : "global",
       user: state.user,
       phId: state.phId,
       phName: state.phName,
+      assemblyId: null,
       current: "calendar"
     },
     {

@@ -10,6 +10,7 @@ import {
   showToast
 } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
+import { resolveDestination } from "./return-context.js";
 import { getDashboard, getReadiness } from "./room-state.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
 import { api } from "./api.js";
@@ -28,12 +29,43 @@ let assemblyId = assemblyIdFromUrl();
 let currentUser = null;
 let currentAssembly = null;
 let isOperatorSession = false;
+let lastReadiness = null;
 
 function showError(message) {
   showPageError(message, "error");
 }
 
+function clearPageAlert() {
+  const page = qs("#page-alert");
+  if (!page) return;
+  page.hidden = true;
+  page.textContent = "";
+}
+
+function preparationItemsHtml() {
+  const checks = lastReadiness?.checks || lastReadiness?.Checks || [];
+  const blockers = checks.filter((check) => {
+    const severity = String(check.severity || check.Severity || "");
+    const status = String(check.status || check.Status || "");
+    return severity === "Blocking" && status !== "Ready";
+  });
+  if (!blockers.length) return "";
+  const destCtx = { assemblyId, phId: currentAssembly?.propertyHorizontalId || "" };
+  return `<ul>${blockers.map((check) => {
+    const title = check.title || check.Title || "Requisito";
+    const how = check.actionLabel || check.ActionLabel || "Resolver";
+    const dest = check.destinationKey || check.DestinationKey;
+    const canAct = Boolean(check.canAct ?? check.CanAct);
+    const href = canAct && dest ? resolveDestination(dest, destCtx) : "";
+    const action = href
+      ? `<a href="${escapeHtml(href)}">${escapeHtml(how)}</a>`
+      : escapeHtml(how);
+    return `<li>${escapeHtml(title)}. ${action}.</li>`;
+  }).join("")}</ul>`;
+}
+
 function showPrimaryCtaError(error) {
+  clearPageAlert();
   const el = qs("#primary-cta-error");
   const message = error?.message || "No se pudo completar la acción.";
   const code = String(error?.code || error?.payload?.code || error?.payload?.extensions?.code || "");
@@ -44,11 +76,16 @@ function showPrimaryCtaError(error) {
       ? ` <a href="/ph.html?phId=${encodeURIComponent(phId)}#units">Corregir coeficientes</a>`
       : "";
   }
+  const pending = code === "PREPARATION_INCOMPLETE" || /requisitos obligatorios/i.test(message)
+    ? preparationItemsHtml()
+    : "";
   if (el) {
     el.hidden = false;
-    el.innerHTML = `${escapeHtml(message)}${extra}`;
+    el.tabIndex = -1;
+    el.innerHTML = `<span>${escapeHtml(message)}</span>${extra}${pending}`;
+    qs(".ia-primary-action__pending")?.setAttribute("hidden", "");
+    el.focus();
   }
-  showError(message);
 }
 
 async function runPrimaryAction(action, operator) {
@@ -200,15 +237,19 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
     <span>${escapeHtml(assembly.modality || "—")}</span>
     <span>${escapeHtml(statusLabelEs(assembly.status || ""))}</span>`;
 
+  lastReadiness = readiness;
   const c = counts || assembly.counts || {};
   const prepDone = readiness?.completedChecks ?? 0;
   const prepTotal = readiness?.totalChecks ?? 0;
   const quorumStat = describeQuorumStat(assembly);
-  const participantsValue = c.participants ?? c.Participants;
+  const ownerCount = c.ownerParticipants ?? c.OwnerParticipants;
+  const deskCount = c.deskStaff ?? c.DeskStaff;
+  const participantsValue = ownerCount ?? c.participants ?? c.Participants;
+  const deskHint = `Personal de mesa: ${Number(deskCount) || 0}. No cuenta como convocado.`;
   const motionsValue = c.motions ?? c.Motions;
   qs("#assembly-stat-strip").innerHTML = `
     <div class="ia-stat"><div class="ia-stat__value">${prepTotal ? `${prepDone}/${prepTotal}` : "No disponible"}</div><div class="ia-stat__label">Preparación</div><div class="ia-stat__hint">${prepTotal ? "Requisitos completados" : "La preparación no llegó en este resumen"}</div></div>
-    <div class="ia-stat"><div class="ia-stat__value">${participantsValue == null ? "No disponible" : String(participantsValue)}</div><div class="ia-stat__label">Participantes</div><div class="ia-stat__hint">${participantsValue == null ? "Sin conteo en este resumen" : participantsValue === 0 ? "Cero convocados" : "Convocados"}</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${participantsValue == null ? "No disponible" : String(participantsValue)}</div><div class="ia-stat__label">Propietarios convocados</div><div class="ia-stat__hint">${participantsValue == null ? "Sin conteo en este resumen" : participantsValue === 0 ? `Cero propietarios convocados. ${deskHint}` : deskHint}</div></div>
     <div class="ia-stat ia-stat--quorum"><div class="ia-stat__value">${escapeHtml(quorumStat.value)}</div><div class="ia-stat__label">Quórum</div><div class="ia-stat__hint">${escapeHtml(quorumStat.hint)}</div></div>
     <div class="ia-stat"><div class="ia-stat__value">${motionsValue == null ? "No disponible" : String(motionsValue)}</div><div class="ia-stat__label">Votaciones</div><div class="ia-stat__hint">${motionsValue === 0 ? "Ninguna votación creada" : "Votaciones de la asamblea"}</div></div>`;
 

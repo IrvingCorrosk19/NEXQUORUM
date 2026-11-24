@@ -19,6 +19,7 @@ const $ = (sel) => document.querySelector(sel);
  *   ownerRedirect?: string,
  *   allowOwnerPortal?: boolean,
  *   pageLabel?: string|null,
+ *   inheritAssembly?: boolean,
  *   breadcrumbs?: {label:string, href?:string}[],
  *   resolveContext?: (user: object) => Promise<{
  *     phId?: string|null,
@@ -38,7 +39,8 @@ export async function bootIaPage(opts) {
     allowOwnerPortal = false,
     pageLabel = null,
     breadcrumbs = [],
-    resolveContext = null
+    resolveContext = null,
+    inheritAssembly = true
   } = opts;
 
   let user;
@@ -81,7 +83,7 @@ export async function bootIaPage(opts) {
 
   const params = new URLSearchParams(location.search);
   let phId = params.get("phId") || stored.phId || user.propertyHorizontalId || null;
-  let assemblyId = params.get("assemblyId") || stored.assemblyId || null;
+  let assemblyId = params.get("assemblyId") || (inheritAssembly ? stored.assemblyId : null) || null;
   let phName = storedBeforeUrl.phName || null;
   if (params.get("phId") && String(storedBeforeUrl.phId || "") !== String(params.get("phId"))) {
     phName = null;
@@ -130,7 +132,19 @@ export async function bootIaPage(opts) {
     }
   }
 
-  writeIaContext({ phId, phName, assemblyId, assemblyTitle, assemblyStatus });
+  if (!inheritAssembly && !params.get("assemblyId")) {
+    assemblyId = null;
+    assemblyTitle = null;
+    assemblyStatus = null;
+  }
+
+  writeIaContext({
+    phId,
+    phName,
+    assemblyId,
+    assemblyTitle,
+    assemblyStatus
+  });
 
   try {
     const memberships = await loadMyMemberships();

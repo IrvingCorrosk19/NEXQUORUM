@@ -186,7 +186,9 @@ public sealed class AssemblyRoomService
             metrics.CheckedInCount,
             metrics.UnitCount,
             metrics.AgendaCount,
-            metrics.MotionCount);
+            metrics.MotionCount,
+            metrics.OwnerParticipantCount,
+            Math.Max(0, metrics.ParticipantCount - metrics.OwnerParticipantCount));
 
         decimal? quorumOpening = null;
         decimal? quorumMaximum = null;

@@ -179,7 +179,9 @@ public sealed record AssemblyDashboardCountsDto(
     int CheckedIn,
     int EligibleUnits,
     int AgendaItems,
-    int Motions);
+    int Motions,
+    int OwnerParticipants = 0,
+    int DeskStaff = 0);
 
 public sealed record AssemblyDashboardDto(
     Guid Id,
