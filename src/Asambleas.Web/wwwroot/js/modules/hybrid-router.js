@@ -32,7 +32,7 @@ const MODULE_LOADERS = {
   "calendar.html": () => import("./calendar-app.js?v=polish13"),
   "agenda.html": () => import("./agenda-app.js?v=agenda-finish1"),
   "checkin.html": () => import("./checkin-app.js?v=vps8"),
-  "voting-studio.html": () => import("./voting-studio-app.js?v=vps8"),
+  "voting-studio.html": () => import("./voting-studio-app.js?v=vps14"),
   "owner.html": () => import("./owner-portal-app.js")
 };
 

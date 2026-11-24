@@ -27,6 +27,7 @@ function showError(message) {
 
 const params = new URLSearchParams(location.search);
 let assemblyId = params.get("assemblyId");
+let studioReady = false;
 let voteFilter = "all";
 let voteSearch = "";
 
@@ -213,19 +214,30 @@ function setDirty(flag) {
   if (state.dirty) el.textContent = "Cambios pendientes";
 }
 
-function syncStudioUrl() {
+function studioLocation() {
+  const url = new URL(location.href);
+  if (assemblyId) url.searchParams.set("assemblyId", assemblyId);
+  else url.searchParams.delete("assemblyId");
+  const savedVote = state.studioView === "editor" && state.mode === "vote" && state.editingId;
+  if (savedVote) {
+    url.searchParams.set("view", "edit");
+    url.searchParams.set("motionId", state.editingId);
+  } else {
+    url.searchParams.delete("view");
+    url.searchParams.delete("motionId");
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function syncStudioUrl({ historyMode = "replace" } = {}) {
+  if (historyMode === "keep") return;
   try {
-    const url = new URL(location.href);
-    if (assemblyId) url.searchParams.set("assemblyId", assemblyId);
-    else url.searchParams.delete("assemblyId");
-    if (state.studioView === "editor" && state.editingId) {
-      url.searchParams.set("view", "edit");
-      url.searchParams.set("motionId", state.editingId);
-    } else {
-      url.searchParams.delete("view");
-      url.searchParams.delete("motionId");
-    }
-    history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    const next = studioLocation();
+    const current = `${location.pathname}${location.search}${location.hash}`;
+    if (next === current) return;
+    const entry = { hybrid: true, page: "voting-studio.html", studioView: state.studioView, editingId: state.editingId || null };
+    if (historyMode === "push") history.pushState(entry, "", next);
+    else history.replaceState(entry, "", next);
   } catch {
     /* soft: ignore history failures */
   }
@@ -250,7 +262,7 @@ function applyLayoutMode() {
   if (listHero) listHero.hidden = isEditor;
 }
 
-function enterListMode({ keepFilters = true } = {}) {
+function enterListMode({ keepFilters = true, syncUrl = true, historyMode = "replace" } = {}) {
   state.studioView = "list";
   state.mode = null;
   state.editingId = null;
@@ -266,14 +278,14 @@ function enterListMode({ keepFilters = true } = {}) {
     });
   }
   applyLayoutMode();
-  syncStudioUrl();
+  if (syncUrl) syncStudioUrl({ historyMode });
   renderLists();
 }
 
-function enterEditorMode() {
+function enterEditorMode({ historyMode = "push" } = {}) {
   state.studioView = "editor";
   applyLayoutMode();
-  syncStudioUrl();
+  syncStudioUrl({ historyMode });
 }
 
 async function closeEditor() {
@@ -286,7 +298,7 @@ async function closeEditor() {
     });
     if (!ok) return false;
   }
-  enterListMode({ keepFilters: true });
+  enterListMode({ keepFilters: true, historyMode: "push" });
   return true;
 }
 
@@ -834,7 +846,7 @@ function motionEditBlockReason(motion) {
   return repairMojibake(motion?.editBlockReason || motion?.EditBlockReason || motion?.message || "");
 }
 
-function openVoteEditor(motion, template, agendaItemId) {
+function openVoteEditor(motion, template, agendaItemId, historyMode = "push") {
   state.mode = "vote";
   state.editingId = motion?.id || null;
   const editMode = assemblyIsClosed() ? "Immutable" : motion ? motionEditMode(motion) : "Full";
@@ -867,7 +879,7 @@ function openVoteEditor(motion, template, agendaItemId) {
       }
     : { ...defaultVoteDraft(template, agendaItemId), editMode: "Full", editBlockReason: "", acceptedBallots: 0 };
 
-  enterEditorMode();
+  enterEditorMode({ historyMode });
   const titleEl = qs("#editor-title");
   const ledeEl = qs("#editor-lede");
   if (motion) {
@@ -888,7 +900,7 @@ function openVoteEditor(motion, template, agendaItemId) {
   qs("#editor-status").textContent = motion ? motionStatusLabel(motion) : (DESIGN_LABELS[state.draft.designStatus] || "Borrador");
   renderVoteEditor();
   setDirty(false);
-  syncStudioUrl();
+  syncStudioUrl({ historyMode });
 }
 
 function openSurveyEditor(survey, template) {
@@ -909,7 +921,7 @@ function openSurveyEditor(survey, template) {
       }
     : defaultSurveyDraft(template);
 
-  enterEditorMode();
+  enterEditorMode({ historyMode: "replace" });
   const titleEl = qs("#editor-title");
   const ledeEl = qs("#editor-lede");
   if (survey) {
@@ -1499,17 +1511,66 @@ function softenRoleChip() {
   roleChip.title = "Rol operativo en esta asamblea";
 }
 
-async function openDeepLinkEditor() {
+function canOpenVoteEditor() {
+  return hasPermission(state.user, "motion:create")
+    || hasPermission(state.user, "motion:view")
+    || hasPermission(state.user, "agenda:manage");
+}
+
+function showRouteFailure(message) {
+  showError(message);
+  const el = qs("#page-alert");
+  if (!el) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.id = "btn-route-back";
+  button.className = "btn btn-secondary";
+  button.style.marginLeft = "0.75rem";
+  button.textContent = "Volver al listado";
+  button.addEventListener("click", () => {
+    showError("");
+    enterListMode({ keepFilters: true, historyMode: "replace" });
+  });
+  el.append(document.createTextNode(" "));
+  el.append(button);
+}
+
+function restoreStudioRoute({ historyMode = "keep" } = {}) {
+  let motionId = null;
   try {
     const url = new URL(location.href);
-    if (url.searchParams.get("view") !== "edit") return;
-    const motionId = url.searchParams.get("motionId");
-    if (!motionId) return;
-    const motion = state.motions.find((m) => String(m.id) === String(motionId));
-    if (motion) openVoteEditor(motion);
+    if (url.searchParams.get("view") === "edit") motionId = url.searchParams.get("motionId") || "";
   } catch {
-    /* soft */
+    return;
   }
+  if (motionId == null) {
+    if (state.studioView !== "list") enterListMode({ keepFilters: true, syncUrl: false });
+    return;
+  }
+  if (!canOpenVoteEditor()) {
+    enterListMode({ keepFilters: true, historyMode: "replace" });
+    showRouteFailure("No tiene permiso para abrir esta votación.");
+    return;
+  }
+  if (!motionId) {
+    enterListMode({ keepFilters: true, historyMode: "replace" });
+    showRouteFailure("La dirección no indica qué votación abrir.");
+    return;
+  }
+  const motion = state.motions.find((item) => String(item.id) === String(motionId));
+  if (!motion) {
+    enterListMode({ keepFilters: true, historyMode: "replace" });
+    showRouteFailure("No encontramos esa votación. Puede volver al listado.");
+    return;
+  }
+  if (state.studioView === "editor" && String(state.editingId) === String(motion.id)) return;
+  openVoteEditor(motion, null, null, historyMode);
+}
+
+function onStudioPopState() {
+  if (!studioReady) return;
+  if (!/voting-studio\.html$/i.test(location.pathname)) return;
+  restoreStudioRoute({ historyMode: "keep" });
 }
 
 async function init() {
@@ -1664,16 +1725,21 @@ async function init() {
     });
   });
 
-  enterListMode({ keepFilters: true });
+  enterListMode({ keepFilters: true, syncUrl: false });
+  if (!window.__votingStudioHistory) {
+    window.__votingStudioHistory = true;
+    window.addEventListener("popstate", onStudioPopState);
+  }
 
   showLoader("Cargando votaciones…");
   try {
     await refresh();
-    await openDeepLinkEditor();
+    restoreStudioRoute({ historyMode: "keep" });
   } catch (err) {
     qs("#assembly-label").textContent = "No pudimos cargar esta asamblea.";
     showError(err.message);
   } finally {
+    studioReady = true;
     hideLoader();
   }
 
