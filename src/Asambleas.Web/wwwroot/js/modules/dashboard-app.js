@@ -51,38 +51,62 @@ function preparationItemsHtml() {
   });
   if (!blockers.length) return "";
   const destCtx = { assemblyId, phId: currentAssembly?.propertyHorizontalId || "" };
-  return `<ul>${blockers.map((check) => {
+  return `<ul class="prep-notice__list">${blockers.map((check) => {
     const title = check.title || check.Title || "Requisito";
     const how = check.actionLabel || check.ActionLabel || "Resolver";
     const dest = check.destinationKey || check.DestinationKey;
     const canAct = Boolean(check.canAct ?? check.CanAct);
     const href = canAct && dest ? resolveDestination(dest, destCtx) : "";
     const action = href
-      ? `<a href="${escapeHtml(href)}">${escapeHtml(how)}</a>`
-      : escapeHtml(how);
-    return `<li>${escapeHtml(title)}. ${action}.</li>`;
+      ? `<a href="${escapeHtml(href)}">${escapeHtml(title)}: ${escapeHtml(how)}</a>`
+      : `<span>${escapeHtml(title)}: ${escapeHtml(how)}</span>`;
+    return `<li>${action}</li>`;
   }).join("")}</ul>`;
+}
+
+function readCoeff(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatPct(value) {
+  return `${Number(value).toLocaleString("es-PA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
+}
+
+function quorumFigures(assembly) {
+  const present = readCoeff(
+    assembly?.presentCoefficient ?? assembly?.PresentCoefficient ?? assembly?.currentCoefficient ?? assembly?.quorumCurrent
+  );
+  const required = readCoeff(assembly?.requiredQuorumPercent ?? assembly?.RequiredQuorumPercent);
+  return { present, required };
 }
 
 function showPrimaryCtaError(error) {
   clearPageAlert();
-  const el = qs("#primary-cta-error");
+  let el = qs("#primary-cta-error");
   const message = error?.message || "No se pudo completar la acción.";
   const code = String(error?.code || error?.payload?.code || error?.payload?.extensions?.code || "");
   const phId = currentAssembly?.propertyHorizontalId || "";
-  let extra = "";
+  const pending = code === "PREPARATION_INCOMPLETE" || /requisitos obligatorios/i.test(message);
+  const brief = pending ? "Faltan requisitos para iniciar." : message;
+  let links = pending ? preparationItemsHtml() : "";
   if (code === "COEFFICIENT_CONFIGURATION_INVALID" || /coeficientes/i.test(message)) {
-    extra = phId
-      ? ` <a href="/ph.html?phId=${encodeURIComponent(phId)}#units">Corregir coeficientes</a>`
+    links += phId
+      ? `<ul class="prep-notice__list"><li><a href="/ph.html?phId=${encodeURIComponent(phId)}#units">Corregir coeficientes</a></li></ul>`
       : "";
   }
-  const pending = code === "PREPARATION_INCOMPLETE" || /requisitos obligatorios/i.test(message)
-    ? preparationItemsHtml()
-    : "";
+  if (el && el.tagName !== "DIV") {
+    const div = document.createElement("div");
+    div.id = "primary-cta-error";
+    el.replaceWith(div);
+    el = div;
+  }
   if (el) {
     el.hidden = false;
+    el.className = "prep-notice field-error";
     el.tabIndex = -1;
-    el.innerHTML = `<span>${escapeHtml(message)}</span>${extra}${pending}`;
+    el.innerHTML = `<p class="prep-notice__lead">${escapeHtml(brief)}</p>${links}`;
     qs(".ia-primary-action__pending")?.setAttribute("hidden", "");
     el.focus();
   }
@@ -116,20 +140,24 @@ async function runPrimaryAction(action, operator) {
     }
   }
   if (action.needsPost === "start" && operator) {
-    const presentKnown = currentAssembly?.currentCoefficient != null || currentAssembly?.quorumCurrent != null;
-    const present = Number(currentAssembly?.currentCoefficient ?? currentAssembly?.quorumCurrent ?? 0);
-    const required = Number(currentAssembly?.requiredQuorumPercent ?? 0);
-    if (presentKnown && Number.isFinite(required) && required > 0 && (!Number.isFinite(present) || present < required)) {
+    const figures = quorumFigures(currentAssembly);
+    if (figures.present == null || figures.required == null) {
+      showPrimaryCtaError({ message: "Consultando quórum…" });
+      return;
+    }
+    const present = figures.present;
+    const required = figures.required;
+    if (required > 0 && present < required) {
       await confirmDialog({
         title: "No se puede constituir",
-        body: `El quórum presente es ${Number.isFinite(present) ? present.toFixed(2) : "0.00"}% y el mínimo es ${required.toFixed(2)}%. Abrir la mesa no constituye la asamblea. No hay una excepción de quórum configurada.`,
+        body: `El quórum presente es ${formatPct(present)} y el mínimo es ${formatPct(required)}. Abrir la mesa no constituye la asamblea. No hay una excepción de quórum configurada.`,
         confirmLabel: "Entendido"
       });
       return;
     }
     const ok = await confirmDialog({
       title: "Iniciar asamblea",
-      body: `El quórum presente es ${Number.isFinite(present) ? present.toFixed(2) : "0.00"}% y el mínimo es ${required.toFixed(2)}%. ¿Constituir formalmente la asamblea?`,
+      body: `El quórum presente es ${formatPct(present)} y el mínimo es ${formatPct(required)}. ¿Constituir formalmente la asamblea?`,
       confirmLabel: "Iniciar asamblea"
     });
     if (!ok) return;
@@ -159,18 +187,18 @@ async function loadReadinessData() {
 }
 
 function describeQuorumStat(assembly) {
-  if (!assembly) return { value: "Cargando", hint: "Consultando el quórum" };
+  if (!assembly) return { value: "Consultando quórum…", hint: "" };
   if (assembly.status === "Completed") {
     return { value: formatClosedQuorum(assembly), hint: "Quórum registrado al cierre" };
   }
-  const raw = assembly.currentCoefficient ?? assembly.quorumCurrent ?? assembly.quorum?.currentCoefficient;
-  if (raw == null || raw === "") {
-    return { value: "No disponible", hint: "Se calcula cuando hay presencia registrada" };
+  const figures = quorumFigures(assembly);
+  if (figures.present == null || figures.required == null) {
+    return { value: "Consultando quórum…", hint: figures.required == null ? "" : `Mínimo ${formatPct(figures.required)}` };
   }
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return { value: "No disponible", hint: "El cálculo de quórum no es válido" };
-  if (n === 0) return { value: "0%", hint: "Cero: nadie presente cuenta para el quórum" };
-  return { value: `${n.toLocaleString("es-PA", { maximumFractionDigits: 2 })}%`, hint: "Coeficiente presente" };
+  const hint = figures.present === 0
+    ? `Nadie presente cuenta. Mínimo ${formatPct(figures.required)}`
+    : `Mínimo ${formatPct(figures.required)}`;
+  return { value: formatPct(figures.present), hint };
 }
 
 function formatClosedQuorum(assembly) {
@@ -245,14 +273,17 @@ function paintDashboard(user, assembly, readiness, operator, counts = null) {
   const ownerCount = c.ownerParticipants ?? c.OwnerParticipants;
   const deskCount = c.deskStaff ?? c.DeskStaff;
   const accreditedCount = c.ownerAccredited ?? c.OwnerAccredited;
-  const participantsValue = ownerCount ?? c.participants ?? c.Participants;
-  const deskHint = `Acreditados: ${Number(accreditedCount) || 0}. Personal de mesa: ${Number(deskCount) || 0}. La mesa no cuenta como convocada.`;
+  const deskPresent = c.deskPresent ?? c.DeskPresent;
   const motionsValue = c.motions ?? c.Motions;
+  const figure = (value) => (value == null ? "—" : String(value));
   qs("#assembly-stat-strip").innerHTML = `
-    <div class="ia-stat"><div class="ia-stat__value">${prepTotal ? `${prepDone}/${prepTotal}` : "No disponible"}</div><div class="ia-stat__label">Preparación</div><div class="ia-stat__hint">${prepTotal ? "Requisitos completados" : "La preparación no llegó en este resumen"}</div></div>
-    <div class="ia-stat"><div class="ia-stat__value">${participantsValue == null ? "No disponible" : String(participantsValue)}</div><div class="ia-stat__label">Propietarios convocados</div><div class="ia-stat__hint">${participantsValue == null ? "Sin conteo en este resumen" : participantsValue === 0 ? `Cero propietarios convocados. ${deskHint}` : deskHint}</div></div>
-    <div class="ia-stat ia-stat--quorum"><div class="ia-stat__value">${escapeHtml(quorumStat.value)}</div><div class="ia-stat__label">Quórum</div><div class="ia-stat__hint">${escapeHtml(quorumStat.hint)}</div></div>
-    <div class="ia-stat"><div class="ia-stat__value">${motionsValue == null ? "No disponible" : String(motionsValue)}</div><div class="ia-stat__label">Votaciones</div><div class="ia-stat__hint">${motionsValue === 0 ? "Ninguna votación creada" : "Votaciones de la asamblea"}</div></div>`;
+    <div class="ia-stat"><div class="ia-stat__value">${prepTotal ? `${prepDone}/${prepTotal}` : "—"}</div><div class="ia-stat__label">Preparación</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${figure(ownerCount)}</div><div class="ia-stat__label">Propietarios convocados</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${figure(accreditedCount)}</div><div class="ia-stat__label">Propietarios acreditados</div></div>
+    <div class="ia-stat"><div class="ia-stat__value">${figure(deskCount)}</div><div class="ia-stat__label">Personal de mesa inscrito</div>${deskPresent == null ? "" : `<div class="ia-stat__hint">Mesa presente: ${deskPresent}</div>`}</div>
+    <div class="ia-stat ia-stat--quorum"><div class="ia-stat__value">${escapeHtml(quorumStat.value)}</div><div class="ia-stat__label">Quórum</div>${quorumStat.hint ? `<div class="ia-stat__hint">${escapeHtml(quorumStat.hint)}</div>` : ""}</div>
+    <div class="ia-stat"><div class="ia-stat__value">${figure(motionsValue)}</div><div class="ia-stat__label">Votaciones</div></div>
+    <p class="ia-stat-help">La mesa inscrita no aporta coeficiente. Solo los propietarios acreditados cuentan para el quórum.</p>`;
 
   writeIaContext({ phId, phName, assemblyId, assemblyTitle: title, assemblyStatus: assembly.status || "" });
 
@@ -337,6 +368,22 @@ async function init() {
     readiness = await loadReadinessData();
   }
 
+  if (assembly && (readCoeff(assembly.presentCoefficient ?? assembly.PresentCoefficient) == null
+    || readCoeff(assembly.requiredQuorumPercent ?? assembly.RequiredQuorumPercent) == null)) {
+    try {
+      const q = await api(`/api/assemblies/${assemblyId}/quorum`);
+      const present = q?.currentCoefficient ?? q?.CurrentCoefficient;
+      const required = q?.requiredCoefficient ?? q?.RequiredCoefficient;
+      assembly = {
+        ...assembly,
+        presentCoefficient: readCoeff(assembly.presentCoefficient ?? assembly.PresentCoefficient) ?? present,
+        requiredQuorumPercent: readCoeff(assembly.requiredQuorumPercent ?? assembly.RequiredQuorumPercent) ?? required
+      };
+    } catch {
+      /* El aviso queda en «Consultando quórum…» hasta que llegue una cifra real. */
+    }
+  }
+
   paintDashboard(user, assembly, readiness, operator, dash.ok ? dash.data?.counts : null);
 
   try {
@@ -360,9 +407,13 @@ async function init() {
         quorumUpdated: async (payload) => {
           const q = payload?.quorum || payload;
           if (q && currentAssembly) {
+            const present = q.currentCoefficient ?? q.CurrentCoefficient;
+            const required = q.requiredCoefficient ?? q.RequiredCoefficient;
             currentAssembly = {
               ...currentAssembly,
-              currentCoefficient: q.currentCoefficient ?? q.CurrentCoefficient ?? currentAssembly.currentCoefficient
+              currentCoefficient: present ?? currentAssembly.currentCoefficient,
+              presentCoefficient: present ?? currentAssembly.presentCoefficient,
+              requiredQuorumPercent: required ?? currentAssembly.requiredQuorumPercent
             };
           }
           await refreshDashboard(user, currentAssembly || assembly, operator);

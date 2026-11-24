@@ -28,9 +28,13 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
     return;
   }
 
-  const current = Number(quorum.currentCoefficient ?? 0);
-  const required = Number(quorum.requiredCoefficient ?? 0);
-  const requiredPct = Number(quorum.requiredPercent ?? 0);
+  const current = readCoeff(quorum.currentCoefficient);
+  const required = readCoeff(quorum.requiredCoefficient);
+  if (current == null || required == null) {
+    root.innerHTML = `<p class="quorum-pending" role="status">Consultando quórum…</p>`;
+    return;
+  }
+  const requiredPct = Number(quorum.requiredPercent ?? required);
   const eligibleTotal = Number(quorum.eligibleCoefficientTotal ?? 0);
   const configInvalid = Boolean(quorum.coefficientConfigurationInvalid);
   const trackPct = required > 0 ? Math.min(100, (current / required) * 100) : 0;
@@ -123,8 +127,12 @@ export function renderQuorumCard(root, quorum) {
     root.innerHTML = `<div class="skeleton" style="height:3.5rem"></div>`;
     return;
   }
-  const current = Number(quorum.currentCoefficient ?? 0);
-  const required = Number(quorum.requiredCoefficient ?? 0);
+  const current = readCoeff(quorum.currentCoefficient);
+  const required = readCoeff(quorum.requiredCoefficient);
+  if (current == null || required == null) {
+    root.innerHTML = `<p class="quorum-pending" role="status">Consultando quórum…</p>`;
+    return;
+  }
   const reached = Boolean(quorum.quorumReached);
   const trackPct = required > 0 ? Math.min(100, (current / required) * 100) : 0;
   const status = reached
@@ -150,9 +158,17 @@ export function renderQuorumCard(root, quorum) {
     </div>`;
 }
 
+function readCoeff(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Coefficient percent-points of the PH (expected Σ ≈ 100). */
 export function formatCoeff(n) {
-  return `${Number(n).toFixed(2)}%`;
+  const value = readCoeff(n);
+  if (value == null) return "Consultando quórum…";
+  return `${value.toLocaleString("es-PA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
 }
 
 function animateIfNeeded(el, from, to) {

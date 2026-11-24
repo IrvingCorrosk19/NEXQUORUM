@@ -189,7 +189,8 @@ public sealed class AssemblyRoomService
             metrics.MotionCount,
             metrics.OwnerParticipantCount,
             Math.Max(0, metrics.ParticipantCount - metrics.OwnerParticipantCount),
-            metrics.OwnerAccreditedCount);
+            metrics.OwnerAccreditedCount,
+            metrics.DeskPresentCount);
 
         decimal? quorumOpening = null;
         decimal? quorumMaximum = null;
@@ -205,6 +206,17 @@ public sealed class AssemblyRoomService
             }
         }
 
+        decimal? presentCoefficient = null;
+        try
+        {
+            var preview = await _quorum.PreviewLiveAsync(assemblyId, cancellationToken);
+            presentCoefficient = preview.Present;
+        }
+        catch (Exception)
+        {
+            presentCoefficient = null;
+        }
+
         return new AssemblyDashboardDto(
             detail.Id,
             detail.Title,
@@ -218,7 +230,9 @@ public sealed class AssemblyRoomService
             AssemblyRoomRules.ResolvePrimaryCta(detail.Status),
             quorumOpening,
             quorumMaximum,
-            quorumClosing);
+            quorumClosing,
+            assembly.RequiredQuorumPercent,
+            presentCoefficient);
     }
 
     public Task<AssemblyMinutesDto> GetMinutesAsync(

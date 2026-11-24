@@ -978,3 +978,64 @@ a {
     padding: 0.9rem 0.85rem 5.5rem;
   }
 }
+
+.room--ocean {
+  --surface-base: #0b1220;
+  --surface-primary: #132238;
+  --surface-secondary: #0f1c2e;
+  --surface-elevated: #152033;
+  --text-primary: #f4f7fb;
+  --text-secondary: #d5deea;
+  --text-muted: #b7c3d4;
+  --border-subtle: rgba(232, 238, 247, 0.18);
+  --bg-atmosphere: #0b1220;
+  color-scheme: dark;
+}
+
+.room--ocean .ops-diagnostics,
+.room--ocean .ops-diagnostics > summary,
+.room--ocean .media-cockpit,
+.room--ocean .hybrid-cockpit,
+.room--ocean .media-empty-hint,
+.room--ocean .video-stage .empty-state {
+  background: #132238;
+  color: #f4f7fb;
+  border-color: #25354b;
+}
+
+.room--ocean .ops-diagnostics > summary,
+.room--ocean .media-cockpit,
+.room--ocean .media-cockpit span,
+.room--ocean .media-cockpit strong,
+.room--ocean .mcb-btn,
+.room--ocean .mcb-label,
+.room--ocean .mcb-icon {
+  color: #f4f7fb;
+}
+
+.room--ocean .mcb-btn {
+  background: transparent;
+}
+
+.room--ocean .mcb-btn.is-off {
+  color: #fecaca;
+  background: rgba(185, 28, 28, 0.28);
+}
+
+.room--ocean .mcb-btn:disabled {
+  color: #8ea0b8;
+  background: transparent;
+  opacity: 1;
+}
+
+.room--ocean .mcb-btn:focus-visible {
+  outline: 2px solid #5eead4;
+  outline-offset: 2px;
+}
+
+.room--ocean .media-empty-hint {
+  margin: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #25354b;
+  border-radius: 0.75rem;
+}

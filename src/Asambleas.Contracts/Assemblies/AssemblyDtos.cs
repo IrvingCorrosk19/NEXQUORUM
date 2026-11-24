@@ -182,7 +182,8 @@ public sealed record AssemblyDashboardCountsDto(
     int Motions,
     int OwnerParticipants = 0,
     int DeskStaff = 0,
-    int OwnerAccredited = 0);
+    int OwnerAccredited = 0,
+    int DeskPresent = 0);
 
 public sealed record AssemblyDashboardDto(
     Guid Id,
@@ -197,7 +198,9 @@ public sealed record AssemblyDashboardDto(
     string PrimaryCta,
     decimal? QuorumOpening = null,
     decimal? QuorumMaximum = null,
-    decimal? QuorumClosing = null);
+    decimal? QuorumClosing = null,
+    decimal? RequiredQuorumPercent = null,
+    decimal? PresentCoefficient = null);
 
 public sealed record AssemblyRoomStateDto(
     AssemblyDetailDto Assembly,

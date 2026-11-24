@@ -21,7 +21,8 @@ internal static class AssemblyMetricsLoader
         int OwnerParticipantCount = 0,
         int SentConvocationCount = 0,
         bool VotingSessionExists = false,
-        int OwnerAccreditedCount = 0);
+        int OwnerAccreditedCount = 0,
+        int DeskPresentCount = 0);
 
     internal static async Task<Metrics> LoadAsync(
         IAsambleasDbContext db,
@@ -88,6 +89,11 @@ internal static class AssemblyMetricsLoader
             && p.AttendanceStatus is AttendanceStatus.Present
                 or AttendanceStatus.CheckedIn
                 or AttendanceStatus.TemporarilyDisconnected);
+        var deskPresentCount = roster.Count(p =>
+            DeskStaffRoles.IsDeskStaff(p.RoleCode)
+            && p.AttendanceStatus is AttendanceStatus.Present
+                or AttendanceStatus.CheckedIn
+                or AttendanceStatus.TemporarilyDisconnected);
 
         var votingSessionExists = await db.VotingSessions
             .AsNoTracking()
@@ -120,7 +126,8 @@ internal static class AssemblyMetricsLoader
             ownerParticipantCount,
             sentConvocationCount,
             votingSessionExists,
-            ownerAccreditedCount);
+            ownerAccreditedCount,
+            deskPresentCount);
     }
 }
 

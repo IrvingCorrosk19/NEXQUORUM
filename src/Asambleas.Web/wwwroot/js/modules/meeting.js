@@ -30,6 +30,8 @@ let micAudioCtx = null;
 let mediaIncidents = [];
 let onIncidentChange = null;
 let mediaConnectionState = "idle";
+let mediaLeaveRequested = false;
+let mediaEpoch = 0;
 let localPublishIntent = { camera: false, mic: false };
 let mediaContainer = null;
 let officialSpeakerIdentity = null;
@@ -409,6 +411,17 @@ export function getMicLevel() {
 
 function setMediaState(next) {
   mediaConnectionState = next;
+  if (mediaContainer && next !== "governance-only" && next !== "disconnected") {
+    updateEmptyHint(mediaContainer);
+  }
+}
+
+export function cancelPendingMedia() {
+  mediaLeaveRequested = true;
+  mediaEpoch += 1;
+  clearIncident("media-reconnect");
+  clearIncident("media-connect-fail");
+  clearIncident("media-down");
 }
 
 function updateGridLayout(container) {
@@ -434,21 +447,32 @@ function updateGridLayout(container) {
  */
 function updateEmptyHint(container) {
   if (!container) return;
+  if (container.querySelector("[data-retry-media]")) return;
   const remoteCount = liveKitRoom?.remoteParticipants?.size ?? 0;
-  const connected = mediaConnectionState === "connected" || mediaConnectionState === "reconnecting";
+  let message = "";
+  if (mediaLeaveRequested) {
+    message = "";
+  } else if (mediaConnectionState === "connecting") {
+    message = "Conectando audio y video…";
+  } else if (mediaConnectionState === "reconnecting") {
+    message = "Reconectando audio y video…";
+  } else if (mediaConnectionState === "connected" && remoteCount === 0 && !screenShareLayoutActive) {
+    const localTiles = container.querySelectorAll(".media-tile.is-local").length;
+    message = localTiles === 0
+      ? "Audio y video conectados. Nadie más publica cámara o micrófono."
+      : "Eres la única persona con audio o video. Los datos de la sala no equivalen a medios.";
+  } else if (mediaConnectionState === "idle") {
+    message = "En espera de audio y video.";
+  }
   let empty = container.querySelector(".media-empty-hint");
-  if (connected && remoteCount === 0 && !screenShareLayoutActive) {
+  if (message) {
     if (!empty) {
       empty = document.createElement("p");
       empty.className = "media-empty-hint";
       empty.setAttribute("role", "status");
       container.appendChild(empty);
     }
-    const localTiles = container.querySelectorAll(".media-tile.is-local").length;
-    empty.textContent =
-      localTiles === 0
-        ? t("media.waitingParticipants") || "Esperando participantes…"
-        : t("media.firstParticipant") || "Eres el primer participante. Esperando a los demás…";
+    empty.textContent = message;
   } else if (empty) {
     empty.remove();
   }
@@ -749,6 +773,7 @@ let connectInFlight = null;
 let mediaReconnects = 0;
 
 export async function connectLiveKit(container, joinInfo, options = {}) {
+  mediaLeaveRequested = false;
   if (
     liveKitRoom &&
     mediaConnectionState === "connected" &&
@@ -787,9 +812,11 @@ async function connectLiveKitAttempt(container, joinInfo, options = {}) {
   const attempts = options.retryOnSignalFail === false ? 1 : 2;
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    if (mediaLeaveRequested) return null;
     try {
       return await connectLiveKitOnce(container, joinInfo, options);
     } catch (error) {
+      if (mediaLeaveRequested) return null;
       lastError = error;
       const canRetry = attempt < attempts && isSignalFetchFailure(error);
       if (!canRetry) break;
@@ -801,6 +828,7 @@ async function connectLiveKitAttempt(container, joinInfo, options = {}) {
     }
   }
 
+  if (mediaLeaveRequested) return null;
   clearIncident("media-reconnect");
   clearIncident("media-connect-fail");
   clearIncident("media-down");
@@ -811,9 +839,12 @@ async function connectLiveKitAttempt(container, joinInfo, options = {}) {
 
 async function connectLiveKitOnce(container, joinInfo, options = {}) {
   const { Room, RoomEvent, ConnectionState } = window.LivekitClient;
+  const epoch = mediaEpoch;
   await disconnectLiveKit();
+  if (mediaLeaveRequested || epoch !== mediaEpoch) return null;
 
   mediaContainer = container;
+  setMediaState("connecting");
   officialSpeakerIdentity = options.officialSpeakerIdentity
     ? normalizeMediaIdentity(options.officialSpeakerIdentity)
     : null;
@@ -988,6 +1019,7 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
   });
 
   liveKitRoom.on(RoomEvent.Reconnecting, () => {
+    if (mediaLeaveRequested) return;
     mediaReconnects += 1;
     if (mediaReconnects > 2) {
       const box = container;
@@ -1022,6 +1054,10 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
     clearIncident("media-reconnect");
     clearIncident("media-connect-fail");
     clearIncident("media-down");
+    if (mediaLeaveRequested) {
+      setMediaState("idle");
+      return;
+    }
     renderGovernanceOnly(container, t("media.disconnectedGovernanceOk"), "disconnected");
   });
 
@@ -1065,6 +1101,12 @@ async function connectLiveKitOnce(container, joinInfo, options = {}) {
     throw error;
   } finally {
     window.clearTimeout(timer);
+  }
+  if (mediaLeaveRequested || epoch !== mediaEpoch) {
+    try { await liveKitRoom?.disconnect(); } catch { /* cierre pedido */ }
+    liveKitRoom = null;
+    setMediaState("idle");
+    return null;
   }
   setMediaState("connected");
   clearIncident("media-down");

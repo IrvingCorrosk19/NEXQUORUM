@@ -2526,3 +2526,85 @@ dialog.app-sheet:not([open]),
   outline: 2px solid #007c78;
   outline-offset: 2px;
 }
+
+/* Shared administrative canvas. The live room does not use admin-shell. */
+.layout-tabler.admin-shell .brand-hero,
+.layout-tabler.admin-shell .page-hero,
+.layout-tabler.admin-shell .ops-hero {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 0.85rem;
+  min-height: 0;
+  margin: 0 0 1rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--border-default, rgba(11, 36, 64, 0.14));
+  background: var(--surface-primary, #fff);
+  color: var(--text-primary, #0b2440);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(11, 36, 64, 0.06));
+}
+
+.layout-tabler.admin-shell .brand-hero::after {
+  display: none;
+}
+
+.layout-tabler.admin-shell .brand-hero__kicker {
+  color: var(--brand-teal-700, #0f766e);
+}
+
+.layout-tabler.admin-shell .brand-hero__title,
+.layout-tabler.admin-shell .page-hero h1,
+.layout-tabler.admin-shell .ops-hero h1 {
+  color: var(--text-primary, #0b2440);
+  font-size: clamp(1.45rem, 2vw, 1.9rem);
+}
+
+.layout-tabler.admin-shell .prep-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+  min-height: 0;
+  margin: 0;
+}
+
+.layout-tabler.admin-shell .prep-notice__lead {
+  margin: 0;
+}
+
+.layout-tabler.admin-shell .prep-notice__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.layout-tabler.admin-shell .prep-notice__list a {
+  overflow-wrap: anywhere;
+}
+
+.layout-tabler.admin-shell .ia-stat-strip {
+  align-items: start;
+}
+
+.layout-tabler.admin-shell .ia-stat,
+.layout-tabler.admin-shell .ia-stat--quorum {
+  min-height: 0;
+  grid-column: auto;
+}
+
+.layout-tabler.admin-shell .ia-stat__hint,
+.layout-tabler.admin-shell .ia-stat-help {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text-secondary, #3e536b);
+}
+
+.layout-tabler.admin-shell .ia-stat-help {
+  grid-column: 1 / -1;
+  margin: 0;
+}

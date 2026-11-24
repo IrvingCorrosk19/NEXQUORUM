@@ -2,7 +2,7 @@ import { api, cachedGet, invalidateCachedGet } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection, ensureSignalR } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
-import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=labels-es1";
+import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=vps10";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=vps8";
 import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=vps8";
 import { createMobileVotingController } from "./mobile-voting-sheet.js?v=labels-es1";
@@ -34,6 +34,7 @@ import { completeActiveAgendaItem, renderAgenda, setActiveAgendaItem } from "./a
 import {
   claimScreenShare,
   connectLiveKit,
+  cancelPendingMedia,
   disconnectLiveKit,
   enumerateMediaDevices,
   fetchJoinToken,
@@ -63,7 +64,7 @@ import {
   switchLocalDevices,
   syncHandRaisedIndicators,
   unlockRemoteAudio
-} from "./meeting.js?v=flow11";
+} from "./meeting.js?v=vps10";
 import { initI18n, statusLabel, t } from "../i18n/i18n.js?v=vps9c";
 import {
   assemblyIdFromUrl,
@@ -1033,10 +1034,17 @@ function selfMediaLabel(p) {
 
 function presenceLabel(p) {
   const status = String(p?.attendanceStatus || "");
-  if (/^Present$/i.test(status)) return "Presente acreditado";
-  if (/^TemporarilyDisconnected$/i.test(status)) return "Acreditado, desconectado";
+  const desk = isDeskStaffParticipant(p);
+  const coeff = Number(p?.coefficientPercent ?? p?.CoefficientPercent ?? p?.votingWeight ?? p?.VotingWeight);
+  const contributes = !desk && Number.isFinite(coeff) && coeff > 0;
+  if (/^Present$/i.test(status) || /^CheckedIn$/i.test(status)) {
+    return contributes ? "Presente acreditado" : "Presente en mesa";
+  }
+  if (/^TemporarilyDisconnected$/i.test(status)) {
+    return contributes ? "Acreditado, desconectado" : "Mesa desconectada";
+  }
   if (/^Left$/i.test(status)) return "Salió";
-  return "Convocado";
+  return desk ? "Personal de mesa" : "Convocado";
 }
 
 function presenceFollowUp(p) {
@@ -1312,6 +1320,7 @@ function wireMeetingDrawers() {
     state.intentionalDisconnect = true;
     setConnectionLostVisible(false);
     closeMeetingDrawers();
+    cancelPendingMedia();
     await state.hub?.stop(assemblyId);
     await disconnectLiveKit();
     sessionStorage.setItem(`asambleas-explicit-leave:${assemblyId}`, "1");
@@ -2180,8 +2189,8 @@ function renderQuorumDetails() {
       <div><dt>${escapeHtml(t("quorum.status") || "Estado")}</dt><dd>${escapeHtml(
         q.quorumReached ? t("quorum.reached") || "Quórum alcanzado" : t("quorum.notReached") || "Quórum no alcanzado"
       )}</dd></div>
-      <div><dt>${escapeHtml(t("quorum.coefficient"))}</dt><dd class="metric-number">${Number(q.currentCoefficient ?? 0).toFixed(2)}%</dd></div>
-      <div><dt>${escapeHtml(t("quorum.requiredMinimum") || "Mínimo requerido")}</dt><dd class="metric-number">${Number(q.requiredCoefficient ?? 0).toFixed(2)}%</dd></div>
+      <div><dt>${escapeHtml(t("quorum.coefficient"))}</dt><dd class="metric-number">${q.currentCoefficient == null ? "Consultando quórum…" : `${Number(q.currentCoefficient).toLocaleString("es-PA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`}</dd></div>
+      <div><dt>${escapeHtml(t("quorum.requiredMinimum") || "Mínimo requerido")}</dt><dd class="metric-number">${q.requiredCoefficient == null ? "Consultando quórum…" : `${Number(q.requiredCoefficient).toLocaleString("es-PA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`}</dd></div>
       <div><dt>${escapeHtml(t("quorum.contributingPeople") || "Personas en el quórum")}</dt><dd>${contributingPeople(q) ?? "—"}</dd></div>
       <div><dt>${escapeHtml(t("quorum.presentUnits"))}</dt><dd>${q.presentUnits ?? "—"}</dd></div>
       <div><dt>${escapeHtml(t("quorum.coeffBasis") || "Base del PH")}</dt><dd>${escapeHtml(
@@ -3232,6 +3241,7 @@ async function bootstrapMeeting() {
       closeMeetingDrawers();
     });
     qs("#btn-leave-media")?.addEventListener("click", async () => {
+      cancelPendingMedia();
       await disconnectLiveKit();
       if (els.video) {
         els.video.innerHTML = `<div class="empty-state" role="status"><p>${escapeHtml(t("media.leftMedia") || "Audio y video desconectados.")}</p></div>`;
@@ -3492,15 +3502,24 @@ function wireOperatorControls() {
   });
 
   qs("#btn-start")?.addEventListener("click", async () => {
-    const present = Number(state.quorum?.currentCoefficient ?? state.quorum?.CurrentCoefficient ?? 0);
-    const required = Number(state.quorum?.requiredCoefficient ?? state.quorum?.RequiredCoefficient ?? state.assembly?.requiredQuorumPercent ?? 0);
-    if (Number.isFinite(required) && required > 0 && present < required) {
-      showError(`No se puede constituir la asamblea. El quórum presente es ${present.toFixed(2)}% y el mínimo es ${required.toFixed(2)}%. Abrir la mesa no sustituye este requisito.`);
+    const presentRaw = state.quorum?.currentCoefficient ?? state.quorum?.CurrentCoefficient;
+    const requiredRaw = state.quorum?.requiredCoefficient ?? state.quorum?.RequiredCoefficient ?? state.assembly?.requiredQuorumPercent;
+    const present = presentRaw == null || presentRaw === "" ? null : Number(presentRaw);
+    const required = requiredRaw == null || requiredRaw === "" ? null : Number(requiredRaw);
+    const known = Number.isFinite(present) && Number.isFinite(required);
+    if (!known) {
+      showError("Consultando quórum…");
+      return;
+    }
+    const presentLabel = present.toLocaleString("es-PA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const requiredLabel = required.toLocaleString("es-PA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (required > 0 && present < required) {
+      showError(`No se puede constituir la asamblea. El quórum presente es ${presentLabel} % y el mínimo es ${requiredLabel} %. Abrir la mesa no sustituye este requisito.`);
       return;
     }
     const ok = await confirmDialog({
       title: t("assembly.startAssembly"),
-      body: `El quórum presente es ${present.toFixed(2)}% y el mínimo es ${required.toFixed(2)}%. ¿Constituir formalmente la asamblea?`,
+      body: `El quórum presente es ${presentLabel} % y el mínimo es ${requiredLabel} %. ¿Constituir formalmente la asamblea?`,
       confirmLabel: t("confirm")
     });
     if (!ok) return;
