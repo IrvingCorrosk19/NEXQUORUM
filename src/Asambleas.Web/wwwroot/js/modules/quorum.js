@@ -72,6 +72,7 @@ export function renderQuorum(root, quorum, { compact = false } = {}) {
         <span class="badge ${reached ? "badge-live" : "badge-warn"}">${escapeHtml(statusText)}</span>
         <span class="quorum-chip-values">
           <strong class="metric-number" data-quorum-current>${currentLabel}</strong>
+          <span class="quorum-chip-minimum">Mínimo ${requiredLabel}</span>
           <span class="quorum-chip-people">${escapeHtml(peopleLabel)}</span>
         </span>
       </div>

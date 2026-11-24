@@ -5,7 +5,7 @@ import { assemblyIdFromUrl, escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getParticipants, hydrateRoomState } from "./room-state.js";
 import { isOperator } from "./roles.js";
-import { renderQuorum } from "./quorum.js?v=flow8";
+import { renderQuorum } from "./quorum.js?v=vps10b";
 import { assemblyLabel } from "./assembly-labels.js";
 import { createAssemblyConnection, ensureSignalR } from "./signalr-client.js";
 import { ensureAssemblyIdOrRedirect } from "./assembly-context.js";

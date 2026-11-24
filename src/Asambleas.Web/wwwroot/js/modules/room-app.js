@@ -2,7 +2,7 @@ import { api, cachedGet, invalidateCachedGet } from "./api.js";
 import { hasPermission, logout, me } from "./auth.js";
 import { createAssemblyConnection, ensureSignalR } from "./signalr-client.js";
 import { historicalOverviewUrl, isTerminalStatus } from "./assembly-lifecycle.js";
-import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=vps10";
+import { contributingPeople, renderQuorum, renderQuorumCard } from "./quorum.js?v=vps10b";
 import { castVote, closeVoting, getMyVoteStatus, openVoting, mapOpenVotingError, renderVotePanel, tallyFromCastReceipt, voteResultPhrase } from "./voting.js?v=vps8";
 import { createLiveVotingWorkspace } from "./live-voting-workspace.js?v=vps8";
 import { createMobileVotingController } from "./mobile-voting-sheet.js?v=labels-es1";
