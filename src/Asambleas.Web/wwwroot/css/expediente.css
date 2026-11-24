@@ -4,8 +4,8 @@
   margin-top: 0.75rem;
   padding: 0.35rem 0.75rem;
   border: 1px solid var(--border-default, #d5dbe3);
-  background: color-mix(in srgb, var(--status-warning, #fbbf24) 14%, var(--surface-elevated, #162033));
-  color: var(--status-warning, #fbbf24);
+  background: #eef4fb;
+  color: #1e3a5f;
   font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.04em;

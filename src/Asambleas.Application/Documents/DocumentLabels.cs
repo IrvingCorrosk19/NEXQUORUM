@@ -120,16 +120,48 @@ public static class DocumentLabels
         return $"{state} · {presence}";
     }
 
-    public static string DocumentLifecycle(string? assemblyStatus)
+    public static string DocumentLifecycle(string? assemblyStatus, bool sealedMinutes = false)
     {
+        if (sealedMinutes) return "ACTA SELLADA";
         return assemblyStatus switch
         {
-            "Completed" or "Archived" => "FINAL",
-            "Cancelled" => "CANCELADO",
-            "InProgress" or "Paused" or "CheckIn" => "DOCUMENTO EN CURSO",
-            _ => "BORRADOR"
+            "Completed" or "Archived" => "FINALIZADA — ACTA PENDIENTE DE SELLO",
+            "Cancelled" => "CANCELADA",
+            "CheckIn" => "MESA ABIERTA",
+            "InProgress" or "Paused" => "EN CURSO",
+            _ => "PROGRAMADA"
         };
     }
+
+    public static string OpenAssemblyNotice(string? assemblyStatus) => assemblyStatus switch
+    {
+        "CheckIn" => "La mesa está abierta. Este documento no es el acta definitiva.",
+        "InProgress" or "Paused" => "La asamblea está en curso. Este documento no es el acta definitiva.",
+        "Completed" or "Archived" => "La asamblea está finalizada.",
+        "Cancelled" => "La asamblea está cancelada.",
+        _ => "La asamblea está programada y no ha iniciado. Este documento no es el acta definitiva."
+    };
+
+    public static string MotionFact(string? status, string? designStatus, string? sessionStatus)
+    {
+        if (status == "Cancelled" || sessionStatus == "Cancelled") return "Cancelada";
+        if (sessionStatus is "Closed" or "Locked" || status is "Approved" or "Rejected" or "NoValidDecision")
+            return "Votación cerrada";
+        if (sessionStatus == "Open" || status == "Voting") return "Votación abierta";
+        if (status == "Presented") return "Presentada sin apertura";
+        if (designStatus == "Ready") return "Preparada";
+        return "Borrador";
+    }
+
+    public static string MotionFactSentence(string fact) => fact switch
+    {
+        "Cancelada" => "La votación fue cancelada.",
+        "Votación cerrada" => "La votación está cerrada.",
+        "Votación abierta" => "La votación está abierta.",
+        "Presentada sin apertura" => "Fue presentada y no se abrió la votación.",
+        "Preparada" => "Está preparada y no se ha presentado.",
+        _ => "Sigue en borrador. No fue presentada."
+    };
 
     public static bool IsDraftLifecycle(string? assemblyStatus) =>
         assemblyStatus is not ("Completed" or "Archived");

@@ -151,6 +151,7 @@ public static class PremiumPdfDocuments
                         foreach (var entry in m.Motions)
                             MotionBlock(col.Item(), entry);
                     }
+                    AppendOpenMotions(col, m.UnvotedMotions);
 
                     DocumentDesign.SectionTitle(col.Item(), "7. Decisiones");
                     DecisionsBlock(col, m.Decisions, m.Status);
@@ -158,10 +159,8 @@ public static class PremiumPdfDocuments
                     DocumentDesign.SectionTitle(col.Item(), "8. Cierre");
                     if (m.CompletedAtUtc is null)
                     {
-                        col.Item().Text(
-                                $"Asamblea aún no finalizada ({DocumentLabels.AssemblyStatus(m.Status)}). " +
-                                "Este documento no constituye acta definitiva.")
-                            .FontColor(DocumentDesign.Warn);
+                        col.Item().Text(DocumentLabels.OpenAssemblyNotice(m.Status))
+                            .FontColor(DocumentDesign.Muted);
                     }
                     else
                     {
@@ -431,7 +430,8 @@ public static class PremiumPdfDocuments
 
             if (entry.ClosedSession is null)
             {
-                col.Item().PaddingTop(6).Text("Estado: No sometida a votación").SemiBold()
+                var fact = DocumentLabels.MotionFact(m.Status, m.DesignStatus, null);
+                col.Item().PaddingTop(6).Text($"{fact}. {DocumentLabels.MotionFactSentence(fact)}")
                     .FontColor(DocumentDesign.Muted);
                 return;
             }
@@ -462,6 +462,20 @@ public static class PremiumPdfDocuments
                     (float)(r.AbstentionCoefficient / total)));
             }
         });
+    }
+
+    private static void AppendOpenMotions(ColumnDescriptor col, IReadOnlyList<AssemblyMinutesMotionEntryDto>? entries)
+    {
+        var pending = entries ?? [];
+        if (pending.Count == 0) return;
+        col.Item().PaddingTop(10).Text("Otras mociones, según el estado registrado.").FontSize(9).FontColor(DocumentDesign.Muted);
+        foreach (var entry in pending)
+        {
+            var motion = entry.Motion;
+            var fact = DocumentLabels.MotionFact(motion.Status, motion.DesignStatus, entry.ClosedSession?.Status);
+            col.Item().PaddingVertical(2).Text(
+                $"{motion.Code} — {motion.Title}. {fact}: {DocumentLabels.MotionFactSentence(fact)}");
+        }
     }
 
     private static void DecisionsBlock(ColumnDescriptor col, IReadOnlyList<DecisionDto> decisions, string assemblyStatus)

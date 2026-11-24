@@ -2620,9 +2620,21 @@ dialog.app-sheet:not([open]),
 }
 
 .layout-tabler.admin-shell .exp-hero .exp-lifecycle {
+  color: #1e3a5f;
+  background: #eef4fb;
+  border-color: #93b4d6;
+}
+
+.layout-tabler.admin-shell .exp-hero .exp-lifecycle[data-tone="warning"] {
   color: #7c2d12;
   background: #fff7ed;
   border-color: #c2410c;
+}
+
+.layout-tabler.admin-shell .exp-hero .exp-lifecycle[data-tone="success"] {
+  color: #14532d;
+  background: #f0fdf4;
+  border-color: #16a34a;
 }
 
 .layout-tabler.admin-shell .checkin-filters {

@@ -93,6 +93,7 @@ public static class PremiumTextDocuments
                 AppendMotionBlock(sb, entry);
             }
         }
+        AppendOpenMotions(sb, m.UnvotedMotions);
         sb.AppendLine();
 
         sb.AppendLine("## 6. DECISIONES");
@@ -282,6 +283,19 @@ public static class PremiumTextDocuments
         sb.AppendLine();
     }
 
+    private static void AppendOpenMotions(StringBuilder sb, IReadOnlyList<AssemblyMinutesMotionEntryDto>? entries)
+    {
+        var pending = entries ?? [];
+        if (pending.Count == 0) return;
+        sb.AppendLine("Otras mociones, según el estado registrado.");
+        foreach (var entry in pending)
+        {
+            var motion = entry.Motion;
+            var fact = DocumentLabels.MotionFact(motion.Status, motion.DesignStatus, entry.ClosedSession?.Status);
+            sb.AppendLine($"  - {motion.Code} — {motion.Title}. {fact}: {DocumentLabels.MotionFactSentence(fact)}");
+        }
+    }
+
     private static void AppendMotionBlock(StringBuilder sb, AssemblyMinutesMotionEntryDto entry)
     {
         var m = entry.Motion;
@@ -293,7 +307,8 @@ public static class PremiumTextDocuments
         sb.AppendLine($"Mayoría: {DocumentLabelExtras.DecisionRule(m.DecisionRuleCode)}");
         if (entry.ClosedSession is null)
         {
-            sb.AppendLine("Estado: No sometida a votación");
+            var fact = DocumentLabels.MotionFact(m.Status, m.DesignStatus, null);
+            sb.AppendLine($"{fact}. {DocumentLabels.MotionFactSentence(fact)}");
             return;
         }
         var s = entry.ClosedSession;
@@ -319,9 +334,7 @@ public static class PremiumTextDocuments
         if (decisions.Count == 0)
         {
             sb.AppendLine("No existen decisiones formalmente cerradas al momento de generar este documento.");
-            var life = DocumentLabels.DocumentLifecycle(assemblyStatus);
-            if (life is "DOCUMENTO EN CURSO" or "BORRADOR" or "Pausada")
-                sb.AppendLine($"La asamblea figura como: {DocumentLabels.AssemblyStatus(assemblyStatus)}.");
+            sb.AppendLine(DocumentLabels.OpenAssemblyNotice(assemblyStatus));
             return;
         }
         foreach (var d in decisions)

@@ -4,7 +4,7 @@ import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getMinutes } from "./room-state.js";
 import { bootIaPage } from "./ia-page.js?v=flow5";
-import { assemblyLabel, documentaryLabel } from "./assembly-labels.js";
+import { assemblyLabel, documentaryLabel, motionFactLabel } from "./assembly-labels.js";
 
 const assemblyId = assemblyIdFromUrl();
 
@@ -23,6 +23,22 @@ function absentHolderRepresentations(attendance, representations) {
     if (proxy) return true;
     return !row.representativeUserId || !presentUsers.has(row.representativeUserId);
   });
+}
+
+function renderMotionFacts(entries) {
+  const order = ["Borrador", "Preparada", "Presentada sin apertura", "Votación abierta", "Votación cerrada", "Cancelada"];
+  const groups = new Map();
+  for (const entry of entries) {
+    const motion = entry.motion || entry;
+    const fact = motionFactLabel(motion, entry.closedSession || entry.session);
+    const rows = groups.get(fact.group) || [];
+    rows.push(`<li>${escapeHtml(motion.code || "")} — ${escapeHtml(motion.title || motion.questionText || "")}. ${escapeHtml(fact.sentence)}</li>`);
+    groups.set(fact.group, rows);
+  }
+  return order
+    .filter((group) => groups.has(group))
+    .map((group) => `<h4>${escapeHtml(group)}</h4><ul>${groups.get(group).join("")}</ul>`)
+    .join("");
 }
 
 function renderMinutes(data) {
@@ -55,7 +71,7 @@ function renderMinutes(data) {
       <h2>${escapeHtml(data.title || t("minutes.title"))}</h2>
       <p class="muted">${escapeHtml(data.propertyHorizontalName || "")}</p>
       <p class="muted">${escapeHtml(formatDateTime(data.scheduledAtUtc))} · ${escapeHtml(assemblyLabel(data.modality))} · ${escapeHtml(assemblyLabel(data.status))}</p>
-      <p><span class="badge ${documentState.label === "Expediente final" ? "badge-success" : "badge-warn"}">${escapeHtml(documentState.label)}</span></p>
+      <p><span class="badge ${documentState.tone === "success" ? "badge-success" : documentState.tone === "warning" ? "badge-warn" : "badge-pending"}">${escapeHtml(documentState.label)}</span></p>
       <p class="muted">${escapeHtml(documentState.detail)}</p>
       <details class="minutes-technical">
         <summary>Detalle técnico</summary>
@@ -136,16 +152,7 @@ function renderMinutes(data) {
               .join("")
           : `<p class="muted">Sin votaciones cerradas.</p>`
       }
-      ${
-        (data.unvotedMotions || []).length
-          ? `<h4>Presentadas sin votación</h4><ul>${data.unvotedMotions
-              .map((m) => {
-                const motion = m.motion || m;
-                return `<li>${escapeHtml(motion.code || "")} — ${escapeHtml(motion.title || motion.questionText || "")}. No sometida a votación.</li>`;
-              })
-              .join("")}</ul>`
-          : ""
-      }
+      ${renderMotionFacts(data.unvotedMotions || [])}
     </section>
 
     <section id="sec-decisions" class="minutes-section">

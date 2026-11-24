@@ -1,4 +1,5 @@
 using Asambleas.Application.Assembly;
+using Asambleas.Application.Documents;
 using Asambleas.Application.Evidence;
 using Asambleas.Domain.Quorum;
 
@@ -32,6 +33,29 @@ public sealed class ConstitutionAndEvidenceTests
         Assert.Equal("COMPLETE", EvidenceCompletenessRules.StatusLabel(isClosed: true, noteCount: 2, hasAttendance: true, hasAgenda: true, minutesSealed: true));
         Assert.Equal("UNSEALED", EvidenceCompletenessRules.StatusLabel(isClosed: true, noteCount: 2, hasAttendance: true, hasAgenda: true, minutesSealed: false));
         Assert.Equal("WARNING", EvidenceCompletenessRules.StatusLabel(isClosed: false, noteCount: 0, hasAttendance: true, hasAgenda: true));
+    }
+
+    [Fact]
+    public void Scheduled_minutes_are_not_described_as_still_open()
+    {
+        Assert.Equal("PROGRAMADA", DocumentLabels.DocumentLifecycle("Scheduled"));
+        Assert.Equal("MESA ABIERTA", DocumentLabels.DocumentLifecycle("CheckIn"));
+        Assert.Equal("EN CURSO", DocumentLabels.DocumentLifecycle("InProgress"));
+        Assert.Equal("FINALIZADA — ACTA PENDIENTE DE SELLO", DocumentLabels.DocumentLifecycle("Completed"));
+        Assert.Equal("ACTA SELLADA", DocumentLabels.DocumentLifecycle("Completed", sealedMinutes: true));
+        Assert.Contains("programada", DocumentLabels.OpenAssemblyNotice("Scheduled"));
+        Assert.DoesNotContain("sigue abierta", DocumentLabels.OpenAssemblyNotice("Scheduled"));
+    }
+
+    [Fact]
+    public void A_draft_motion_is_not_a_presented_motion()
+    {
+        Assert.Equal("Borrador", DocumentLabels.MotionFact("Draft", "Draft", null));
+        Assert.Equal("Preparada", DocumentLabels.MotionFact("Draft", "Ready", null));
+        Assert.Equal("Presentada sin apertura", DocumentLabels.MotionFact("Presented", "Ready", null));
+        Assert.Equal("Votación abierta", DocumentLabels.MotionFact("Voting", "Ready", "Open"));
+        Assert.Equal("Votación cerrada", DocumentLabels.MotionFact("Approved", "Ready", "Closed"));
+        Assert.Equal("Cancelada", DocumentLabels.MotionFact("Cancelled", "Ready", null));
     }
 
     [Fact]

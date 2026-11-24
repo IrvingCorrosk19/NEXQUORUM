@@ -497,9 +497,9 @@ public sealed class AssemblyEvidenceService
             hasAgenda,
             minutesSealed);
 
-        if (!isClosed && statusLabel == "WARNING" && notes.Count == 0)
+        if (!isClosed && !minutesSealed)
         {
-            notes.Add("Expediente en curso — la asamblea aún no está cerrada.");
+            notes.Add(Asambleas.Application.Documents.DocumentLabels.OpenAssemblyNotice(status));
         }
 
         return new EvidenceCompletenessDto(

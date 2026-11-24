@@ -75,7 +75,7 @@ function documentLifecycle(data) {
   return documentaryLabel({
     assemblyStatus: data?.status,
     minutesSealed: data?.minutesSealed === true
-  }).label;
+  });
 }
 
 function filenameFromContentDisposition(header, fallbackName) {
@@ -287,7 +287,8 @@ function renderDocumentSections(data) {
   const lifeEl = qs("#doc-lifecycle");
   if (lifeEl) {
     lifeEl.hidden = false;
-    lifeEl.textContent = lifecycle;
+    lifeEl.dataset.tone = lifecycle.tone || "info";
+    lifeEl.textContent = `${lifecycle.label}. ${lifecycle.detail}`;
   }
 
   const recCount = (data.recordings || []).length;
@@ -302,7 +303,7 @@ function renderDocumentSections(data) {
         icon: "acta",
         formats: ["pdf", "txt"],
         preview: true,
-        meta: lifecycle
+        meta: lifecycle.label
       },
       {
         key: "asistencia",

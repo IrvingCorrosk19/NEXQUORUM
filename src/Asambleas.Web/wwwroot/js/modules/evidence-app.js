@@ -4,7 +4,7 @@ import { assemblyIdFromUrl, escapeHtml, formatDateTime, qs } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { getEvidence } from "./room-state.js";
 import { bootIaPage } from "./ia-page.js?v=tabs2";
-import { assemblyLabel, documentaryLabel, quorumTimelineText } from "./assembly-labels.js";
+import { assemblyLabel, documentaryLabel, motionFactLabel, quorumTimelineText } from "./assembly-labels.js";
 
 const assemblyId = assemblyIdFromUrl();
 
@@ -23,12 +23,20 @@ function timelineLabel(event) {
   return assemblyLabel(event?.eventType);
 }
 
-function completenessLabel(c, assemblyStatus) {
+function documentState(c, assemblyStatus, isSealed) {
   return documentaryLabel({
     assemblyStatus,
+    isSealed,
     minutesSealed: c?.minutesSealed === true,
     completenessStatus: c?.status
-  }).label;
+  });
+}
+
+function evidenceBadgeClass(tone) {
+  if (tone === "success") return "bg-success";
+  if (tone === "warning") return "bg-warning text-dark";
+  if (tone === "error") return "bg-danger";
+  return "bg-blue-lt";
 }
 
 function renderEvidence(data) {
@@ -40,6 +48,12 @@ function renderEvidence(data) {
 
   const c = data.completeness || {};
   const timeline = data.timeline || [];
+  const state = documentState(c, data.status, data.isSealed === true);
+  const motionRows = (data.voting || []).map((entry) => {
+    const motion = entry.motion || entry;
+    const fact = motionFactLabel(motion, entry.closedSession || entry.session);
+    return `<li>${escapeHtml(motion.code || "")} — ${escapeHtml(motion.title || "")}. ${escapeHtml(fact.group)}: ${escapeHtml(fact.sentence)}</li>`;
+  }).join("");
 
   const table = (heads, rows) => `
     <div class="table-responsive"><table class="table table-sm card-table">
@@ -50,8 +64,9 @@ function renderEvidence(data) {
     <div class="card-body">
       <h2 class="card-title">${escapeHtml(data.title || t("evidence.title"))}</h2>
       <p class="text-secondary">${escapeHtml(data.propertyHorizontalName || "")} · ${escapeHtml(assemblyLabel(data.status))}</p>
-      <p><span class="badge ${c.status === "COMPLETE" ? "bg-success" : c.status === "INCOMPLETE" ? "bg-danger" : "bg-warning text-dark"}">${escapeHtml(completenessLabel(c, data.status))}</span>
+      <p><span class="badge ${evidenceBadgeClass(state.tone)}">${escapeHtml(state.label)}</span>
          <a class="btn btn-secondary ms-2" href="/minutes.html?assemblyId=${assemblyId}">Acta</a></p>
+      <p class="text-secondary">${escapeHtml(state.detail)}</p>
       ${(c.notes || []).map((n) => `<p class="text-secondary">• ${escapeHtml(n)}</p>`).join("")}
       <details class="mt-3" open><summary>Asistencia</summary>
         ${table(["Nombre", "Unidad", "Coeficiente", "Estado"], (data.attendance || []).map((p) => `<tr><td>${escapeHtml(p.displayName)}</td><td>${escapeHtml(p.unitCode || "—")}</td><td>Unidad ${pct(p.coefficientPercent)}<br><span class="text-secondary">Efectivo ${pct(p.effectiveCoefficientPercent)}</span></td><td>${escapeHtml(assemblyLabel(p.attendanceStatus))}</td></tr>`).join(""))}
@@ -63,6 +78,9 @@ function renderEvidence(data) {
         ${table(["Fecha", "Presente", "Requerido", "Estado"], (data.quorumSnapshots || []).slice(0, 20).map((s) => `<tr><td>${escapeHtml(formatDateTime(s.timestampUtc))}</td><td>${pct(s.presentCoefficient)}</td><td>${pct(s.requiredCoefficient)}</td><td>${escapeHtml(quorumTimelineText(s.status, s.reason) || "—")}</td></tr>`).join(""))}
       </details>
 
+      <details class="mt-2" open><summary>Mociones y votaciones</summary>
+        <ul class="list-unstyled">${motionRows || "<li class='text-secondary'>Sin mociones registradas.</li>"}</ul>
+      </details>
       <details class="mt-2"><summary>Documentos y decisiones</summary>
         <ul class="list-unstyled">${(data.decisions || []).map((d) => `<li><strong>${escapeHtml(d.decisionNumber)}</strong> ${escapeHtml(d.motionTitle)} → ${escapeHtml(d.explanation || assemblyLabel(d.decisionStatus))}</li>`).join("") || "<li class='text-secondary'>Sin decisiones.</li>"}</ul>
       </details>

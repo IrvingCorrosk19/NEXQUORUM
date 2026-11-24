@@ -13,7 +13,7 @@ public sealed record DocumentExportContext(
     string? ContentHash,
     bool IsSealed)
 {
-    public string Lifecycle => DocumentLabels.DocumentLifecycle(AssemblyStatus);
+    public string Lifecycle => DocumentLabels.DocumentLifecycle(AssemblyStatus, IsSealed);
     public bool ShowDraftWatermark => DocumentLabels.IsDraftLifecycle(AssemblyStatus);
     public string DocCode(string kind) => $"{kind}-{AssemblyId:N}"[..Math.Min(28, kind.Length + 1 + 32)];
 }

@@ -197,21 +197,69 @@ export function quorumTimelineText(status, reason) {
 /** Assembly lifecycle and the sealed minutes are different facts. */
 export function documentaryLabel({ assemblyStatus, isSealed = false, minutesSealed = false, completenessStatus = "" } = {}) {
   const sealed = isSealed === true || minutesSealed === true || completenessStatus === "COMPLETE";
-  const closed = assemblyStatus === "Completed" || assemblyStatus === "Cancelled" || completenessStatus === "UNSEALED";
   if (sealed && completenessStatus !== "UNSEALED") {
     return {
       label: "Expediente final",
-      detail: "El acta está sellada. El identificador y el hash conservan los hechos."
+      detail: "El acta está sellada. El identificador y el hash conservan los hechos.",
+      tone: "success"
     };
   }
-  if (closed) {
+  if (assemblyStatus === "Completed" || completenessStatus === "UNSEALED") {
     return {
-      label: "Acta pendiente de sello",
-      detail: "La asamblea ya terminó. Falta el acta sellada; no se inventan decisiones."
+      label: "Finalizada",
+      detail: "La asamblea está finalizada y el acta todavía no está sellada.",
+      tone: "warning"
+    };
+  }
+  if (assemblyStatus === "Cancelled") {
+    return {
+      label: "Cancelada",
+      detail: "La asamblea está cancelada y el acta no está sellada.",
+      tone: "warning"
+    };
+  }
+  if (assemblyStatus === "CheckIn") {
+    return {
+      label: "Mesa abierta",
+      detail: "La mesa de acreditación está abierta. El acta se sella al finalizar la asamblea.",
+      tone: "info"
+    };
+  }
+  if (assemblyStatus === "InProgress" || assemblyStatus === "Paused") {
+    return {
+      label: "En curso",
+      detail: assemblyStatus === "Paused"
+        ? "La asamblea está pausada. El acta se sella al finalizarla."
+        : "La asamblea está en curso. El acta se sella al cerrarla.",
+      tone: "info"
     };
   }
   return {
-    label: "Expediente en preparación",
-    detail: "La asamblea sigue abierta. El acta se sella al cerrarla."
+    label: "Programada",
+    detail: "La asamblea está programada y no ha iniciado. El acta se sella al finalizarla.",
+    tone: "info"
   };
+}
+
+/** Classify a motion from stored facts. Does not rewrite the record. */
+export function motionFactLabel(motion, session) {
+  const status = String(motion?.status || "");
+  const design = String(motion?.designStatus || "");
+  const sessionStatus = String(session?.status || "");
+  if (status === "Cancelled" || sessionStatus === "Cancelled") {
+    return { group: "Cancelada", sentence: "La votación fue cancelada." };
+  }
+  if (sessionStatus === "Closed" || sessionStatus === "Locked" || status === "Approved" || status === "Rejected" || status === "NoValidDecision") {
+    return { group: "Votación cerrada", sentence: "La votación está cerrada." };
+  }
+  if (sessionStatus === "Open" || status === "Voting") {
+    return { group: "Votación abierta", sentence: "La votación está abierta." };
+  }
+  if (status === "Presented") {
+    return { group: "Presentada sin apertura", sentence: "Fue presentada y no se abrió la votación." };
+  }
+  if (design === "Ready") {
+    return { group: "Preparada", sentence: "Está preparada y no se ha presentado." };
+  }
+  return { group: "Borrador", sentence: "Sigue en borrador. No fue presentada." };
 }
