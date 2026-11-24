@@ -169,6 +169,15 @@ function isOperatorRole(p) {
   return /President|Secretary|Operator|PHAdmin|TenantAdmin|PlatformAdmin/i.test(role);
 }
 
+function roleLabel(p) {
+  const role = String(p.roleCode || "");
+  if (/President/i.test(role)) return "Presidente de mesa";
+  if (/Secretary/i.test(role)) return "Secretaría de mesa";
+  if (/Operator/i.test(role)) return "Operador de mesa";
+  if (/PHAdmin|TenantAdmin|PlatformAdmin/i.test(role)) return "Personal de mesa";
+  return "Propietario";
+}
+
 function syncCheckinGuide() {
   const root = qs("#contextual-guide");
   if (!root) return;
@@ -368,7 +377,8 @@ function renderCards(filter = "") {
     <table class="participants-table">
       <thead>
         <tr>
-          <th>${escapeHtml(t("checkin.owner"))}</th>
+          <th>Persona</th>
+          <th>Rol</th>
           <th>${escapeHtml(t("checkin.presence"))}</th>
           <th>Acciones</th>
         </tr>
@@ -378,11 +388,13 @@ function renderCards(filter = "") {
           .map((p) => {
             const id = String(p.userId || "");
             const present = isPresent(p);
-            return `<tr class="${present ? "is-present" : ""}" data-user-id="${escapeHtml(id)}">
-              <td data-label="Propietario">
+            const desk = isOperatorRole(p);
+            return `<tr class="${present ? "is-present" : ""} ${desk ? "is-desk" : ""}" data-user-id="${escapeHtml(id)}">
+              <td data-label="Persona">
                 <strong>${escapeHtml(p.displayName || "Sin nombre")}</strong>
-                <div class="owner-unit">${escapeHtml(unitLine(p))}</div>
+                <div class="owner-unit">${escapeHtml(desk ? "Sin unidad. No aporta coeficiente." : unitLine(p))}</div>
               </td>
+              <td data-label="Rol">${escapeHtml(roleLabel(p))}</td>
               <td data-label="Presencia"><span class="badge ${present ? "badge-success" : "badge-live"}">${escapeHtml(
                 presenceLabel(p)
               )}</span></td>
@@ -483,10 +495,11 @@ async function openOwnerModal(targetUserId, opener) {
     pendingPreview = preview;
     const participant = participants.find((p) => String(p.userId) === String(targetUserId));
 
-    qs("#owner-dialog-kicker").textContent = t("checkin.owner");
+    const desk = isOperatorRole(participant || {});
+    qs("#owner-dialog-kicker").textContent = roleLabel(participant || {});
     qs("#owner-dialog-title").textContent = preview.displayName || "—";
     qs("#owner-dialog-subtitle").textContent = [
-      participant?.unitCode,
+      desk ? "No aporta coeficiente" : participant?.unitCode,
       assembly?.propertyHorizontalName,
       assembly?.title
     ]

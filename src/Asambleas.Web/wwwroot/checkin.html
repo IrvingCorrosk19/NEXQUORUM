@@ -164,7 +164,7 @@
   <link rel="stylesheet" href="/css/summon-status.css?v=mP1a" />
   <link rel="stylesheet" href="/css/gov-ops.css?v=vps10" />
   <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
-  <link rel="stylesheet" href="/css/ph-tabler.css?v=vps10" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=vps11" />
 </head>
 <body class="layout-tabler admin-shell">
   <a class="skip-link visually-hidden-focusable" href="#main">Saltar al contenido</a>
@@ -240,7 +240,7 @@
             </div>
             <div class="field">
               <label for="status-filter">Estado</label>
-              <select id="status-filter">
+              <select id="status-filter" class="form-control">
                 <option value="all">Todos</option>
                 <option value="invited">Convocados</option>
                 <option value="present">Presentes</option>
@@ -249,7 +249,7 @@
             </div>
             <div class="field">
               <label for="page-size">Filas</label>
-              <select id="page-size">
+              <select id="page-size" class="form-control">
                 <option value="50">50</option>
                 <option value="100" selected>100</option>
                 <option value="250">250</option>
@@ -300,6 +300,6 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/js/modules/checkin-app.js?v=vps10b"></script>
+  <script type="module" src="/js/modules/checkin-app.js?v=vps11"></script>
 </body>
 </html>

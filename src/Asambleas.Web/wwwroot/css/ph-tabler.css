@@ -2608,3 +2608,92 @@ dialog.app-sheet:not([open]),
   grid-column: 1 / -1;
   margin: 0;
 }
+
+/* Light administrative headers keep readable text. The dark room and lobby stay cream-on-ocean. */
+.layout-tabler.admin-shell .conv-hero-meta,
+.layout-tabler.admin-shell .brand-hero .muted,
+.layout-tabler.admin-shell .page-hero .muted,
+.layout-tabler.admin-shell .page-hero .lede,
+.layout-tabler.admin-shell .studio-page-lede,
+.layout-tabler.admin-shell .studio-page-meta {
+  color: var(--text-secondary, #3e536b);
+}
+
+.layout-tabler.admin-shell .exp-hero .exp-lifecycle {
+  color: #7c2d12;
+  background: #fff7ed;
+  border-color: #c2410c;
+}
+
+.layout-tabler.admin-shell .checkin-filters {
+  align-items: end;
+}
+
+.layout-tabler.admin-shell .checkin-filters .form-control,
+.layout-tabler.admin-shell .checkin-filters select {
+  width: 100%;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid rgba(11, 36, 64, 0.22);
+  border-radius: 0.5rem;
+  background-color: #fff;
+  color: #0b2440;
+  font-family: "DM Sans", "Segoe UI", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.3;
+  box-shadow: none;
+}
+
+.layout-tabler.admin-shell .checkin-filters select {
+  appearance: none;
+  padding-right: 2rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #0b2440 50%),
+    linear-gradient(135deg, #0b2440 50%, transparent 50%);
+  background-position: calc(100% - 1.05rem) 1.15rem, calc(100% - 0.72rem) 1.15rem;
+  background-size: 0.35rem 0.35rem, 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+}
+
+.layout-tabler.admin-shell .checkin-filters .form-control:focus-visible,
+.layout-tabler.admin-shell .checkin-filters select:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+  border-color: #0f766e;
+}
+
+.layout-tabler.admin-shell .checkin-summary .chip {
+  background: #fff;
+  color: #0b2440;
+  border: 1px solid rgba(11, 36, 64, 0.1);
+  border-radius: 0.65rem;
+  box-shadow: 0 1px 2px rgba(11, 36, 64, 0.06);
+}
+
+.layout-tabler.admin-shell .checkin-summary .chip span {
+  color: #3e536b;
+  opacity: 1;
+}
+
+.layout-tabler.admin-shell .participants-table tr.is-desk {
+  background: #f8fafc;
+}
+
+.layout-tabler.admin-shell .studio-list-shell.panel,
+.layout-tabler.admin-shell .studio-editor.panel {
+  border-radius: 0.9rem;
+  padding: 1.15rem 1.25rem 1.25rem;
+  background: #fff;
+  border: 1px solid rgba(11, 36, 64, 0.1);
+  box-shadow: 0 1px 2px rgba(11, 36, 64, 0.06);
+}
+
+.layout-tabler.admin-shell .ia-empty-state {
+  color: #3e536b;
+  background: #f6f8fb;
+  border: 1px dashed rgba(11, 36, 64, 0.18);
+  border-radius: 0.75rem;
+}
