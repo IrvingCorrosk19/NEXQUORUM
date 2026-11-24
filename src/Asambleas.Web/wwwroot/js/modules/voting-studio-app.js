@@ -568,11 +568,10 @@ function renderLists() {
       <div class="ia-empty-state">
         <p>Todavía no has preparado votaciones.</p>
         <p>${needsAgenda ? "Primero agrega un punto de agenda. No se crea un punto automático." : "Crea las decisiones que serán sometidas a los propietarios durante la Asamblea."}</p>
-        <button type="button" class="btn btn-primary" id="${needsAgenda ? "btn-add-agenda-point" : "btn-empty-create"}">${needsAgenda ? "Agregar punto de agenda" : "Crear primera votación"}</button>
+        <button type="button" class="btn btn-primary" id="btn-empty-create">Crear primera votación</button>
         <button type="button" class="btn btn-secondary" id="btn-empty-import">Importar preguntas</button>
       </div>`;
-    if (needsAgenda) qs("#btn-add-agenda-point")?.addEventListener("click", (event) => recoverWithAgenda(event.currentTarget, "vote"));
-    else qs("#btn-empty-create")?.addEventListener("click", () => createNewVote());
+    qs("#btn-empty-create")?.addEventListener("click", () => createNewVote());
     qs("#btn-empty-import")?.addEventListener("click", () => {
       if (!state.agenda.length) showAgendaRequired(qs("#btn-empty-import"));
       else qs("#btn-import-motions")?.click();
@@ -1158,7 +1157,7 @@ function readVoteDraftFromDom() {
   d.requiredThresholdPercent = th === "" || th == null ? null : Number(th);
   d.defaultResultVisibilityPolicy = qs("#v-vis")?.value || "HiddenUntilClose";
   d.isSecret = !!qs("#v-secret")?.checked;
-  d.options = [...qs("#editor-canvas").querySelectorAll("[data-opt]")].map((el) => el.value.trim()).filter(Boolean);
+  d.options = [...qs("#editor-canvas").querySelectorAll("[data-opt-idx]")].map((el) => el.value.trim()).filter(Boolean);
 }
 
 function updateBallotLive() {
@@ -1305,6 +1304,10 @@ async function saveDraft({ returnToList = true } = {}) {
       showError("Indique el porcentaje de mayoría calificada. No se aplica un umbral de ejemplo.");
       return false;
     }
+    if ((d.options || []).filter(Boolean).length < 2) {
+      showError("Indique al menos dos opciones de respuesta.");
+      return false;
+    }
     const body = {
       agendaItemId: d.agendaItemId,
       code: d.code,
@@ -1322,6 +1325,10 @@ async function saveDraft({ returnToList = true } = {}) {
       isSecret: !!d.isSecret,
       templateKey: d.templateKey
     };
+    if (state.saving) return false;
+    state.saving = true;
+    const saveBtn = qs("#btn-save-draft");
+    if (saveBtn) saveBtn.disabled = true;
     showLoader("Guardando borrador…");
     try {
       if (state.editingId) {
@@ -1339,6 +1346,8 @@ async function saveDraft({ returnToList = true } = {}) {
       showError(err.message);
       return false;
     } finally {
+      state.saving = false;
+      if (saveBtn) saveBtn.disabled = false;
       hideLoader();
     }
   }
