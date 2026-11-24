@@ -36,7 +36,7 @@ function evidenceBadgeClass(tone) {
   if (tone === "success") return "bg-success";
   if (tone === "warning") return "bg-warning text-dark";
   if (tone === "error") return "bg-danger";
-  return "bg-blue-lt";
+  return "badge-info";
 }
 
 function renderEvidence(data) {
@@ -66,7 +66,7 @@ function renderEvidence(data) {
       <p class="text-secondary">${escapeHtml(data.propertyHorizontalName || "")} · ${escapeHtml(assemblyLabel(data.status))}</p>
       <p><span class="badge ${evidenceBadgeClass(state.tone)}">${escapeHtml(state.label)}</span>
          <a class="btn btn-secondary ms-2" href="/minutes.html?assemblyId=${assemblyId}">Acta</a></p>
-      <p class="text-secondary">${escapeHtml(state.detail)}</p>
+      <p class="doc-state-detail">${escapeHtml(state.detail)}</p>
       ${(c.notes || []).map((n) => `<p class="text-secondary">• ${escapeHtml(n)}</p>`).join("")}
       <details class="mt-3" open><summary>Asistencia</summary>
         ${table(["Nombre", "Unidad", "Coeficiente", "Estado"], (data.attendance || []).map((p) => `<tr><td>${escapeHtml(p.displayName)}</td><td>${escapeHtml(p.unitCode || "—")}</td><td>Unidad ${pct(p.coefficientPercent)}<br><span class="text-secondary">Efectivo ${pct(p.effectiveCoefficientPercent)}</span></td><td>${escapeHtml(assemblyLabel(p.attendanceStatus))}</td></tr>`).join(""))}

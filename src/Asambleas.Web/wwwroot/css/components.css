@@ -313,6 +313,11 @@ select:focus-visible {
   color: var(--color-slate);
 }
 
+.badge-info {
+  background: #eef4fb;
+  color: #1e3a5f;
+}
+
 .skeleton {
   background: linear-gradient(
     90deg,

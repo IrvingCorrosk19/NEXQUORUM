@@ -2619,6 +2619,15 @@ dialog.app-sheet:not([open]),
   color: var(--text-secondary, #3e536b);
 }
 
+.layout-tabler.admin-shell .badge-info,
+.layout-tabler.admin-shell .doc-state-detail {
+  color: #1e3a5f;
+}
+
+.layout-tabler.admin-shell .badge-info {
+  background: #eef4fb;
+}
+
 .layout-tabler.admin-shell .exp-hero .exp-lifecycle {
   color: #1e3a5f;
   background: #eef4fb;

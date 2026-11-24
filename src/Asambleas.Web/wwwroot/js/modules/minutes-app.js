@@ -71,7 +71,7 @@ function renderMinutes(data) {
       <h2>${escapeHtml(data.title || t("minutes.title"))}</h2>
       <p class="muted">${escapeHtml(data.propertyHorizontalName || "")}</p>
       <p class="muted">${escapeHtml(formatDateTime(data.scheduledAtUtc))} · ${escapeHtml(assemblyLabel(data.modality))} · ${escapeHtml(assemblyLabel(data.status))}</p>
-      <p><span class="badge ${documentState.tone === "success" ? "badge-success" : documentState.tone === "warning" ? "badge-warn" : "badge-pending"}">${escapeHtml(documentState.label)}</span></p>
+      <p><span class="badge ${documentState.tone === "success" ? "badge-success" : documentState.tone === "warning" ? "badge-warn" : documentState.tone === "error" ? "badge-danger" : "badge-info"}">${escapeHtml(documentState.label)}</span></p>
       <p class="muted">${escapeHtml(documentState.detail)}</p>
       <details class="minutes-technical">
         <summary>Detalle técnico</summary>
