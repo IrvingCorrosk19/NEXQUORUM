@@ -11,6 +11,7 @@ import { bootIaPage } from "./ia-page.js?v=flow5";
 import { readIaContext } from "./ia-context.js";
 import { phHref } from "./ia-nav.js";
 import { openMotionImportWizard } from "./motion-import.js";
+import { openAgendaPointDialog } from "./agenda-point-dialog.js?v=vps12";
 import { startHybridShell } from "./hybrid-router.js";
 
 const showLoader = (msg) => showGlobalLoader(msg, { immediate: true });
@@ -289,27 +290,70 @@ async function closeEditor() {
   return true;
 }
 
-async function createNewVote() {
-  try {
-    await ensureAgendaItem();
-    openVoteEditor(null, {
-      key: null,
-      title: "",
-      question: "",
-      ballotKind: "FavorAgainstAbstain",
-      calculationMethod: "Coefficient",
-      decisionRuleCode: "SimpleMajority",
-      options: ["A favor", "En contra", "Abstención"]
-    });
-  } catch (err) {
-    showError(err.message);
-  }
+const blankVoteTemplate = {
+  key: null,
+  title: "",
+  question: "",
+  ballotKind: "FavorAgainstAbstain",
+  calculationMethod: "Coefficient",
+  decisionRuleCode: "SimpleMajority",
+  options: ["A favor", "En contra", "Abstención"]
+};
+
+function hideAgendaRequired() {
+  qs("#agenda-required-notice")?.remove();
 }
 
-function defaultVoteDraft(template) {
+function showAgendaRequired(opener, intent = "vote") {
+  hideAgendaRequired();
+  const notice = document.createElement("div");
+  notice.id = "agenda-required-notice";
+  notice.className = "prep-notice field-error";
+  notice.setAttribute("role", "status");
+  notice.innerHTML = `<p class="prep-notice__lead">Esta asamblea no tiene puntos de agenda. Agrégalos en Agenda; no se crea un punto automático.</p><button type="button" class="btn btn-secondary" id="btn-agenda-required-action">Agregar punto de agenda</button>`;
+  const head = qs(".studio-page-head__actions") || qs(".studio-page-head") || qs("#list-panel");
+  notice.style.flexBasis = "100%";
+  head?.append(notice);
+  const button = notice.querySelector("#btn-agenda-required-action");
+  button?.addEventListener("click", () => recoverWithAgenda(button, intent));
+  (button || opener)?.focus();
+}
+
+async function recoverWithAgenda(opener, intent = "vote") {
+  const result = await openAgendaPointDialog({ assemblyId, opener });
+  if (!result.ok) return;
+  await refresh();
+  hideAgendaRequired();
+  if (intent === "survey") {
+    openSurveyEditor(null, TEMPLATES.find((item) => item.isSurvey));
+    return;
+  }
+  if (intent === "import") {
+    openMotionImportWizard({
+      assemblyId,
+      onImported: async () => {
+        await refresh();
+        enterListMode({ keepFilters: true });
+      }
+    });
+    return;
+  }
+  openVoteEditor(null, blankVoteTemplate, result.item?.id);
+}
+
+async function createNewVote() {
+  if (!state.agenda.length) {
+    showAgendaRequired(qs("#btn-create") || qs("#btn-empty-create"));
+    return;
+  }
+  hideAgendaRequired();
+  openVoteEditor(null, blankVoteTemplate);
+}
+
+function defaultVoteDraft(template, agendaItemId) {
   const t = template || TEMPLATES[0];
   return {
-    agendaItemId: state.agenda[0]?.id || "",
+    agendaItemId: agendaItemId || state.agenda[0]?.id || "",
     code: `V-${Date.now().toString().slice(-6)}`,
     title: t.title,
     body: t.question,
@@ -519,15 +563,20 @@ function renderLists() {
   const showEmpty = !state.motions.length && state.studioView === "list";
 
   if (showEmpty) {
+    const needsAgenda = !state.agenda.length;
     votes.innerHTML = `
       <div class="ia-empty-state">
         <p>Todavía no has preparado votaciones.</p>
-        <p>Crea las decisiones que serán sometidas a los propietarios durante la Asamblea.</p>
-        <button type="button" class="btn btn-primary" id="btn-empty-create">Crear primera votación</button>
+        <p>${needsAgenda ? "Primero agrega un punto de agenda. No se crea un punto automático." : "Crea las decisiones que serán sometidas a los propietarios durante la Asamblea."}</p>
+        <button type="button" class="btn btn-primary" id="${needsAgenda ? "btn-add-agenda-point" : "btn-empty-create"}">${needsAgenda ? "Agregar punto de agenda" : "Crear primera votación"}</button>
         <button type="button" class="btn btn-secondary" id="btn-empty-import">Importar preguntas</button>
       </div>`;
-    qs("#btn-empty-create")?.addEventListener("click", () => createNewVote());
-    qs("#btn-empty-import")?.addEventListener("click", () => qs("#btn-import-motions")?.click());
+    if (needsAgenda) qs("#btn-add-agenda-point")?.addEventListener("click", (event) => recoverWithAgenda(event.currentTarget, "vote"));
+    else qs("#btn-empty-create")?.addEventListener("click", () => createNewVote());
+    qs("#btn-empty-import")?.addEventListener("click", () => {
+      if (!state.agenda.length) showAgendaRequired(qs("#btn-empty-import"));
+      else qs("#btn-import-motions")?.click();
+    });
   } else if (!state.motions.length) {
     votes.innerHTML = "";
   } else if (!rows.length) {
@@ -597,13 +646,12 @@ function renderLists() {
           <p>No hay encuestas preparadas.</p>
           <button type="button" class="btn btn-primary" id="btn-empty-survey">Crear encuesta</button>
         </div>`;
-      qs("#btn-empty-survey")?.addEventListener("click", async () => {
-        try {
-          await ensureAgendaItem();
-          openSurveyEditor(null, TEMPLATES.find((t) => t.isSurvey));
-        } catch (err) {
-          showError(err.message);
+      qs("#btn-empty-survey")?.addEventListener("click", (event) => {
+        if (!state.agenda.length) {
+          showAgendaRequired(event.currentTarget, "survey");
+          return;
         }
+        openSurveyEditor(null, TEMPLATES.find((item) => item.isSurvey));
       });
     } else {
       surveys.innerHTML = `
@@ -674,15 +722,14 @@ async function openCreateDialog() {
     );
   });
   if (!kind) return;
-  try {
-    await ensureAgendaItem();
-    if (kind === "survey") {
-      openSurveyEditor(null, TEMPLATES.find((t) => t.isSurvey));
-    } else {
-      openVoteEditor(null, TEMPLATES[0]);
-    }
-  } catch (err) {
-    showError(err.message);
+  if (!state.agenda.length) {
+    showAgendaRequired(qs("#btn-create"));
+    return;
+  }
+  if (kind === "survey") {
+    openSurveyEditor(null, TEMPLATES.find((t) => t.isSurvey));
+  } else {
+    openVoteEditor(null, TEMPLATES[0]);
   }
 }
 
@@ -788,7 +835,7 @@ function motionEditBlockReason(motion) {
   return repairMojibake(motion?.editBlockReason || motion?.EditBlockReason || motion?.message || "");
 }
 
-function openVoteEditor(motion, template) {
+function openVoteEditor(motion, template, agendaItemId) {
   state.mode = "vote";
   state.editingId = motion?.id || null;
   const editMode = assemblyIsClosed() ? "Immutable" : motion ? motionEditMode(motion) : "Full";
@@ -819,7 +866,7 @@ function openVoteEditor(motion, template) {
         editBlockReason: motionEditBlockReason(motion),
         acceptedBallots: Number(motion.acceptedBallots || motion.AcceptedBallots || 0)
       }
-    : { ...defaultVoteDraft(template), editMode: "Full", editBlockReason: "", acceptedBallots: 0 };
+    : { ...defaultVoteDraft(template, agendaItemId), editMode: "Full", editBlockReason: "", acceptedBallots: 0 };
 
   enterEditorMode();
   const titleEl = qs("#editor-title");
@@ -1494,18 +1541,21 @@ async function init() {
     .catch(() => {});
 
   qs("#btn-create")?.addEventListener("click", () => createNewVote());
-  qs("#btn-create-survey")?.addEventListener("click", async () => {
-    try {
-      await ensureAgendaItem();
-      openSurveyEditor(null, TEMPLATES.find((t) => t.isSurvey));
-    } catch (err) {
-      showError(err.message);
+  qs("#btn-create-survey")?.addEventListener("click", (event) => {
+    if (!state.agenda.length) {
+      showAgendaRequired(event.currentTarget, "survey");
+      return;
     }
+    openSurveyEditor(null, TEMPLATES.find((item) => item.isSurvey));
   });
   qs("#btn-open-templates")?.addEventListener("click", () => showTemplatesTab());
   qs("#btn-import-motions")?.addEventListener("click", () => {
     if (!hasPermission(state.user, "motion:create")) {
       showError("No tiene permiso para importar preguntas.");
+      return;
+    }
+    if (!state.agenda.length) {
+      showAgendaRequired(qs("#btn-import-motions"), "import");
       return;
     }
     openMotionImportWizard({

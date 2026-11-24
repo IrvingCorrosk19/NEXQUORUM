@@ -1190,6 +1190,14 @@
   align-items: center;
 }
 
+#agenda-required-notice {
+  flex-basis: 100%;
+}
+
+#agenda-required-notice .btn {
+  white-space: normal;
+}
+
 .studio-page-head__actions .btn {
   min-height: 44px;
 }
@@ -1621,7 +1629,8 @@
   }
 
   .studio-actions .btn {
-    flex: 1 1 calc(50% - 0.5rem);
+    flex: 1 1 100%;
+    white-space: normal;
   }
 
   .studio-actions .btn-ghost:first-child {
