@@ -20,7 +20,7 @@ import {
   renderReadinessCompact,
   renderNextAction,
   renderQuickLinks
-} from "./readiness-workflow.js?v=flow2";
+} from "./readiness-workflow.js?v=flow3";
 import { writeIaContext } from "./ia-context.js";
 import { historicalOverviewUrl, isTerminalStatus, renderHistoricalBanner } from "./assembly-lifecycle.js";
 import { startHybridShell, softNavigate } from "./hybrid-router.js?v=gov1";

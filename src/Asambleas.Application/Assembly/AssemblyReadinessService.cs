@@ -128,8 +128,6 @@ public sealed class AssemblyReadinessService
 
         var votingPrepared = metrics.MotionCount + metrics.SurveyCount > 0;
 
-        var documentsSent = metrics.SentConvocationCount > 0;
-        var documentsReady = documentsSent;
 
         var commsReady = metrics.EmailChannelReady;
 
@@ -236,50 +234,16 @@ public sealed class AssemblyReadinessService
 
 
         checks.Add(BuildCheck(
-
             ReadinessCheckKeys.Documents,
-
-            documentsReady,
-
-            ReadinessSeverities.Warning,
-
-            "Documentos",
-
-            documentsSent
-
-                ? "La convocatoria consta como enviada."
-
-                : metrics.ConvocationCount > 0
-
-                    ? "Hay una convocatoria guardada o validada, pero no consta como enviada."
-
-                    : "Todavía no hay convocatoria.",
-
-            documentsSent
-
-                ? $"{metrics.SentConvocationCount} enviada(s)"
-
-                : metrics.ConvocationCount > 0
-
-                    ? $"{metrics.ConvocationCount} sin envío"
-
-                    : null,
-
-            "Agregar documentos",
-
+            false,
+            ReadinessSeverities.Info,
+            "Adjuntos de convocatoria",
+            "No hay adjuntos en la convocatoria. El expediente reúne las evidencias después de la sesión y no forma parte de ese mensaje.",
+            null,
+            "",
             ReadinessDestinationKeys.AssemblyConvocation,
-
-            Can(Permissions.ConvocationsCreate) || Can(Permissions.ConvocationsSend),
-
-            documentsSent
-
-                ? ReadinessCheckStatuses.Ready
-
-                : metrics.ConvocationCount > 0
-
-                    ? ReadinessCheckStatuses.Available
-
-                    : ReadinessCheckStatuses.Optional));
+            false,
+            ReadinessCheckStatuses.NotApplicable));
 
 
 

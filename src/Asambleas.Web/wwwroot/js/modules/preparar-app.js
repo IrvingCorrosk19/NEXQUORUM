@@ -16,6 +16,8 @@ let convocation = null;
 let editingAgendaId = null;
 let dirty = false;
 let saving = false;
+let recipientsRendered = false;
+let recipientDraft = null;
 let createKey = sessionStorage.getItem("asambleas-prep-create") || crypto.randomUUID();
 sessionStorage.setItem("asambleas-prep-create", createKey);
 let sendKey = null;
@@ -215,7 +217,35 @@ function paintSteps() {
   next.textContent = step === 3 ? "Guardar y revisar" : step === 4 ? "Enviar convocatoria" : "Guardar y continuar";
 }
 
+function captureRecipientDraft() {
+  if (!recipientsRendered || !qs("#f-internal")) return;
+  recipientDraft = {
+    title: qs("#f-conv-title").value,
+    subject: qs("#f-conv-subject").value,
+    notes: qs("#f-internal").value,
+    ownerIds: selectedOwners(),
+    channels: selectedChannels()
+  };
+}
+
+function applyRecipientDraft() {
+  if (!recipientDraft) return;
+  qs("#f-conv-title").value = recipientDraft.title;
+  qs("#f-conv-subject").value = recipientDraft.subject;
+  qs("#f-internal").value = recipientDraft.notes;
+  const ownersSelected = new Set(recipientDraft.ownerIds);
+  const channelsSelected = new Set(recipientDraft.channels);
+  document.querySelectorAll(".owner-check").forEach((input) => {
+    input.checked = ownersSelected.has(input.value);
+  });
+  document.querySelectorAll(".channel-check").forEach((input) => {
+    if (!input.disabled) input.checked = channelsSelected.has(input.value);
+  });
+  updateRecipientCount();
+}
+
 async function showStep(next, { push = true } = {}) {
+  if (step === 3 && next !== 3) captureRecipientDraft();
   step = next;
   paintSteps();
   paintHead();
@@ -323,7 +353,9 @@ async function loadRecipients() {
   qs("#f-conv-title").value = convocation?.title || suggested;
   qs("#f-conv-subject").value = convocation?.subject || suggested;
   qs("#f-internal").value = convocation?.bodyText || "";
-  updateRecipientCount();
+  recipientsRendered = true;
+  if (recipientDraft) applyRecipientDraft();
+  else updateRecipientCount();
   if (sentStatus(convocation?.status)) {
     document.querySelectorAll("#step-3 input, #step-3 textarea, #step-3 button").forEach((el) => {
       el.disabled = true;
@@ -384,11 +416,45 @@ async function saveConvocation() {
       });
     }
     dirty = false;
+    recipientDraft = null;
     setStatus("Cambios guardados.");
     return true;
   } catch (error) {
     setStatus("No se pudo guardar. Reintentar.");
     fieldError("#err-owners", error.message || "No se pudo guardar la convocatoria.");
+    return false;
+  }
+}
+
+async function savePendingAgenda() {
+  const title = qs("#a-title").value.trim();
+  if (!title) return true;
+  fieldError("#err-agenda", "");
+  setStatus("Guardando…");
+  try {
+    if (editingAgendaId) {
+      const current = agenda.find((item) => item.id === editingAgendaId);
+      await api(`/api/assemblies/${assemblyId}/agenda/${editingAgendaId}`, {
+        method: "PUT",
+        body: { code: current?.code || "P", title }
+      });
+    } else {
+      await api(`/api/assemblies/${assemblyId}/agenda`, {
+        method: "POST",
+        body: { ordinal: agenda.length + 1, code: `P${agenda.length + 1}`, title }
+      });
+    }
+    qs("#a-title").value = "";
+    editingAgendaId = null;
+    qs("#btn-agenda-cancel").hidden = true;
+    qs("#btn-agenda-save").textContent = "Agregar asunto";
+    dirty = false;
+    setStatus("Cambios guardados.");
+    await loadAgenda();
+    return true;
+  } catch (error) {
+    setStatus("No se pudo guardar. Reintentar.");
+    fieldError("#err-agenda", error.message || "No se pudo guardar el asunto.");
     return false;
   }
 }
@@ -410,6 +476,12 @@ async function loadReview() {
     preview = null;
   }
   const when = assembly.scheduledAtUtc ? new Date(assembly.scheduledAtUtc).toLocaleString("es-PA", { dateStyle: "full", timeStyle: "short" }) : "";
+  const draft = dirty ? recipientDraft : null;
+  const shownTitle = draft?.title || convocation.title || "";
+  const shownSubject = draft?.subject || convocation.subject || "";
+  const shownNotes = draft ? draft.notes : (convocation.bodyText || "");
+  const shownChannels = draft?.channels || convocation.channels || [];
+  const shownCount = draft ? draft.ownerIds.length : (convocation.recipients?.length || 0);
   const failed = (convocation.checks || []).filter((check) => check.passed === false);
   const problems = failed.length
     ? failed.map((check) => `<p><strong>${escapeHtml(check.label)}.</strong> ${escapeHtml(check.detail)} <button type="button" class="btn btn-ghost btn-sm" data-jump="3">Corregir</button></p>`).join("")
@@ -419,11 +491,11 @@ async function loadReview() {
     <p><strong>${escapeHtml(qs("#prep-ph").textContent)}</strong><br>${escapeHtml(assembly.title)}<br>${escapeHtml(when)} · ${escapeHtml(assembly.timeZoneId || "America/Panama")}<br>${escapeHtml(modalityLabel(assembly.modality))}${assembly.locationText ? ` · ${escapeHtml(assembly.locationText)}` : ""}</p>
     <p><button type="button" class="btn btn-ghost btn-sm" data-jump="2">Editar agenda</button></p>
     <p>${agenda.length ? agenda.map((item) => escapeHtml(item.title)).join(" · ") : "Sin asuntos. La agenda no es obligatoria para enviar."}</p>
-    <p>Documentos de la convocatoria: no hay adjuntos. El expediente no se envía con este mensaje.</p>
+    <p>La convocatoria no tiene adjuntos. El expediente es evidencia posterior y no forma parte de este mensaje.</p>
     <p><button type="button" class="btn btn-ghost btn-sm" data-jump="3">Editar destinatarios</button></p>
-    <p><strong>${escapeHtml(convocation.title || "")}</strong><br>Asunto: ${escapeHtml(convocation.subject || "")}</p>
-    <p>${convocation.recipients?.length || 0} destinatarios de la comunicación · ${(convocation.channels || []).join(", ")}</p>
-    <p class="text-secondary">Notas internas: ${escapeHtml(convocation.bodyText || "Ninguna. No se envían al propietario.")}</p>
+    <p><strong>${escapeHtml(shownTitle)}</strong><br>Asunto: ${escapeHtml(shownSubject)}</p>
+    <p>${shownCount} destinatarios de la comunicación · ${shownChannels.join(", ")}</p>
+    <p class="text-secondary">Notas internas: ${escapeHtml(shownNotes || "Ninguna. No se envían al propietario.")}${draft ? " Estos cambios todavía no están guardados." : ""}</p>
     ${problems}
     <p><a class="btn btn-ghost btn-sm" href="/convocation.html?assemblyId=${encodeURIComponent(assemblyId)}">Crear otra convocatoria</a></p>`;
   const wrap = qs("#preview-frame-wrap");
@@ -503,9 +575,7 @@ async function continueStep() {
     if (step === 1) {
       if (await saveAssembly()) await showStep(2);
     } else if (step === 2) {
-      dirty = false;
-      setStatus("Cambios guardados.");
-      await showStep(3);
+      if (await savePendingAgenda()) await showStep(3);
     } else if (step === 3) {
       if (await saveConvocation()) await showStep(4, { push: true });
     } else if (step === 4) {
@@ -517,26 +587,60 @@ async function continueStep() {
   }
 }
 
-async function leave(save) {
-  if (save && step === 1 && !(await saveAssembly())) return false;
-  if (save && step === 3 && !(await saveConvocation())) return false;
-  dirty = false;
-  location.href = assemblyId ? `/dashboard.html?assemblyId=${assemblyId}` : "/calendar.html";
+async function saveCurrent() {
+  if (step === 3) captureRecipientDraft();
+  if (step === 1) return saveAssembly();
+  if (step === 2) return savePendingAgenda();
+  if (step === 3 || step === 4) return dirty ? saveConvocation() : true;
   return true;
 }
 
-async function askLeave() {
+async function saveAndLeave() {
+  if (saving) return;
+  saving = true;
+  qs("#btn-exit").disabled = true;
+  qs("#btn-next").disabled = true;
+  setStatus("Guardando…");
+  try {
+    const saved = await saveCurrent();
+    if (!saved) return;
+    dirty = false;
+    location.href = assemblyId ? `/dashboard.html?assemblyId=${assemblyId}` : "/calendar.html";
+  } finally {
+    saving = false;
+    if (qs("#btn-exit")) qs("#btn-exit").disabled = false;
+    if (qs("#btn-next") && !sentStatus(convocation?.status)) qs("#btn-next").disabled = false;
+  }
+}
+
+async function askLeave(url) {
   if (!dirty) {
-    await leave(false);
+    location.href = url;
     return;
   }
   const dialog = qs("#leave-dialog");
+  if (dialog.open) return;
   dialog.showModal();
   const choice = await new Promise((resolve) => {
     dialog.addEventListener("close", () => resolve(dialog.returnValue), { once: true });
   });
-  if (choice === "save") await leave(true);
-  else if (choice === "discard") await leave(false);
+  if (choice === "stay" || !choice) return;
+  if (choice === "discard") {
+    dirty = false;
+    location.href = url;
+    return;
+  }
+  if (saving) return;
+  saving = true;
+  setStatus("Guardando…");
+  try {
+    const saved = await saveCurrent();
+    if (!saved) return;
+    dirty = false;
+    location.href = url;
+  } finally {
+    saving = false;
+  }
 }
 
 function pendingStep() {
@@ -573,6 +677,7 @@ async function boot() {
   qs("#form-assembly").addEventListener("input", markDirty);
   qs("#f-modality").addEventListener("change", syncPlace);
   qs("#form-agenda").addEventListener("submit", saveAgenda);
+  qs("#a-title").addEventListener("input", markDirty);
   qs("#btn-agenda-cancel").addEventListener("click", () => {
     editingAgendaId = null;
     qs("#a-title").value = "";
@@ -624,7 +729,17 @@ async function boot() {
   qs("#f-conv-subject").addEventListener("input", markDirty);
   qs("#btn-next").addEventListener("click", continueStep);
   qs("#btn-back").addEventListener("click", () => showStep(Math.max(1, step - 1)));
-  qs("#btn-exit").addEventListener("click", askLeave);
+  qs("#btn-exit").addEventListener("click", saveAndLeave);
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (!link || link.target === "_blank" || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const url = new URL(link.href, location.origin);
+    if (url.origin !== location.origin) return;
+    if (url.pathname.endsWith("/preparar.html")) return;
+    if (!dirty) return;
+    event.preventDefault();
+    askLeave(`${url.pathname}${url.search}${url.hash}`);
+  });
   qs("#prep-steps").addEventListener("click", (event) => {
     const button = event.target.closest("[data-step]");
     if (!button || button.disabled) return;

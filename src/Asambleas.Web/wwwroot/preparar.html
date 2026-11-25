@@ -107,8 +107,8 @@
           </section>
           <section id="step-2" class="card prep-card" hidden>
             <div class="card-body">
-              <h2>Agenda y documentos</h2>
-              <p class="text-secondary">La agenda es opcional para enviar la convocatoria y no crea votaciones. No hay una función para adjuntar documentos a la convocatoria; el expediente reúne las evidencias después de la sesión.</p>
+              <h2>Agenda</h2>
+              <p class="text-secondary">La agenda es opcional para enviar la convocatoria y no crea votaciones. La convocatoria no admite adjuntos. El expediente reúne las evidencias después de la sesión.</p>
               <div id="agenda-list"></div>
               <form id="form-agenda" class="prep-form">
                 <label>Asunto
@@ -120,7 +120,7 @@
                   <button type="button" class="btn btn-ghost" id="btn-agenda-cancel" hidden>Cancelar edición</button>
                 </div>
               </form>
-              <p id="docs-note" class="text-secondary">Los documentos del expediente se muestran cuando ya existen.</p>
+              <p id="docs-note" class="text-secondary">No hay una acción para adjuntar documentos a la convocatoria.</p>
             </div>
           </section>
           <section id="step-3" class="card prep-card" hidden>
@@ -187,6 +187,6 @@
       </div>
     </form>
   </dialog>
-  <script type="module" src="/js/modules/preparar-app.js?v=flow2"></script>
+  <script type="module" src="/js/modules/preparar-app.js?v=flow3"></script>
 </body>
 </html>

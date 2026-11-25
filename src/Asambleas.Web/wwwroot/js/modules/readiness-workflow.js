@@ -49,7 +49,7 @@ export function renderReadinessPanel(panel, readiness, ctx) {
   const rowsHtml = checks
     .map((check) => {
       const meta = statusMeta(check);
-      const canNavigate = Boolean(check.canAct && check.destinationKey && check.status !== "Ready");
+      const canNavigate = Boolean(check.canAct && check.destinationKey && check.status !== "Ready" && check.status !== "NotApplicable" && !/agregar documentos/i.test(check.actionLabel || ""));
       const href = canNavigate ? resolveDestination(check.destinationKey, ctx) : null;
       const tag = canNavigate ? "a" : "div";
       const attrs = canNavigate
@@ -240,7 +240,7 @@ export function renderReadinessCompact(panel, readiness, ctx) {
   const rowsHtml = checks
     .map((check) => {
       const meta = statusMeta(check);
-      const canNavigate = Boolean(check.canAct && check.destinationKey && check.status !== "Ready");
+      const canNavigate = Boolean(check.canAct && check.destinationKey && check.status !== "Ready" && check.status !== "NotApplicable" && !/agregar documentos/i.test(check.actionLabel || ""));
       const href = canNavigate ? resolveDestination(check.destinationKey, ctx) : null;
       const action =
         canNavigate && check.actionLabel
