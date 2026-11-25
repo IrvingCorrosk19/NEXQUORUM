@@ -1,0 +1,18 @@
+.prep-wrap { max-width: 760px; padding-bottom: 5rem; }
+.prep-steps { display: flex; gap: .5rem; flex-wrap: wrap; list-style: none; padding: 0; margin: 0 0 1rem; }
+.prep-steps button { min-height: 44px; border-radius: 999px; border: 1px solid var(--tblr-border-color, #d7dee7); background: #fff; padding: .35rem .8rem; }
+.prep-steps button[aria-current="step"] { background: #0e2744; color: #fff; border-color: #0e2744; }
+.prep-form, .prep-card .card-body { display: grid; gap: .75rem; }
+.prep-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.prep-actions, .prep-bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.prep-bar { position: sticky; bottom: 0; background: #f4f7fb; padding: .75rem 0 1rem; }
+.prep-status { min-height: 1.4rem; }
+.field-error { color: #9f1239; display: block; }
+.owner-row, .agenda-row { display: flex; gap: .75rem; align-items: flex-start; padding: .6rem 0; border-bottom: 1px solid #e7eef6; }
+.owner-row label, .agenda-row { flex: 1; }
+dialog { border: 0; border-radius: 16px; max-width: 32rem; }
+dialog::backdrop { background: rgba(14, 39, 68, .45); }
+@media (max-width: 640px) {
+  .prep-row { grid-template-columns: 1fr; }
+  .prep-bar .btn { flex: 1 1 auto; }
+}

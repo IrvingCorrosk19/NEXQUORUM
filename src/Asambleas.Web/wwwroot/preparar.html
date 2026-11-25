@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASAMBLEAS — Preparar asamblea y convocatoria</title>
+  <link rel="stylesheet" href="/css/tokens.css?v=flow1" />
+  <link rel="stylesheet" href="/lib/tabler/1.7.5/css/tabler.min.css" />
+  <link rel="stylesheet" href="/css/feedback.css?v=fb2" />
+  <link rel="stylesheet" href="/css/gov-ops.css?v=vps10" />
+  <link rel="stylesheet" href="/css/ph-tabler.css?v=vps11" />
+  <link rel="stylesheet" href="/css/preparar.css?v=flow1" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+</head>
+<body class="layout-tabler admin-shell">
+  <a class="skip-link visually-hidden-focusable" href="#main">Saltar al contenido</a>
+  <div class="page app-shell">
+    <aside class="navbar navbar-vertical navbar-expand-lg app-nav" data-bs-theme="dark" aria-label="Navegación">
+      <div class="container-fluid">
+        <button class="navbar-toggler" type="button" id="btn-nav-toggle" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="Abrir menú">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <h1 class="navbar-brand navbar-brand-autodark"><a href="/ph.html">Asambleas</a></h1>
+        <div class="collapse navbar-collapse" id="sidebar-menu">
+          <nav id="ia-nav" aria-label="Navegación contextual"></nav>
+          <script src="/js/shell-paint.js?v=polish7"></script>
+        </div>
+      </div>
+    </aside>
+    <div class="page-wrapper">
+      <header class="navbar navbar-expand-md d-print-none app-top">
+        <div class="container-xl">
+          <span id="ia-context-label" class="visually-hidden">Preparar asamblea</span>
+          <div class="navbar-nav flex-row order-md-last ms-auto">
+            <div class="nav-item dropdown">
+              <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-label="Menú de cuenta">
+                <span class="avatar avatar-sm" id="user-avatar">AS</span>
+                <div class="d-none d-md-block ps-2"><div id="user-chip">Cuenta</div></div>
+              </a>
+              <div class="dropdown-menu dropdown-menu-end">
+                <a class="dropdown-item" href="#" id="btn-logout">Salir</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+      <main id="main" class="page-main">
+        <div class="container-xl prep-wrap">
+          <div id="page-alert" class="alert alert-danger" hidden role="alert"></div>
+          <header class="prep-head">
+            <p class="text-secondary mb-1">Preparar asamblea y convocatoria</p>
+            <h1 id="prep-title">Nueva asamblea</h1>
+            <p id="prep-ph" class="mb-2">Elige el PH de destino.</p>
+            <ol class="prep-steps" id="prep-steps" aria-label="Pasos"></ol>
+            <p id="save-status" class="prep-status" role="status"></p>
+          </header>
+          <section id="step-1" class="card prep-card" hidden>
+            <div class="card-body">
+              <h2>Datos de la asamblea</h2>
+              <form id="form-assembly" class="prep-form">
+                <label>PH de destino
+                  <select id="f-ph" class="form-select" required></select>
+                  <span class="field-error" id="err-ph" hidden></span>
+                </label>
+                <label>Nombre
+                  <input id="f-title" class="form-control" maxlength="200" required autocomplete="off" />
+                  <span class="field-error" id="err-title" hidden></span>
+                </label>
+                <label>Tipo
+                  <select id="f-kind" class="form-select">
+                    <option value="ORDINARY">Ordinaria</option>
+                    <option value="EXTRAORDINARY">Extraordinaria</option>
+                    <option value="OTHER">Otra</option>
+                  </select>
+                </label>
+                <div class="prep-row">
+                  <label>Fecha
+                    <input id="f-date" class="form-control" type="date" required />
+                    <span class="field-error" id="err-date" hidden></span>
+                  </label>
+                  <label>Hora
+                    <select id="f-time" class="form-select" required></select>
+                  </label>
+                </div>
+                <label>Modalidad
+                  <select id="f-modality" class="form-select">
+                    <option value="VIRTUAL">Virtual</option>
+                    <option value="PRESENCIAL">Presencial</option>
+                    <option value="HIBRIDA">Híbrida</option>
+                  </select>
+                </label>
+                <label id="place-wrap" hidden>Lugar
+                  <input id="f-place" class="form-control" maxlength="240" autocomplete="off" />
+                  <span class="field-error" id="err-place" hidden></span>
+                </label>
+                <details>
+                  <summary>Opciones avanzadas</summary>
+                  <label>Duración (minutos)
+                    <input id="f-duration" class="form-control" type="number" min="30" max="480" value="120" />
+                  </label>
+                  <label>Notas internas de la reunión
+                    <textarea id="f-notes" class="form-control" rows="2"></textarea>
+                  </label>
+                </details>
+              </form>
+            </div>
+          </section>
+          <section id="step-2" class="card prep-card" hidden>
+            <div class="card-body">
+              <h2>Agenda y documentos</h2>
+              <p class="text-secondary">La agenda es opcional para guardar la convocatoria. No crea votaciones.</p>
+              <div id="agenda-list"></div>
+              <form id="form-agenda" class="prep-form">
+                <label>Asunto
+                  <input id="a-title" class="form-control" maxlength="200" autocomplete="off" />
+                  <span class="field-error" id="err-agenda" hidden></span>
+                </label>
+                <div class="prep-actions">
+                  <button type="submit" class="btn btn-secondary" id="btn-agenda-save">Agregar asunto</button>
+                  <button type="button" class="btn btn-ghost" id="btn-agenda-cancel" hidden>Cancelar edición</button>
+                </div>
+              </form>
+              <p id="docs-note" class="text-secondary">Los documentos del expediente se muestran cuando ya existen.</p>
+            </div>
+          </section>
+          <section id="step-3" class="card prep-card" hidden>
+            <div class="card-body">
+              <h2>Destinatarios y canales</h2>
+              <p id="recipient-count" class="mb-2">0 destinatarios seleccionados</p>
+              <div class="prep-actions">
+                <input id="owner-search" class="form-control" type="search" placeholder="Buscar por nombre o unidad" />
+                <button type="button" class="btn btn-ghost" id="btn-all">Seleccionar todos</button>
+                <button type="button" class="btn btn-ghost" id="btn-none">Desmarcar</button>
+              </div>
+              <span class="field-error" id="err-owners" hidden></span>
+              <div id="owner-list"></div>
+              <h3>Canales</h3>
+              <div id="channel-list"></div>
+              <span class="field-error" id="err-channels" hidden></span>
+              <label>Notas internas
+                <textarea id="f-internal" class="form-control" rows="2" placeholder="No se envían al propietario."></textarea>
+              </label>
+            </div>
+          </section>
+          <section id="step-4" class="card prep-card" hidden>
+            <div class="card-body">
+              <h2 id="review-heading">Revisar y enviar</h2>
+              <div id="review-body"></div>
+              <div id="preview-frame-wrap"></div>
+              <div id="result-actions" class="prep-actions" hidden></div>
+            </div>
+          </section>
+          <div class="prep-actions prep-bar" id="prep-bar">
+            <button type="button" class="btn btn-secondary" id="btn-back">Volver</button>
+            <button type="button" class="btn btn-ghost" id="btn-exit">Guardar y salir</button>
+            <button type="button" class="btn btn-primary" id="btn-next">Guardar y continuar</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <dialog id="leave-dialog">
+    <form method="dialog" class="card-body">
+      <h2>Hay cambios sin guardar</h2>
+      <p>Puedes guardarlos, descartarlos o seguir editando.</p>
+      <div class="prep-actions">
+        <button class="btn btn-primary" value="save">Guardar y salir</button>
+        <button class="btn btn-secondary" value="discard">Salir sin guardar</button>
+        <button class="btn btn-ghost" value="stay">Seguir editando</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="send-dialog">
+    <form method="dialog" class="card-body">
+      <h2>Enviar convocatoria</h2>
+      <p id="send-summary"></p>
+      <div class="prep-actions">
+        <button class="btn btn-primary" value="send">Enviar convocatoria</button>
+        <button class="btn btn-ghost" value="cancel">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
+  <script type="module" src="/js/modules/preparar-app.js?v=flow1"></script>
+</body>
+</html>

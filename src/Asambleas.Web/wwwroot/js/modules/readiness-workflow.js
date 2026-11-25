@@ -275,7 +275,7 @@ export function renderQuickLinks(host, user, assemblyId, assembly = null) {
         { href: `/expediente.html?${q}`, label: "Expediente" }
       ]
     : [
-        canComms ? { href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
+        canComms ? { href: `/preparar.html?${q}`, label: "Convocatoria" } : null,
         { href: `/checkin.html?${q}`, label: "Participantes" },
         canVote ? { href: `/voting-studio.html?${q}`, label: "Votaciones" } : null,
         { href: `/lobby.html?${q}`, label: "Sala" },
@@ -312,7 +312,7 @@ export function renderWorkspaceGroups(host, user, assemblyId) {
   host.innerHTML = [
     group("Preparación", [
       link(`/agenda.html?${q}`, "Agenda"),
-      canComms ? link(`/convocation.html?${q}`, "Convocatoria") : "",
+      canComms ? link(`/preparar.html?${q}`, "Convocatoria") : "",
       link(`/checkin.html?${q}`, "Participantes"),
       canVote ? link(`/voting-studio.html?${q}`, "Votaciones") : "",
       canComms ? link(`/convocation.html?${q}`, "Documentos") : ""

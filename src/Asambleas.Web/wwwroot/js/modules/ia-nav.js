@@ -129,7 +129,7 @@ export function buildAssemblyTabsHtml(ctx) {
   // Convocatoria is a primary tab. Agenda stays before Sala.
   const tabs = [
     { id: "asm-overview", href: `/dashboard.html?${q}`, label: "Resumen" },
-    canComms ? { id: "asm-convocation", href: `/convocation.html?${q}`, label: "Convocatoria" } : null,
+    canComms ? { id: "asm-convocation", href: `/preparar.html?${q}`, label: "Convocatoria" } : null,
     { id: "asm-checkin", href: `/checkin.html?${q}`, label: "Participantes" },
     { id: "asm-agenda", href: `/agenda.html?${q}`, label: "Agenda" },
     { id: "asm-room", href: `/lobby.html?${q}`, label: "Sala" },
@@ -473,7 +473,7 @@ export function phHref(phId, hash = "") {
 export function assemblyHref(assemblyId, page = "dashboard") {
   const map = {
     dashboard: "/dashboard.html",
-    convocation: "/convocation.html",
+    convocation: "/preparar.html",
     checkin: "/checkin.html",
     lobby: "/lobby.html",
     room: "/assembly.html",

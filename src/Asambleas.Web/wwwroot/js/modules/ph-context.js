@@ -221,6 +221,7 @@ export function resolvePhSwitchTarget(newPhId, {
     "/agenda.html",
     "/voting-studio.html",
     "/convocation.html",
+    "/preparar.html",
     "/minutes.html",
     "/evidence.html",
     "/expediente.html",

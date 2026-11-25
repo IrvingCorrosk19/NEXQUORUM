@@ -6,7 +6,7 @@ import { escapeHtml, qs, showToast } from "./ui.js";
 import { showPageError } from "./app-feedback.js";
 import { bootIaPage } from "./ia-page.js?v=vps9";
 import { iconSvg } from "./tabler-icons.js?v=idn2";
-import { mountIaShell, phHref } from "./ia-nav.js?v=flow5";
+import { mountIaShell, phHref } from "./ia-nav.js?v=flow6";
 import { writeIaContext } from "./ia-context.js";
 import { startHybridShell } from "./hybrid-router.js?v=polish13";
 import { runWithButton } from "./loading.js";
@@ -433,7 +433,7 @@ function wireChips(root) {
       }
     });
   });
-  qs("#empty-schedule")?.addEventListener("click", () => openScheduleDialog());
+  qs("#empty-schedule")?.addEventListener("click", () => openPreparation());
 }
 
 function wireDayScheduling(root) {
@@ -506,7 +506,7 @@ async function openEvent(id) {
     const actions = [];
     actions.push(`<a class="btn btn-secondary" href="/dashboard.html?assemblyId=${ev.assemblyId}">Ver asamblea</a>`);
     if (!isOwnerPortalUser(state.user) && hasPermission(state.user, "communications:view")) {
-      actions.push(`<a class="btn btn-secondary" href="/convocation.html?assemblyId=${ev.assemblyId}">Preparar convocatoria</a>`);
+      actions.push(preparationLink(ev));
     }
     if (ev.canJoin) {
       const live = ev.calendarStatus === "LIVE";
@@ -1028,7 +1028,7 @@ function showScheduleSuccess(created, ph, fallbackEndIso) {
   const id = created.id || created.Id || created.assemblyId;
   qs("#success-view").href = `/ph.html?phId=${encodeURIComponent(createdPhId || "")}#assemblies`;
   qs("#success-agenda").href = `/agenda.html?assemblyId=${id}`;
-  qs("#success-convocation").href = `/convocation.html?assemblyId=${id}`;
+  qs("#success-convocation").href = `/preparar.html?assemblyId=${id}&step=2`;
   if (qs("#success-view")) qs("#success-view").textContent = "Ver en listado del PH";
   openDialog("schedule-success-dialog");
 }
@@ -1084,7 +1084,7 @@ function wireChrome() {
       else closeDialog(id);
     })
   );
-  qs("#btn-schedule")?.addEventListener("click", () => openScheduleDialog());
+  qs("#btn-schedule")?.addEventListener("click", () => openPreparation());
   qs("#btn-calendar-retry")?.addEventListener("click", () => loadEvents());
 
   qs("#sched-ph")?.addEventListener("change", () => {
@@ -1275,12 +1275,35 @@ function wireChrome() {
   });
 }
 
+function openPreparation() {
+  const ph = state.phId ? `?phId=${encodeURIComponent(state.phId)}` : "";
+  location.href = `/preparar.html${ph}`;
+}
+
+function preparationLink(ev) {
+  const status = String(ev.convocationStatus || "");
+  const id = ev.assemblyId;
+  if (status === "Partial" || status === "Failed") {
+    return `<a class="btn btn-secondary" href="/convocation.html?assemblyId=${id}">Revisar entregas</a>`;
+  }
+  if (status === "Sent" || status === "Sending") {
+    return `<a class="btn btn-secondary" href="/preparar.html?assemblyId=${id}&step=4">Ver convocatoria</a>`;
+  }
+  if (status === "Ready" || status === "Approved" || status === "Scheduled") {
+    return `<a class="btn btn-secondary" href="/preparar.html?assemblyId=${id}&step=4">Revisar y enviar</a>`;
+  }
+  if (status === "Draft") {
+    return `<a class="btn btn-secondary" href="/preparar.html?assemblyId=${id}">Continuar preparación</a>`;
+  }
+  return `<a class="btn btn-secondary" href="/preparar.html?assemblyId=${id}">Continuar preparación</a>`;
+}
+
 function wireNav(assemblyId) {
   const q = assemblyId ? `?assemblyId=${assemblyId}` : "";
   const map = {
     "#nav-dashboard": `/dashboard.html${q}`,
     "#nav-comms": `/communications.html${q}`,
-    "#nav-convocation": `/convocation.html${q}`,
+    "#nav-convocation": `/preparar.html${q}`,
     "#nav-checkin": `/checkin.html${q}`,
     "#nav-lobby": `/lobby.html${q}`,
     "#nav-assembly": `/assembly.html${q}`,

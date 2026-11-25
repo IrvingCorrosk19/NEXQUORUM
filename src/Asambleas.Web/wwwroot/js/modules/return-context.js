@@ -22,7 +22,7 @@ export function resolveDestination(key, { assemblyId, phId = null }) {
     "assembly-participants": `/checkin.html?${q}`,
     "ph-units": ph ? `/ph.html?phId=${ph}&returnTo=${ret}&assemblyId=${asm}#units` : `/ph.html#units`,
     "assembly-voting": `/voting-studio.html?${q}`,
-    "assembly-convocation": `/convocation.html?${q}`,
+    "assembly-convocation": `/preparar.html?${q}`,
     "assembly-documents": `/convocation.html?${q}`,
     "ph-comms": ph
       ? `/communications.html?phId=${ph}&assemblyId=${asm}&returnTo=${ret}`

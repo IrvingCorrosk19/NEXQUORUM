@@ -1,7 +1,7 @@
 import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js";
 import { me, logout, hasPermission } from "./auth.js";
 import { applyAvatarElement, avatarCacheBust } from "./avatar-ui.js?v=own11";
-import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=polish7";
+import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=flow6";
 import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
 import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
@@ -1100,7 +1100,7 @@ async function openPh(id, preferredTab = null) {
 
   const newAsm = $("#btn-new-assembly");
   if (newAsm) {
-    newAsm.href = `/calendar.html?phId=${encodeURIComponent(id)}`;
+    newAsm.href = `/preparar.html?phId=${encodeURIComponent(id)}`;
   }
   applyNewAssemblyGate();
 
@@ -1649,7 +1649,7 @@ function renderAssembliesList() {
       bucket === "done"
         ? `<a class="btn btn-ghost btn-sm" href="/minutes.html?assemblyId=${id}">Acta</a>`
         : bucket === "upcoming"
-          ? `<a class="btn btn-ghost btn-sm" href="/convocation.html?assemblyId=${id}">Preparar convocatoria</a>`
+          ? `<a class="btn btn-ghost btn-sm" href="/preparar.html?assemblyId=${id}">Continuar preparación</a>`
           : "";
     const moreMenu =
       bucket === "done" || bucket === "cancelled"
@@ -1668,7 +1668,7 @@ function renderAssembliesList() {
         <div class="ia-row-menu__panel" role="menu">
           <button type="button" role="menuitem" data-asm-summary="${id}">Ver resumen</button>
           <a role="menuitem" href="/calendar.html?assemblyId=${id}">Reprogramar</a>
-          <a role="menuitem" href="/convocation.html?assemblyId=${id}">Preparar convocatoria</a>
+          <a role="menuitem" href="/preparar.html?assemblyId=${id}">Continuar preparación</a>
           <a role="menuitem" href="/minutes.html?assemblyId=${id}">Acta</a>
         </div>
       </details>`;

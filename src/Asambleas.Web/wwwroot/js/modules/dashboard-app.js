@@ -14,7 +14,7 @@ import { resolveDestination } from "./return-context.js";
 import { getDashboard, getReadiness } from "./room-state.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
 import { api } from "./api.js";
-import { mountIaShell, buildAssemblyBreadcrumbs } from "./ia-nav.js?v=gov1";
+import { mountIaShell, buildAssemblyBreadcrumbs } from "./ia-nav.js?v=flow6";
 import { resolvePrimaryAction, statusLabelEs } from "./ia-actions.js";
 import {
   renderReadinessCompact,
