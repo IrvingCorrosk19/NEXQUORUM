@@ -383,10 +383,12 @@ async function saveConvocation() {
   const channelList = selectedChannels();
   if (!ownerIds.length) {
     fieldError("#err-owners", "Selecciona al menos un destinatario.");
+    setStatus("No se pudo guardar. Reintentar.");
     return false;
   }
   if (!channelList.length) {
     fieldError("#err-channels", "Selecciona un canal disponible.");
+    setStatus("No se pudo guardar. Reintentar.");
     return false;
   }
   const title = qs("#f-conv-title").value.trim();
@@ -394,6 +396,7 @@ async function saveConvocation() {
   fieldError("#err-conv-title", "");
   if (!title) {
     fieldError("#err-conv-title", "Indica el título de la convocatoria.");
+    setStatus("No se pudo guardar. Reintentar.");
     return false;
   }
   const payload = {
