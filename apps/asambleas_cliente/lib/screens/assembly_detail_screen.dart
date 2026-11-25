@@ -35,7 +35,8 @@ class _AssemblyDetailScreenState extends State<AssemblyDetailScreen> {
     });
     try {
       final event = await widget.api.getJson('/api/calendar/events/${widget.assemblyId}');
-      final agenda = await widget.api.getList('/api/assemblies/${widget.assemblyId}/agenda');
+      final agendaResponse = await widget.api.getJson('/api/assemblies/${widget.assemblyId}/agenda');
+      final agenda = agendaResponse['items'] is List ? agendaResponse['items'] as List<dynamic> : <dynamic>[];
       List<dynamic> motions = [];
       try {
         motions = await widget.api.getList('/api/assemblies/${widget.assemblyId}/motions');
@@ -71,18 +72,22 @@ class _AssemblyDetailScreenState extends State<AssemblyDetailScreen> {
                   padding: const EdgeInsets.all(16),
                   children: [
                     Text(event?['title']?.toString() ?? 'Asamblea', style: Theme.of(context).textTheme.headlineSmall),
-                    Text(event?['propertyHorizontalName']?.toString() ?? ''),
+                    const SizedBox(height: 4),
+                    Text(event?['propertyHorizontalName']?.toString() ?? '', style: Theme.of(context).textTheme.bodyLarge),
+                    const SizedBox(height: 4),
                     Text(formatWhen(event?['scheduledAtUtc'], timeZone: event?['timeZoneId']?.toString())),
-                    Text('${event?['modality'] ?? ''} · ${assemblyStatusLabel(event?['status']?.toString())}'),
                     const SizedBox(height: 8),
-                    Text('Convocatoria: ${_convocationLabel(event?['convocationStatus']?.toString())}'),
+                    StatusChip(label: assemblyStatusLabel(event?['status']?.toString())),
+                    const SizedBox(height: 16),
+                    const SectionLabel('Convocatoria'),
+                    Text(_convocationLabel(event?['convocationStatus']?.toString())),
                     const SizedBox(height: 12),
                     if (canEnter(event))
                       FilledButton(onPressed: () => context.push('/lobby/${widget.assemblyId}'), child: const Text('Entrar a la sala'))
                     else
                       const Text('El servidor todavía no autoriza el ingreso. No se abre solo porque llegó la hora.'),
                     const SizedBox(height: 20),
-                    Text('Agenda', style: Theme.of(context).textTheme.titleMedium),
+                    const SectionLabel('Agenda'),
                     if (_agenda.isEmpty) const Text('La agenda todavía no tiene puntos visibles.'),
                     for (final item in _agenda)
                       if (item is Map)
@@ -91,7 +96,7 @@ class _AssemblyDetailScreenState extends State<AssemblyDetailScreen> {
                           subtitle: Text(item['code']?.toString() ?? ''),
                         ),
                     const SizedBox(height: 12),
-                    Text('Preguntas', style: Theme.of(context).textTheme.titleMedium),
+                    const SectionLabel('Preguntas y documentos'),
                     if (_motions.isEmpty) const Text('No hay preguntas visibles para tu cuenta.'),
                     for (final item in _motions)
                       if (item is Map)

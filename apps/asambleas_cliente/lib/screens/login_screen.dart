@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/api_exception.dart';
 import '../state/session_controller.dart';
+import '../theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.session});
@@ -41,31 +42,35 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
     return Scaffold(
-      appBar: AppBar(title: const Text('Asambleas')),
       body: SafeArea(
         child: ListView(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottom),
+          padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
           children: [
-            Text('Entra con tu cuenta de participante', style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 8),
-            const Text('La administración de la asamblea se hace en la web.'),
+            const BrandLockup(),
+            const SizedBox(height: 28),
+            Text('Entra a tu asamblea', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 6),
+            Text('Para participantes. La mesa sigue en la web.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AsambleasTheme.muted)),
             const SizedBox(height: 20),
             SegmentedButton<bool>(
               segments: const [
-                ButtonSegment(value: false, label: Text('Contraseña')),
-                ButtonSegment(value: true, label: Text('Código por correo')),
+                ButtonSegment(value: false, label: Text('Contraseña'), icon: Icon(Icons.lock_outline)),
+                ButtonSegment(value: true, label: Text('Código'), icon: Icon(Icons.mail_outline)),
               ],
               selected: {_otp},
-              onSelectionChanged: (value) => setState(() {
-                _otp = value.first;
-                _error = null;
-                _notice = null;
-              }),
+              onSelectionChanged: widget.session.busy
+                  ? null
+                  : (value) => setState(() {
+                        _otp = value.first;
+                        _error = null;
+                        _notice = null;
+                      }),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.email],
               decoration: const InputDecoration(labelText: 'Correo'),
             ),
@@ -76,6 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 obscureText: true,
                 autofillHints: const [AutofillHints.password],
                 decoration: const InputDecoration(labelText: 'Contraseña'),
+                onSubmitted: (_) => _run(() => widget.session.login(_email.text, _password.text)),
               ),
             if (_otp)
               TextField(
@@ -83,8 +89,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Código de 6 dígitos'),
               ),
-            if (_error != null) ...[const SizedBox(height: 12), Text(_error!, style: const TextStyle(color: Color(0xFF7F1D1D)))],
-            if (_notice != null) ...[const SizedBox(height: 12), Text(_notice!)],
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!, style: const TextStyle(fontSize: 16, color: AsambleasTheme.danger)),
+            ],
+            if (_notice != null) ...[
+              const SizedBox(height: 12),
+              Text(_notice!, style: Theme.of(context).textTheme.bodyMedium),
+            ],
             const SizedBox(height: 16),
             FilledButton(
               onPressed: widget.session.busy
@@ -96,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           await widget.session.login(_email.text, _password.text);
                         }
                       }),
-              child: Text(_otp ? 'Verificar código' : 'Entrar'),
+              child: Text(widget.session.busy ? 'Comprobando…' : (_otp ? 'Verificar código' : 'Entrar')),
             ),
             if (_otp)
               TextButton(
@@ -108,12 +120,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         }),
                 child: const Text('Enviar código'),
               ),
-            TextButton(
-              onPressed: () => setState(() => _recover = !_recover),
-              child: const Text('¿Olvidaste tu contraseña?'),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => setState(() => _recover = !_recover),
+                child: const Text('¿Olvidaste tu contraseña?'),
+              ),
             ),
             if (_recover)
-              FilledButton.tonal(
+              OutlinedButton(
                 onPressed: widget.session.busy
                     ? null
                     : () => _run(() async {

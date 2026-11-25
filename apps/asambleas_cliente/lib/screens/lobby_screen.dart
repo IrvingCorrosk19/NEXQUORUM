@@ -121,8 +121,25 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       ),
                     ),
                     if (_deviceNote != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_deviceNote!)),
-                    SwitchListTile(value: _cameraOn, onChanged: (value) => _preview(value), title: const Text('Cámara')),
-                    SwitchListTile(value: _micOn, onChanged: (value) => _mic(value), title: const Text('Micrófono')),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _preview(!_cameraOn),
+                            icon: Icon(_cameraOn ? Icons.videocam : Icons.videocam_off),
+                            label: Text(_cameraOn ? 'Cámara sí' : 'Cámara no'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _mic(!_micOn),
+                            icon: Icon(_micOn ? Icons.mic : Icons.mic_off),
+                            label: Text(_micOn ? 'Micro sí' : 'Micro no'),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 8),
                     const Text('Apagar la cámara o el micrófono no cambia tu acreditación.'),
                     const SizedBox(height: 12),

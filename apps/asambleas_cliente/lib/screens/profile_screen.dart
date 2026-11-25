@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../api/api_exception.dart';
 import '../domain/password_policy.dart';
 import '../state/session_controller.dart';
+import '../theme.dart';
 import '../widgets.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -110,10 +111,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(session.displayName, style: Theme.of(context).textTheme.headlineSmall),
-        Text(session.me?['email']?.toString() ?? ''),
-        const SizedBox(height: 12),
-        Text('Propiedades', style: Theme.of(context).textTheme.titleMedium),
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 32,
+              backgroundColor: AsambleasTheme.navy,
+              child: Text(
+                session.displayName.isEmpty ? 'A' : session.displayName.substring(0, 1).toUpperCase(),
+                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(session.displayName, style: Theme.of(context).textTheme.titleLarge),
+                  Text(session.me?['email']?.toString() ?? ''),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const SectionLabel('Propiedades'),
         for (final property in session.properties)
           ListTile(
             title: Text(property['name']?.toString() ?? 'PH'),
@@ -123,13 +144,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 : () => session.switchPh(property['propertyHorizontalId'].toString()),
           ),
         const SizedBox(height: 12),
-        Text('Foto', style: Theme.of(context).textTheme.titleMedium),
+        const SectionLabel('Foto'),
         if (_preview != null) Image.file(_preview!, height: 160),
         if (_photoError != null) Text(_photoError!, style: const TextStyle(color: Color(0xFF7F1D1D))),
         FilledButton.tonal(onPressed: _pick, child: const Text('Elegir foto')),
         FilledButton(onPressed: _preview == null ? null : _savePhoto, child: const Text('Guardar foto')),
         const SizedBox(height: 16),
-        Text('Contraseña', style: Theme.of(context).textTheme.titleMedium),
+        const SectionLabel('Seguridad'),
         if (!hasPassword)
           const Text('Esta cuenta no usa contraseña local. La recuperación se hace desde el acceso.')
         else ...[

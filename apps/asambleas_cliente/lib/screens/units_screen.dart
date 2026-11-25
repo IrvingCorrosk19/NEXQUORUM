@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/session_controller.dart';
+import '../theme.dart';
 import '../widgets.dart';
 
 class UnitsScreen extends StatelessWidget {
@@ -17,19 +18,23 @@ class UnitsScreen extends StatelessWidget {
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       itemCount: units.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final unit = units[index];
         return Card(
           child: ListTile(
-            title: Text(unit['unitCode']?.toString() ?? 'Unidad'),
-            subtitle: Text(
-              '${unit['propertyHorizontalName'] ?? ''}\n'
-              'Relación: participación de la unidad\n'
-              'Coeficiente del PH: ${unit['unitCoefficientPercent'] ?? '—'} %\n'
-              'Porcentaje de titularidad de la unidad: ${unit['sharePercent'] ?? '—'} %',
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            title: Text(unit['unitCode']?.toString() ?? 'Unidad', style: Theme.of(context).textTheme.titleMedium),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                '${unit['propertyHorizontalName'] ?? ''}\n'
+                'Coeficiente en el PH: ${unit['unitCoefficientPercent'] ?? '—'} %\n'
+                'Titularidad de la unidad: ${unit['sharePercent'] ?? '—'} %',
+                style: const TextStyle(fontSize: 16, height: 1.4, color: AsambleasTheme.muted),
+              ),
             ),
             isThreeLine: true,
           ),

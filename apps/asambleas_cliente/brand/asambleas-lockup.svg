@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 72" role="img" aria-label="Asambleas">
+  <rect width="72" height="72" rx="16" fill="#0E2744"/>
+  <circle cx="36" cy="36" r="18" fill="none" stroke="#E7EEF6" stroke-width="6.5"/>
+  <path d="M18 36 A18 18 0 0 1 36 18" fill="none" stroke="#14B8A6" stroke-width="6.5" stroke-linecap="butt"/>
+  <text x="88" y="46" fill="#0E2744" font-family="Segoe UI, sans-serif" font-size="28" font-weight="700" letter-spacing="1.5">ASAMBLEAS</text>
+</svg>

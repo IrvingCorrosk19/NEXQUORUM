@@ -37,6 +37,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _openVote;
   List<Map<String, dynamic>> _people = [];
   List<Map<String, dynamic>> _chat = [];
+  final _chatInput = TextEditingController();
   String? _error;
   String _section = 'sala';
   var _voteOpen = false;
@@ -53,6 +54,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _chatInput.dispose();
     unawaited(_stop(leave: false));
     super.dispose();
   }
@@ -237,8 +239,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 Expanded(child: _body()),
                 if (_voteOpen && _openVote != null)
                   Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: VoteSheet(api: widget.api, assemblyId: widget.assemblyId, session: _openVote!),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(onPressed: () => setState(() => _voteOpen = false), child: const Text('Ocultar votación')),
+                        ),
+                        VoteSheet(api: widget.api, assemblyId: widget.assemblyId, session: _openVote!),
+                      ],
+                    ),
                   ),
                 _controls(),
               ],
@@ -262,7 +273,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       );
     }
     if (_section == 'chat') {
-      final input = TextEditingController();
       return Column(
         children: [
           Expanded(
@@ -280,14 +290,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.all(8),
             child: Row(
               children: [
-                Expanded(child: TextField(controller: input, decoration: const InputDecoration(hintText: 'Mensaje'))),
+                Expanded(child: TextField(controller: _chatInput, decoration: const InputDecoration(hintText: 'Mensaje'))),
                 IconButton(
                   onPressed: () {
-                    final text = input.text;
-                    input.clear();
+                    final text = _chatInput.text;
+                    _chatInput.clear();
                     unawaited(_send(text));
                   },
                   icon: const Icon(Icons.send),
+                  tooltip: 'Enviar',
                 ),
               ],
             ),
@@ -300,12 +311,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   Widget _controls() {
     final local = _room?.localParticipant;
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 8,
-        children: [
+    return Material(
+      color: const Color(0xFF122033),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
           IconButton(onPressed: () => _toggle(false), icon: Icon(local?.isMicrophoneEnabled() == true ? Icons.mic : Icons.mic_off), tooltip: 'Micrófono'),
           IconButton(onPressed: () => _toggle(true), icon: Icon(local?.isCameraEnabled() == true ? Icons.videocam : Icons.videocam_off), tooltip: 'Cámara'),
           IconButton(onPressed: _hand, icon: const Icon(Icons.back_hand), tooltip: 'Pedir la palabra'),
@@ -323,7 +337,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             ),
           ),
           IconButton(onPressed: () => setState(() => _section = 'sala'), icon: const Icon(Icons.video_camera_front), tooltip: 'Sala'),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

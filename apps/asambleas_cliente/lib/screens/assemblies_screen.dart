@@ -11,25 +11,28 @@ class AssembliesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
     final upcoming = <Map<String, dynamic>>[];
     final past = <Map<String, dynamic>>[];
-    for (final event in session.events) {
-      final when = DateTime.tryParse(event['estimatedEndAtUtc']?.toString() ?? '')?.toLocal();
-      final done = event['status'] == 'Completed' || event['status'] == 'Cancelled' || (when != null && when.isBefore(now));
+    final rows = [...session.events];
+    final next = session.nextAssembly;
+    if (next != null && !rows.any((event) => event['assemblyId']?.toString() == next['assemblyId']?.toString())) {
+      rows.insert(0, next);
+    }
+    for (final event in rows) {
+      final status = event['status']?.toString();
+      final done = status == 'Completed' || status == 'Cancelled';
       (done ? past : upcoming).add(event);
     }
     if (session.events.isEmpty) {
       return const EmptyPanel(title: 'Sin asambleas', body: 'No hay asambleas autorizadas para el PH actual.');
     }
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
-        Text('Próximas', style: Theme.of(context).textTheme.titleMedium),
+        const SectionLabel('Próximas'),
         if (upcoming.isEmpty) const Text('No hay próximas asambleas.'),
         for (final event in upcoming) _tile(context, event),
-        const SizedBox(height: 16),
-        Text('Anteriores', style: Theme.of(context).textTheme.titleMedium),
+        const SectionLabel('Anteriores'),
         if (past.isEmpty) const Text('No hay asambleas anteriores.'),
         for (final event in past) _tile(context, event),
       ],
@@ -37,12 +40,26 @@ class AssembliesScreen extends StatelessWidget {
   }
 
   Widget _tile(BuildContext context, Map<String, dynamic> event) {
-    return Card(
-      child: ListTile(
-        title: Text(event['title']?.toString() ?? 'Asamblea'),
-        subtitle: Text('${event['propertyHorizontalName'] ?? ''}\n${formatWhen(event['scheduledAtUtc'])}\n${assemblyStatusLabel(event['status']?.toString())}'),
-        isThreeLine: true,
-        onTap: () => context.push('/assembly/${event['assemblyId']}'),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Card(
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(12),
+          title: Text(event['title']?.toString() ?? 'Asamblea', style: Theme.of(context).textTheme.titleMedium),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(formatWhen(event['scheduledAtUtc']), style: const TextStyle(fontSize: 16, color: AsambleasTheme.ink)),
+                const SizedBox(height: 6),
+                StatusChip(label: assemblyStatusLabel(event['status']?.toString())),
+              ],
+            ),
+          ),
+          isThreeLine: true,
+          onTap: () => context.push('/assembly/${event['assemblyId']}'),
+        ),
       ),
     );
   }
