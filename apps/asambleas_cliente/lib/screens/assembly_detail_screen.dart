@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../api/api_client.dart';
 import '../api/api_exception.dart';
+import '../state/session_controller.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
 class AssemblyDetailScreen extends StatefulWidget {
-  const AssemblyDetailScreen({super.key, required this.api, required this.assemblyId});
-  final ApiClient api;
+  const AssemblyDetailScreen({super.key, required this.session, required this.assemblyId});
+  final SessionController session;
   final String assemblyId;
 
   @override
@@ -21,25 +21,47 @@ class _AssemblyDetailScreenState extends State<AssemblyDetailScreen> {
   List<dynamic> _motions = [];
   String? _error;
   var _loading = true;
+  var _seenEpoch = -1;
 
   @override
   void initState() {
     super.initState();
+    widget.session.addListener(_onCatalog);
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    widget.session.removeListener(_onCatalog);
+    super.dispose();
+  }
+
+  void _onCatalog() {
+    if (widget.session.catalogEpoch == _seenEpoch) return;
+    _seenEpoch = widget.session.catalogEpoch;
+    final match = widget.session.events.where(
+      (event) => event['assemblyId']?.toString() == widget.assemblyId,
+    );
+    if (match.isNotEmpty && mounted) {
+      setState(() => _event = match.first);
+    }
+    _load(quiet: _event != null);
+  }
+
+  Future<void> _load({bool quiet = false}) async {
+    if (!quiet) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
-      final event = await widget.api.getJson('/api/calendar/events/${widget.assemblyId}');
-      final agendaResponse = await widget.api.getJson('/api/assemblies/${widget.assemblyId}/agenda');
+      final event = await widget.session.api.getJson('/api/calendar/events/${widget.assemblyId}');
+      final agendaResponse = await widget.session.api.getJson('/api/assemblies/${widget.assemblyId}/agenda');
       final agenda = agendaResponse['items'] is List ? agendaResponse['items'] as List<dynamic> : <dynamic>[];
       List<dynamic> motions = [];
       try {
-        motions = await widget.api.getList('/api/assemblies/${widget.assemblyId}/motions');
+        motions = await widget.session.api.getList('/api/assemblies/${widget.assemblyId}/motions');
       } on ApiException {
         motions = [];
       }
@@ -49,6 +71,7 @@ class _AssemblyDetailScreenState extends State<AssemblyDetailScreen> {
         _agenda = agenda;
         _motions = motions;
         _loading = false;
+        _seenEpoch = widget.session.catalogEpoch;
       });
     } on ApiException catch (error) {
       if (!mounted) return;

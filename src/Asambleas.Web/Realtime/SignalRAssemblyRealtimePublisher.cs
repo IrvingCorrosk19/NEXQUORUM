@@ -85,7 +85,19 @@ public sealed class SignalRAssemblyRealtimePublisher : IAssemblyRealtimePublishe
     public Task PublishChatMessageRemovedAsync(Guid assemblyId, Guid messageId, CancellationToken cancellationToken = default) =>
         SendAsync(assemblyId, RealtimeEventNames.ChatMessageRemoved, new { assemblyId, messageId }, cancellationToken);
 
-    private Task SendAsync<T>(Guid assemblyId, string eventName, T payload, CancellationToken cancellationToken) =>
-        _hub.Clients.Group(AssemblyHub.GroupName(assemblyId))
+    public Task PublishCalendarInvalidatedAsync(Guid propertyHorizontalId, CancellationToken cancellationToken = default) =>
+        _hub.Clients.Group(AssemblyHub.CalendarGroupName(propertyHorizontalId))
+            .SendAsync(RealtimeEventNames.CalendarInvalidated, new CalendarInvalidatedDto(propertyHorizontalId), cancellationToken);
+
+    private Task SendAsync<T>(Guid assemblyId, string eventName, T payload, CancellationToken cancellationToken)
+    {
+        var send = _hub.Clients.Group(AssemblyHub.GroupName(assemblyId))
             .SendAsync(eventName, payload, cancellationToken);
+        if (payload is AssemblySummaryDto summary)
+        {
+            return Task.WhenAll(send, PublishCalendarInvalidatedAsync(summary.PropertyHorizontalId, cancellationToken));
+        }
+
+        return send;
+    }
 }

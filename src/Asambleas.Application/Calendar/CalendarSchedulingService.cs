@@ -289,6 +289,7 @@ public sealed class CalendarSchedulingService
             metadata: new { assembly.ScheduledAtUtc, assembly.Status },
             cancellationToken: cancellationToken);
 
+        await _realtime.PublishCalendarInvalidatedAsync(assembly.PropertyHorizontalId, cancellationToken);
         return await ToDetailAsync(assembly, cancellationToken);
     }
 
@@ -408,6 +409,7 @@ public sealed class CalendarSchedulingService
             metadata: new { assembly.Title, assembly.Modality, assembly.ScheduledAtUtc, timeChanged },
             cancellationToken: cancellationToken);
 
+        await _realtime.PublishCalendarInvalidatedAsync(assembly.PropertyHorizontalId, cancellationToken);
         var mapped = await MapEventsAsync([assembly], cancellationToken);
         return mapped[0];
     }
@@ -864,6 +866,13 @@ public sealed class CalendarSchedulingService
         }
 
         throw new DomainException($"Assembly '{assembly.Id}' was not found.");
+    }
+
+    public Task EnsureCanWatchCalendarAsync(Guid propertyHorizontalId, CancellationToken cancellationToken = default)
+    {
+        TenantGuard.EnsureAuthenticated(_currentTenant);
+        var userId = TenantGuard.RequireUserId(_currentTenant);
+        return EnsureCanAccessPhAsync(propertyHorizontalId, userId, cancellationToken);
     }
 
     private async Task EnsureCanAccessPhAsync(

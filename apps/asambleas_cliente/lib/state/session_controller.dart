@@ -2,20 +2,39 @@ import 'package:flutter/foundation.dart';
 
 import '../api/api_client.dart';
 import '../api/api_exception.dart';
+import 'assembly_catalog.dart';
 
 class SessionController extends ChangeNotifier {
   SessionController(this.api);
 
   final ApiClient api;
+  final catalog = AssemblyCatalog();
+  Future<void>? _flight;
+  var _again = false;
   Map<String, dynamic>? me;
   Map<String, dynamic>? profile;
-  Map<String, dynamic>? nextAssembly;
-  List<Map<String, dynamic>> events = [];
+  Map<String, dynamic>? get nextAssembly => catalog.next;
+  List<Map<String, dynamic>> get events => catalog.events;
+  bool get refreshing => catalog.refreshing;
+  bool get assembliesLoaded => catalog.loaded;
+  bool get assembliesOffline => catalog.offline;
+  String? get assembliesError => catalog.error;
+  bool get assembliesEmpty => catalog.showEmpty;
+  int get catalogEpoch => catalog.epoch;
+  String? get activePropertyHorizontalId {
+    final properties = profile?['properties'];
+    if (properties is List) {
+      for (final row in properties) {
+        if (row is Map && row['isCurrent'] == true) return row['propertyHorizontalId']?.toString();
+      }
+    }
+    return null;
+  }
   List<Map<String, dynamic>> portal = [];
   bool ready = false;
   bool busy = false;
   String? error;
-  int generation = 0;
+  int get generation => catalog.generation;
   String? pendingRoute;
 
   bool get signedIn => me != null;
@@ -50,7 +69,7 @@ class SessionController extends ChangeNotifier {
   Future<void> bootstrap() async {
     try {
       me = await api.getJson('/api/auth/me');
-      await refresh();
+      await ensureFresh(force: true);
     } on ApiException {
       me = null;
     } finally {
@@ -63,7 +82,7 @@ class SessionController extends ChangeNotifier {
     await _guard(() async {
       await api.postJson('/api/auth/login', body: {'email': email.trim(), 'password': password}, auth: false);
       me = await api.getJson('/api/auth/me');
-      await refresh();
+      await ensureFresh(force: true);
     });
   }
 
@@ -94,44 +113,84 @@ class SessionController extends ChangeNotifier {
         'Si la cuenta existe, la solicitud de recuperación fue aceptada.';
   }
 
-  Future<void> refresh() async {
-    final ticket = generation;
-    profile = await api.getJson('/api/ph/me/owner-profile');
-    if (ticket != generation) return;
-    final next = await api.getJson('/api/calendar/next');
-    if (ticket != generation) return;
-    nextAssembly = next['next'] is Map ? (next['next'] as Map).map((k, v) => MapEntry(k.toString(), v)) : null;
-    final now = DateTime.now().toUtc();
-    final eventsResponse = await api.getJson('/api/calendar/events', query: {
-      'from': now.subtract(const Duration(days: 120)).toIso8601String(),
-      'to': now.add(const Duration(days: 180)).toIso8601String(),
-    });
-    if (ticket != generation) return;
-    final rows = eventsResponse['events'];
-    events = rows is List
-        ? [for (final row in rows) if (row is Map) row.map((k, v) => MapEntry(k.toString(), v))]
-        : [];
-    try {
-      final notes = await api.getList('/api/communications/portal/me');
-      if (ticket != generation) return;
-      portal = [for (final row in notes) if (row is Map) row.map((k, v) => MapEntry(k.toString(), v))];
-    } on ApiException {
-      portal = [];
+  Future<void> refresh() => ensureFresh(force: true);
+
+  Future<void> ensureFresh({bool force = false}) {
+    if (_flight != null) {
+      if (force) _again = true;
+      return _flight!.then((_) {
+        if (_again) {
+          _again = false;
+          return ensureFresh(force: true);
+        }
+      });
     }
-    error = null;
+    if (!force && catalog.isFresh) return Future.value();
+    final run = _loadAssemblies();
+    _flight = run.whenComplete(() => _flight = null);
+    return run.then((_) {
+      if (_again) {
+        _again = false;
+        return ensureFresh(force: true);
+      }
+    });
+  }
+
+  Future<void> _loadAssemblies() async {
+    final ticket = catalog.generation;
+    catalog.refreshing = true;
     notifyListeners();
+    try {
+      final profileResponse = await api.getJson('/api/ph/me/owner-profile');
+      if (ticket != catalog.generation) return;
+      profile = profileResponse;
+      final next = await api.getJson('/api/calendar/next');
+      if (ticket != catalog.generation) return;
+      final nextAssembly = next['next'] is Map ? (next['next'] as Map).map((k, v) => MapEntry(k.toString(), v)) : null;
+      final now = DateTime.now().toUtc();
+      final eventsResponse = await api.getJson('/api/calendar/events', query: {
+        'from': now.subtract(const Duration(days: 120)).toIso8601String(),
+        'to': now.add(const Duration(days: 180)).toIso8601String(),
+      });
+      if (ticket != catalog.generation) return;
+      final rows = eventsResponse['events'];
+      final events = rows is List
+          ? [for (final row in rows) if (row is Map) row.map((k, v) => MapEntry(k.toString(), v))]
+          : <Map<String, dynamic>>[];
+      catalog.commit(ticket: ticket, events: events, next: nextAssembly);
+      try {
+        final notes = await api.getList('/api/communications/portal/me');
+        if (ticket != catalog.generation) return;
+        portal = [for (final row in notes) if (row is Map) row.map((k, v) => MapEntry(k.toString(), v))];
+      } on ApiException {
+        if (ticket == catalog.generation) portal = [];
+      }
+      error = null;
+    } on ApiException catch (exception) {
+      if (exception.status == 401) {
+        me = null;
+        catalog.fail(ticket: ticket, message: 'La sesión expiró. Entra de nuevo.', offline: false);
+      } else if (ticket == catalog.generation) {
+        catalog.fail(
+          ticket: ticket,
+          message: exception.message,
+          offline: exception.uncertain || exception.status == null,
+        );
+      }
+    } finally {
+      if (ticket == catalog.generation) catalog.refreshing = false;
+      if (ticket == catalog.generation) notifyListeners();
+    }
   }
 
   Future<void> switchPh(String propertyHorizontalId) async {
-    generation++;
-    nextAssembly = null;
-    events = [];
+    catalog.beginPhSwitch();
     portal = [];
     notifyListeners();
     await _guard(() async {
       await api.postJson('/api/ph/switch', body: {'propertyHorizontalId': propertyHorizontalId});
       me = await api.getJson('/api/auth/me');
-      await refresh();
+      await ensureFresh(force: true);
     });
   }
 
@@ -142,10 +201,8 @@ class SessionController extends ChangeNotifier {
     await api.jar.deleteAll();
     me = null;
     profile = null;
-    nextAssembly = null;
-    events = [];
     portal = [];
-    generation++;
+    catalog.beginPhSwitch();
     notifyListeners();
   }
 

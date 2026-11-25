@@ -53,4 +53,6 @@ public interface IAssemblyRealtimePublisher
     Task PublishChatMessageAsync(Guid assemblyId, AssemblyChatMessageDto message, CancellationToken cancellationToken = default);
 
     Task PublishChatMessageRemovedAsync(Guid assemblyId, Guid messageId, CancellationToken cancellationToken = default);
+
+    Task PublishCalendarInvalidatedAsync(Guid propertyHorizontalId, CancellationToken cancellationToken = default);
 }

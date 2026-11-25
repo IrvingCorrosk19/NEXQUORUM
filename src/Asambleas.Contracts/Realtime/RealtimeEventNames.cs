@@ -29,4 +29,8 @@ public static class RealtimeEventNames
     public const string DeviceActivationRequested = "deviceActivationRequested";
     public const string ChatMessageAppended = "chatMessageAppended";
     public const string ChatMessageRemoved = "chatMessageRemoved";
+    /// <summary>The PH calendar changed. Clients refetch; the payload has no assembly content.</summary>
+    public const string CalendarInvalidated = "calendarInvalidated";
 }
+
+public sealed record CalendarInvalidatedDto(Guid PropertyHorizontalId);

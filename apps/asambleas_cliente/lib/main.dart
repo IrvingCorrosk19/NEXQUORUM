@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +13,7 @@ import 'screens/login_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/room_screen.dart';
 import 'screens/units_screen.dart';
+import 'state/calendar_sync.dart';
 import 'state/session_controller.dart';
 import 'theme.dart';
 
@@ -31,7 +34,41 @@ class AsambleasApp extends StatefulWidget {
   State<AsambleasApp> createState() => _AsambleasAppState();
 }
 
-class _AsambleasAppState extends State<AsambleasApp> {
+class _AsambleasAppState extends State<AsambleasApp> with WidgetsBindingObserver {
+  late final CalendarSync _calendar = CalendarSync(widget.session);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.session.addListener(_syncCalendar);
+    _syncCalendar();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.session.removeListener(_syncCalendar);
+    unawaited(_calendar.stop());
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && widget.session.signedIn) {
+      unawaited(widget.session.ensureFresh(force: true));
+      _syncCalendar();
+    }
+  }
+
+  void _syncCalendar() {
+    if (!widget.session.signedIn) {
+      unawaited(_calendar.stop());
+      return;
+    }
+    unawaited(_calendar.start(widget.session.activePropertyHorizontalId));
+  }
+
   late final GoRouter _router = GoRouter(
     initialLocation: '/inicio',
     refreshListenable: widget.session,
@@ -50,7 +87,10 @@ class _AsambleasAppState extends State<AsambleasApp> {
           body: navigationShell,
           bottomNavigationBar: NavigationBar(
             selectedIndex: navigationShell.currentIndex,
-            onDestinationSelected: navigationShell.goBranch,
+            onDestinationSelected: (index) {
+              navigationShell.goBranch(index);
+              if (index == 0 || index == 2) unawaited(widget.session.ensureFresh());
+            },
             destinations: const [
               NavigationDestination(icon: Icon(Icons.home), label: 'Inicio'),
               NavigationDestination(icon: Icon(Icons.apartment), label: 'Mis unidades'),
@@ -68,7 +108,7 @@ class _AsambleasAppState extends State<AsambleasApp> {
       ),
       GoRoute(
         path: '/assembly/:id',
-        builder: (context, state) => AssemblyDetailScreen(api: widget.session.api, assemblyId: state.pathParameters['id']!),
+        builder: (context, state) => AssemblyDetailScreen(session: widget.session, assemblyId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/lobby/:id',

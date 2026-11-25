@@ -5,32 +5,69 @@ import '../state/session_controller.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.session});
   final SessionController session;
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final _scroll = ScrollController();
+
+  SessionController get session => widget.session;
+
+  @override
+  void initState() {
+    super.initState();
+    session.ensureFresh();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: session,
+      builder: (context, _) => _body(context),
+    );
+  }
+
+  Widget _body(BuildContext context) {
     final next = session.nextAssembly;
     return RefreshIndicator(
       onRefresh: session.refresh,
       child: ListView(
+        controller: _scroll,
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(20),
         children: [
+          if (session.refreshing && session.assembliesLoaded) const LinearProgressIndicator(),
           Text('Hola, ${session.displayName}', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 4),
           Text(session.activePhName, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 20),
-          if (session.error != null) ...[
-            ErrorPanel(message: session.error!, onRetry: session.refresh),
+          if (!session.assembliesLoaded && session.refreshing) const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
+          if (session.assembliesError != null) ...[
+            ErrorPanel(
+              message: session.assembliesOffline
+                  ? 'Sin conexión. Los datos en pantalla pueden estar desactualizados. ${session.assembliesError}'
+                  : session.assembliesError!,
+              onRetry: session.refresh,
+            ),
             const SizedBox(height: 12),
           ],
-          if (next == null)
+          if (session.assembliesLoaded && next == null && session.assembliesError == null)
             const EmptyPanel(
               title: 'No hay una próxima asamblea',
               body: 'Cuando haya una convocatoria para tu cuenta, la verás aquí. El historial está en Asambleas.',
             )
-          else
+          else if (next != null)
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(18),

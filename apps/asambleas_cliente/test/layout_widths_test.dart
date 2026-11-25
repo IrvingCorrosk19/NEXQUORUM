@@ -39,7 +39,7 @@ void main() {
           },
         ],
       };
-      session.nextAssembly = {
+      final next = {
         'assemblyId': '1',
         'title': 'Asamblea ordinaria de prueba con título largo',
         'status': 'CheckIn',
@@ -47,15 +47,19 @@ void main() {
         'scheduledAtUtc': '2026-11-16T19:00:00Z',
         'propertyHorizontalName': 'PH de prueba',
       };
-      session.events = [
-        session.nextAssembly!,
-        {
-          'assemblyId': '2',
-          'title': 'Asamblea anterior',
-          'status': 'Completed',
-          'scheduledAtUtc': '2026-09-25T19:00:00Z',
-        },
-      ];
+      session.catalog.commit(
+        ticket: session.generation,
+        next: next,
+        events: [
+          next,
+          {
+            'assemblyId': '2',
+            'title': 'Asamblea anterior',
+            'status': 'Completed',
+            'scheduledAtUtc': '2026-09-25T19:00:00Z',
+          },
+        ],
+      );
 
       Future<void> pump(Widget child) async {
         await tester.pumpWidget(

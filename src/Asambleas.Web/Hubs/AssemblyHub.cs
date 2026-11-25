@@ -4,6 +4,7 @@ using System.Security.Claims;
 using Asambleas.Application.Abstractions;
 using Asambleas.Application.Assembly;
 using Asambleas.Application.Attendance;
+using Asambleas.Application.Calendar;
 using Asambleas.Application.Meeting;
 using Asambleas.Domain.Common;
 using Asambleas.Domain.Services;
@@ -16,11 +17,13 @@ using Microsoft.AspNetCore.SignalR;
 public sealed class AssemblyHub : Hub
 {
     public const string AssemblyGroupPrefix = "assembly:";
+    public const string CalendarGroupPrefix = "calendar-ph:";
     private const string AssemblyItemKey = "AssemblyId";
 
     private readonly AttendanceService _attendance;
     private readonly AssemblyAccessService _access;
     private readonly MeetingService _meetings;
+    private readonly CalendarSchedulingService _calendar;
     private readonly CurrentTenant _currentTenant;
     private readonly IAssemblyHubPresence _hubPresence;
     private readonly ILogger<AssemblyHub> _logger;
@@ -29,6 +32,7 @@ public sealed class AssemblyHub : Hub
         AttendanceService attendance,
         AssemblyAccessService access,
         MeetingService meetings,
+        CalendarSchedulingService calendar,
         CurrentTenant currentTenant,
         IAssemblyHubPresence hubPresence,
         ILogger<AssemblyHub> logger)
@@ -36,12 +40,30 @@ public sealed class AssemblyHub : Hub
         _attendance = attendance;
         _access = access;
         _meetings = meetings;
+        _calendar = calendar;
         _currentTenant = currentTenant;
         _hubPresence = hubPresence;
         _logger = logger;
     }
 
     public static string GroupName(Guid assemblyId) => $"{AssemblyGroupPrefix}{assemblyId:D}";
+
+    public static string CalendarGroupName(Guid propertyHorizontalId) => $"{CalendarGroupPrefix}{propertyHorizontalId:D}";
+
+    public async Task WatchCalendar(Guid propertyHorizontalId)
+    {
+        EnsureTenantContextFromClaims();
+        try
+        {
+            await _calendar.EnsureCanWatchCalendarAsync(propertyHorizontalId, Context.ConnectionAborted);
+        }
+        catch (DomainException ex)
+        {
+            throw new HubException(ex.Message);
+        }
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, CalendarGroupName(propertyHorizontalId));
+    }
 
     public async Task JoinAssembly(Guid assemblyId, bool markPresence = true)
     {

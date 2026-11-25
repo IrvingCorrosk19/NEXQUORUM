@@ -24,6 +24,7 @@ public sealed class ConvocationService
     private readonly DeliveryDispatchService _dispatch;
     private readonly AssemblyAccessLinkService _accessLinks;
     private readonly IOwnerPortalIdentityService _identity;
+    private readonly IAssemblyRealtimePublisher _realtime;
 
     public ConvocationService(
         IAsambleasDbContext db,
@@ -33,11 +34,13 @@ public sealed class ConvocationService
         CommunicationConfigurationService config,
         DeliveryDispatchService dispatch,
         AssemblyAccessLinkService accessLinks,
-        IOwnerPortalIdentityService identity)
+        IOwnerPortalIdentityService identity,
+        IAssemblyRealtimePublisher realtime)
     {
         _db = db;
         _currentTenant = currentTenant;
         _audit = audit;
+        _realtime = realtime;
         _environment = environment;
         _config = config;
         _dispatch = dispatch;
@@ -310,6 +313,7 @@ public sealed class ConvocationService
             recipients,
             cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+        await _realtime.PublishCalendarInvalidatedAsync(c.PropertyHorizontalId, cancellationToken);
         return await GetAsync(convocationId, cancellationToken);
     }
 
@@ -550,6 +554,7 @@ public sealed class ConvocationService
             recipients,
             cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+        await _realtime.PublishCalendarInvalidatedAsync(c.PropertyHorizontalId, cancellationToken);
 
         // Fix BatchId FK after batch Id assigned — deliveries were created with batch.Id already set since Guid.NewGuid on Entity.
         await _dispatch.ProcessBatchAsync(batch.Id, cancellationToken);
@@ -699,6 +704,7 @@ public sealed class ConvocationService
             recipients,
             cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+        await _realtime.PublishCalendarInvalidatedAsync(c.PropertyHorizontalId, cancellationToken);
 
         await _dispatch.ProcessBatchAsync(batch.Id, cancellationToken);
 
@@ -1248,6 +1254,7 @@ public sealed class ConvocationService
             recipients,
             cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+        await _realtime.PublishCalendarInvalidatedAsync(assembly.PropertyHorizontalId, cancellationToken);
     }
 
     private async Task PopulateRecipientsAsync(
