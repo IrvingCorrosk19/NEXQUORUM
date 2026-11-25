@@ -2,7 +2,7 @@ import { api, ensureAntiforgery, cachedGet, invalidateCachedGet } from "./api.js
 import { me, logout, hasPermission } from "./auth.js";
 import { applyAvatarElement, avatarCacheBust } from "./avatar-ui.js?v=own11";
 import { mountIaShell, phHref, roleFamily } from "./ia-nav.js?v=flow6";
-import { assemblyListBucket, statusLabelEs, resolvePrimaryAction } from "./ia-actions.js";
+import { assemblyListBucket, statusLabelEs, resolvePrimaryAction, preparationAction } from "./ia-actions.js?v=flow2";
 import { formatDateTime, confirmDialog, notify } from "./ui.js?v=cancel-label1";
 import { AppFeedback } from "./app-feedback.js";
 import { bindStickyForm } from "./ux-forms.js";
@@ -1528,9 +1528,9 @@ function renderPhCommand(ph, id) {
           </p>
           <a class="btn btn-primary" id="btn-view-next-assembly" href="${
             aid
-              ? `/dashboard.html?assemblyId=${encodeURIComponent(aid)}`
-              : `/calendar.html?phId=${encodeURIComponent(id)}`
-          }">${aid ? "Ver asamblea" : "Ver en calendario"}</a>
+              ? preparationAction(upcoming).href
+              : `/preparar.html?phId=${encodeURIComponent(id)}`
+          }">${aid ? escapeHtml(preparationAction(upcoming).label) : "Nueva asamblea"}</a>
         </div>
       </div>`;
     return;
@@ -1545,7 +1545,7 @@ function renderPhCommand(ph, id) {
         <p class="text-secondary mb-3">Cuando exista una reunión, aquí verás el estado y la acción disponible para tu rol.</p>
         ${
           canSchedule
-            ? `<a class="btn btn-primary" href="/calendar.html?phId=${encodeURIComponent(id)}">Nueva asamblea</a>`
+            ? `<a class="btn btn-primary" href="/preparar.html?phId=${encodeURIComponent(id)}">Nueva asamblea</a>`
             : ""
         }
       </div>
@@ -1572,7 +1572,7 @@ function renderAssembliesList() {
     all: "Todas"
   };
   const newAsmAction = canScheduleAssembly()
-    ? `<a class="btn btn-primary" href="/calendar.html?phId=${encodeURIComponent(currentPhId || "")}">Nueva asamblea</a>`
+    ? `<a class="btn btn-primary" href="/preparar.html?phId=${encodeURIComponent(currentPhId || "")}">Nueva asamblea</a>`
     : "";
 
   if (!currentPhId) {
@@ -1629,7 +1629,9 @@ function renderAssembliesList() {
     const id = encodeURIComponent(e.assemblyId);
     const bucket = assemblyListBucket(e.status);
     const primary = resolvePrimaryAction(e, { assemblyId: e.assemblyId });
-    const primaryLabel = primary.label || (
+    const prep = preparationAction(e);
+    const continuePrep = bucket === "upcoming" && prep.pending;
+    const primaryLabel = continuePrep ? prep.label : primary.label || (
       bucket === "done"
         ? "Ver resultados"
         : bucket === "live"
@@ -1638,7 +1640,7 @@ function renderAssembliesList() {
             ? "Ver detalle"
             : "Ver asamblea"
     );
-    const primaryHref = primary.href || (
+    const primaryHref = continuePrep ? prep.href : primary.href || (
       bucket === "live"
         ? `/lobby.html?assemblyId=${id}`
         : bucket === "done"
@@ -1649,7 +1651,7 @@ function renderAssembliesList() {
       bucket === "done"
         ? `<a class="btn btn-ghost btn-sm" href="/minutes.html?assemblyId=${id}">Acta</a>`
         : bucket === "upcoming"
-          ? `<a class="btn btn-ghost btn-sm" href="/preparar.html?assemblyId=${id}">Continuar preparación</a>`
+          ? `<a class="btn btn-ghost btn-sm" href="/dashboard.html?assemblyId=${id}">Abrir asamblea</a>`
           : "";
     const moreMenu =
       bucket === "done" || bucket === "cancelled"
@@ -1691,7 +1693,7 @@ function renderAssembliesList() {
           <div class="d-flex justify-content-between align-items-start gap-2">
             <div>
               <strong>${escapeHtml(e.title)}</strong>
-              <p class="text-secondary mb-0">${escapeHtml(when)} · ${escapeHtml(e.modality || "—")}${e.assemblyKind ? ` · ${escapeHtml(e.assemblyKind)}` : ""}${compact ? "" : ` · Convocados ${e.participantCount ?? 0}`}</p>
+              <p class="text-secondary mb-0">${escapeHtml(when)} · ${escapeHtml(e.modality || "—")}${e.assemblyKind ? ` · ${escapeHtml(e.assemblyKind)}` : ""}</p>
             </div>
             <span class="${badgeClass}">${escapeHtml(statusLabelEs(e.status))}</span>
           </div>
@@ -1770,10 +1772,17 @@ async function openAssemblySummary(assemblyId, opener) {
   const id = encodeURIComponent(ev.id || ev.assemblyId || assemblyId);
   const when = ev.scheduledAtUtc ? formatDateTime(ev.scheduledAtUtc) : "Sin fecha";
   const status = statusLabelEs(ev.status || ev.calendarStatus || "");
-  const invited = ev.participantCount ?? ev.invitedCount ?? cached?.participantCount ?? cached?.invitedCount;
-  const invitedText = invited == null
-    ? "No disponible en este resumen"
-    : String(invited);
+  const [dash, convRows] = await Promise.all([
+    api(`/api/assemblies/${assemblyId}/dashboard`).catch(() => null),
+    api(`/api/assemblies/${assemblyId}/convocations`).catch(() => [])
+  ]);
+  const counts = dash?.counts || {};
+  const owners = counts.ownerParticipants ?? counts.OwnerParticipants;
+  const desk = counts.deskStaff ?? counts.DeskStaff;
+  const list = Array.isArray(convRows) ? convRows : [];
+  const currentConv = [...list].sort((a, b) => (b.version || 0) - (a.version || 0))[0];
+  const recipients = currentConv?.recipientCount ?? currentConv?.validRecipientCount;
+  const figure = (value) => (value == null ? "No disponible en este resumen" : String(value));
   $("#asm-summary-title").textContent = ev.title || "Asamblea";
   $("#asm-summary-status").textContent = status || "Asamblea";
   $("#asm-summary-body").innerHTML = `
@@ -1781,16 +1790,18 @@ async function openAssemblySummary(assemblyId, opener) {
       <div><dt>Fecha</dt><dd>${escapeHtml(when)}</dd></div>
       <div><dt>Modalidad</dt><dd>${escapeHtml(ev.modality || "—")}</dd></div>
       <div><dt>Estado</dt><dd>${escapeHtml(status)}</dd></div>
-      <div><dt>Convocados</dt><dd>${escapeHtml(invitedText)}</dd></div>
-      ${invited == null ? `<p class="sheet-summary__note">La lista de convocados se consulta en Participantes. Este resumen no la trae.</p>` : ""}
+      <div><dt>Propietarios convocados</dt><dd>${escapeHtml(figure(owners))}</dd></div>
+      <div><dt>Personal de mesa</dt><dd>${escapeHtml(figure(desk))}</dd></div>
+      <div><dt>Destinatarios de la convocatoria</dt><dd>${escapeHtml(figure(recipients))}</dd></div>
     </dl>`;
   const bucket = assemblyListBucket(ev.status);
+  const prep = preparationAction({ ...ev, convocationStatus: currentConv?.status || ev.convocationStatus, assemblyId: ev.id || ev.assemblyId || assemblyId });
   const operate =
     bucket === "live"
       ? `<a class="btn btn-primary" href="/assembly.html?assemblyId=${id}">Entrar a la sala</a>`
       : bucket === "done"
         ? `<a class="btn btn-primary" href="/minutes.html?assemblyId=${id}">Ver acta</a>`
-        : `<a class="btn btn-primary" href="/dashboard.html?assemblyId=${id}">Abrir asamblea</a>`;
+        : `<a class="btn btn-primary" href="${prep.href}">${escapeHtml(prep.label)}</a>`;
   $("#asm-summary-foot").innerHTML = `
     <button type="button" class="btn btn-secondary" data-asm-summary-close>Cerrar</button>
     ${operate}`;

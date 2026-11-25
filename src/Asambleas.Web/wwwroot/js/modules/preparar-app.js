@@ -241,13 +241,7 @@ async function loadAgenda() {
       <button type="button" class="btn btn-ghost btn-sm" data-up="${item.id}" ${index === 0 ? "disabled" : ""}>Subir</button>
       <button type="button" class="btn btn-ghost btn-sm" data-down="${item.id}" ${index === agenda.length - 1 ? "disabled" : ""}>Bajar</button>
     </div>`).join("") || `<p class="text-secondary">Todavía no hay asuntos. Puedes continuar y agregarlos después.</p>`;
-  try {
-    const docs = await api(`/api/assemblies/${assemblyId}/recording/expediente`);
-    const files = docs.documents || docs.items || [];
-    qs("#docs-note").textContent = files.length ? `${files.length} documento(s) en el expediente.` : "No hay documentos cargados. Este paso es opcional.";
-  } catch {
-    qs("#docs-note").textContent = "No hay documentos para esta preparación. Puedes continuar sin ellos.";
-  }
+  qs("#docs-note").textContent = "No se pueden adjuntar documentos a la convocatoria. El expediente reúne las evidencias después de la sesión.";
 }
 
 async function saveAgenda(event) {
@@ -288,8 +282,9 @@ async function saveAgenda(event) {
 async function loadRecipients() {
   const list = await api(`/api/assemblies/${assemblyId}/convocations`);
   const rows = Array.isArray(list) ? list : list.items || list.convocations || [];
-  const open = rows.find((row) => !sentStatus(row.status));
-  const sent = rows.find((row) => sentStatus(row.status));
+  const ranked = [...rows].sort((a, b) => (b.version || 0) - (a.version || 0));
+  const open = ranked.find((row) => !sentStatus(row.status) && row.status !== "Cancelled");
+  const sent = ranked.find((row) => sentStatus(row.status));
   if (open) convocation = await api(`/api/convocations/${open.id}`);
   else if (sent && !convocation) convocation = await api(`/api/convocations/${sent.id}`);
   const phId = assembly.propertyHorizontalId;
@@ -324,6 +319,9 @@ async function loadRecipients() {
       <input type="checkbox" class="channel-check" value="${value}" ${available && chosen.has(value) ? "checked" : ""} ${available ? "" : "disabled"} />
       <span><strong>${label}</strong><span class="text-secondary">${available ? "Disponible." : escapeHtml(reason)}</span></span>
     </label>`).join("");
+  const suggested = assembly?.title ? `Convocatoria — ${assembly.title}` : "";
+  qs("#f-conv-title").value = convocation?.title || suggested;
+  qs("#f-conv-subject").value = convocation?.subject || suggested;
   qs("#f-internal").value = convocation?.bodyText || "";
   updateRecipientCount();
   if (sentStatus(convocation?.status)) {
@@ -359,11 +357,17 @@ async function saveConvocation() {
     fieldError("#err-channels", "Selecciona un canal disponible.");
     return false;
   }
-  const title = `Convocatoria — ${assembly.title}`;
+  const title = qs("#f-conv-title").value.trim();
+  const subject = qs("#f-conv-subject").value.trim() || title;
+  fieldError("#err-conv-title", "");
+  if (!title) {
+    fieldError("#err-conv-title", "Indica el título de la convocatoria.");
+    return false;
+  }
   const payload = {
     assemblyId,
     title,
-    subject: title,
+    subject,
     bodyHtml: "",
     bodyText: qs("#f-internal").value.trim(),
     channels: channelList,
@@ -406,14 +410,22 @@ async function loadReview() {
     preview = null;
   }
   const when = assembly.scheduledAtUtc ? new Date(assembly.scheduledAtUtc).toLocaleString("es-PA", { dateStyle: "full", timeStyle: "short" }) : "";
+  const failed = (convocation.checks || []).filter((check) => check.passed === false);
+  const problems = failed.length
+    ? failed.map((check) => `<p><strong>${escapeHtml(check.label)}.</strong> ${escapeHtml(check.detail)} <button type="button" class="btn btn-ghost btn-sm" data-jump="3">Corregir</button></p>`).join("")
+    : `<p>Preparación completa. Esta convocatoria está ${escapeHtml(convocation.status === "Ready" ? "lista" : "guardada")} y todavía no se ha enviado. Una entrega confirmada se consulta después del envío.</p>`;
   qs("#review-body").innerHTML = `
     <p><button type="button" class="btn btn-ghost btn-sm" data-jump="1">Editar datos</button></p>
     <p><strong>${escapeHtml(qs("#prep-ph").textContent)}</strong><br>${escapeHtml(assembly.title)}<br>${escapeHtml(when)} · ${escapeHtml(assembly.timeZoneId || "America/Panama")}<br>${escapeHtml(modalityLabel(assembly.modality))}${assembly.locationText ? ` · ${escapeHtml(assembly.locationText)}` : ""}</p>
     <p><button type="button" class="btn btn-ghost btn-sm" data-jump="2">Editar agenda</button></p>
-    <ol>${agenda.map((item) => `<li>${escapeHtml(item.title)}</li>`).join("") || "<li>Sin asuntos.</li>"}</ol>
+    <p>${agenda.length ? agenda.map((item) => escapeHtml(item.title)).join(" · ") : "Sin asuntos. La agenda no es obligatoria para enviar."}</p>
+    <p>Documentos de la convocatoria: no hay adjuntos. El expediente no se envía con este mensaje.</p>
     <p><button type="button" class="btn btn-ghost btn-sm" data-jump="3">Editar destinatarios</button></p>
-    <p>${convocation.recipients?.length || 0} destinatarios · ${(convocation.channels || []).join(", ")}</p>
-    <p class="text-secondary">Notas internas: ${escapeHtml(convocation.bodyText || "Ninguna. No se envían al propietario.")}</p>`;
+    <p><strong>${escapeHtml(convocation.title || "")}</strong><br>Asunto: ${escapeHtml(convocation.subject || "")}</p>
+    <p>${convocation.recipients?.length || 0} destinatarios de la comunicación · ${(convocation.channels || []).join(", ")}</p>
+    <p class="text-secondary">Notas internas: ${escapeHtml(convocation.bodyText || "Ninguna. No se envían al propietario.")}</p>
+    ${problems}
+    <p><a class="btn btn-ghost btn-sm" href="/convocation.html?assemblyId=${encodeURIComponent(assemblyId)}">Crear otra convocatoria</a></p>`;
   const wrap = qs("#preview-frame-wrap");
   wrap.replaceChildren();
   if (preview?.html) {
@@ -549,7 +561,8 @@ async function boot() {
     await loadAssembly();
     const rows = await api(`/api/assemblies/${assemblyId}/convocations`).catch(() => []);
     const list = Array.isArray(rows) ? rows : [];
-    const current = list.find((row) => !sentStatus(row.status)) || list[0];
+    const ranked = [...list].sort((a, b) => (b.version || 0) - (a.version || 0));
+    const current = ranked.find((row) => !sentStatus(row.status) && row.status !== "Cancelled") || ranked[0];
     if (current) convocation = await api(`/api/convocations/${current.id}`);
     const response = await api(`/api/assemblies/${assemblyId}/agenda`).catch(() => ({ items: [] }));
     agenda = response.items || [];
@@ -607,6 +620,8 @@ async function boot() {
   });
   qs("#channel-list").addEventListener("change", markDirty);
   qs("#f-internal").addEventListener("input", markDirty);
+  qs("#f-conv-title").addEventListener("input", markDirty);
+  qs("#f-conv-subject").addEventListener("input", markDirty);
   qs("#btn-next").addEventListener("click", continueStep);
   qs("#btn-back").addEventListener("click", () => showStep(Math.max(1, step - 1)));
   qs("#btn-exit").addEventListener("click", askLeave);

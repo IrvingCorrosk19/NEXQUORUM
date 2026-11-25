@@ -105,6 +105,23 @@ export function resolvePrimaryAction(assembly, { assemblyId } = {}) {
   }
 }
 
+/** Preparation and communication action. Does not replace the legal assembly status. */
+export function preparationAction(assembly) {
+  const id = assembly?.assemblyId || assembly?.id;
+  const status = String(assembly?.convocationStatus || "");
+  const base = `/preparar.html?assemblyId=${encodeURIComponent(id || "")}`;
+  if (status === "Partial" || status === "Failed") {
+    return { pending: true, label: "Revisar entregas", href: `/convocation.html?assemblyId=${encodeURIComponent(id || "")}` };
+  }
+  if (status === "Sent" || status === "Sending") {
+    return { pending: false, label: "Ver convocatoria", href: `${base}&step=4` };
+  }
+  if (status === "Ready" || status === "Approved" || status === "Scheduled") {
+    return { pending: true, label: "Revisar y enviar", href: `${base}&step=4` };
+  }
+  return { pending: true, label: "Continuar preparación", href: base };
+}
+
 export function statusLabelEs(status) {
   return STATUS_LABELS[status] || assemblyLabel(status);
 }

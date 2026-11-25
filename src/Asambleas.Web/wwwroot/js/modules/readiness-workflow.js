@@ -3,7 +3,7 @@
  */
 import { escapeHtml } from "./ui.js";
 import { resolveDestination } from "./return-context.js";
-import { resolvePrimaryAction } from "./ia-actions.js";
+import { resolvePrimaryAction, preparationAction } from "./ia-actions.js?v=flow2";
 import { hasPermission } from "./auth.js";
 import { isOperator } from "./roles.js";
 import { isTerminalStatus } from "./assembly-lifecycle.js";
@@ -142,15 +142,20 @@ export function renderNextAction(host, readiness, assembly, ctx, onRun) {
   const q = `assemblyId=${encodeURIComponent(ctx.assemblyId)}`;
 
   if (operator && status === "Scheduled") {
+    const prep = preparationAction({ ...assembly, assemblyId: ctx.assemblyId });
+    const deskFirst = !prep.pending;
     host.innerHTML = `
       <div class="ia-primary-action ia-primary-action--ready">
-        <h3 class="ia-primary-action__title">Abrir mesa</h3>
-        <p class="ia-primary-action__desc">${escapeHtml(action.description)}</p>
+        <h3 class="ia-primary-action__title">${escapeHtml(deskFirst ? "Abrir mesa" : prep.label)}</h3>
+        <p class="ia-primary-action__desc">${escapeHtml(deskFirst ? action.description : "La convocatoria todavía no se ha enviado. Abrir la mesa sigue disponible y no sustituye esta preparación.")}</p>
         ${pending}
         <p id="primary-cta-error" class="field-error" hidden role="alert"></p>
         <div class="cta-row">
-          <button type="button" class="btn btn-primary" data-open-desk>Abrir mesa</button>
-          <a class="btn btn-secondary" href="/lobby.html?${q}">Entrar a preparar sala</a>
+          ${deskFirst
+            ? `<button type="button" class="btn btn-primary" data-open-desk>Abrir mesa</button>
+               <a class="btn btn-secondary" href="${prep.href}">${escapeHtml(prep.label)}</a>`
+            : `<a class="btn btn-primary" href="${prep.href}">${escapeHtml(prep.label)}</a>
+               <button type="button" class="btn btn-secondary" data-open-desk>Abrir mesa</button>`}
         </div>
       </div>`;
     host.querySelector("[data-open-desk]")?.addEventListener("click", () => onRun(action));
@@ -314,8 +319,7 @@ export function renderWorkspaceGroups(host, user, assemblyId) {
       link(`/agenda.html?${q}`, "Agenda"),
       canComms ? link(`/preparar.html?${q}`, "Convocatoria") : "",
       link(`/checkin.html?${q}`, "Participantes"),
-      canVote ? link(`/voting-studio.html?${q}`, "Votaciones") : "",
-      canComms ? link(`/convocation.html?${q}`, "Documentos") : ""
+      canVote ? link(`/voting-studio.html?${q}`, "Votaciones") : ""
     ].filter(Boolean)),
     group("Durante asamblea", [
       link(`/checkin.html?${q}`, "Participantes"),

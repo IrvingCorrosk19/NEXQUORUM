@@ -15,12 +15,12 @@ import { getDashboard, getReadiness } from "./room-state.js";
 import { ensureAssemblyIdInUrl } from "./assembly-context.js";
 import { api } from "./api.js";
 import { mountIaShell, buildAssemblyBreadcrumbs } from "./ia-nav.js?v=flow6";
-import { resolvePrimaryAction, statusLabelEs } from "./ia-actions.js";
+import { resolvePrimaryAction, statusLabelEs } from "./ia-actions.js?v=flow2";
 import {
   renderReadinessCompact,
   renderNextAction,
   renderQuickLinks
-} from "./readiness-workflow.js?v=open-desk1";
+} from "./readiness-workflow.js?v=flow2";
 import { writeIaContext } from "./ia-context.js";
 import { historicalOverviewUrl, isTerminalStatus, renderHistoricalBanner } from "./assembly-lifecycle.js";
 import { startHybridShell, softNavigate } from "./hybrid-router.js?v=gov1";
@@ -382,6 +382,15 @@ async function init() {
     } catch {
       /* El aviso queda en «Consultando quórum…» hasta que llegue una cifra real. */
     }
+  }
+
+  try {
+    const rows = await api(`/api/assemblies/${assemblyId}/convocations`);
+    const list = Array.isArray(rows) ? rows : [];
+    const current = [...list].sort((a, b) => (b.version || 0) - (a.version || 0))[0];
+    if (current?.status) assembly = { ...assembly, convocationStatus: current.status };
+  } catch {
+    /* El resumen sigue disponible si la convocatoria no se puede consultar. */
   }
 
   paintDashboard(user, assembly, readiness, operator, dash.ok ? dash.data?.counts : null);

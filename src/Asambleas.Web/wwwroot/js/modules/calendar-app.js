@@ -1131,7 +1131,6 @@ function wireChrome() {
     const btn = qs("#btn-create-assembly");
     if (btn) btn.disabled = true;
     const editingId = state.editingAssemblyId;
-    const ph = selectedPh();
     try {
       await runWithButton(btn, editingId ? "Guardando…" : "Creando…", async () => {
         await query.testHooks();
@@ -1162,13 +1161,9 @@ function wireChrome() {
         } else {
           result = await api("/api/assemblies", { method: "POST", body });
           state.scheduleDirty = false;
-          closeDialog("schedule-dialog");
-          showToast({
-            title: "Asamblea programada",
-            message: "La asamblea fue agregada al calendario.",
-            variant: "success"
-          });
-          showScheduleSuccess(result, ph, body.estimatedEndAtUtc);
+          const createdId = result.id || result.Id || result.assemblyId;
+          location.assign(`/preparar.html?assemblyId=${encodeURIComponent(createdId)}&step=2`);
+          return;
         }
         await loadEvents();
         await loadNextBanner();

@@ -45,7 +45,16 @@ function openWorkDialog(opener) {
   qs("#conv-dialog-title")?.focus?.({ preventScroll: true });
 }
 
-function closeWorkDialog() {
+async function closeWorkDialog() {
+  if (formDirty) {
+    const discard = await confirmDialog({
+      title: "Hay cambios sin guardar",
+      body: "Este formulario solo conserva lo escrito mientras permanece abierto. Guarda el borrador para recuperarlo después.",
+      confirmLabel: "Salir sin guardar",
+      cancelLabel: "Seguir editando"
+    });
+    if (!discard) return;
+  }
   formDirty = false;
   rememberDraft(null);
   const dlg = qs("#dlg-convocation");
@@ -63,6 +72,33 @@ function restoreModalFocus() {
 
 function showError(message) {
   showPageError(message, "error");
+}
+
+function syncConvocationEntry(rows) {
+  const link = qs("#btn-continue-prep");
+  const create = qs("#btn-new-convocation");
+  const list = Array.isArray(rows) ? rows : [];
+  const ranked = [...list].sort((a, b) => (b.version || 0) - (a.version || 0));
+  const failed = ranked.find((row) => row.status === "Partial" || row.status === "Failed");
+  const sent = ranked.find((row) => row.status === "Sent" || row.status === "Sending");
+  const open = ranked.find((row) => !["Sent", "Sending", "Partial", "Failed", "Cancelled"].includes(row.status));
+  const id = encodeURIComponent(assemblyId || "");
+  if (link) {
+    if (failed) {
+      link.textContent = "Revisar entregas";
+      link.href = `/convocation.html?assemblyId=${id}#c=${failed.id}`;
+    } else if (open && (open.status === "Ready" || open.status === "Approved" || open.status === "Scheduled")) {
+      link.textContent = "Revisar y enviar";
+      link.href = `/preparar.html?assemblyId=${id}&step=4`;
+    } else if (open || !sent) {
+      link.textContent = "Continuar preparación";
+      link.href = `/preparar.html?assemblyId=${id}`;
+    } else {
+      link.textContent = "Ver convocatoria";
+      link.href = `/preparar.html?assemblyId=${id}&step=4`;
+    }
+  }
+  if (create) create.hidden = list.length === 0;
 }
 
 function statusEs(status) {
@@ -296,7 +332,12 @@ function openCreateDialog(opener) {
   editingId = null;
   syncDialogChrome("create");
   const title = qs("#conv-dialog-title");
-  if (title) title.textContent = "Nueva convocatoria";
+  if (title) title.textContent = "Crear otra convocatoria";
+  const suggested = assembly?.title ? `Convocatoria — ${assembly.title}` : "";
+  const titleInput = qs("#c-title");
+  const subjectInput = qs("#c-subject");
+  if (titleInput) titleInput.value = suggested;
+  if (subjectInput) subjectInput.value = suggested;
   formDirty = false;
   setCreateActionStatus("", "");
   openWorkDialog(opener);
@@ -407,8 +448,9 @@ async function refreshList() {
       throw new Error("No se pudieron cargar los borradores.");
     }
     const scope = qs("#conv-scope-line");
+    syncConvocationEntry(rows);
     if (!rows.length) {
-      panel.innerHTML = `<div class="empty-state">Sin borrador. Crea la primera convocatoria para este PH.</div>`;
+      panel.innerHTML = `<div class="empty-state">No hay convocatoria guardada. Continúa la preparación de esta asamblea.</div>`;
       setStatusPill(qs("#conv-status-pill"), "Draft", "Sin borrador");
       if (scope) scope.textContent = "No hay convocatorias en esta asamblea.";
       return rows;
@@ -1300,6 +1342,11 @@ async function init() {
     collapseCreateForm();
     await openDetail(reopen, qs("#btn-new-convocation"), { pushHash: false });
   }
+  window.addEventListener("beforeunload", (event) => {
+    if (!formDirty) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
   window.addEventListener("popstate", async () => {
     const id = draftHashId();
     const dlg = qs("#dlg-convocation");
